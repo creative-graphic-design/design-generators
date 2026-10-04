@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import hashlib
 import os
 from pathlib import Path
 from typing import cast
@@ -18,6 +19,7 @@ from lightning.pytorch.utilities.types import (
     OptimizerLRSchedulerConfig,
 )
 from torch import nn
+from traingen_parity.determinism import capture_rng_state
 
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 
@@ -30,6 +32,19 @@ from .reference import FrozenLayoutDMReference
 def _initialization_device() -> torch.device:
     """Select the device used by the original corrector during construction."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _rng_digest() -> str:
+    state = capture_rng_state()
+    digest = hashlib.sha256()
+    digest.update(state.torch_cpu.detach().cpu().contiguous().numpy().tobytes())
+    for item in state.torch_cuda:
+        digest.update(item.detach().cpu().contiguous().numpy().tobytes())
+
+    digest.update(repr(state.python).encode())
+    digest.update(str(state.numpy[0]).encode())
+    digest.update(state.numpy[1].tobytes())
+    return digest.hexdigest()
 
 
 class LayoutCorrectorTrainingModule(LightningModule):
@@ -53,6 +68,7 @@ class LayoutCorrectorTrainingModule(LightningModule):
         """Initialize the corrector and its immutable LayoutDM reference."""
         super().__init__()
         self.config = config
+        self.pre_model_rng_digest = _rng_digest()
         initialization_device = _initialization_device()
         reference = FrozenLayoutDMReference.from_checkpoint(
             dataset_name=config.dataset_name,

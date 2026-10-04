@@ -157,6 +157,7 @@ class ProductionTraceCallback(Callback):
         self._batch_rng_digest: str | None = None
         self._batch_digest: dict[str, str] = {}
         self._initial_cpu_rng_state: Shaped[torch.Tensor, "..."] | None = None
+        self._pre_loader_rng_digest: str | None = None
 
     def _restore_initial_cpu_rng(self, batch_idx: int) -> None:
         """Undo Lightning's first iterator seed draw once per production run."""
@@ -182,6 +183,7 @@ class ProductionTraceCallback(Callback):
             DeterminismConfig(seed=self.seed, deterministic_algorithms=False)
         )
         self._initial_cpu_rng_state = torch.get_rng_state()
+        self._pre_loader_rng_digest = _rng_digest(capture_rng_state())
 
     def on_train_batch_start(
         self,
@@ -254,10 +256,11 @@ class ProductionTraceCallback(Callback):
         module = cast(LayoutCorrectorTrainingModule, pl_module)
         torch.save(module.model.model.state_dict(), self.final_state_path)
         scheduler_state: DigestValue = {}
+        scheduler_class: str | None = None
         if trainer.lr_scheduler_configs:
-            scheduler_state = cast(
-                "DigestValue", trainer.lr_scheduler_configs[0].scheduler.state_dict()
-            )
+            scheduler = trainer.lr_scheduler_configs[0].scheduler
+            scheduler_class = type(scheduler).__name__
+            scheduler_state = cast("DigestValue", scheduler.state_dict())
 
         datamodule = cast(_TrainerWithDataModule, trainer).datamodule
         if datamodule is None:
@@ -268,8 +271,10 @@ class ProductionTraceCallback(Callback):
             json.dumps(
                 {
                     "rows": self.rows,
-                    "scheduler": module.scheduler,
+                    "scheduler_class": scheduler_class,
                     "trace_seed": self.seed,
+                    "pre_model_rng_digest": module.pre_model_rng_digest,
+                    "pre_loader_rng_digest": self._pre_loader_rng_digest,
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),
                     "validation_batches": trainer.num_val_batches,
                     "train_batches": trainer.num_training_batches,

@@ -218,6 +218,7 @@ The converted checkpoints follow the original Layout-Corrector release and use t
 ### Training Procedure
 
 This package ports released behavior and does not retrain the method in this repository.
+Trained-checkpoint S5 reproduction is not claimed; the package evidence covers the ordered S0-S4 agreement checks only.
 
 #### Preprocessing
 

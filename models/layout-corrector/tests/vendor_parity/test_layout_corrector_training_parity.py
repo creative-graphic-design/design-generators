@@ -424,6 +424,8 @@ class Fixture:
     vendor_tokenizer: Any
     vendor_initialization_device: str
     package_initialization_device: str
+    vendor_pre_model_rng_digest: str
+    package_pre_model_rng_digest: str
 
 
 def _fixture(
@@ -437,6 +439,7 @@ def _fixture(
     _, _, backbone = _vendor_config(dataset)
     package_config = _package_layout_dm_config(dataset)
     torch.manual_seed(seed)
+    vendor_pre_model_rng_digest = _state_digest(capture_rng_state())
     vendor_diffusion, vendor_tokenizer = _vendor_reference(
         dataset, tokenizer_cls, layout_dm_cls, backbone
     )
@@ -455,6 +458,7 @@ def _fixture(
         ),
     )
     torch.manual_seed(seed)
+    package_pre_model_rng_digest = _state_digest(capture_rng_state())
     package = LayoutCorrectorTrainingModule(
         config=_corrector_config(dataset, package_config.vocab_size),
         layout_dm_checkpoint_path=_checkpoint_path(dataset),
@@ -465,6 +469,7 @@ def _fixture(
         gradient_clip_norm=1.0,
     )
     package_reference = package._reference_value()
+    assert package.pre_model_rng_digest == package_pre_model_rng_digest
     vendor_initialization_device = str(next(vendor_corrector.parameters()).device)
     package_initialization_device = str(next(package.model.parameters()).device)
     if align_corrector_weights:
@@ -486,6 +491,8 @@ def _fixture(
         vendor_tokenizer=vendor_tokenizer,
         vendor_initialization_device=vendor_initialization_device,
         package_initialization_device=package_initialization_device,
+        vendor_pre_model_rng_digest=vendor_pre_model_rng_digest,
+        package_pre_model_rng_digest=package_pre_model_rng_digest,
     )
 
 
@@ -1042,6 +1049,12 @@ def test_s2_one_optimizer_step_matches_vendor(
     package_optimizer = torch.optim.AdamW(
         fixture.package.optim_groups(), lr=5e-4, betas=(0.9, 0.98)
     )
+    vendor_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        vendor_optimizer, mode="min", factor=0.5, patience=2, threshold=1.0e-2
+    )
+    package_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        package_optimizer, mode="min", factor=0.5, patience=2, threshold=1.0e-2
+    )
     vendor_optimizer.zero_grad()
     package_optimizer.zero_grad()
     vendor_loss = vendor_trace["train_loss"]
@@ -1060,6 +1073,9 @@ def test_s2_one_optimizer_step_matches_vendor(
     )
     assert not first, diffs
     assert torch.allclose(vendor_grad_norm, package_grad_norm, atol=1e-5, rtol=1e-5)
+    vendor_scheduler_digest = _state_digest(vendor_scheduler.state_dict())
+    package_scheduler_digest = _state_digest(package_scheduler.state_dict())
+    assert vendor_scheduler_digest == package_scheduler_digest
     path = _write_json(
         "s2-optimizer-step",
         dataset,
@@ -1069,7 +1085,11 @@ def test_s2_one_optimizer_step_matches_vendor(
             "first_divergence": first,
             "vendor_gradient_norm": float(vendor_grad_norm.item()),
             "package_gradient_norm": float(package_grad_norm.item()),
-            "scheduler_step": "not before validation boundary",
+            "scheduler_state": {
+                "vendor_digest": vendor_scheduler_digest,
+                "package_digest": package_scheduler_digest,
+                "equal": vendor_scheduler_digest == package_scheduler_digest,
+            },
             "runtime": _runtime_record(),
             "vendor_source_commit": _source_commit(
                 ROOT / "vendor" / "layout-corrector"
@@ -1085,7 +1105,7 @@ def _natural_training_batches(
     dataset: LayoutCorrectorTrainingDatasetName,
     tokenizer: Any,
     steps: int,
-) -> tuple[list[dict[str, torch.Tensor]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, torch.Tensor]], list[dict[str, Any]], dict[str, str]]:
     """Materialize paired production loader streams for one natural run."""
     from trainer.data.util import compose_transform, sparse_to_dense
 
@@ -1109,9 +1129,11 @@ def _natural_training_batches(
     package_loader = package_module.train_dataloader()
     seed = 42975
     torch.manual_seed(seed)
+    vendor_pre_loader_rng_digest = _state_digest(capture_rng_state())
+    vendor_iterator = iter(vendor_loader)
     vendor_batches: list[dict[str, Any]] = []
     vendor_ids: list[list[str]] = []
-    for batch_index, batch in enumerate(vendor_loader):
+    for batch_index, batch in enumerate(vendor_iterator):
         if batch_index >= steps:
             break
         bbox, labels, _, mask = sparse_to_dense(batch)
@@ -1126,9 +1148,11 @@ def _natural_training_batches(
         )
         vendor_ids.append(sample_ids)
     torch.manual_seed(seed)
+    package_pre_loader_rng_digest = _state_digest(capture_rng_state())
+    package_iterator = iter(package_loader)
     package_batches: list[dict[str, Any]] = []
     package_ids: list[list[str]] = []
-    for batch_index, batch in enumerate(package_loader):
+    for batch_index, batch in enumerate(package_iterator):
         if batch_index >= steps:
             break
         package_batches.append(batch)
@@ -1146,7 +1170,12 @@ def _natural_training_batches(
     assert stream_report.passed, stream_report
     assert len(vendor_batches) == len(package_batches) == steps
     assert vendor_ids == package_ids
-    return vendor_batches, package_batches
+    loader_record = {
+        "vendor_pre_loader_rng_digest": vendor_pre_loader_rng_digest,
+        "package_pre_loader_rng_digest": package_pre_loader_rng_digest,
+    }
+    assert vendor_pre_loader_rng_digest == package_pre_loader_rng_digest
+    return vendor_batches, package_batches, loader_record
 
 
 def _run_natural_side(
@@ -1156,11 +1185,14 @@ def _run_natural_side(
     side: str,
     initial_state: dict[str, torch.Tensor],
     steps: int,
-) -> tuple[list[dict[str, Any]], dict[str, torch.Tensor], dict[str, Any] | None]:
+) -> tuple[list[dict[str, Any]], dict[str, torch.Tensor], dict[str, Any]]:
     """Run one system without restoring RNG inside the multi-step trajectory."""
     if side == "vendor":
         model = fixture.vendor.model.module
         optimizer = _adamw(fixture.vendor.optim_groups(weight_decay=0.1))
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=2, threshold=1.0e-2
+        )
     else:
         return _run_package_natural_side(
             fixture, batches, initial_state=initial_state, steps=steps
@@ -1199,9 +1231,18 @@ def _run_natural_side(
                 "attention_mask_digest": trace["attention_mask_digest"],
                 "corrupted_tokens_digest": _tensor_digest(trace["xt"]),
                 "reconstructed_tokens_digest": _tensor_digest(trace["x0_recon"]),
+                "model_training": model.training,
             }
         )
-    return rows, deepcopy(model.state_dict()), None
+    return (
+        rows,
+        deepcopy(model.state_dict()),
+        {
+            "scheduler_class": type(scheduler).__name__,
+            "scheduler_state_digest": _state_digest(scheduler.state_dict()),
+            "pre_model_rng_digest": fixture.vendor_pre_model_rng_digest,
+        },
+    )
 
 
 def _run_package_natural_side(
@@ -1273,12 +1314,18 @@ def _run_package_natural_side(
 def _natural_comparison(
     vendor_rows: list[dict[str, Any]],
     package_rows: list[dict[str, Any]],
+    vendor_record: dict[str, Any],
     package_record: dict[str, Any],
+    loader_record: dict[str, str],
 ) -> dict[str, Any]:
     assert len(vendor_rows) == len(package_rows)
     assert Path(package_record["production_path"][0]).name == "traingen"
     assert package_record["production_path"][1] == "fit"
-    assert package_record["scheduler"] == "reduce_on_plateau"
+    assert package_record["scheduler_class"] == vendor_record["scheduler_class"]
+    assert (
+        package_record["scheduler_state_digest"]
+        == vendor_record["scheduler_state_digest"]
+    )
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
     assert package_record["max_epochs"] == 1
@@ -1287,7 +1334,17 @@ def _natural_comparison(
     assert package_record["observed_train_batches"] == len(package_rows)
     assert package_record["max_steps"] == len(package_rows)
     assert package_record["train_batches"] >= len(package_rows)
-    assert package_record["scheduler_state_digest"]
+    assert (
+        package_record["pre_model_rng_digest"] == vendor_record["pre_model_rng_digest"]
+    )
+    assert (
+        package_record["pre_loader_rng_digest"]
+        == loader_record["package_pre_loader_rng_digest"]
+    )
+    assert (
+        loader_record["vendor_pre_loader_rng_digest"]
+        == loader_record["package_pre_loader_rng_digest"]
+    )
     comparison_fields = (
         "input_ids_digest",
         "attention_mask_digest",
@@ -1297,6 +1354,7 @@ def _natural_comparison(
         "rng_digest",
         "optimizer_state_digest",
         "parameter_state_digest",
+        "model_training",
     )
     digest_mismatches: dict[str, list[int]] = {}
     missing_probability_steps: list[int] = []
@@ -1447,7 +1505,7 @@ def test_s3_natural_lockstep_matches_vendor(
     steps = _s3_steps()
     _apply_s3_determinism()
     fixture = _fixture(dataset, device)
-    vendor_batches, package_batches = _natural_training_batches(
+    vendor_batches, package_batches, loader_record = _natural_training_batches(
         dataset, fixture.vendor_tokenizer, steps
     )
     initial_state = deepcopy(fixture.vendor.model.module.state_dict())
@@ -1458,7 +1516,7 @@ def test_s3_natural_lockstep_matches_vendor(
         initial_state=initial_state,
         steps=steps,
     )
-    vendor_repeat_rows, _, _ = _run_natural_side(
+    vendor_repeat_rows, _, vendor_repeat_record = _run_natural_side(
         fixture,
         vendor_batches,
         side="vendor",
@@ -1479,15 +1537,17 @@ def test_s3_natural_lockstep_matches_vendor(
         initial_state=initial_state,
         steps=steps,
     )
-    if (
-        vendor_record is not None
-        or package_record is None
-        or package_repeat_record is None
-    ):
+    if package_repeat_record is None:
         raise AssertionError(
             "natural evidence did not use the expected production path"
         )
-    comparison = _natural_comparison(vendor_rows, package_rows, package_record)
+    comparison = _natural_comparison(
+        vendor_rows,
+        package_rows,
+        vendor_record,
+        package_record,
+        loader_record,
+    )
     final_parameter_diffs, final_parameter_first = _state_diffs(
         vendor_state, package_state
     )
@@ -1540,6 +1600,8 @@ def test_s3_natural_lockstep_matches_vendor(
                 "package": _repeat_envelope(package_rows, package_repeat_rows),
             },
             "production_record": package_record,
+            "vendor_record": vendor_record,
+            "loader_record": loader_record,
             "trace_artifact": str(trace_path.relative_to(ROOT)),
             "runtime": _runtime_record(),
             "vendor_source_commit": _source_commit(
@@ -1571,6 +1633,7 @@ def test_s3_natural_lockstep_matches_vendor(
     assert not vendor_repeat["importance_probability_hash_mismatch_steps"], (
         vendor_repeat
     )
+    assert vendor_repeat_record == vendor_record
     assert not package_repeat["importance_probability_hash_mismatch_steps"], (
         package_repeat
     )
@@ -2032,7 +2095,7 @@ def _package_evaluation(
     pipeline_path: Path,
     vendor_pkl_paths: dict[str, Path],
     scratch: Path,
-) -> tuple[dict[str, Path], dict[str, list[torch.Tensor]], bool, dict[str, Any]]:
+) -> tuple[dict[str, Path], dict[str, list[dict[str, Any]]], bool, dict[str, Any]]:
     from layout_corrector import LayoutCorrectorPipeline
     from layout_dm.training.dataset import LayoutDMProcessedDataset
 
@@ -2073,7 +2136,7 @@ def _package_evaluation(
         condition: package_root / f"package_{condition}"
         for condition in vendor_pkl_paths
     }
-    package_inputs: dict[str, list[torch.Tensor]] = {}
+    package_inputs: dict[str, list[dict[str, Any]]] = {}
     if package_reused:
         for condition, package_dir in package_dirs.items():
             package_path = package_dir / "seed_0.pkl"
@@ -2083,7 +2146,13 @@ def _package_evaluation(
                 package_inputs[condition] = []
                 continue
             package_inputs[condition] = [
-                cast(torch.Tensor, batch["input_ids"]).detach().cpu()
+                {
+                    "input_ids": cast(torch.Tensor, batch["input_ids"]).detach().cpu(),
+                    "attention_mask": cast(torch.Tensor, batch["attention_mask"])
+                    .detach()
+                    .cpu(),
+                    "sample_ids": [str(value) for value in batch.get("id", [])],
+                }
                 for batch in loader
             ]
         subprocess.run(
@@ -2103,7 +2172,7 @@ def _package_evaluation(
         vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         generator = torch.Generator(device=device).manual_seed(EVALUATION_SEED)
         package_predictions: list[tuple[torch.Tensor, torch.Tensor]] = []
-        inputs: list[torch.Tensor] = []
+        inputs: list[dict[str, Any]] = []
         started = time.perf_counter()
         if condition == "unconditional":
             total_layouts = int(vendor_meta["N_total"])
@@ -2135,7 +2204,15 @@ def _package_evaluation(
             condition_type = "label" if condition == "c" else "label_size"
             for batch in loader:
                 input_ids = cast(torch.Tensor, batch["input_ids"])
-                inputs.append(input_ids.detach().cpu())
+                inputs.append(
+                    {
+                        "input_ids": input_ids.detach().cpu(),
+                        "attention_mask": cast(torch.Tensor, batch["attention_mask"])
+                        .detach()
+                        .cpu(),
+                        "sample_ids": [str(value) for value in batch.get("id", [])],
+                    }
+                )
                 decoded = pipeline.layout_dm.tokenizer.decode_layout(input_ids)
                 output = cast(
                     LayoutGenerationOutput,
@@ -2187,6 +2264,93 @@ def _package_evaluation(
     return package_dirs, package_inputs, False, weight_identity
 
 
+def _vendor_evaluation_inputs(
+    vendor_pkl_paths: dict[str, Path], scratch: Path
+) -> dict[str, list[dict[str, Any]]]:
+    """Reconstruct the conditioning tensors from the original evaluator path."""
+    from hydra.utils import instantiate
+    from trainer.helpers.task import get_cond
+    from trainer.trainer.corrector_test import build_tokenizer
+
+    vendor_meta = _load_vendor_metadata(vendor_pkl_paths["unconditional"], scratch)
+    train_config = vendor_meta["train_cfg"]
+    dataset_config = train_config.dataset
+    dataset_config.dir = str(scratch / "download" / "datasets")
+    dataset = instantiate(dataset_config)(split="test", transform=None)
+    loader = GeometricDataLoader(
+        dataset,
+        batch_size=EVALUATION_BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+    )
+    tokenizer = build_tokenizer(train_config.data, dataset_config)
+    inputs: dict[str, list[dict[str, Any]]] = {
+        "unconditional": [],
+        "c": [],
+        "cwh": [],
+    }
+    for batch in loader:
+        sample_ids = [str(value) for value in batch.attr["name"]]
+        for condition in ("c", "cwh"):
+            condition_data = get_cond(
+                batch=batch,
+                tokenizer=tokenizer,
+                cond_type=condition,
+                model_type="LayoutDM",
+            )
+            inputs[condition].append(
+                {
+                    "input_ids": condition_data["seq"].detach().cpu(),
+                    "attention_mask": condition_data["mask"].detach().cpu(),
+                    "sample_ids": sample_ids,
+                }
+            )
+    return inputs
+
+
+def _input_bytes(records: list[dict[str, Any]]) -> bytes:
+    parts: list[bytes] = []
+    for record in records:
+        input_ids = cast(torch.Tensor, record["input_ids"])
+        attention_mask = cast(torch.Tensor, record["attention_mask"])
+        parts.extend(
+            (
+                input_ids.contiguous().numpy().tobytes(),
+                attention_mask.contiguous().numpy().tobytes(),
+            )
+        )
+    return b"".join(parts)
+
+
+def _write_input_artifact(
+    evidence_dir: Path,
+    condition: str,
+    side: str,
+    records: list[dict[str, Any]],
+) -> Path:
+    path = evidence_dir / f"{condition}-{side}-evaluation-inputs.bin"
+    path.write_bytes(_input_bytes(records))
+    return path
+
+
+def _state_artifact_bytes(state: dict[str, torch.Tensor]) -> bytes:
+    parts: list[bytes] = []
+    for name in sorted(state):
+        value = state[name].detach().cpu().contiguous()
+        parts.extend(
+            (
+                name.encode(),
+                b"\0",
+                str(value.dtype).encode(),
+                b"\0",
+                repr(tuple(value.shape)).encode(),
+                b"\0",
+                value.view(torch.uint8).numpy().tobytes(),
+            )
+        )
+    return b"".join(parts)
+
+
 @pytest.mark.parametrize("dataset", DATASETS)
 def test_s4_test_evaluation_path_matches_vendor(
     dataset: LayoutCorrectorTrainingDatasetName,
@@ -2196,15 +2360,38 @@ def test_s4_test_evaluation_path_matches_vendor(
     scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint, vendor_reused = (
         _run_vendor_evaluation(dataset)
     )
+    evidence_dir = _evidence_root() / "evaluation-path" / dataset
+    evidence_dir.mkdir(parents=True, exist_ok=True)
     package_dirs, package_inputs, package_reused, weight_identity = _package_evaluation(
         dataset,
         _evaluation_pipeline_root(dataset),
         vendor_pkl_paths,
         scratch,
     )
-    evidence_dir = _evidence_root() / "evaluation-path" / dataset
-    evidence_dir.mkdir(parents=True, exist_ok=True)
+    vendor_inputs = _vendor_evaluation_inputs(vendor_pkl_paths, scratch)
     pipeline_path = _evaluation_pipeline_root(dataset)
+    from layout_corrector import LayoutCorrectorPipeline
+    from layout_corrector.conversion import load_original_corrector_state_dict
+
+    package_pipeline = LayoutCorrectorPipeline.from_pretrained(pipeline_path)
+    vendor_state = load_original_corrector_state_dict(
+        corrector_checkpoint / "best_model.pt"
+    )
+    package_state = {
+        name: value.detach().cpu()
+        for name, value in package_pipeline.corrector.model.state_dict().items()
+    }
+    vendor_weight_path = evidence_dir / "vendor-corrector-weights.bin"
+    package_weight_path = evidence_dir / "package-corrector-weights.bin"
+    vendor_weight_path.write_bytes(_state_artifact_bytes(vendor_state))
+    package_weight_path.write_bytes(_state_artifact_bytes(package_state))
+    assert vendor_weight_path.read_bytes() == package_weight_path.read_bytes()
+    weight_identity["vendor_artifact_sha256"] = _sha256(vendor_weight_path)
+    weight_identity["package_artifact_sha256"] = _sha256(package_weight_path)
+    weight_identity["artifact_equal"] = (
+        vendor_weight_path.read_bytes() == package_weight_path.read_bytes()
+    )
+    assert weight_identity["artifact_equal"] is True
     vendor_sweep_source_commit = os.environ.get(
         "LAYOUT_CORRECTOR_S4_VENDOR_SWEEP_COMMIT"
     )
@@ -2261,13 +2448,26 @@ def test_s4_test_evaluation_path_matches_vendor(
             vendor_records, package_records
         )
         input_path = evidence_dir / f"{condition}-input-ids.bin"
-        input_tensors = package_inputs[condition]
-        input_bytes = (
-            torch.cat(input_tensors).contiguous().numpy().tobytes()
-            if input_tensors
-            else b""
+        package_input_records = package_inputs[condition]
+        vendor_input_records = vendor_inputs[condition]
+        vendor_input_path = _write_input_artifact(
+            evidence_dir, condition, "vendor", vendor_input_records
         )
-        input_path.write_bytes(input_bytes)
+        package_input_path = _write_input_artifact(
+            evidence_dir, condition, "package", package_input_records
+        )
+        assert vendor_input_path.read_bytes() == package_input_path.read_bytes()
+        input_path.write_bytes(_input_bytes(package_input_records))
+        assert input_path.read_bytes() == package_input_path.read_bytes()
+        assert len(vendor_input_records) == len(package_input_records)
+        for vendor_input, package_input in zip(
+            vendor_input_records, package_input_records, strict=True
+        ):
+            assert torch.equal(vendor_input["input_ids"], package_input["input_ids"])
+            assert torch.equal(
+                vendor_input["attention_mask"], package_input["attention_mask"]
+            )
+            assert vendor_input["sample_ids"] == package_input["sample_ids"]
         vendor_counts = [len(item["bbox"]) for item in vendor_records]
         package_counts = [len(item["bbox"]) for item in package_records]
         assert len(vendor_records) == len(package_records)
@@ -2285,6 +2485,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         assert vendor_meta["N_total"] == package_meta["N_total"] == len(vendor_records)
         assert weight_identity["same_key_set"] is True
         assert weight_identity["same_tensors"] is True
+        assert weight_identity["artifact_equal"] is True
         results["conditions"][condition] = {
             "command_arguments": vendor_command[2:],
             "sampling_seed": EVALUATION_SEED,
@@ -2292,8 +2493,13 @@ def test_s4_test_evaluation_path_matches_vendor(
             "vendor_results_pickle": str(vendor_path),
             "vendor_results_sha256": _sha256(vendor_path),
             "package_results_pickle": str(package_dirs[condition] / "seed_0.pkl"),
+            "vendor_input_artifact": str(vendor_input_path.relative_to(ROOT)),
+            "package_input_artifact": str(package_input_path.relative_to(ROOT)),
+            "vendor_input_sha256": _sha256(vendor_input_path),
+            "package_input_sha256": _sha256(package_input_path),
             "input_artifact": str(input_path.relative_to(ROOT)),
             "input_sha256": _sha256(input_path),
+            "input_batch_count": len(vendor_input_records),
             "vendor_prediction_artifact": str(vendor_prediction_path.relative_to(ROOT)),
             "package_prediction_artifact": str(
                 package_prediction_path.relative_to(ROOT)
@@ -2326,3 +2532,4 @@ def test_s4_test_evaluation_path_matches_vendor(
     assert evaluation.exists()
     assert results["corrector_weight_identity"]["same_key_set"] is True
     assert results["corrector_weight_identity"]["same_tensors"] is True
+    assert results["corrector_weight_identity"]["artifact_equal"] is True
