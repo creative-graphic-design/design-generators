@@ -88,6 +88,7 @@ S3_LATENT_SEED = 42004
 S4_EVALUATION_SEED = 42005
 S3_STEPS = 300
 S3_REPEATS = 2
+S3_WORKER_HASH_STEPS = 20
 TRACE_ATOL = 1.0e-6
 
 JsonValue: TypeAlias = (
@@ -967,18 +968,122 @@ def _package_loader(split: str, seed: int) -> DataLoader[LayoutRow]:
     )
 
 
-def _vendor_loader(split: str, seed: int) -> Iterable[Data]:
+def _vendor_loader(split: str, seed: int, *, num_workers: int = 0) -> Iterable[Data]:
     from torch_geometric.data import DataLoader as VendorLoader
 
     rows = _vendor_rows(split)
+    if num_workers:
+        return VendorLoader(
+            rows,
+            batch_size=VENDOR_BATCH_SIZE,
+            num_workers=num_workers,
+            pin_memory=False,
+            multiprocessing_context="spawn",
+            shuffle=split == "train",
+            generator=resolve_torch_generator(seed=seed),
+        )
+
     return VendorLoader(
         rows,
         batch_size=VENDOR_BATCH_SIZE,
-        num_workers=4,
-        pin_memory=True,
+        num_workers=0,
+        pin_memory=False,
         shuffle=split == "train",
         generator=resolve_torch_generator(seed=seed),
     )
+
+
+def _vendor_transform_random_calls() -> tuple[list[str], dict[str, str]]:
+    transform_path = VENDOR_ROOT / "data" / "util.py"
+    tree = ast.parse(transform_path.read_text())
+    transform = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name == "LexicographicSort"
+    )
+    calls = sorted(
+        {
+            ast.unparse(node.func)
+            for node in ast.walk(transform)
+            if isinstance(node, ast.Call)
+            and any(
+                token in ast.unparse(node.func).lower() for token in ("random", "rand")
+            )
+        }
+    )
+    source_paths = (
+        VENDOR_ROOT / "data" / "base.py",
+        VENDOR_ROOT / "data" / "magazine.py",
+        transform_path,
+    )
+    return calls, {str(path.relative_to(ROOT)): _sha256(path) for path in source_paths}
+
+
+def _vendor_batch_digest(data: Data) -> str:
+    batch = _dense_vendor_batch(data, torch.device("cpu"))
+    digest = hashlib.sha256()
+    for key in ("bbox", "labels", "mask"):
+        value = batch[key]
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(f"vendor batch field {key} is not a tensor")
+        digest.update(key.encode())
+        digest.update(tensor_sha256(value).encode())
+    digest.update(json.dumps(batch["names"], sort_keys=True).encode())
+    return digest.hexdigest()
+
+
+def _vendor_worker_sequence_hash(
+    split: str, seed: int, num_workers: int, steps: int
+) -> str:
+    loader = _vendor_loader(split, seed, num_workers=num_workers)
+    sequence = hashlib.sha256()
+    iterator = iter(loader)
+    try:
+        for _ in range(steps):
+            try:
+                data = next(iterator)
+            except StopIteration as error:
+                raise RuntimeError(
+                    "vendor loader ended before the worker-count hash window"
+                ) from error
+            sequence.update(_vendor_batch_digest(data).encode())
+    finally:
+        del iterator
+    return sequence.hexdigest()
+
+
+def _vendor_worker_policy(seed: int, steps: int) -> dict[str, JsonValue]:
+    random_calls, source_hashes = _vendor_transform_random_calls()
+    sequence_hashes = {
+        str(num_workers): _vendor_worker_sequence_hash(
+            "train", seed, num_workers, steps
+        )
+        for num_workers in (4, 0)
+    }
+    same_stream = len(set(sequence_hashes.values())) == 1
+    no_sample_randomness = not random_calls
+    if not no_sample_randomness or not same_stream:
+        selected_num_workers = 4
+    else:
+        selected_num_workers = 0
+    return {
+        "scope": "S3 natural and loader comparison",
+        "dataset": "vendor Magazine train",
+        "active_transform": "data.util.LexicographicSort",
+        "per_sample_randomness": {
+            "random_calls_in_active_transform": random_calls,
+            "source_sha256": source_hashes,
+            "none": no_sample_randomness,
+        },
+        "hash_window": {
+            "seed": seed,
+            "batch_count": steps,
+            "sequence_sha256_by_num_workers": sequence_hashes,
+            "same_stream": same_stream,
+        },
+        "selected_num_workers": selected_num_workers,
+        "selected_loader_context": "spawn" if selected_num_workers else "in-process",
+    }
 
 
 def _loader_stream(
@@ -998,6 +1103,7 @@ def _compare_loader_streams(
     *,
     split: str = "train",
     seed: int = S3_BATCH_SEED,
+    vendor_num_workers: int = 0,
 ) -> BatchStreamReport:
     package_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
@@ -1005,7 +1111,9 @@ def _compare_loader_streams(
     )
     vendor_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
-        for batch in _loader_stream(_vendor_loader(split, seed))
+        for batch in _loader_stream(
+            _vendor_loader(split, seed, num_workers=vendor_num_workers)
+        )
     )
     del device
     return compare_batch_stream(vendor_stream, package_stream, steps=steps)
@@ -1220,6 +1328,7 @@ def _vendor_training_trajectory(
     system: str,
     steps: int,
     seed: int,
+    loader_num_workers: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
     record_sink: Callable[[dict[str, JsonValue]], None],
@@ -1341,8 +1450,10 @@ def _vendor_training_trajectory(
     val_rows = _vendor_rows("val")
     train_dataset = DatasetView(train_rows, steps * VENDOR_BATCH_SIZE)
     val_dataset = DatasetView(val_rows, len(val_rows))
-    train_loader = _vendor_loader("train", S3_BATCH_SEED)
-    val_loader = _vendor_loader("val", S3_BATCH_SEED)
+    train_loader = _vendor_loader(
+        "train", S3_BATCH_SEED, num_workers=loader_num_workers
+    )
+    val_loader = _vendor_loader("val", S3_BATCH_SEED, num_workers=loader_num_workers)
     val_batch_count = (len(val_rows) + VENDOR_BATCH_SIZE - 1) // VENDOR_BATCH_SIZE
     captured_module = importlib.util.spec_from_file_location(
         "layoutganpp_vendor_train", VENDOR_ROOT / "train.py"
@@ -1449,6 +1560,8 @@ def _vendor_training_trajectory(
             ["python", str((VENDOR_ROOT / "train.py").relative_to(ROOT)), *args]
         ),
         "training_module_calls": record_count,
+        "loader_num_workers": loader_num_workers,
+        "loader_context": "spawn" if loader_num_workers else "in-process",
         "optimizer_creation_order": [
             _optimizer_parameter_names(
                 optimizer.raw,
@@ -1473,6 +1586,7 @@ def _trajectory(
     system: str,
     steps: int,
     seed: int,
+    loader_num_workers: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
     record_sink: Callable[[dict[str, JsonValue]], None],
@@ -1495,6 +1609,7 @@ def _trajectory(
         system,
         steps,
         seed,
+        loader_num_workers,
         initial_generator,
         initial_discriminator,
         record_sink,
@@ -1531,7 +1646,15 @@ def _production_metadata_summary(
 def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path:
     started = time.time()
     _require_previous("s3-lockstep", "s2-one-step")
-    stream = _compare_loader_streams(device, steps)
+    worker_hash_steps = min(S3_WORKER_HASH_STEPS, steps)
+    worker_policy = _vendor_worker_policy(S3_BATCH_SEED, worker_hash_steps)
+    selected_workers = worker_policy["selected_num_workers"]
+    if not isinstance(selected_workers, int):
+        raise TypeError("worker policy did not select an integer worker count")
+    loader_num_workers = selected_workers
+    stream = _compare_loader_streams(
+        device, steps, vendor_num_workers=loader_num_workers
+    )
     initial_generator, initial_discriminator, _ = _build_models(
         device, copy_vendor_weights=False
     )
@@ -1570,6 +1693,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
                     system,
                     steps,
                     S3_LATENT_SEED + repeat,
+                    loader_num_workers,
                     initial_g,
                     initial_d,
                     write_record,
@@ -1676,6 +1800,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             "first_mismatch": stream.first_mismatch,
             "batch_seed": S3_BATCH_SEED,
         },
+        vendor_loader_worker_policy=worker_policy,
         latent_seeds=latent_seeds,
         latent_seed_policy={"per_repeat_run": latent_seed_policy},
         repeat_run_envelope=repeat_envelope,
