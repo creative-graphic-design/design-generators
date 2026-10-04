@@ -1,82 +1,20 @@
 import json
-import sys
-import types
 from typing import cast
 
 import numpy as np
 import pytest
+
+pytest.importorskip("datasets")
+pytest.importorskip("lightning.pytorch")
+pytest.importorskip("pyarrow")
+pytest.importorskip("scipy")
+
 import torch
+import pyarrow as pa
+from datasets import Dataset
+from lightning.pytorch import Callback, LightningModule, Trainer
 from PIL import Image
 from torch import nn
-
-
-def _install_optional_training_stubs() -> None:
-    try:
-        import datasets  # noqa: F401
-    except ModuleNotFoundError:
-        datasets = types.ModuleType("datasets")
-
-        class Dataset:
-            @classmethod
-            def from_file(cls, path: str) -> str:
-                return path
-
-        setattr(datasets, "DatasetDict", dict)
-        setattr(datasets, "Dataset", Dataset)
-        setattr(datasets, "concatenate_datasets", lambda datasets: datasets[0])
-        sys.modules["datasets"] = datasets
-
-    try:
-        import lightning.pytorch  # noqa: F401
-    except ModuleNotFoundError:
-        lightning_stub = types.ModuleType("lightning")
-        pytorch_stub = types.ModuleType("lightning.pytorch")
-
-        class LightningDataModule:
-            def __init__(self) -> None:
-                pass
-
-        class LightningModule(nn.Module):
-            def __init__(self) -> None:
-                super().__init__()
-                self._trainer = None
-
-            def save_hyperparameters(self, *args: object, **kwargs: object) -> None:
-                del args, kwargs
-
-            def optimizers(self) -> list[torch.optim.Optimizer]:
-                raise RuntimeError("test stub requires an optimizer override")
-
-            def lr_schedulers(self) -> list[object]:
-                raise RuntimeError("test stub requires a scheduler override")
-
-            def manual_backward(self, loss: torch.Tensor) -> None:
-                loss.backward()
-
-            def configure_gradient_clipping(
-                self,
-                optimizer: torch.optim.Optimizer,
-                gradient_clip_val: float | None = None,
-                gradient_clip_algorithm: str | None = None,
-            ) -> None:
-                del optimizer, gradient_clip_val, gradient_clip_algorithm
-
-        setattr(pytorch_stub, "LightningDataModule", LightningDataModule)
-        setattr(pytorch_stub, "LightningModule", LightningModule)
-        utilities = types.ModuleType("lightning.pytorch.utilities")
-        types_module = types.ModuleType("lightning.pytorch.utilities.types")
-        setattr(types_module, "OptimizerLRScheduler", object)
-        sys.modules.update(
-            {
-                "lightning": lightning_stub,
-                "lightning.pytorch": pytorch_stub,
-                "lightning.pytorch.utilities": utilities,
-                "lightning.pytorch.utilities.types": types_module,
-            }
-        )
-
-
-_install_optional_training_stubs()
 
 from ds_gan import DSGANConfig, DSGANModel  # noqa: E402
 from ds_gan.modeling_ds_gan import DSGANModelOutput  # noqa: E402
@@ -181,6 +119,17 @@ class _NoBoxGenerator(nn.Module):
         )
 
 
+class _BatchDataset(torch.utils.data.Dataset[dict[str, torch.Tensor]]):
+    def __init__(self, batches: list[dict[str, torch.Tensor]]) -> None:
+        self.batches = batches
+
+    def __len__(self) -> int:
+        return len(self.batches)
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        return self.batches[index]
+
+
 def _training_batch() -> dict[str, torch.Tensor]:
     labels = torch.tensor([[1, 2]], dtype=torch.long)
     boxes = torch.tensor([[[0.25, 0.25, 0.5, 0.5], [0.5, 0.5, 0.25, 0.25]]])
@@ -202,10 +151,11 @@ def test_training_module_runs_g_then_d_and_scheduler(monkeypatch: pytest.MonkeyP
         scheduler_generator_milestones=(0, 1),
         scheduler_discriminator_milestones=(0, 1),
     )
-    optimizers, schedulers = cast(
-        tuple[list[torch.optim.Optimizer], list[torch.optim.lr_scheduler.MultiStepLR]],
+    optimizers, scheduler_configs = cast(
+        tuple[list[torch.optim.Optimizer], list[dict[str, object]]],
         module.configure_optimizers(),
     )
+    assert [config["interval"] for config in scheduler_configs] == ["epoch", "epoch"]
     batch = _training_batch()
     initial_layout = torch.zeros(1, 2, 2, 4)
 
@@ -231,12 +181,11 @@ def test_training_module_runs_g_then_d_and_scheduler(monkeypatch: pytest.MonkeyP
         "loss_d_fake",
         "loss_d_real",
         "loss_d",
+        "adversarial_weight",
     }
 
     monkeypatch.setattr(module, "optimizers", lambda: optimizers)
     module.training_step(batch, 0)
-    monkeypatch.setattr(module, "lr_schedulers", lambda: schedulers)
-    module.on_train_epoch_end()
     assert module._step_index == 2
     assert module._parameter_groups(module.generator)[0]
 
@@ -253,8 +202,45 @@ def test_training_module_runs_g_then_d_and_scheduler(monkeypatch: pytest.MonkeyP
         module.step_with_optimizers(
             batch, optimizers[0], optimizers[1], initial_layout=initial_layout
         )
-    monkeypatch.setattr(module, "lr_schedulers", lambda: object())
-    module.on_train_epoch_end()
+
+
+def test_production_trainer_uses_nonzero_adversarial_ramp_in_epoch_two():
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+    )
+    weights: list[float] = []
+
+    class _RecordEpochWeight(Callback):
+        def on_train_epoch_end(
+            self, trainer: Trainer, pl_module: LightningModule
+        ) -> None:
+            del trainer
+            module = cast(DSGANTrainingModule, pl_module)
+            weights.append(float(module.latest_step_trace["adversarial_weight"].item()))
+
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=2,
+        limit_train_batches=1,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+        callbacks=[_RecordEpochWeight()],
+    )
+    trainer.fit(
+        module,
+        train_dataloaders=torch.utils.data.DataLoader(
+            _BatchDataset([_training_batch(), _training_batch()]), batch_size=None
+        ),
+    )
+
+    assert len(weights) == 2
+    assert weights[0] == 0.0
+    assert weights[1] > 0.0
 
 
 def test_training_module_accepts_explicit_discriminator_config():
@@ -286,8 +272,8 @@ def test_rng_helpers_are_seeded_and_explicit(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dataset_bridge_and_manifest(tmp_path):
-    train = DSGANDataset([_row()], split="train", max_elem=2)
-    test = DSGANDataset([_row()], split="test", max_elem=2)
+    train = DSGANDataset(Dataset.from_list([_row()]), split="train", max_elem=2)
+    test = DSGANDataset(Dataset.from_list([_row()]), split="test", max_elem=2)
     assert len(train) == 1
     assert train[0]["layout"].shape == (2, 2, 4)
     assert test[0]["pixel_values"].shape == (4, 350, 240)
@@ -329,16 +315,23 @@ def test_cached_manifest_and_missing_cache_errors(tmp_path):
         },
     }
     (dataset_dir / "dataset_info.json").write_text(json.dumps(metadata))
-    (dataset_dir / "pku-poster_layout-train-0.arrow").write_bytes(b"train")
-    (dataset_dir / "pku-poster_layout-test.arrow").write_bytes(b"test")
+    for path in (
+        dataset_dir / "pku-poster_layout-train-0.arrow",
+        dataset_dir / "pku-poster_layout-test.arrow",
+    ):
+        table = pa.table({"id": [0]})
+        with path.open("wb") as handle:
+            writer = pa.ipc.new_stream(handle, table.schema)
+            writer.write_table(table)
+            writer.close()
     manifest = dataset_module.manifest_from_cached_dataset(cache)
     source_manifest = cast(dict[str, object], manifest["source"])
     assert source_manifest["revision"] == "revision"
     assert source_manifest["split_counts"] == {"train": 2, "test": 1}
 
     loaded = dataset_module.load_cached_dataset(cache)
-    assert loaded["train"].endswith("train-0.arrow")
-    assert dataset_module.load_cached_test(cache).endswith("test.arrow")
+    assert loaded["train"].num_rows == 1
+    assert dataset_module.load_cached_test(cache).num_rows == 1
 
     empty = tmp_path / "empty"
     empty.mkdir()

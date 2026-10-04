@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from jaxtyping import Float, Shaped
 from lightning.pytorch import LightningModule
-from lightning.pytorch.utilities.types import OptimizerLRScheduler
+from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 from torch import nn
 
 from ..configuration_ds_gan import DSGANConfig
@@ -157,7 +157,17 @@ class DSGANTrainingModule(LightningModule):
             milestones=self.scheduler_discriminator_milestones,
             gamma=self.scheduler_gamma,
         )
-        return [optimizer_g, optimizer_d], [scheduler_g, scheduler_d]
+        scheduler_configs: list[LRSchedulerConfig] = [
+            cast(
+                LRSchedulerConfig,
+                {"scheduler": scheduler_g, "interval": "epoch", "frequency": 1},
+            ),
+            cast(
+                LRSchedulerConfig,
+                {"scheduler": scheduler_d, "interval": "epoch", "frequency": 1},
+            ),
+        ]
+        return [optimizer_g, optimizer_d], scheduler_configs
 
     def training_step(
         self, batch: Mapping[str, Shaped[torch.Tensor, "..."]], batch_idx: int
@@ -176,6 +186,7 @@ class DSGANTrainingModule(LightningModule):
             optimizer_d,
             numpy_rng=self._numpy_rng,
             torch_generator=self._torch_generator,
+            epoch=self.current_epoch + 1,
         )
 
     def step_with_optimizers(
@@ -260,18 +271,12 @@ class DSGANTrainingModule(LightningModule):
             "loss_d_fake": loss_d_fake.detach(),
             "loss_d_real": loss_d_real.detach(),
             "loss_d": loss_d.detach(),
+            "adversarial_weight": torch.tensor(
+                adversarial_weight, device=pixel_values.device
+            ),
         }
         self._step_index += 1
         return loss_g.detach()
-
-    def on_train_epoch_end(self) -> None:
-        """Advance both epoch schedulers after all batches have run."""
-        schedulers = self.lr_schedulers()
-        if isinstance(schedulers, list):
-            for scheduler in cast(
-                list[torch.optim.lr_scheduler.MultiStepLR], schedulers
-            ):
-                scheduler.step()
 
     @staticmethod
     def _parameter_groups(

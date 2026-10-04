@@ -1909,6 +1909,14 @@ download = [
 hub = [
     { name = "huggingface-hub" },
 ]
+training = [
+    { name = "datasets" },
+    { name = "lightning" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-7-postero') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-7-postero')" },
+    { name = "traingen" },
+    { name = "traingen-parity" },
+]
 vendor = [
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14' and extra == 'extra-7-flex-dm-convert') or (python_full_version >= '3.14' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-7-postero') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-7-postero') or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
     { name = "pandas", version = "3.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-7-postero') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-7-postero') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-basnet-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
@@ -1918,19 +1926,24 @@ vendor = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'training'", specifier = ">=3" },
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
     { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=1.0.0" },
     { name = "laygen", editable = "lib/laygen" },
+    { name = "lightning", marker = "extra == 'training'", specifier = ">=2.4,<3" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pandas", marker = "extra == 'vendor'", specifier = ">=1.4" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "posgen", editable = "lib/posgen" },
+    { name = "scipy", marker = "extra == 'training'", specifier = ">=1.10" },
     { name = "timm", specifier = ">=0.9" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torchvision", marker = "extra == 'vendor'", specifier = ">=0.16" },
+    { name = "traingen", marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch", "vision"], specifier = ">=5.0.0" },
 ]
-provides-extras = ["download", "hub", "vendor"]
+provides-extras = ["training", "download", "hub", "vendor"]
 
 [[package]]
 name = "dulwich"

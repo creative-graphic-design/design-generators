@@ -7,6 +7,16 @@ trainer:
   num_sanity_val_steps: 0
   gradient_clip_val: null
   gradient_clip_algorithm: norm
+  logger:
+    class_path: lightning.pytorch.loggers.CSVLogger
+    init_args:
+      save_dir: .cache/ds-gan/training-runs
+      name: pku_posterlayout
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: .cache/ds-gan/training-runs/pku_posterlayout/checkpoints
+        save_last: true
 model:
   class_path: ds_gan.training.DSGANTrainingModule
   init_args:
@@ -18,8 +28,8 @@ model:
         max_elem: 32
         image_size: [350, 240]
         backbone_feature_size: 330
-    generator_backbone_weights: null
-    discriminator_backbone_weights: null
+    generator_backbone_weights: .cache/ds-gan/backbones/resnet50_a1_0-14fe96d1.pth
+    discriminator_backbone_weights: .cache/ds-gan/backbones/resnet18-5c106cde.pth
     generator_learning_rate: 0.0001
     discriminator_learning_rate: 0.001
     generator_backbone_learning_rate: 0.00001

@@ -165,7 +165,7 @@ class DSGANModel(PreTrainedModel):
     supports_gradient_checkpointing = False
 
     def _init_weights(self, module: nn.Module) -> None:
-        """Keep the source module initializers used before ``post_init``."""
+        """Leave module-specific initialization unchanged during ``post_init``."""
         del module
 
     def __init__(

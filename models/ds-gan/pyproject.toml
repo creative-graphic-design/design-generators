@@ -14,6 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "lightning>=2.4,<3",
+    "scipy>=1.10",
+    "traingen",
+    "traingen-parity",
+]
 download = [
     "gdown>=6.1.0",
 ]
@@ -34,6 +41,8 @@ datasets = ["pku_posterlayout"]
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.pytest.ini_options]
 markers = [
