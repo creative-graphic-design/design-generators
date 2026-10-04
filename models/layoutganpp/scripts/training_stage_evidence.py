@@ -1579,7 +1579,7 @@ def _vendor_training_trajectory(
         "--iteration",
         str(steps),
         "--seed",
-        str(seed),
+        str(INIT_SEED),
     ]
 
     def capture_backward(
