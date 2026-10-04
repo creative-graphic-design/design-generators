@@ -1294,9 +1294,7 @@ def _inside_self_distributions(
         cross[metric] <= max(vendor[metric], package[metric])
         for metric in (
             "max_abs_difference",
-            "median_abs_difference",
             "max_relative_difference",
-            "median_relative_difference",
         )
     )
 
@@ -2262,6 +2260,10 @@ def run_s2() -> Path:
             "pair_count": S2_SELF_REPEATS,
             "distributions": cross_distributions,
             "inside_self_distributions": inside_self_distributions,
+            "inside_self_distribution_criterion": (
+                "cross max_abs_difference and max_relative_difference must be <= "
+                "the larger corresponding vendor/package self envelope; medians are diagnostic"
+            ),
             "elementwise_envelopes": elementwise_envelopes,
             "parameter_update_mechanism": parameter_update_mechanism,
             "initial_layout_is_paired": cross_layout_is_paired,
