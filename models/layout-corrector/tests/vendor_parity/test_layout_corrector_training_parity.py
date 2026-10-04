@@ -1212,6 +1212,10 @@ def _run_package_natural_side(
             self.rng_digests: list[str] = []
             self.rows: list[dict[str, Any]] = []
 
+        def on_train_start(self, trainer: Trainer, pl_module: Any) -> None:
+            del trainer, pl_module
+            _apply_s3_determinism()
+
         def on_train_batch_start(
             self,
             trainer: Trainer,
