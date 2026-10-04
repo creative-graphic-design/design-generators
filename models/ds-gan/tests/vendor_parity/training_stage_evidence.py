@@ -2210,7 +2210,6 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
             f"{type(package_module).__module__}.{type(package_module).__qualname__}.training_step"
         ),
         "package_trainer": f"{type(trainer).__module__}.{type(trainer).__qualname__}",
-        "package_gradient_clip_call_count": package_module.gradient_clip_call_count,
         "package_optimizer_group_parameter_counts": [
             [len(group["params"]) for group in optimizer.param_groups]
             for optimizer in trainer.optimizers
@@ -2668,6 +2667,7 @@ def _synchronized_step(
     package_numpy_rng.set_state(vendor_rng.numpy)
     package_torch_generator = torch.Generator(device="cpu")
     package_torch_generator.set_state(vendor_rng.torch_cpu)
+    package_before_rng = copy.deepcopy(capture_rng_state())
     package_trace = _package_step(
         package_module,
         package_batch,
@@ -2739,7 +2739,7 @@ def _synchronized_step(
         "per_step_deltas": per_step_deltas,
         "rng_before": {
             "vendor": _rng_digest(vendor_rng),
-            "package": vendor_rng_digest,
+            "package": _rng_digest(package_before_rng),
         },
         "rng_after": {"vendor": vendor_rng_digest, "package": package_rng_digest},
         "rng_equal_after_operation": vendor_rng_digest == package_rng_digest,

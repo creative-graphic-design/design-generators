@@ -569,6 +569,21 @@ def _designseq_reorder(
     max_elem: int,
     include_unconnected_underlays: bool,
 ) -> list[int]:
+    return _fallback_reorder(
+        model_labels,
+        boxes,
+        max_elem=max_elem,
+        include_unconnected_underlays=include_unconnected_underlays,
+    )
+
+
+def _fallback_reorder(
+    model_labels: list[int],
+    boxes: Shaped[torch.Tensor, "elements 4"],
+    *,
+    max_elem: int,
+    include_unconnected_underlays: bool,
+) -> list[int]:
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     indices = list(range(len(model_labels)))
     texts = [i for i in indices if model_labels[i] == 1]

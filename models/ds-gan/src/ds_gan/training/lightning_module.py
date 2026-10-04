@@ -107,7 +107,6 @@ class DSGANTrainingModule(LightningModule):
         self._numpy_rng = np.random.RandomState(seed)
         self._torch_generator = torch.Generator(device="cpu")
         self._torch_generator.manual_seed(seed)
-        self.gradient_clip_call_count = 0
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self._step_index = 0
 
@@ -315,7 +314,6 @@ class DSGANTrainingModule(LightningModule):
         gradient_clip_algorithm: str | None = None,
     ) -> None:
         """Delegate the Trainer's clipping policy for the active optimizer."""
-        self.gradient_clip_call_count += 1
         super().configure_gradient_clipping(
             optimizer,
             gradient_clip_val=gradient_clip_val,
