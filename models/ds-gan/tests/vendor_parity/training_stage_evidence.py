@@ -737,7 +737,14 @@ def _package_loaders(seed: int) -> tuple[Any, Any]:
         seed=seed,
     )
     module.setup("fit")
-    return module.train_dataloader(), module.test_dataloader()
+    production_train_loader = module.train_dataloader()
+    train_loader = DataLoader(
+        production_train_loader.dataset,
+        batch_size=TRAINING_BATCH_SIZE,
+        shuffle=True,
+        num_workers=16,
+    )
+    return train_loader, module.test_dataloader()
 
 
 def _batch_stream_report(
@@ -1201,7 +1208,11 @@ def _fixed_batch(
                     "pre_loader": package_pre_loader_rng,
                     "post_loader": package_post_loader_rng,
                     "first_sample_ids": _sample_ids(package_raw_batch["pixel_values"]),
-                    "generator": "seeded torch.Generator supplied by DSGANDataModule",
+                    "generator": (
+                        "torch global RNG used by the parity overlay; production "
+                        "DSGANDataModule uses a seeded torch.Generator"
+                    ),
+                    "production_seed": seed,
                 },
             },
         },
