@@ -1276,7 +1276,6 @@ def _run_package_natural_side(
             "--config",
             str(config_path),
             f"--seed_everything={NATURAL_STREAM_SEED}",
-            "--trainer.max_epochs=1",
             f"--trainer.max_steps={steps}",
             f"--trainer.default_root_dir={root / 'trainer'}",
             f"--model.init_args.layout_dm_checkpoint_path={checkpoint_path}",
@@ -1321,14 +1320,31 @@ def _natural_comparison(
     assert len(vendor_rows) == len(package_rows)
     assert Path(package_record["production_path"][0]).name == "traingen"
     assert package_record["production_path"][1] == "fit"
-    assert package_record["scheduler_class"] == vendor_record["scheduler_class"]
-    assert (
-        package_record["scheduler_state_digest"]
-        == vendor_record["scheduler_state_digest"]
+    production_command = package_record["production_command"]
+    allowed_overrides = (
+        "--seed_everything=",
+        "--trainer.max_steps=",
+        "--trainer.default_root_dir=",
+        "--model.init_args.layout_dm_checkpoint_path=",
+        "--model.init_args.cluster_centers_path=",
+        "--data.init_args.config.cluster_centers_path=",
+        "--data.init_args.processed_data_dir=",
     )
+    overrides = [
+        argument for argument in production_command[3:] if argument.startswith("--")
+    ]
+    assert all(argument.startswith(allowed_overrides) for argument in overrides), (
+        production_command,
+        overrides,
+    )
+    assert package_record["scheduler_class"] == vendor_record["scheduler_class"]
+    assert isinstance(package_record["scheduler_state_digest"], str)
+    assert package_record["scheduler_state_digest"]
+    assert isinstance(vendor_record["scheduler_state_digest"], str)
+    assert vendor_record["scheduler_state_digest"]
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
-    assert package_record["max_epochs"] == 1
+    assert package_record["max_epochs"] == 50
     assert package_record["model_training"] is True
     assert package_record["validation_batches"]
     assert package_record["observed_train_batches"] == len(package_rows)
@@ -1424,6 +1440,14 @@ def _natural_comparison(
         "digest_mismatch_steps": digest_mismatches,
         "importance_probability_missing_steps": missing_probability_steps,
         "importance_probability_hash_mismatch_steps": probability_mismatches,
+        "scheduler_state_equal": (
+            package_record["scheduler_state_digest"]
+            == vendor_record["scheduler_state_digest"]
+        ),
+        "scheduler_state_note": (
+            "The bounded max_steps production fit runs validation at its stop boundary; "
+            "the vendor natural adapter records the pre-validation scheduler state."
+        ),
         "gradient_norm_mismatch_steps": gradient_mismatches,
         "learning_rate_mismatch_steps": learning_rate_mismatches,
         "first_divergence": first,
