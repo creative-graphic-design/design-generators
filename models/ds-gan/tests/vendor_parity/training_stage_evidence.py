@@ -2380,7 +2380,8 @@ def _run_in_separate_process(stage: str, repeat: int) -> dict[str, Any]:
     payload = json.loads(json_path.read_text())
     if stage == "s3-self-repeat":
         states = torch.load(state_path, map_location="cpu", weights_only=False)
-        payload.update(states)
+        for system in ("vendor", "package"):
+            payload[system].update(states[system])
     return payload
 
 
@@ -2390,6 +2391,7 @@ def run_s3_natural_repeat(repeat: int, json_path: Path, state_path: Path) -> Non
         repeat, torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
     result["process_id"] = os.getpid()
+    result["source_commit"] = _git("rev-parse", "HEAD")
     json_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
@@ -2409,6 +2411,8 @@ def run_s3_self_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
     }
     vendor["process_id"] = os.getpid()
     package["process_id"] = os.getpid()
+    vendor["source_commit"] = _git("rev-parse", "HEAD")
+    package["source_commit"] = _git("rev-parse", "HEAD")
     state_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(state, state_path)
     json_path.write_text(
