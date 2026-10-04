@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, Sequence, assert_never
+from typing import ClassVar, Self, Sequence, assert_never
 
 import numpy as np
 import torch
@@ -91,6 +91,27 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         self.corrector = corrector
         self.processor = processor or layout_dm.processor
         self.corrector.eval()
+
+    def to(
+        self,
+        *args: torch.device | str | torch.dtype | None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | str | None = None,
+        silence_dtype_warnings: bool = False,
+    ) -> Self:
+        """Move the nested LayoutDM pipeline and the corrector together."""
+        self.layout_dm.to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
+        return super().to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
 
     @torch.no_grad()
     def __call__(

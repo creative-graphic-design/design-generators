@@ -29,6 +29,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch_geometric.loader import DataLoader as GeometricDataLoader
 
 from laygen.common.testing import skip_or_fail_vendor_parity
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from traingen_parity.determinism import (
     DeterminismConfig,
     apply_determinism,
@@ -1988,18 +1989,21 @@ def _package_evaluation(
         inputs: list[torch.Tensor] = []
         started = time.perf_counter()
         if condition == "unconditional":
-            output = pipeline(
-                batch_size=int(vendor_meta["N_total"]),
-                generator=generator,
-                num_inference_steps=100,
-                sampling="random",
-                corrector_steps=1,
-                corrector_t_list=(10, 20, 30),
-                corrector_start=-1,
-                corrector_end=-1,
-                corrector_mask_mode="thresh",
-                corrector_mask_threshold=0.7,
-                use_gumbel_noise=False,
+            output = cast(
+                LayoutGenerationOutput,
+                pipeline(
+                    batch_size=int(vendor_meta["N_total"]),
+                    generator=generator,
+                    num_inference_steps=100,
+                    sampling="random",
+                    corrector_steps=1,
+                    corrector_t_list=(10, 20, 30),
+                    corrector_start=-1,
+                    corrector_end=-1,
+                    corrector_mask_mode="thresh",
+                    corrector_mask_threshold=0.7,
+                    use_gumbel_noise=False,
+                ),
             )
             package_predictions = [
                 (
@@ -2014,21 +2018,24 @@ def _package_evaluation(
                 input_ids = cast(torch.Tensor, batch["input_ids"])
                 inputs.append(input_ids.detach().cpu())
                 decoded = pipeline.layout_dm.tokenizer.decode_layout(input_ids)
-                output = pipeline(
-                    generator=generator,
-                    condition_type=condition_type,
-                    labels=decoded["labels"],
-                    bbox=decoded["bbox"],
-                    mask=decoded["mask"],
-                    num_inference_steps=100,
-                    sampling="random",
-                    corrector_steps=1,
-                    corrector_t_list=(10, 20, 30),
-                    corrector_start=-1,
-                    corrector_end=-1,
-                    corrector_mask_mode="thresh",
-                    corrector_mask_threshold=0.7,
-                    use_gumbel_noise=False,
+                output = cast(
+                    LayoutGenerationOutput,
+                    pipeline(
+                        generator=generator,
+                        condition_type=condition_type,
+                        labels=decoded["labels"],
+                        bbox=decoded["bbox"],
+                        mask=decoded["mask"],
+                        num_inference_steps=100,
+                        sampling="random",
+                        corrector_steps=1,
+                        corrector_t_list=(10, 20, 30),
+                        corrector_start=-1,
+                        corrector_end=-1,
+                        corrector_mask_mode="thresh",
+                        corrector_mask_threshold=0.7,
+                        use_gumbel_noise=False,
+                    ),
                 )
                 package_predictions.extend(
                     (

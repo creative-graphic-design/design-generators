@@ -115,6 +115,17 @@ def test_pipeline_generator_overrides_seed():
     assert torch.equal(first.sequences, second.sequences)
 
 
+def test_pipeline_to_propagates_dtype_to_nested_layout_dm():
+    pipe = tiny_pipeline()
+    pipe.layout_dm.denoiser.to(dtype=torch.float64)
+    pipe.corrector.to(dtype=torch.float64)
+
+    pipe.to(dtype=torch.float32)
+
+    assert next(pipe.layout_dm.denoiser.parameters()).dtype == torch.float32
+    assert next(pipe.corrector.parameters()).dtype == torch.float32
+
+
 def test_pipeline_save_load_roundtrip(tmp_path):
     pipe = tiny_pipeline()
     pipe.save_pretrained(tmp_path)
