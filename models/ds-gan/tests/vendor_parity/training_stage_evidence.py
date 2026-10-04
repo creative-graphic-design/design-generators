@@ -206,6 +206,8 @@ def _determinism_probe_record() -> dict[str, Any] | None:
         return None
 
     log_path = Path(log_value)
+    if not log_path.is_absolute():
+        log_path = ROOT / log_path
     record: dict[str, Any] = {
         "path": str(log_path.relative_to(ROOT)),
         "exists": log_path.is_file(),
@@ -216,6 +218,8 @@ def _determinism_probe_record() -> dict[str, Any] | None:
     exit_value = os.environ.get("DSGAN_STRICT_ATTEMPT_EXIT")
     if exit_value:
         exit_path = Path(exit_value)
+        if not exit_path.is_absolute():
+            exit_path = ROOT / exit_path
         record["exit_path"] = str(exit_path.relative_to(ROOT))
         if exit_path.is_file():
             record["exit_code"] = int(exit_path.read_text().strip())
