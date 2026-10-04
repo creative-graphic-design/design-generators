@@ -1050,6 +1050,7 @@ def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
                 **_metadata(),
                 "stage": "S2-vendor-self-repeat",
                 "repeat": repeat,
+                "seed": SEED,
                 "process_id": os.getpid(),
                 "device": str(device),
                 "batch": batch_meta,
