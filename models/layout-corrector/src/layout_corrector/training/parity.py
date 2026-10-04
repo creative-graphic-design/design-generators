@@ -290,6 +290,7 @@ class ProductionTraceCallback(Callback):
                 {
                     "rows": self.rows,
                     "scheduler_class": scheduler_class,
+                    "scheduler_state": scheduler_state,
                     "trace_seed": self.seed,
                     "pre_model_rng_digest": module.pre_model_rng_digest,
                     "pre_loader_rng_digest": self._pre_loader_rng_digest,

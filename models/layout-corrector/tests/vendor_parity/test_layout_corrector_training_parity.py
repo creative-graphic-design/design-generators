@@ -51,6 +51,7 @@ from layout_corrector.training import (
 )
 from layout_corrector.training.parity import (
     _optimizer_state_digest,
+    _scheduler_state_digest,
     build_layout_corrector_step_trace,
     compare_layout_corrector_step,
 )
@@ -1251,7 +1252,8 @@ def _run_natural_side(
         deepcopy(model.state_dict()),
         {
             "scheduler_class": type(scheduler).__name__,
-            "scheduler_state_digest": _state_digest(scheduler.state_dict()),
+            "scheduler_state": scheduler.state_dict(),
+            "scheduler_state_digest": _scheduler_state_digest(scheduler.state_dict()),
             "validation_batches": len(validation_loader),
             "validation_executed": False,
             "validation_loss": None,
@@ -1362,10 +1364,7 @@ def _natural_comparison(
     assert vendor_record["validation_executed"] is False
     assert package_record["validation_loss"] is None
     assert vendor_record["validation_loss"] is None
-    assert (
-        package_record["scheduler_state_digest"]
-        == vendor_record["scheduler_state_digest"]
-    )
+    assert package_record["scheduler_state"] == vendor_record["scheduler_state"]
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
     assert package_record["max_epochs"] == 50
@@ -1465,8 +1464,7 @@ def _natural_comparison(
         "importance_probability_missing_steps": missing_probability_steps,
         "importance_probability_hash_mismatch_steps": probability_mismatches,
         "scheduler_state_equal": (
-            package_record["scheduler_state_digest"]
-            == vendor_record["scheduler_state_digest"]
+            package_record["scheduler_state"] == vendor_record["scheduler_state"]
         ),
         "validation_executed": package_record["validation_executed"],
         "gradient_norm_mismatch_steps": gradient_mismatches,
