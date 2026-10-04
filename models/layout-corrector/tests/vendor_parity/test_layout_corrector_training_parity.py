@@ -1885,27 +1885,8 @@ def _evaluation_environment(scratch: Path) -> dict[str, str]:
     return environment
 
 
-def _run_vendor_evaluation(
-    dataset: str,
-) -> tuple[Path, list[str], dict[str, Path], Path]:
-    asset_root = _evaluation_asset_root()
-    scratch = Path(tempfile.mkdtemp(prefix=f"layout-corrector-evaluation-{dataset}-"))
-    shutil.copytree(
-        ROOT / "vendor" / "layout-corrector" / "src",
-        scratch / "src",
-        ignore=shutil.ignore_patterns("__pycache__"),
-    )
-    shutil.copytree(ROOT / "vendor" / "layout-corrector" / "bin", scratch / "bin")
-    shutil.copy2(ROOT / "vendor" / "layout-corrector" / "eval.py", scratch / "eval.py")
-    (scratch / "download").symlink_to(asset_root, target_is_directory=True)
-    job_dir = asset_root / "pretrained_weights" / dataset / "layout_corrector" / "0"
-    if not (job_dir / "best_model.pt").is_file():
-        skip_or_fail_vendor_parity(
-            "released corrector checkpoint is missing",
-            missing_paths=[job_dir / "best_model.pt"],
-            regeneration_hint="download the Layout-Corrector starter kit",
-        )
-    command = [
+def _vendor_command(dataset: str, job_dir: Path) -> list[str]:
+    return [
         sys.executable,
         str(ROOT / "vendor" / "layout-corrector" / "bin" / "corrector_test_eval.py"),
         str(job_dir),
@@ -1928,22 +1909,89 @@ def _run_vendor_evaluation(
         "cwh",
         "--no_gumbel_noise",
     ]
+
+
+def _vendor_result_paths(dataset: str, scratch: Path) -> dict[str, Path]:
+    result_root = scratch / "results" / dataset / "layout_corrector"
+    result_dirs = {
+        condition: sorted(result_root.glob(f"{condition}_*/"))[-1]
+        for condition in ("unconditional", "c", "cwh")
+    }
+    return {
+        condition: next(result_dirs[condition].glob("seed_0.pkl"))
+        for condition in result_dirs
+    }
+
+
+def _retained_vendor_scratch(dataset: str) -> Path | None:
+    if os.environ.get("LAYOUT_CORRECTOR_S4_REUSE_VENDOR") != "1":
+        return None
+    template = os.environ.get("LAYOUT_CORRECTOR_S4_VENDOR_SCRATCH_ROOT")
+    if template is None:
+        raise RuntimeError(
+            "LAYOUT_CORRECTOR_S4_VENDOR_SCRATCH_ROOT is required when "
+            "LAYOUT_CORRECTOR_S4_REUSE_VENDOR=1"
+        )
+    return Path(template.format(dataset=dataset))
+
+
+def _vendor_import_roots(scratch: Path) -> tuple[Path, ...]:
+    return (scratch, scratch / "src", scratch / "src" / "trainer")
+
+
+def _load_vendor_metadata(vendor_path: Path, scratch: Path) -> dict[str, Any]:
+    for import_root in reversed(_vendor_import_roots(scratch)):
+        if str(import_root) not in sys.path:
+            sys.path.insert(0, str(import_root))
+    with vendor_path.open("rb") as handle:
+        return cast(dict[str, Any], pickle.load(handle))
+
+
+def test_retained_vendor_output_unpickles() -> None:
+    scratch = _retained_vendor_scratch("rico25")
+    if scratch is None:
+        pytest.skip("retained vendor-output reuse is not enabled")
+    vendor_path = _vendor_result_paths("rico25", scratch)["unconditional"]
+    metadata = _load_vendor_metadata(vendor_path, scratch)
+    assert len(metadata["results"]) == int(metadata["N_total"])
+
+
+def _run_vendor_evaluation(
+    dataset: str,
+) -> tuple[Path, list[str], dict[str, Path], Path, bool]:
+    asset_root = _evaluation_asset_root()
+    job_dir = asset_root / "pretrained_weights" / dataset / "layout_corrector" / "0"
+    command = _vendor_command(dataset, job_dir)
+    retained_scratch = _retained_vendor_scratch(dataset)
+    if retained_scratch is not None:
+        pkl_paths = _vendor_result_paths(dataset, retained_scratch)
+        for path in pkl_paths.values():
+            if not path.is_file():
+                raise FileNotFoundError(path)
+        return retained_scratch, command, pkl_paths, job_dir, True
+
+    scratch = Path(tempfile.mkdtemp(prefix=f"layout-corrector-evaluation-{dataset}-"))
+    shutil.copytree(
+        ROOT / "vendor" / "layout-corrector" / "src",
+        scratch / "src",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    shutil.copytree(ROOT / "vendor" / "layout-corrector" / "bin", scratch / "bin")
+    shutil.copy2(ROOT / "vendor" / "layout-corrector" / "eval.py", scratch / "eval.py")
+    (scratch / "download").symlink_to(asset_root, target_is_directory=True)
+    if not (job_dir / "best_model.pt").is_file():
+        skip_or_fail_vendor_parity(
+            "released corrector checkpoint is missing",
+            missing_paths=[job_dir / "best_model.pt"],
+            regeneration_hint="download the Layout-Corrector starter kit",
+        )
     subprocess.run(
         command,
         cwd=scratch,
         env=_evaluation_environment(scratch),
         check=True,
     )
-    result_root = scratch / "results" / dataset / "layout_corrector"
-    result_dirs = {
-        condition: sorted(result_root.glob(f"{condition}_*/"))[-1]
-        for condition in ("unconditional", "c", "cwh")
-    }
-    pkl_paths = {
-        condition: next(result_dirs[condition].glob("seed_0.pkl"))
-        for condition in result_dirs
-    }
-    return scratch, command, pkl_paths, job_dir
+    return scratch, command, _vendor_result_paths(dataset, scratch), job_dir, False
 
 
 def _numeric_metrics(path: Path) -> dict[str, float]:
@@ -1976,14 +2024,10 @@ def _package_evaluation(
         random_order=False,
     )
     loader = DataLoader(package_dataset, batch_size=512, shuffle=False, num_workers=0)
-    if str(scratch) not in sys.path:
-        sys.path.insert(0, str(scratch))
-
     package_dirs: dict[str, Path] = {}
     package_inputs: dict[str, list[torch.Tensor]] = {}
     for condition, vendor_path in vendor_pkl_paths.items():
-        with vendor_path.open("rb") as handle:
-            vendor_meta = pickle.load(handle)
+        vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         generator = torch.Generator(device=device).manual_seed(0)
         package_predictions: list[tuple[torch.Tensor, torch.Tensor]] = []
         inputs: list[torch.Tensor] = []
@@ -2074,7 +2118,7 @@ def test_s4_test_evaluation_path_matches_vendor(
 ) -> None:
     if not torch.cuda.is_available():
         pytest.fail("S4 evaluation-path parity requires the selected GPU")
-    scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint = (
+    scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint, vendor_reused = (
         _run_vendor_evaluation(dataset)
     )
     package_dirs, package_inputs = _package_evaluation(
@@ -2086,6 +2130,14 @@ def test_s4_test_evaluation_path_matches_vendor(
     evidence_dir = _evidence_root() / "evaluation-path" / dataset
     evidence_dir.mkdir(parents=True, exist_ok=True)
     pipeline_path = _evaluation_pipeline_root(dataset)
+    vendor_sweep_source_commit = os.environ.get(
+        "LAYOUT_CORRECTOR_S4_VENDOR_SWEEP_COMMIT"
+    )
+    if vendor_reused and vendor_sweep_source_commit is None:
+        raise RuntimeError(
+            "LAYOUT_CORRECTOR_S4_VENDOR_SWEEP_COMMIT is required when reusing "
+            "vendor outputs"
+        )
     results: dict[str, Any] = {
         "dataset": dataset,
         "split": "test",
@@ -2094,6 +2146,10 @@ def test_s4_test_evaluation_path_matches_vendor(
         "corrector_checkpoint_sha256": _sha256(corrector_checkpoint / "best_model.pt"),
         "pipeline_path": str(pipeline_path),
         "vendor_command": vendor_command,
+        "vendor_evaluation_mode": "reused" if vendor_reused else "executed",
+        "vendor_sweep_source_commit": vendor_sweep_source_commit
+        if vendor_reused
+        else _source_commit(ROOT),
         "vendor_result_root": str(scratch / "results" / dataset / "layout_corrector"),
         "vendor_source_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
         "vendor_evaluator_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
@@ -2102,8 +2158,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         "runtime": _runtime_record(),
     }
     for condition, vendor_path in vendor_pkl_paths.items():
-        with vendor_path.open("rb") as handle:
-            vendor_meta = pickle.load(handle)
+        vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         with (package_dirs[condition] / "seed_0.pkl").open("rb") as handle:
             package_meta = pickle.load(handle)
         vendor_records = _prediction_records(vendor_meta["results"])
@@ -2145,6 +2200,7 @@ def test_s4_test_evaluation_path_matches_vendor(
             "sampling_seed": 0,
             "corrector_t_list": [10, 20, 30],
             "vendor_results_pickle": str(vendor_path),
+            "vendor_results_sha256": _sha256(vendor_path),
             "package_results_pickle": str(package_dirs[condition] / "seed_0.pkl"),
             "input_artifact": str(input_path.relative_to(ROOT)),
             "input_sha256": _sha256(input_path),
