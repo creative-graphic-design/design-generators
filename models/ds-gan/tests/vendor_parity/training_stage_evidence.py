@@ -1073,6 +1073,7 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
         discriminator = package_discriminator
     optimizers = _optimizers(generator, discriminator)
     if system == "vendor":
+        _schedulers(optimizers)
         batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
         with _capture_deterministic_warnings():
             trace = _vendor_step(
