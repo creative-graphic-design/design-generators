@@ -141,7 +141,7 @@ The diagnosis uses both-direction range containment, two-sided unequal-variance 
 
 ### Fixed-evaluator 2x2 check
 
-The fixed-evaluator package cell is the retained `5,867`-prediction run, not a placeholder. Its prediction file is `.cache/radm/s5/cgl/evaluation-check/cross-eval/seed-1/package-weights-vendor/output/inference/coco_instances_results.json`.
+The fixed-evaluator package cell is the retained `5,867`-prediction run, not a placeholder. Its prediction file is `.cache/radm/s5/cgl/evaluation-check/cross-eval/seed-1/package-terminal-fixed/package-inference/coco_instances_results.json` with SHA-256 `daa7a1f06b8a9b5a3ae7dac6eff3fe4417e25aaf4917c4674ebe666b13ed0441`.
 
 | Weights         | Evaluator               | Predictions | `R_ove` | `R_ali` | `R_und` | `R_occ` | `R_com` |
 | --------------- | ----------------------- | ----------: | ------: | ------: | ------: | ------: | ------: |
@@ -150,7 +150,7 @@ The fixed-evaluator package cell is the retained `5,867`-prediction run, not a p
 | Package seed 1  | Vendor evaluator        |       5,867 |  0.0660 |  0.0073 |  0.9093 |  0.9990 |  8.3357 |
 | Package seed 1  | Fixed package evaluator |       5,867 |  0.0660 |  0.0073 |  0.9093 |  0.9990 |  8.3357 |
 
-The package fixed-evaluator row is the actual `5,867`-prediction run above. Its full values are `R_ove=0.065992`, `R_ali=0.007271`, `R_und=0.909264`, `R_occ=0.999034`, and `R_com=8.335750` in the regenerated comparison artifact. The cited retained prediction file has no embedded checkpoint or evaluator manifest; the regenerated comparison records its path, count, and SHA-256. It is distinct from the retained full-run package-seed-1 output, which has `6,877` predictions and is not used for this cell.
+The package fixed-evaluator row is the actual `5,867`-prediction run above. Its full values are `R_ove=0.065992`, `R_ali=0.007271`, `R_und=0.909264`, `R_occ=0.999034`, and `R_com=8.335750` in the regenerated comparison artifact. The cited fixed-evaluator prediction file has no embedded checkpoint or evaluator manifest; the path and SHA-256 above identify the retained run. It is distinct from the retained full-run package-seed-1 output, which has `6,877` predictions and is not used for this cell.
 
 ### S3 classification
 
