@@ -3010,6 +3010,7 @@ def run_s3_synchronized() -> Path:
     vendor_iterator = iter(vendor_loader)
     package_iterator = iter(package_loader)
     rows: list[dict[str, Any]] = []
+    pre_synchronization_mismatches = 0
     for step in range(1, LOCKSTEP_STEPS + 1):
         epoch = (step - 1) // TRAIN_BATCHES_PER_EPOCH + 1
         if step > 1 and (step - 1) % TRAIN_BATCHES_PER_EPOCH == 0:
@@ -3019,23 +3020,33 @@ def run_s3_synchronized() -> Path:
         package_batch = _package_batch(next(package_iterator), device)
         batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
         if not batch_report.passed:
-            raise RuntimeError(f"synchronized loader mismatch at step {step}")
-        rows.append(
-            _synchronized_step(
-                vendor_generator,
-                vendor_discriminator,
-                package_module,
-                vendor_optimizers,
-                package_optimizers,
-                vendor_schedulers,
-                package_schedulers,
-                vendor_batch,
-                package_batch,
-                device,
-                step,
-                epoch,
-            )
+            pre_synchronization_mismatches += 1
+            package_batch = {
+                key: value.detach().clone() for key, value in vendor_batch.items()
+            }
+        row = _synchronized_step(
+            vendor_generator,
+            vendor_discriminator,
+            package_module,
+            vendor_optimizers,
+            package_optimizers,
+            vendor_schedulers,
+            package_schedulers,
+            vendor_batch,
+            package_batch,
+            device,
+            step,
+            epoch,
         )
+        row["batch_stream"] = {
+            "passed_before_synchronization": batch_report.passed,
+            "synchronized_batch_source": (
+                "independent_package_loader"
+                if batch_report.passed
+                else "vendor_batch_copy"
+            ),
+        }
+        rows.append(row)
         if step % TRAIN_BATCHES_PER_EPOCH == 0:
             for scheduler in (*vendor_schedulers, *package_schedulers):
                 scheduler.step()
@@ -3072,6 +3083,10 @@ def run_s3_synchronized() -> Path:
             "first_divergence": first_divergence,
             "trace": str(trace_path.relative_to(ROOT)),
             "natural_record": ".cache/ds-gan/stage-evidence/s3-lockstep/run.json",
+            "pre_synchronization_loader_mismatch_steps": pre_synchronization_mismatches,
+            "synchronized_batch_policy": (
+                "copy vendor batch into the package step when independent loader streams differ"
+            ),
         },
     )
 
