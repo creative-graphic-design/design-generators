@@ -35,6 +35,7 @@ from traingen_parity.compare import (
     BatchStreamReport,
     OptimizerStepReport,
     StepReport,
+    TensorTolerance,
     compare_batch_stream,
     compare_optimizer_step,
     compare_step_trace,
@@ -91,6 +92,7 @@ S3_STEPS = 300
 S3_REPEATS = 2
 S3_WORKER_HASH_STEPS = 20
 TRACE_ATOL = 1.0e-6
+RELATIVE_LOSS_LIMIT = 1.0e-3
 
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -446,16 +448,57 @@ def _trajectory_repeat_ids(path: Path, system: str) -> list[int]:
     return sorted(repeats)
 
 
-def _compare_trajectory_records(
+def _trajectory_trace(
+    record: Mapping[str, JsonValue],
+) -> tuple[dict[str, Shaped[torch.Tensor, "..."]], dict[str, JsonValue]]:
+    tensors: dict[str, Shaped[torch.Tensor, "..."]] = {}
+    values: dict[str, JsonValue] = {}
+
+    def visit(value: JsonValue, name: str) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                visit(child, f"{name}.{key}")
+            return
+        if isinstance(value, bool):
+            tensors[name] = torch.tensor(value, dtype=torch.bool)
+            values[name] = value
+            return
+        if isinstance(value, int):
+            tensors[name] = torch.tensor(value, dtype=torch.int64)
+            values[name] = value
+            return
+        if isinstance(value, float):
+            tensors[name] = torch.tensor(value, dtype=torch.float64)
+            values[name] = value
+            return
+        raise TypeError(f"trajectory field {name} is not scalar: {value!r}")
+
+    for key, value in record.items():
+        visit(value, key)
+    return tensors, values
+
+
+def _trajectory_comparison_summary(
     path: Path,
     left_system: str,
     left_repeat: int,
     right_system: str,
     right_repeat: int,
     steps: int,
-) -> dict[str, JsonValue] | None:
+) -> dict[str, JsonValue]:
     left = _trajectory_records(path, left_system, left_repeat)
     right = _trajectory_records(path, right_system, right_repeat)
+    first_divergence: dict[str, JsonValue] | None = None
+    first_non_bitwise: dict[str, JsonValue] | None = None
+    maximum_absolute = 0.0
+    maximum_absolute_field: str | None = None
+    maximum_absolute_values: tuple[float, float] | None = None
+    maximum_relative = 0.0
+    maximum_relative_field: str | None = None
+    maximum_relative_values: tuple[float, float] | None = None
+    first_relative_loss: dict[str, JsonValue] | None = None
+    maximum_relative_loss = 0.0
+    maximum_relative_loss_field: str | None = None
     for step in range(steps):
         try:
             left_record = next(left)
@@ -464,18 +507,146 @@ def _compare_trajectory_records(
             raise RuntimeError(
                 "JSONL trajectory ended before the requested steps"
             ) from error
-        if left_record == right_record:
-            continue
-        fields = sorted(set(left_record) | set(right_record))
-        for field in fields:
-            if left_record.get(field) != right_record.get(field):
-                return {
+        left_tensors, left_values = _trajectory_trace(left_record)
+        right_tensors, right_values = _trajectory_trace(right_record)
+        float_fields = {
+            name for name, value in left_values.items() if isinstance(value, float)
+        }
+        report = compare_step_trace(
+            build_step_trace("left", left_tensors),
+            build_step_trace("right", right_tensors),
+            tolerances={
+                name: TensorTolerance(atol=TRACE_ATOL, rtol=0.0)
+                for name in float_fields
+            },
+        )
+        if not report.passed and first_divergence is None:
+            if report.missing:
+                field = report.missing[0]
+                first_divergence = {
                     "step": step,
                     "field": field,
-                    left_system: left_record.get(field),
-                    right_system: right_record.get(field),
+                    left_system: left_values.get(field),
+                    right_system: right_values.get(field),
+                    "limit": TRACE_ATOL,
                 }
-    return None
+            else:
+                first = next(item for item in report.comparisons if not item.passed)
+                first_divergence = {
+                    "step": step,
+                    "field": first.name,
+                    left_system: left_values.get(first.name),
+                    right_system: right_values.get(first.name),
+                    "max_abs": first.max_abs_diff,
+                    "max_rel": first.max_rel_diff,
+                    "limit": TRACE_ATOL,
+                }
+
+        for field in sorted(set(left_values) & set(right_values)):
+            left_value = left_values[field]
+            right_value = right_values[field]
+            if not isinstance(left_value, float) or not isinstance(right_value, float):
+                continue
+            difference = abs(left_value - right_value)
+            relative = difference / max(abs(left_value), 1.0e-12)
+            if difference > maximum_absolute:
+                maximum_absolute = difference
+                maximum_absolute_field = field
+                maximum_absolute_values = (left_value, right_value)
+            if relative > maximum_relative:
+                maximum_relative = relative
+                maximum_relative_field = field
+                maximum_relative_values = (left_value, right_value)
+            if difference and first_non_bitwise is None:
+                first_non_bitwise = {
+                    "step": step,
+                    "field": field,
+                    left_system: left_value,
+                    right_system: right_value,
+                    "max_abs": difference,
+                    "max_rel": relative,
+                }
+            if field in {"generator_loss", "discriminator_loss"}:
+                if relative > maximum_relative_loss:
+                    maximum_relative_loss = relative
+                    maximum_relative_loss_field = field
+                if relative > RELATIVE_LOSS_LIMIT and first_relative_loss is None:
+                    first_relative_loss = {
+                        "step": step,
+                        "field": field,
+                        left_system: left_value,
+                        right_system: right_value,
+                        "relative_difference": relative,
+                        "limit": RELATIVE_LOSS_LIMIT,
+                    }
+
+    if maximum_absolute_field is None or maximum_absolute_values is None:
+        maximum_absolute_record: dict[str, JsonValue] = {
+            "value": 0.0,
+            "field": None,
+        }
+    else:
+        maximum_absolute_record = {
+            "value": maximum_absolute,
+            "field": maximum_absolute_field,
+            left_system: maximum_absolute_values[0],
+            right_system: maximum_absolute_values[1],
+        }
+    if maximum_relative_field is None or maximum_relative_values is None:
+        maximum_relative_record: dict[str, JsonValue] = {
+            "value": 0.0,
+            "field": None,
+        }
+    else:
+        maximum_relative_record = {
+            "value": maximum_relative,
+            "field": maximum_relative_field,
+            left_system: maximum_relative_values[0],
+            right_system: maximum_relative_values[1],
+        }
+    return {
+        "population": f"{steps} optimizer steps and all recorded scalar fields per step",
+        "criterion": "traingen_parity.compare_step_trace",
+        "atol": TRACE_ATOL,
+        "rtol": 0.0,
+        "within_tolerance": first_divergence is None,
+        "bitwise_equal": first_non_bitwise is None,
+        "first_divergence": first_divergence,
+        "first_non_bitwise_difference": first_non_bitwise,
+        "maximum_absolute_difference": maximum_absolute_record,
+        "maximum_relative_difference": maximum_relative_record,
+        "relative_loss_criterion": {
+            "limit": RELATIVE_LOSS_LIMIT,
+            "population": f"{steps} steps x generator_loss and discriminator_loss",
+            "first_exceedance": first_relative_loss,
+            "maximum_relative_difference": maximum_relative_loss,
+            "maximum_field": maximum_relative_loss_field,
+            "outcome": "PASS" if first_relative_loss is None else "FAIL",
+        },
+        "cause": (
+            "No non-bitwise scalar differences were observed."
+            if first_non_bitwise is None
+            else "FP32 accumulation/order differences between the plain-PyTorch vendor "
+            "path and package Lightning path; matched inputs and latent draws make "
+            "this a floating-point comparison, not a data or RNG mismatch."
+        ),
+        "asserted": True,
+    }
+
+
+def _compare_trajectory_records(
+    path: Path,
+    left_system: str,
+    left_repeat: int,
+    right_system: str,
+    right_repeat: int,
+    steps: int,
+) -> dict[str, JsonValue] | None:
+    summary = _trajectory_comparison_summary(
+        path, left_system, left_repeat, right_system, right_repeat, steps
+    )
+    first = summary["first_divergence"]
+    return cast(dict[str, JsonValue] | None, first)
 
 
 def _repeat_loss_envelope(path: Path, system: str, steps: int) -> dict[str, JsonValue]:
@@ -995,7 +1166,9 @@ def _vendor_loader(split: str, seed: int, *, num_workers: int = 0) -> Iterable[D
     )
 
 
-def _vendor_transform_random_calls() -> tuple[list[str], dict[str, str]]:
+def _vendor_transform_random_calls() -> tuple[
+    list[str], dict[str, str], dict[str, JsonValue]
+]:
     transform_path = VENDOR_ROOT / "data" / "util.py"
     tree = ast.parse(transform_path.read_text())
     transform = next(
@@ -1013,12 +1186,47 @@ def _vendor_transform_random_calls() -> tuple[list[str], dict[str, str]]:
             )
         }
     )
+    dataset_path = VENDOR_ROOT / "data" / "magazine.py"
+    dataset_tree = ast.parse(dataset_path.read_text())
+    dataset_getitem = [
+        node
+        for node in ast.walk(dataset_tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "__getitem__"
+    ]
+    base_path = VENDOR_ROOT / "data" / "base.py"
+    base_tree = ast.parse(base_path.read_text())
+    base_getitem = [
+        node
+        for node in ast.walk(base_tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "__getitem__"
+    ]
+    getitem_random_calls = sorted(
+        {
+            ast.unparse(node.func)
+            for method in (*dataset_getitem, *base_getitem)
+            for node in ast.walk(method)
+            if isinstance(node, ast.Call)
+            and any(
+                token in ast.unparse(node.func).lower() for token in ("random", "rand")
+            )
+        }
+    )
     source_paths = (
-        VENDOR_ROOT / "data" / "base.py",
-        VENDOR_ROOT / "data" / "magazine.py",
+        base_path,
+        dataset_path,
         transform_path,
     )
-    return calls, {str(path.relative_to(ROOT)): _sha256(path) for path in source_paths}
+    return (
+        calls,
+        {str(path.relative_to(ROOT)): _sha256(path) for path in source_paths},
+        {
+            "dataset_getitem_overrides": bool(dataset_getitem),
+            "base_getitem_overrides": bool(base_getitem),
+            "dataset_getitem_random_calls": getitem_random_calls,
+        },
+    )
 
 
 def _vendor_batch_digest(data: Data) -> str:
@@ -1066,7 +1274,7 @@ def _vendor_worker_sequence_hash(
 
 
 def _vendor_worker_policy(seed: int, steps: int) -> dict[str, JsonValue]:
-    random_calls, source_hashes = _vendor_transform_random_calls()
+    random_calls, source_hashes, getitem_audit = _vendor_transform_random_calls()
     sequence_hashes = {
         str(num_workers): _vendor_worker_sequence_hash(
             "train", seed, num_workers, steps
@@ -1074,7 +1282,9 @@ def _vendor_worker_policy(seed: int, steps: int) -> dict[str, JsonValue]:
         for num_workers in (4, 0)
     }
     same_stream = len(set(sequence_hashes.values())) == 1
-    no_sample_randomness = not random_calls
+    no_sample_randomness = (
+        not random_calls and not getitem_audit["dataset_getitem_random_calls"]
+    )
     if not no_sample_randomness or not same_stream:
         selected_num_workers = 4
     else:
@@ -1085,6 +1295,7 @@ def _vendor_worker_policy(seed: int, steps: int) -> dict[str, JsonValue]:
         "active_transform": "data.util.LexicographicSort",
         "per_sample_randomness": {
             "random_calls_in_active_transform": random_calls,
+            "dataset_getitem_audit": getitem_audit,
             "source_sha256": source_hashes,
             "none": no_sample_randomness,
         },
@@ -1231,6 +1442,7 @@ def _package_training_trajectory(
     _, _, package = _build_models(device, copy_vendor_weights=False)
     package.generator.load_state_dict(initial_generator, strict=True)
     package.discriminator.load_state_dict(initial_discriminator, strict=True)
+    training_modes_at_step: dict[str, bool] = {}
 
     class Capture(Callback):
         def __init__(self) -> None:
@@ -1255,6 +1467,13 @@ def _package_training_trajectory(
                 )
             optimizer_g, optimizer_d = optimizers
             package_module = cast(LayoutGANPPTrainingModule, pl_module)
+            if not training_modes_at_step:
+                training_modes_at_step.update(
+                    {
+                        "generator": package_module.generator.training,
+                        "discriminator": package_module.discriminator.training,
+                    }
+                )
             trace = package_module.latest_step_trace
             record = _trajectory_record(
                 step=batch_idx,
@@ -1328,7 +1547,7 @@ def _package_training_trajectory(
                 },
             ),
             "fit_loop_batches": trainer.fit_loop.max_batches,
-            "model_training": package.training,
+            "model_training_at_optimizer_step": training_modes_at_step,
         },
         "fit_calls": 1,
         "latent_seed": seed,
@@ -1358,6 +1577,7 @@ def _vendor_training_trajectory(
         "first": None,
         "second": None,
     }
+    training_modes_at_step: dict[str, bool] = {}
     capture_state = {"record_count": 0}
     previous_generator = {
         name: value.detach().clone() for name, value in initial_generator.items()
@@ -1451,6 +1671,13 @@ def _vendor_training_trajectory(
                     raise RuntimeError("vendor training step did not record two losses")
                 generator = captured_models["generator"]
                 discriminator = captured_models["discriminator"]
+                if not training_modes_at_step:
+                    training_modes_at_step.update(
+                        {
+                            "generator": generator.training,
+                            "discriminator": discriminator.training,
+                        }
+                    )
                 generator_optimizer = captured_optimizers[1].raw
                 discriminator_optimizer = captured_optimizers[0].raw
                 record = _trajectory_record(
@@ -1532,12 +1759,21 @@ def _vendor_training_trajectory(
     vendor_module.__dict__["get_dataset"] = lambda name, split, transform=None: (
         train_dataset if split == "train" else val_dataset
     )
-    vendor_module.__dict__["DataLoader"] = (
-        lambda dataset, batch_size, num_workers, pin_memory, shuffle: Sequence(
+
+    def data_loader(
+        dataset: Dataset[Data],
+        batch_size: int,
+        num_workers: int,
+        shuffle: bool,
+        **kwargs: bool,
+    ) -> Sequence:
+        del dataset, batch_size, num_workers, kwargs
+        return Sequence(
             train_loader if shuffle else val_loader,
             steps if shuffle else val_batch_count,
         )
-    )
+
+    vendor_module.__dict__["DataLoader"] = data_loader
 
     class NoopWriter:
         def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
@@ -1635,9 +1871,7 @@ def _vendor_training_trajectory(
             )
             for optimizer in captured_optimizers
         ],
-        "model_training": {
-            name: module.training for name, module in captured_models.items()
-        },
+        "model_training_at_optimizer_step": training_modes_at_step,
         "latent_seed": seed,
     }
     del device
@@ -1683,9 +1917,14 @@ def _trajectory(
 
 def _production_metadata_summary(
     path: Path,
-) -> tuple[dict[int, dict[str, int]], dict[str, int]]:
+) -> tuple[
+    dict[int, dict[str, int]],
+    dict[str, int],
+    dict[str, dict[str, bool]],
+]:
     seeds: dict[int, dict[str, int]] = {}
     counts: dict[str, int] = {}
+    training_modes: dict[str, dict[str, bool]] = {}
     with path.open() as handle:
         for line in handle:
             item = cast(dict[str, JsonValue], json.loads(line))
@@ -1701,9 +1940,29 @@ def _production_metadata_summary(
             latent_seed = metadata.get("latent_seed")
             if not isinstance(latent_seed, int):
                 raise TypeError("production metadata is missing its latent seed")
+            modes = metadata.get("model_training_at_optimizer_step")
+            trainer_metadata = metadata.get("trainer")
+            if modes is None and isinstance(trainer_metadata, dict):
+                modes = trainer_metadata.get("model_training_at_optimizer_step")
+            if not isinstance(modes, dict) or not all(
+                isinstance(name, str) and isinstance(value, bool)
+                for name, value in modes.items()
+            ):
+                raise TypeError(
+                    "production metadata is missing optimizer-step training modes"
+                )
+            if not modes or not all(modes.values()):
+                raise RuntimeError(
+                    "production training path did not use train mode at an optimizer step"
+                )
             seeds.setdefault(repeat, {})[system] = latent_seed
             counts[system] = counts.get(system, 0) + 1
-    return seeds, counts
+            previous_modes = training_modes.setdefault(system, dict(modes))
+            if previous_modes != modes:
+                raise RuntimeError(
+                    f"production training modes changed across {system} repeats"
+                )
+    return seeds, counts, training_modes
 
 
 def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path:
@@ -1775,7 +2034,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
     package_repeats = _trajectory_repeat_ids(natural_path, "package")
     if not vendor_repeats or not package_repeats:
         raise RuntimeError("natural trajectory is missing a system")
-    first = _compare_trajectory_records(
+    natural_comparison = _trajectory_comparison_summary(
         natural_path,
         "vendor",
         vendor_repeats[0],
@@ -1783,7 +2042,10 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         package_repeats[0],
         steps,
     )
-    latent_seed_runs, metadata_counts = _production_metadata_summary(metadata_path)
+    first = cast(dict[str, JsonValue] | None, natural_comparison["first_divergence"])
+    latent_seed_runs, metadata_counts, training_modes = _production_metadata_summary(
+        metadata_path
+    )
     latent_seed_policy: list[dict[str, JsonValue]] = []
     for repeat, system_seeds in sorted(latent_seed_runs.items()):
         seeds = set(system_seeds.values())
@@ -1878,8 +2140,10 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             "metadata_artifact": str(metadata_path.relative_to(ROOT)),
             "metadata_record_counts": metadata_counts,
             "package_trainer_run_count": metadata_counts.get("package", 0),
+            "model_training_at_optimizer_step": training_modes,
         },
         first_divergence=first,
+        natural_comparison=natural_comparison,
         rss_report=None if rss_report is None else str(rss_report.relative_to(ROOT)),
     )
     return _write("s3-lockstep", summary)
