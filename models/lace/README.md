@@ -169,7 +169,7 @@ The original LACE project trains on PubLayNet and Rico annotations prepared as m
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Package-local S0-S4 training reproduction is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md); S5 full-run statistical reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
