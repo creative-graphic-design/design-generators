@@ -2020,6 +2020,7 @@ def _package_evaluation(
         dataset_name=cast(LayoutDMTrainingDatasetName, dataset),
         config=dataset_config,
         processed_data_dir=processed_root,
+        split="test",
         max_seq_length=25,
         random_order=False,
     )
@@ -2051,8 +2052,8 @@ def _package_evaluation(
             )
             package_predictions = [
                 (
-                    output.bbox[index][output.mask[index]],
-                    output.labels[index][output.mask[index]],
+                    output.bbox[index][output.mask[index]].detach().cpu().numpy(),
+                    output.labels[index][output.mask[index]].detach().cpu().numpy(),
                 )
                 for index in range(output.bbox.shape[0])
             ]
@@ -2083,8 +2084,8 @@ def _package_evaluation(
                 )
                 package_predictions.extend(
                     (
-                        output.bbox[index][output.mask[index]],
-                        output.labels[index][output.mask[index]],
+                        output.bbox[index][output.mask[index]].detach().cpu().numpy(),
+                        output.labels[index][output.mask[index]].detach().cpu().numpy(),
                     )
                     for index in range(output.bbox.shape[0])
                 )
