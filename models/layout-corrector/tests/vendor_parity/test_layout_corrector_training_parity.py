@@ -2334,7 +2334,7 @@ def _vendor_evaluation_inputs(
     _prepend_vendor_import_roots(scratch)
     from hydra.utils import instantiate
     from trainer.helpers.task import get_cond
-    from trainer.trainer.corrector_test import build_tokenizer
+    from trainer.corrector_test import build_tokenizer
 
     vendor_meta = _load_vendor_metadata(vendor_pkl_paths["unconditional"], scratch)
     train_config = vendor_meta["train_cfg"]
