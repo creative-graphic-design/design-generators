@@ -69,6 +69,7 @@ DATASETS: Final[tuple[LayoutCorrectorTrainingDatasetName, ...]] = (
 )
 CORRECTOR_HIDDEN_SIZE: Final = 432
 CORRECTOR_INTERMEDIATE_SIZE: Final = 1728
+EVALUATION_BATCH_SIZE: Final = 512
 CHECKPOINT_SHA256: Final = {
     "rico25": "7759bdf9e05cccef7a6a7e4260adc50f8c1ef6e6faa10351b79fb63f6b51c853",
     "publaynet": "9f7aee8ca600cc7cc96182affc85f96ebafc2b41a9ae72b05dfacfd64e89791d",
@@ -1894,7 +1895,7 @@ def _vendor_command(dataset: str, job_dir: Path) -> list[str]:
         "--device",
         "0",
         "--batch_size",
-        "512",
+        str(EVALUATION_BATCH_SIZE),
         "--test_only",
         "--timesteps",
         "100",
@@ -2027,7 +2028,12 @@ def _package_evaluation(
         max_seq_length=25,
         random_order=False,
     )
-    loader = DataLoader(package_dataset, batch_size=512, shuffle=False, num_workers=0)
+    loader = DataLoader(
+        package_dataset,
+        batch_size=EVALUATION_BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+    )
     package_root = scratch / "results" / dataset
     package_dirs = {
         condition: package_root / f"package_{condition}"
@@ -2066,29 +2072,31 @@ def _package_evaluation(
         inputs: list[torch.Tensor] = []
         started = time.perf_counter()
         if condition == "unconditional":
-            output = cast(
-                LayoutGenerationOutput,
-                pipeline(
-                    batch_size=int(vendor_meta["N_total"]),
-                    generator=generator,
-                    num_inference_steps=100,
-                    sampling="random",
-                    corrector_steps=1,
-                    corrector_t_list=(10, 20, 30),
-                    corrector_start=-1,
-                    corrector_end=-1,
-                    corrector_mask_mode="thresh",
-                    corrector_mask_threshold=0.7,
-                    use_gumbel_noise=False,
-                ),
-            )
-            package_predictions = [
-                (
-                    output.bbox[index][output.mask[index]].detach().cpu().numpy(),
-                    output.labels[index][output.mask[index]].detach().cpu().numpy(),
+            total_layouts = int(vendor_meta["N_total"])
+            for start in range(0, total_layouts, EVALUATION_BATCH_SIZE):
+                output = cast(
+                    LayoutGenerationOutput,
+                    pipeline(
+                        batch_size=min(EVALUATION_BATCH_SIZE, total_layouts - start),
+                        generator=generator,
+                        num_inference_steps=100,
+                        sampling="random",
+                        corrector_steps=1,
+                        corrector_t_list=(10, 20, 30),
+                        corrector_start=-1,
+                        corrector_end=-1,
+                        corrector_mask_mode="thresh",
+                        corrector_mask_threshold=0.7,
+                        use_gumbel_noise=False,
+                    ),
                 )
-                for index in range(output.bbox.shape[0])
-            ]
+                package_predictions.extend(
+                    (
+                        output.bbox[index][output.mask[index]].detach().cpu().numpy(),
+                        output.labels[index][output.mask[index]].detach().cpu().numpy(),
+                    )
+                    for index in range(output.bbox.shape[0])
+                )
         else:
             condition_type = "label" if condition == "c" else "label_size"
             for batch in loader:
