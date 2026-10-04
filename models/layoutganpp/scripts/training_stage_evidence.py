@@ -238,6 +238,16 @@ def _state_map(
     return {name: value.detach().clone() for name, value in module.state_dict().items()}
 
 
+def _copy_state_into(
+    target: dict[str, Shaped[torch.Tensor, "..."]], module: torch.nn.Module
+) -> None:
+    current = module.state_dict()
+    if list(target) != list(current):
+        raise RuntimeError("state-map keys changed during the training trajectory")
+    for name, value in current.items():
+        target[name].copy_(value.detach())
+
+
 def _gradient_map(
     module: torch.nn.Module,
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
@@ -1140,8 +1150,9 @@ def _package_training_trajectory(
             self.record_count += 1
             if batch_idx + 1 in (5, steps):
                 rss_samples[f"{sample_prefix}:step{batch_idx + 1}"] = _rss_bytes()
-            self.previous_generator = _state_map(package_module.generator)
-            self.previous_discriminator = _state_map(package_module.discriminator)
+            package_module.latest_step_trace.clear()
+            _copy_state_into(self.previous_generator, package_module.generator)
+            _copy_state_into(self.previous_discriminator, package_module.discriminator)
 
     capture = Capture()
     data_loader = DataLoader(
@@ -1226,8 +1237,12 @@ def _vendor_training_trajectory(
         "second": None,
     }
     capture_state = {"record_count": 0}
-    previous_generator = dict(initial_generator)
-    previous_discriminator = dict(initial_discriminator)
+    previous_generator = {
+        name: value.detach().clone() for name, value in initial_generator.items()
+    }
+    previous_discriminator = {
+        name: value.detach().clone() for name, value in initial_discriminator.items()
+    }
 
     class CapturingGenerator(generator_cls):
         def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
@@ -1286,10 +1301,8 @@ def _vendor_training_trajectory(
                     rss_samples[
                         f"{sample_prefix}:step{capture_state['record_count']}"
                     ] = _rss_bytes()
-                previous_generator.clear()
-                previous_generator.update(_state_map(generator))
-                previous_discriminator.clear()
-                previous_discriminator.update(_state_map(discriminator))
+                _copy_state_into(previous_generator, generator)
+                _copy_state_into(previous_discriminator, discriminator)
                 captured_losses["first"] = None
                 captured_losses["second"] = None
             return result
