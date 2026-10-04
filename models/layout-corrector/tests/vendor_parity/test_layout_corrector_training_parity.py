@@ -2008,12 +2008,15 @@ def _package_evaluation(
     pipeline_path: Path,
     vendor_pkl_paths: dict[str, Path],
     scratch: Path,
-) -> tuple[dict[str, Path], dict[str, list[torch.Tensor]]]:
+) -> tuple[dict[str, Path], dict[str, list[torch.Tensor]], bool]:
     from layout_corrector import LayoutCorrectorPipeline
     from layout_dm.training.dataset import LayoutDMProcessedDataset
 
     device = torch.device(os.environ.get("LAYOUT_CORRECTOR_S4_DEVICE", "cuda:0"))
-    pipeline = LayoutCorrectorPipeline.from_pretrained(pipeline_path).to(device)
+    package_reused = os.environ.get("LAYOUT_CORRECTOR_S4_REUSE_PACKAGE") == "1"
+    pipeline = LayoutCorrectorPipeline.from_pretrained(pipeline_path)
+    if not package_reused:
+        pipeline.to(device)
     processed_root = _evaluation_asset_root() / "datasets"
     dataset_config = pipeline.layout_dm.tokenizer.config
     package_dataset = LayoutDMProcessedDataset(
@@ -2025,8 +2028,37 @@ def _package_evaluation(
         random_order=False,
     )
     loader = DataLoader(package_dataset, batch_size=512, shuffle=False, num_workers=0)
-    package_dirs: dict[str, Path] = {}
+    package_root = scratch / "results" / dataset
+    package_dirs = {
+        condition: package_root / f"package_{condition}"
+        for condition in vendor_pkl_paths
+    }
     package_inputs: dict[str, list[torch.Tensor]] = {}
+    if package_reused:
+        for condition, package_dir in package_dirs.items():
+            package_path = package_dir / "seed_0.pkl"
+            if not package_path.is_file():
+                raise FileNotFoundError(package_path)
+            if condition == "unconditional":
+                package_inputs[condition] = []
+                continue
+            package_inputs[condition] = [
+                cast(torch.Tensor, batch["input_ids"]).detach().cpu()
+                for batch in loader
+            ]
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
+                str(package_root),
+                "--force",
+            ],
+            cwd=scratch,
+            env=_evaluation_environment(scratch),
+            check=True,
+        )
+        return package_dirs, package_inputs, True
+
     for condition, vendor_path in vendor_pkl_paths.items():
         vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         generator = torch.Generator(device=device).manual_seed(0)
@@ -2097,20 +2129,20 @@ def _package_evaluation(
         package_meta["N_total"] = len(package_predictions)
         with (package_dir / "seed_0.pkl").open("wb") as handle:
             pickle.dump(package_meta, handle)
-        subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
-                str(package_dir),
-                "--force",
-            ],
-            cwd=scratch,
-            env=_evaluation_environment(scratch),
-            check=True,
-        )
         package_dirs[condition] = package_dir
         package_inputs[condition] = inputs
-    return package_dirs, package_inputs
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
+            str(package_root),
+            "--force",
+        ],
+        cwd=scratch,
+        env=_evaluation_environment(scratch),
+        check=True,
+    )
+    return package_dirs, package_inputs, False
 
 
 @pytest.mark.parametrize("dataset", DATASETS)
@@ -2122,7 +2154,7 @@ def test_s4_test_evaluation_path_matches_vendor(
     scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint, vendor_reused = (
         _run_vendor_evaluation(dataset)
     )
-    package_dirs, package_inputs = _package_evaluation(
+    package_dirs, package_inputs, package_reused = _package_evaluation(
         dataset,
         _evaluation_pipeline_root(dataset),
         vendor_pkl_paths,
@@ -2148,6 +2180,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         "pipeline_path": str(pipeline_path),
         "vendor_command": vendor_command,
         "vendor_evaluation_mode": "reused" if vendor_reused else "executed",
+        "package_evaluation_mode": "reused" if package_reused else "executed",
         "vendor_sweep_source_commit": vendor_sweep_source_commit
         if vendor_reused
         else _source_commit(ROOT),
@@ -2229,7 +2262,7 @@ def test_s4_test_evaluation_path_matches_vendor(
             "evaluator_command": [
                 sys.executable,
                 str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
-                str(package_dirs[condition]),
+                str(package_dirs[condition].parent),
                 "--force",
             ],
         }
