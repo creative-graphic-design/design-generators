@@ -1388,6 +1388,8 @@ def _parameter_update_mechanism(
     vendor_states: list[dict[str, Any]],
     package_states: list[dict[str, Any]],
     parameter_envelope: dict[str, Any],
+    *,
+    include_maximum_probe: bool = True,
 ) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     for item in parameter_envelope["outside_self_envelope"]:
@@ -1523,9 +1525,21 @@ def _parameter_update_mechanism(
         and candidate["adam_prediction_bitwise"]
         for candidate in candidates
     )
+    maximum_probe = None
+    if include_maximum_probe:
+        maximum_probe = _parameter_update_mechanism(
+            vendor_states,
+            package_states,
+            {
+                **parameter_envelope,
+                "outside_self_envelope": [parameter_envelope["maximum_cross_element"]],
+            },
+            include_maximum_probe=False,
+        )["candidates"][0]
     return {
         "parameter_outside_count": len(candidates),
         "candidates": candidates,
+        "maximum_cross_element_probe": maximum_probe,
         "all_outside_elements_explained_by_sign_straddling_adam": explained,
         "passed": explained,
     }
