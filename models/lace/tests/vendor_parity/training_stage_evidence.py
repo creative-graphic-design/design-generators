@@ -1989,6 +1989,8 @@ def _evaluation_parity(
     package_calls: list[dict[str, object]] = []
     preprocessing_equal = True
     package_elapsed = 0.0
+    package_alignment_sum = torch.zeros((), device=device)
+    package_overlap_sum = torch.zeros((), device=device)
     for batch_index, test_batch in enumerate(loader):
         if max_batches is not None and batch_index >= max_batches:
             break
@@ -2059,6 +2061,12 @@ def _evaluation_parity(
             "labels": package_cond.labels.cpu(),
             "mask": package_cond.mask.cpu(),
         }
+        package_alignment_sum += torch.mean(
+            compute_alignment(package_cond.bbox, mask.to(device))
+        )
+        package_overlap_sum += torch.mean(
+            compute_overlap(package_cond.bbox, mask.to(device))
+        )
         vendor_batches.append({key: value.numpy() for key, value in vendor_cpu.items()})
         package_batches.append(
             {key: value.numpy() for key, value in package_cpu.items()}
@@ -2152,9 +2160,7 @@ def _evaluation_parity(
         mask=package_predictions["mask"],
     )
     vendor_mask = torch.from_numpy(vendor_predictions["mask"])
-    package_bbox = torch.from_numpy(package_predictions["bbox"])
     package_mask = torch.from_numpy(package_predictions["mask"])
-    vendor_input_mask = torch.from_numpy(inputs["mask"])
     vendor_metrics: dict[str, float] = {
         "alignment": float(vendor_result[0]),
         "fid": float(vendor_result[1]),
@@ -2162,10 +2168,8 @@ def _evaluation_parity(
         "overlap": float(vendor_result[3]),
     }
     package_metrics = {
-        "alignment": float(
-            100 * compute_alignment(package_bbox, vendor_input_mask).mean()
-        ),
-        "overlap": float(100 * compute_overlap(package_bbox, vendor_input_mask).mean()),
+        "alignment": float(100 * package_alignment_sum / len(vendor_loader)),
+        "overlap": float(100 * package_overlap_sum / len(vendor_loader)),
         "maximum_iou": float(compute_maximum_iou(reference_layouts, package_layouts)),
     }
     processed_count = len(vendor_layouts)
