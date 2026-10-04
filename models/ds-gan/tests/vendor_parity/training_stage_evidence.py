@@ -1258,6 +1258,7 @@ def run_s0() -> Path:
         parameter.numel() for parameter in package_discriminator.parameters()
     )
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
+    vendor_schedulers = _schedulers(vendor_optimizers)
     package_optimizers, package_schedulers, package_scheduler_configs = (
         _package_optimizers_and_schedulers(package_module)
     )
@@ -1337,8 +1338,7 @@ def run_s0() -> Path:
                 "optimizer_static_equal": optimizer_static_equal,
                 "scheduler_static": {
                     "vendor": [
-                        _scheduler_static(scheduler)
-                        for scheduler in _schedulers(vendor_optimizers)
+                        _scheduler_static(scheduler) for scheduler in vendor_schedulers
                     ],
                     "package": [
                         _scheduler_static(scheduler) for scheduler in package_schedulers
