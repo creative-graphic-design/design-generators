@@ -2061,11 +2061,13 @@ def _evaluation_parity(
             "labels": package_cond.labels.cpu(),
             "mask": package_cond.mask.cpu(),
         }
+        package_metric_bbox = package_cond.bbox.to(device)
+        package_metric_mask = mask.to(device)
         package_alignment_sum += torch.mean(
-            compute_alignment(package_cond.bbox, mask.to(device))
+            compute_alignment(package_metric_bbox, package_metric_mask)
         )
         package_overlap_sum += torch.mean(
-            compute_overlap(package_cond.bbox, mask.to(device))
+            compute_overlap(package_metric_bbox, package_metric_mask)
         )
         vendor_batches.append({key: value.numpy() for key, value in vendor_cpu.items()})
         package_batches.append(
