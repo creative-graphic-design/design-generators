@@ -128,6 +128,7 @@ class LayoutGANPPModel(PreTrainedModel):
             encoder_layer, num_layers=config.num_layers
         )
         self.fc_out = nn.Linear(config.d_model, 4)
+        self.all_tied_weights_keys: dict[str, str] = {}
 
     def forward(
         self,
