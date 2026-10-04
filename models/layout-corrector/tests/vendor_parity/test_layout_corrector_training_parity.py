@@ -1234,12 +1234,49 @@ def _run_natural_side(
                 "model_training": model.training,
             }
         )
+    from trainer.data.util import compose_transform, sparse_to_dense
+
+    validation_dataset = _vendor_dataset(
+        fixture.dataset,
+        "val",
+        transform=compose_transform(["RandomOrder"]),
+    )
+    validation_loader = GeometricDataLoader(
+        validation_dataset,
+        batch_size=64,
+        shuffle=False,
+        num_workers=_loader_worker_count(),
+    )
+    model.eval()
+    validation_loss_total = 0.0
+    validation_sample_count = 0
+    with torch.no_grad():
+        for raw_batch in validation_loader:
+            bbox, labels, _, mask = sparse_to_dense(raw_batch)
+            encoded = fixture.vendor_tokenizer.encode(
+                {"bbox": bbox, "label": labels, "mask": mask}
+            )
+            batch = {
+                "input_ids": encoded["seq"],
+                "attention_mask": encoded["mask"],
+                "id": [str(value) for value in raw_batch.attr["name"]],
+            }
+            trace = _vendor_trace(fixture, batch)
+            sample_count = int(encoded["seq"].shape[0])
+            validation_loss_total += float(trace["train_loss"].item()) * sample_count
+            validation_sample_count += sample_count
+    if validation_sample_count == 0:
+        raise AssertionError("vendor validation stream is empty")
+    validation_loss = validation_loss_total / validation_sample_count
+    scheduler.step(validation_loss)
     return (
         rows,
         deepcopy(model.state_dict()),
         {
             "scheduler_class": type(scheduler).__name__,
             "scheduler_state_digest": _state_digest(scheduler.state_dict()),
+            "validation_batches": len(validation_loader),
+            "validation_loss": validation_loss,
             "pre_model_rng_digest": fixture.vendor_pre_model_rng_digest,
         },
     )
@@ -1342,6 +1379,12 @@ def _natural_comparison(
     assert package_record["scheduler_state_digest"]
     assert isinstance(vendor_record["scheduler_state_digest"], str)
     assert vendor_record["scheduler_state_digest"]
+    assert package_record["validation_batches"] == vendor_record["validation_batches"]
+    assert package_record["validation_loss"] == vendor_record["validation_loss"]
+    assert (
+        package_record["scheduler_state_digest"]
+        == vendor_record["scheduler_state_digest"]
+    )
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
     assert package_record["max_epochs"] == 50
@@ -1444,9 +1487,8 @@ def _natural_comparison(
             package_record["scheduler_state_digest"]
             == vendor_record["scheduler_state_digest"]
         ),
-        "scheduler_state_note": (
-            "The bounded max_steps production fit runs validation at its stop boundary; "
-            "the vendor natural adapter records the pre-validation scheduler state."
+        "validation_loss_abs_diff": abs(
+            package_record["validation_loss"] - vendor_record["validation_loss"]
         ),
         "gradient_norm_mismatch_steps": gradient_mismatches,
         "learning_rate_mismatch_steps": learning_rate_mismatches,

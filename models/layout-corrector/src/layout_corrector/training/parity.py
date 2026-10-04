@@ -158,6 +158,7 @@ class ProductionTraceCallback(Callback):
         self._batch_digest: dict[str, str] = {}
         self._initial_cpu_rng_state: Shaped[torch.Tensor, "..."] | None = None
         self._pre_loader_rng_digest: str | None = None
+        self._validation_loss: float | None = None
 
     def _restore_initial_cpu_rng(self, batch_idx: int) -> None:
         """Undo Lightning's first iterator seed draw once per production run."""
@@ -251,6 +252,17 @@ class ProductionTraceCallback(Callback):
             }
         )
 
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
+        """Capture the validation metric consumed by the plateau scheduler."""
+        del pl_module
+        metric = trainer.callback_metrics.get("val_loss")
+        if not isinstance(metric, torch.Tensor):
+            raise RuntimeError("production trace did not receive val_loss")
+
+        self._validation_loss = float(metric.detach().cpu().item())
+
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Persist the final state and production wiring metadata."""
         module = cast(LayoutCorrectorTrainingModule, pl_module)
@@ -266,6 +278,9 @@ class ProductionTraceCallback(Callback):
         if datamodule is None:
             raise RuntimeError("production trace did not receive a data module")
 
+        if self._validation_loss is None:
+            raise RuntimeError("production trace did not capture validation loss")
+
         self.trace_path.parent.mkdir(parents=True, exist_ok=True)
         self.trace_path.write_text(
             json.dumps(
@@ -276,6 +291,7 @@ class ProductionTraceCallback(Callback):
                     "pre_model_rng_digest": module.pre_model_rng_digest,
                     "pre_loader_rng_digest": self._pre_loader_rng_digest,
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),
+                    "validation_loss": self._validation_loss,
                     "validation_batches": trainer.num_val_batches,
                     "train_batches": trainer.num_training_batches,
                     "observed_train_batches": len(self.rows),
