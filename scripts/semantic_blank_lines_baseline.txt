@@ -79,7 +79,6 @@ models/lace/src/lace/model_card.py	block-end	2
 models/lace/src/lace/modeling_lace.py	block-end	2
 models/lace/src/lace/pipeline_lace.py	block-end	11
 models/lace/src/lace/processing_lace.py	block-end	3
-models/lace/src/lace/scheduling_lace.py	block-end	0
 models/layousyn/src/layousyn/configuration_layousyn.py	block-end	5
 models/layousyn/src/layousyn/modeling_layousyn.py	block-end	5
 models/layousyn/src/layousyn/pipeline_layousyn.py	block-end	6

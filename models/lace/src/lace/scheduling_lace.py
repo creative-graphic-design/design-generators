@@ -158,6 +158,19 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         )
         self.sqrt_one_minus_alphas = torch.sqrt(1.0 - self.ddim_alphas)
 
+    def alphas_cumprod_for_device(
+        self, device: torch.device | str
+    ) -> Float[torch.Tensor, "timesteps"]:
+        """Return training cumulative alphas computed on ``device``."""
+        target_device = torch.device(device)
+        if self.beta_schedule in {
+            str(BetaSchedule.cosine),
+            str(BetaSchedule.cosine_reverse),
+        }:
+            return _alphas_cumprod_on_device(self.num_train_timesteps, target_device)
+
+        return self.alphas_cumprod.to(target_device)
+
     def add_noise(
         self,
         original_samples: Float[torch.Tensor, "batch elements channels"],

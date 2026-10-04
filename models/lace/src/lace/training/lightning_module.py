@@ -65,7 +65,7 @@ class LaceTrainingModule(LightningModule):
 
         schedule = LaceScheduler(num_train_timesteps=1000, ddim_num_steps=200)
         model_device = next(self.model.parameters()).device
-        alphas_cumprod = schedule.alphas_cumprod.to(model_device)
+        alphas_cumprod = schedule.alphas_cumprod_for_device(model_device)
 
         self.register_buffer("alphas_bar_sqrt", alphas_cumprod.sqrt())
         self.register_buffer("one_minus_alphas_bar_sqrt", (1 - alphas_cumprod).sqrt())
@@ -76,9 +76,9 @@ class LaceTrainingModule(LightningModule):
     def on_fit_start(self) -> None:
         """Apply the configured seed policy at the training boundary."""
         apply_lace_seed_mode(self.seed_mode, seed=self.seed)
-        alphas_cumprod = LaceScheduler(num_train_timesteps=1000).alphas_cumprod.to(
-            cast(torch.Tensor, self.alphas_bar_sqrt).device
-        )
+        alphas_cumprod = LaceScheduler(
+            num_train_timesteps=1000
+        ).alphas_cumprod_for_device(cast(torch.Tensor, self.alphas_bar_sqrt).device)
         cast(torch.Tensor, self.alphas_bar_sqrt).copy_(alphas_cumprod.sqrt())
         cast(torch.Tensor, self.one_minus_alphas_bar_sqrt).copy_(
             (1 - alphas_cumprod).sqrt()
