@@ -1530,9 +1530,144 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
     }
 
 
+def _run_vendor_alone(repeat: int, device: torch.device) -> dict[str, Any]:
+    _set_determinism(SEED)
+    _vendor_main()
+    vendor_generator, vendor_discriminator, _, _ = _independent_models("vendor", device)
+    vendor_loader, _ = _vendor_loaders(SEED)
+    vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
+    vendor_schedulers = _schedulers(vendor_optimizers)
+    vendor_iterator = iter(vendor_loader)
+    for step in range(1, LOCKSTEP_STEPS + 1):
+        epoch = (step - 1) // TRAIN_BATCHES_PER_EPOCH + 1
+        if step > 1 and (step - 1) % TRAIN_BATCHES_PER_EPOCH == 0:
+            vendor_iterator = iter(vendor_loader)
+        vendor_batch = _vendor_batch(next(vendor_iterator), device)
+        _vendor_step(
+            vendor_generator,
+            vendor_discriminator,
+            vendor_batch,
+            *vendor_optimizers,
+            _vendor_criterion(device),
+            epoch,
+        )
+        if step % TRAIN_BATCHES_PER_EPOCH == 0:
+            for scheduler in vendor_schedulers:
+                scheduler.step()
+    return {
+        "repeat": repeat,
+        "steps": LOCKSTEP_STEPS,
+        "seed": SEED,
+        "vendor_training_entry_point": (
+            f"{Path(_vendor_main().__file__).resolve().relative_to(ROOT)}:"
+            f"{_vendor_main().train.__qualname__}"
+        ),
+        "final_parameters": {
+            **_named_parameters(vendor_generator, "generator"),
+            **_named_parameters(vendor_discriminator, "discriminator"),
+        },
+        "final_optimizer_state": {
+            **_named_optimizer_state(
+                vendor_optimizers[0], vendor_generator, "generator"
+            ),
+            **_named_optimizer_state(
+                vendor_optimizers[1], vendor_discriminator, "discriminator"
+            ),
+        },
+    }
+
+
+def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
+    from ds_gan.training.lightning_module import DSGANTrainingModule
+
+    package_generator, package_discriminator, generator_config, discriminator_config = (
+        _independent_models("package", device)
+    )
+    package_loader, _ = _package_loaders(SEED)
+    package_module = DSGANTrainingModule(
+        config=generator_config,
+        discriminator_config=discriminator_config,
+        generator=package_generator,
+        discriminator=package_discriminator,
+    ).to(device)
+    trainer = Trainer(
+        accelerator="gpu" if device.type == "cuda" else "cpu",
+        devices=1,
+        precision="32-true",
+        max_steps=LOCKSTEP_STEPS,
+        limit_train_batches=TRAIN_BATCHES_PER_EPOCH,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+        deterministic="warn",
+        gradient_clip_val=None,
+        gradient_clip_algorithm="norm",
+    )
+    trainer.fit(package_module, train_dataloaders=package_loader)
+    if trainer.global_step != LOCKSTEP_STEPS:
+        raise RuntimeError(
+            f"package Trainer stopped at {trainer.global_step} steps, expected {LOCKSTEP_STEPS}"
+        )
+    return {
+        "repeat": repeat,
+        "steps": trainer.global_step,
+        "seed": SEED,
+        "package_training_entry_point": (
+            f"{type(package_module).__module__}.{type(package_module).__qualname__}.training_step"
+        ),
+        "package_trainer": f"{type(trainer).__module__}.{type(trainer).__qualname__}",
+        "final_parameters": {
+            **_named_parameters(package_module.generator, "generator"),
+            **_named_parameters(package_module.discriminator, "discriminator"),
+        },
+        "final_optimizer_state": {
+            **_named_optimizer_state(
+                trainer.optimizers[0], package_module.generator, "generator"
+            ),
+            **_named_optimizer_state(
+                trainer.optimizers[1], package_module.discriminator, "discriminator"
+            ),
+        },
+    }
+
+
+def _self_envelope(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
+    parameter_comparison = _state_compare(
+        first["final_parameters"], second["final_parameters"]
+    )
+    optimizer_comparison = _state_compare(
+        first["final_optimizer_state"], second["final_optimizer_state"]
+    )
+    return {
+        "steps": [first["steps"], second["steps"]],
+        "seed": [first["seed"], second["seed"]],
+        "parameters": parameter_comparison,
+        "optimizer_state": optimizer_comparison,
+        "max_abs_difference": max(
+            parameter_comparison["max_abs_difference"],
+            optimizer_comparison["max_abs_difference"],
+        ),
+    }
+
+
+def _envelope_run_metadata(run: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in run.items()
+        if key not in {"final_parameters", "final_optimizer_state"}
+    }
+
+
 def run_s3() -> Path:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     repeats = [_run_natural(repeat, device) for repeat in (1, 2)]
+    vendor_runs = [_run_vendor_alone(repeat, device) for repeat in (1, 2)]
+    package_runs = [_run_package_alone(repeat, device) for repeat in (1, 2)]
+    vendor_self = _self_envelope(vendor_runs[0], vendor_runs[1])
+    package_self = _self_envelope(package_runs[0], package_runs[1])
+    cross_system_max = max(item["max_abs_difference"] for item in repeats)
+    within_vendor_envelope = cross_system_max <= vendor_self["max_abs_difference"]
     natural_pass = all(item["bitwise_300"] for item in repeats)
     return _write(
         "s3-lockstep",
@@ -1544,7 +1679,21 @@ def run_s3() -> Path:
             "steps": LOCKSTEP_STEPS,
             "repeats": repeats,
             "repeat_run_envelope": {
-                "max_abs_difference": max(
+                "cross_system_max_abs_difference": [
+                    item["max_abs_difference"] for item in repeats
+                ],
+                "cross_system_max_abs_difference_overall": cross_system_max,
+                "vendor_runs": [_envelope_run_metadata(run) for run in vendor_runs],
+                "package_runs": [_envelope_run_metadata(run) for run in package_runs],
+                "vendor_self": vendor_self,
+                "package_self": package_self,
+                "cross_system_within_vendor_self_envelope": within_vendor_envelope,
+                "interpretation": (
+                    "cross-system drift does not exceed the observed vendor self envelope"
+                    if within_vendor_envelope
+                    else "cross-system drift exceeds the observed vendor self envelope; package-specific drift remains"
+                ),
+                "legacy_max_abs_difference": max(
                     item["max_abs_difference"] for item in repeats
                 ),
                 "first_divergence_steps": [
