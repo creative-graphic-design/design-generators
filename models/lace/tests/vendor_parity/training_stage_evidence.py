@@ -192,6 +192,7 @@ def _distribution_metadata(name: str) -> dict[str, object]:
 
 
 def _runtime_metadata(output_root: Path) -> dict[str, object]:
+    output_root = output_root.resolve()
     freeze_root = output_root / "runtime"
     freeze_root.mkdir(parents=True, exist_ok=True)
     freeze_path = freeze_root / "pip-freeze.txt"
