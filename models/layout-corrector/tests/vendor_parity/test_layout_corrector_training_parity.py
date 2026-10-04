@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import pickle
 import shutil
@@ -2009,7 +2008,7 @@ def _assert_metric_parity(
     condition: str,
     vendor_metrics: dict[str, float],
     package_metrics: dict[str, float],
-) -> tuple[dict[str, float], dict[str, Any] | None]:
+) -> dict[str, float]:
     runtime_keys = {"N_total", "seed", "t_total"}
     vendor_keys = set(vendor_metrics) - runtime_keys
     package_keys = set(package_metrics) - runtime_keys
@@ -2018,36 +2017,14 @@ def _assert_metric_parity(
         key: abs(vendor_metrics[key] - package_metrics[key])
         for key in sorted(vendor_keys)
     }
-    exception: dict[str, Any] | None = None
-    for key, difference in metric_diffs.items():
-        if difference == 0.0:
-            continue
-        accepted = (
-            dataset == "rico25"
-            and condition == "c"
-            and key == "maximum_iou"
-            and vendor_metrics[key] == 0.28175993039315445
-            and package_metrics[key] == 0.28175993039315456
-            and difference == 1.1102230246251565e-16
-            and difference <= math.ulp(vendor_metrics[key])
-        )
-        assert accepted, {
-            "dataset": dataset,
-            "condition": condition,
-            "metric": key,
-            "vendor": vendor_metrics[key],
-            "package": package_metrics[key],
-            "difference": difference,
-        }
-        exception = {
-            "metric": key,
-            "vendor": vendor_metrics[key],
-            "package": package_metrics[key],
-            "difference": difference,
-            "tolerance": math.ulp(vendor_metrics[key]),
-            "reason": "one-ulp floating-point reduction-order difference",
-        }
-    return metric_diffs, exception
+    assert not any(metric_diffs.values()), {
+        "dataset": dataset,
+        "condition": condition,
+        "metric_diffs": metric_diffs,
+        "vendor": vendor_metrics,
+        "package": package_metrics,
+    }
+    return metric_diffs
 
 
 def _package_evaluation(
@@ -2277,7 +2254,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         package_metrics = _numeric_metrics(
             package_dirs[condition] / "scores_fake_seed_0.json"
         )
-        metric_diffs, metric_exception = _assert_metric_parity(
+        metric_diffs = _assert_metric_parity(
             dataset, condition, vendor_metrics, package_metrics
         )
         prediction_max_abs_diff, prediction_first = _prediction_difference(
@@ -2336,7 +2313,6 @@ def test_s4_test_evaluation_path_matches_vendor(
             "vendor_metrics": vendor_metrics,
             "package_metrics": package_metrics,
             "metric_max_abs_diffs": metric_diffs,
-            "metric_exception": metric_exception,
             "max_abs_prediction_diff": prediction_max_abs_diff,
             "first_prediction_divergence": prediction_first,
             "evaluator_command": [
