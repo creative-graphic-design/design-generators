@@ -2333,7 +2333,7 @@ def _vendor_evaluation_inputs(
     """Reconstruct the conditioning tensors from the original evaluator path."""
     _prepend_vendor_import_roots(scratch)
     from hydra.utils import instantiate
-    from trainer.helpers.task import get_cond
+    from trainer.data.util import sparse_to_dense
     from trainer.corrector_test import build_tokenizer
 
     vendor_meta = _load_vendor_metadata(vendor_pkl_paths["unconditional"], scratch)
@@ -2355,17 +2355,13 @@ def _vendor_evaluation_inputs(
     }
     for batch in loader:
         sample_ids = [str(value) for value in batch.attr["name"]]
+        bbox, label, _, mask = sparse_to_dense(batch)
+        encoded = tokenizer.encode({"label": label, "mask": mask, "bbox": bbox})
         for condition in ("c", "cwh"):
-            condition_data = get_cond(
-                batch=batch,
-                tokenizer=tokenizer,
-                cond_type=condition,
-                model_type="LayoutDM",
-            )
             inputs[condition].append(
                 {
-                    "input_ids": condition_data["seq"].detach().cpu(),
-                    "attention_mask": condition_data["mask"].detach().cpu(),
+                    "input_ids": encoded["seq"].detach().cpu(),
+                    "attention_mask": encoded["mask"].detach().cpu(),
                     "sample_ids": sample_ids,
                 }
             )
