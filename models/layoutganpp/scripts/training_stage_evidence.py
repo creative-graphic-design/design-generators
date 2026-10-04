@@ -11,6 +11,7 @@ import json
 import os
 import pickle
 import re
+import resource
 import shutil
 import shlex
 import subprocess
@@ -26,7 +27,6 @@ import torch
 from jaxtyping import Float, Int, Shaped
 from lightning.pytorch import Callback, LightningModule, Trainer
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch import multiprocessing as torch_multiprocessing
 from torch_geometric.data import Data
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 
@@ -1036,11 +1036,12 @@ def _vendor_batch_digest(data: Data) -> str:
 def _vendor_worker_sequence_hash(
     split: str, seed: int, num_workers: int, steps: int
 ) -> str:
-    previous_sharing_strategy = (
-        torch_multiprocessing.get_sharing_strategy() if num_workers else None
-    )
-    if previous_sharing_strategy is not None:
-        torch_multiprocessing.set_sharing_strategy("file_system")
+    previous_open_files_limit: tuple[int, int] | None = None
+    if num_workers:
+        soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if hard_limit > soft_limit:
+            previous_open_files_limit = (soft_limit, hard_limit)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (hard_limit, hard_limit))
 
     sequence = hashlib.sha256()
     iterator: Iterator[Data] | None = None
@@ -1058,8 +1059,8 @@ def _vendor_worker_sequence_hash(
     finally:
         if iterator is not None:
             del iterator
-        if previous_sharing_strategy is not None:
-            torch_multiprocessing.set_sharing_strategy(previous_sharing_strategy)
+        if previous_open_files_limit is not None:
+            resource.setrlimit(resource.RLIMIT_NOFILE, previous_open_files_limit)
     return sequence.hexdigest()
 
 
