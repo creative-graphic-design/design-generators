@@ -12,6 +12,9 @@ from layout_dm import (
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
+from laygen.common.randomness import multinomial
+from layout_corrector.sampling import select_tokens_to_remask
 
 
 def tiny_layout_dm():
@@ -192,6 +195,94 @@ def test_pipeline_runs_conditioned_corrector_branch_with_intermediates():
     assert output.scores is not None
     assert output.trajectory is not None
     assert output.intermediates == {"condition_type": "label"}
+
+
+def test_pipeline_matches_vendor_token_trajectory_through_corrector_steps():
+    pipe = tiny_pipeline()
+    pipe.layout_dm.scheduler.config.num_timesteps = 100
+    pipe.layout_dm.scheduler.set_timesteps(100)
+    generator = torch.Generator().manual_seed(17)
+
+    expected_sample = pipe.layout_dm.scheduler.initial_sample(
+        1,
+        pipe.layout_dm.tokenizer.config.max_token_length,
+        device=torch.device("cpu"),
+    )
+    expected_trajectory = []
+    for timestep in pipe.layout_dm.scheduler.timesteps:
+        timestep_value = int(timestep.item())
+        timestep_batch = torch.full((1,), timestep_value, dtype=torch.long)
+        input_ids = log_onehot_to_index(expected_sample)
+        denoiser_logits = pipe.layout_dm.denoiser(
+            input_ids=input_ids, timesteps=timestep_batch
+        ).logits
+        model_log_prob = pipe.layout_dm.scheduler.predict_start(denoiser_logits)
+
+        if timestep_value in (30, 20, 10):
+            x0_recon_ids = multinomial(
+                model_log_prob.softmax(dim=1)
+                .permute(0, 2, 1)
+                .reshape(-1, model_log_prob.size(1)),
+                1,
+                generator=generator,
+                device=torch.device("cpu"),
+            ).reshape(1, -1)
+            confidence = pipe.corrector.calc_confidence_score(
+                x0_recon_ids,
+                timestep_batch,
+                padding_mask=x0_recon_ids == pipe.layout_dm.tokenizer.pad_token_id,
+            )
+            remask = select_tokens_to_remask(
+                confidence,
+                mask_ratio=timestep_value / 100.0,
+                mode="thresh",
+                threshold=0.7,
+                temperature=1.0,
+            )
+            expected_sample = index_to_log_onehot(
+                x0_recon_ids.masked_fill(
+                    remask, pipe.layout_dm.tokenizer.mask_token_id
+                ),
+                pipe.layout_dm.scheduler.vocab_size,
+            )
+        else:
+            model_log_prob = pipe.layout_dm.scheduler.q_posterior(
+                model_log_prob, expected_sample, timestep_batch
+            )
+            ids = multinomial(
+                model_log_prob.softmax(dim=1)
+                .permute(0, 2, 1)
+                .reshape(-1, model_log_prob.size(1)),
+                1,
+                generator=generator,
+                device=torch.device("cpu"),
+            ).reshape(1, -1)
+            expected_sample = index_to_log_onehot(
+                ids, pipe.layout_dm.scheduler.vocab_size
+            )
+        expected_trajectory.append(log_onehot_to_index(expected_sample).clone())
+
+    actual = pipe(
+        batch_size=1,
+        generator=torch.Generator().manual_seed(17),
+        num_inference_steps=100,
+        sampling="random",
+        corrector_steps=1,
+        corrector_t_list=(10, 20, 30),
+        corrector_mask_mode="thresh",
+        corrector_mask_threshold=0.7,
+        use_gumbel_noise=False,
+        return_intermediates=True,
+    )
+
+    assert actual.trajectory is not None
+    assert len(actual.trajectory) == 100
+    assert all(
+        torch.equal(observed, expected)
+        for observed, expected in zip(
+            actual.trajectory, expected_trajectory, strict=True
+        )
+    )
 
 
 def test_pipeline_requires_conditioned_bbox_and_labels():

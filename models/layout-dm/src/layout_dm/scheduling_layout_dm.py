@@ -14,11 +14,13 @@ from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int, Shaped
 
 from laygen.common.discrete import (
+    SamplingMode,
     index_to_log_onehot,
     log_add_exp,
     log_onehot_to_index,
     sample_categorical,
 )
+from laygen.common.randomness import multinomial
 
 from .sampling import LayoutDMSamplingConfig
 
@@ -401,24 +403,30 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         """
         log_x_recon = self.predict_start(denoiser_output)
         model_log_prob = self.q_posterior(log_x_recon, sample, timestep)
-        if self.token_mask is not None:
-            valid = self.token_mask.to(model_log_prob.device).T.unsqueeze(0)
-            model_log_prob = model_log_prob.masked_fill(~valid, -70.0)
         if condition is not None:
             strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
             strong_log_prob = index_to_log_onehot(
                 condition.input_ids.to(model_log_prob.device), self.vocab_size
             )
             model_log_prob = torch.where(strong_mask, strong_log_prob, model_log_prob)
-        logits = model_log_prob.permute(0, 2, 1)
-        ids = sample_categorical(
-            logits,
-            sampling=sampling.name,
-            temperature=sampling.temperature,
-            top_k=sampling.top_k,
-            top_p=sampling.top_p,
-            generator=generator,
-        )
+        if sampling.name is SamplingMode.random:
+            probabilities = (model_log_prob / sampling.temperature).softmax(dim=1)
+            ids = multinomial(
+                probabilities.permute(0, 2, 1).reshape(-1, self.vocab_size),
+                1,
+                generator=generator,
+                device=model_log_prob.device,
+            ).reshape(model_log_prob.shape[0], model_log_prob.shape[-1])
+        else:
+            logits = model_log_prob.permute(0, 2, 1)
+            ids = sample_categorical(
+                logits,
+                sampling=sampling.name,
+                temperature=sampling.temperature,
+                top_k=sampling.top_k,
+                top_p=sampling.top_p,
+                generator=generator,
+            )
         prev_sample = index_to_log_onehot(ids, self.vocab_size)
         return LayoutDMSchedulerOutput(
             prev_sample=prev_sample,
