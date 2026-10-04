@@ -279,7 +279,7 @@ def _max_parameter_difference(
     module: torch.nn.Module,
     previous: Mapping[str, Shaped[torch.Tensor, "..."]],
 ) -> float:
-    current = module.state_dict()
+    current = dict(module.named_parameters())
     return max(
         (
             float((current[name] - previous[name]).abs().max().item())
