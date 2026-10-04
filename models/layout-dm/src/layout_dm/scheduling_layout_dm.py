@@ -152,17 +152,15 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         self, denoiser_output: Float[torch.Tensor, "batch tokens vocab"]
     ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Convert denoiser logits to start-sequence log probabilities."""
-        logits = denoiser_output[:, :, :-1]
-        log_pred = torch.log_softmax(logits.double(), dim=-1).float()
+        logits = denoiser_output[:, :, :-1].permute(0, 2, 1)
+        log_pred = torch.log_softmax(logits.double(), dim=1).float()
         mask_col = torch.full(
-            (*log_pred.shape[:2], 1),
+            (log_pred.shape[0], 1, log_pred.shape[-1]),
             -70.0,
             device=log_pred.device,
             dtype=log_pred.dtype,
         )
-        return (
-            torch.cat((log_pred, mask_col), dim=-1).permute(0, 2, 1).clamp(-70.0, 0.0)
-        )
+        return torch.cat((log_pred, mask_col), dim=1).clamp(-70.0, 0.0)
 
     def q_posterior(
         self,

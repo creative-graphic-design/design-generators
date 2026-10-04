@@ -216,7 +216,12 @@ def test_pipeline_matches_vendor_token_trajectory_through_corrector_steps():
         denoiser_logits = pipe.layout_dm.denoiser(
             input_ids=input_ids, timesteps=timestep_batch
         ).logits
-        model_log_prob = pipe.layout_dm.scheduler.predict_start(denoiser_logits)
+        logits = denoiser_logits[:, :, :-1].permute(0, 2, 1)
+        log_pred = torch.log_softmax(logits.double(), dim=1).float()
+        mask_col = torch.full(
+            (log_pred.shape[0], 1, log_pred.shape[-1]), -70.0, dtype=log_pred.dtype
+        )
+        model_log_prob = torch.cat((log_pred, mask_col), dim=1).clamp(-70.0, 0.0)
 
         if timestep_value in (30, 20, 10):
             x0_recon_ids = multinomial(
