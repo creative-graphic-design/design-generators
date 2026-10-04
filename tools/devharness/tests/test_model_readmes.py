@@ -548,10 +548,12 @@ def test_card_parsing_helpers_cover_empty_and_inline_cases() -> None:
         card._dataset_display_name("creative-graphic-design/Rico", "layoutganpp")
         == "RICO13"
     )
+    assert card._dataset_display_name("rico13", "layoutganpp") == "RICO13"
     assert (
         card._dataset_display_name("creative-graphic-design/Rico", "layout-dm")
         == "RICO25"
     )
+    assert card._dataset_display_name("rico25", "layout-dm") == "RICO25"
     assert card.semantic_badge_label("plain", "library") == "library"
     assert card.without_badges("A ![badge](url) B") == "A   B"
     assert card.markdown_link_spans("[link](url)")

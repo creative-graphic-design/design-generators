@@ -9,6 +9,7 @@ from pathlib import Path
 from xml.etree.ElementTree import Element, ElementTree, SubElement
 
 from datasets import Dataset, concatenate_datasets
+from torch import Generator, randperm
 
 
 def _load_magazine_arrow(source_dir: Path) -> Dataset:
@@ -59,6 +60,30 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _content_row_hashes(output_dir: Path, row_count: int) -> dict[str, str]:
+    names = sorted(
+        path.name for path in (output_dir / "layoutdata" / "annotations").glob("*.xml")
+    )
+    if len(names) != row_count:
+        raise ValueError("generated XML count does not match source row count")
+    shuffled = randperm(len(names), generator=Generator().manual_seed(0)).tolist()
+    split_indices = {
+        "train": shuffled[: int(row_count * 0.85)],
+        "validation": shuffled[int(row_count * 0.85) : int(row_count * 0.90)],
+        "test": shuffled[int(row_count * 0.90) :],
+    }
+    hashes: dict[str, str] = {}
+    for split, indices in split_indices.items():
+        digest = hashlib.sha256()
+        for index in indices:
+            path = output_dir / "layoutdata" / "annotations" / names[index]
+            digest.update(path.name.encode())
+            digest.update(b"\\0")
+            digest.update(path.read_bytes())
+        hashes[split] = digest.hexdigest()
+    return hashes
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=("magazine",), required=True)
@@ -92,6 +117,17 @@ def main() -> None:
             {"name": path.name, "sha256": _sha256(path)}
             for path in sorted(args.source_arrow_dir.glob("*.arrow"))
         ],
+        "source_arrow_hash_basis": (
+            "datasets cache Arrow shards; a fresh save_to_disk may use different "
+            "shard names and bytes"
+        ),
+        "content_reproduction": {
+            "criterion": (
+                "split XML row hashes and row counts from the prepared vendor "
+                "annotations"
+            ),
+            "row_hashes": _content_row_hashes(args.output_dir, len(dataset)),
+        },
         "rows": len(dataset),
         "polygon_to_box": "vendor process converts polygon extrema to normalized center xywh for every split",
     }

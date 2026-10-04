@@ -30,7 +30,7 @@ from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch_geometric.data import Data
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 
-from laygen.common.randomness import randn, resolve_torch_generator
+from laygen.common.randomness import resolve_torch_generator
 from laygen.modeling_outputs import LayoutGenerationOutput
 from traingen_parity.compare import (
     BatchStreamReport,
@@ -65,6 +65,12 @@ from layoutganpp.training.dataset import (
 from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
 
 ROOT = Path(__file__).resolve().parents[3]
+TEST_HELPER_DIR = ROOT / "models" / "layoutganpp" / "tests" / "vendor_parity"
+if str(TEST_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(TEST_HELPER_DIR))
+
+from training_adapter import vendor_forward_trace  # noqa: E402
+
 OUTPUT_ROOT = ROOT / ".cache" / "layoutganpp" / "stage-evidence"
 DATA_ROOT = ROOT / ".cache" / "layoutganpp" / "data" / "magazine"
 SOURCE_MANIFEST = DATA_ROOT / "source-manifest.json"
@@ -94,7 +100,7 @@ S4_EVALUATION_SEED = 42005
 S3_STEPS = 300
 S3_REPEATS = 2
 S3_WORKER_HASH_STEPS = 20
-PREDICTION_ATOL = 1.0e-6
+PREDICTION_ATOL = 0.0
 RELATIVE_LOSS_LIMIT = 1.0e-3
 
 JsonValue: TypeAlias = (
@@ -647,6 +653,8 @@ def _trajectory_comparison_summary(
         "maximum_absolute_difference": maximum_absolute_record,
         "maximum_relative_difference": maximum_relative_record,
         "relative_loss_criterion": {
+            "asserted": False,
+            "role": "report-only diagnostic; exact trace equality is the gate",
             "limit": RELATIVE_LOSS_LIMIT,
             "population": f"{steps} steps x generator_loss and discriminator_loss",
             "first_exceedance": first_relative_loss,
@@ -769,66 +777,6 @@ def _package_batch(
     }
 
 
-def _vendor_forward_trace(
-    generator: torch.nn.Module,
-    discriminator: torch.nn.Module,
-    batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
-    *,
-    detach: bool = True,
-) -> dict[str, Shaped[torch.Tensor, "..."]]:
-    bbox = cast(torch.Tensor, batch["bbox"])
-    labels = cast(torch.Tensor, batch["labels"])
-    mask = cast(torch.Tensor, batch["mask"])
-    padding_mask = ~mask
-    latent_noise = randn(
-        labels.shape[0], labels.shape[1], LATENT_SIZE, device=labels.device
-    )
-    bbox_fake = generator(latent_noise, labels, padding_mask)
-    discriminator_fake_for_g = discriminator(bbox_fake, labels, padding_mask)
-    loss_g = torch.nn.functional.softplus(-discriminator_fake_for_g).mean()
-    discriminator_fake = discriminator(bbox_fake.detach(), labels, padding_mask)
-    loss_d_fake = torch.nn.functional.softplus(discriminator_fake).mean()
-    discriminator_real, logits_cls, bbox_reconstruction = discriminator(
-        bbox, labels, padding_mask, reconst=True
-    )
-    loss_d_real = torch.nn.functional.softplus(-discriminator_real).mean()
-    loss_d_reconstruction_labels = torch.nn.functional.cross_entropy(
-        logits_cls, labels[mask]
-    )
-    loss_d_reconstruction_boxes = torch.nn.functional.mse_loss(
-        bbox_reconstruction, bbox[mask]
-    )
-    loss_d = loss_d_real + loss_d_fake
-    loss_d += loss_d_reconstruction_labels + 10.0 * loss_d_reconstruction_boxes
-    values = {
-        "latent_noise": latent_noise,
-        "draw_latent_noise": latent_noise,
-        "condition_labels": labels,
-        "condition_mask": mask,
-        "padding_mask": padding_mask,
-        "generator_bbox": bbox_fake,
-        "generator_discriminator_logits": discriminator_fake_for_g,
-        "generator_loss": loss_g.reshape(1),
-        "discriminator_fake_bbox": bbox_fake,
-        "discriminator_fake_logits": discriminator_fake,
-        "discriminator_real_logits": discriminator_real,
-        "discriminator_class_logits": logits_cls,
-        "discriminator_bbox_reconstruction": bbox_reconstruction,
-        "discriminator_fake_loss": loss_d_fake.reshape(1),
-        "discriminator_real_loss": loss_d_real.reshape(1),
-        "discriminator_label_reconstruction_loss": loss_d_reconstruction_labels.reshape(
-            1
-        ),
-        "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
-            1
-        ),
-        "discriminator_loss": loss_d.reshape(1),
-    }
-    if detach:
-        return {key: value.detach().clone() for key, value in values.items()}
-    return values
-
-
 def _vendor_iteration(
     generator: torch.nn.Module,
     discriminator: torch.nn.Module,
@@ -836,7 +784,9 @@ def _vendor_iteration(
     optimizer_g: torch.optim.Optimizer,
     optimizer_d: torch.optim.Optimizer,
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
-    trace = _vendor_forward_trace(generator, discriminator, batch, detach=False)
+    trace = vendor_forward_trace(
+        generator, discriminator, batch, latent_size=LATENT_SIZE, detach=False
+    )
     update_order: list[int] = []
     optimizer_g.zero_grad()
     trace["generator_loss"].mean().backward()
@@ -1092,7 +1042,9 @@ def _stage_s1(device: torch.device) -> Path:
     )
     torch.manual_seed(S1_LATENT_SEED)
     state = capture_rng_state()
-    vendor_trace = _vendor_forward_trace(vendor_generator, vendor_discriminator, batch)
+    vendor_trace = vendor_forward_trace(
+        vendor_generator, vendor_discriminator, batch, latent_size=LATENT_SIZE
+    )
     restore_rng_state(state)
     package_trace = gan_forward_trace(package.generator, package.discriminator, batch)
     report = compare_step_trace(
@@ -2282,14 +2234,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         "population": f"{len(repeat_comparisons)} repeats x {steps} optimizer steps "
         "and all recorded scalar fields per step",
         "all_repeats_passed": all(
-            cast(dict[str, JsonValue], item["comparison"])["within_tolerance"]
-            and cast(
-                dict[str, JsonValue],
-                cast(dict[str, JsonValue], item["comparison"])[
-                    "relative_loss_criterion"
-                ],
-            )["outcome"]
-            == "PASS"
+            cast(dict[str, JsonValue], item["comparison"])["bitwise_equal"]
             for item in repeat_comparisons
         ),
         "repeat_comparisons": repeat_comparisons,
@@ -2795,9 +2740,7 @@ def _stage_s4(device: torch.device) -> Path:
         cwd=ROOT,
         text=True,
     ).strip()
-    prediction_passed = (
-        maximum_difference <= PREDICTION_ATOL and first_divergence is None
-    )
+    prediction_passed = maximum_difference == 0.0 and first_divergence is None
     evaluation_passed = prediction_passed and bool(metric_comparison["passed"])
     prediction_files = {
         "vendor": {
@@ -2909,7 +2852,7 @@ def _stage_s4(device: torch.device) -> Path:
             "passed": prediction_passed,
             "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
             "max_abs_difference": maximum_difference,
-            "limit": PREDICTION_ATOL,
+            "limit": 0.0,
             "first_divergence": first_divergence,
         },
         "metric_comparison": metric_comparison,
@@ -2991,7 +2934,7 @@ def _stage_s4(device: torch.device) -> Path:
             "passed": prediction_passed,
             "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
             "max_abs_difference": maximum_difference,
-            "limit": PREDICTION_ATOL,
+            "limit": 0.0,
             "first_divergence": first_divergence,
         },
         metric_comparison=metric_comparison,

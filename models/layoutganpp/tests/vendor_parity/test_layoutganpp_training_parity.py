@@ -10,12 +10,10 @@ from types import ModuleType
 
 import pytest
 import torch
-import torch.nn.functional as F
-
-from laygen.common.randomness import randn
 from layoutganpp.training import LayoutGANPPTrainingModule
 from layoutganpp.training.dataset import collate_layoutganpp, load_rows
 from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
+from training_adapter import vendor_forward_trace
 from traingen_parity.compare import (
     OptimizerStepReport,
     StepReport,
@@ -107,74 +105,6 @@ def _device() -> torch.device:
     return torch.device("cpu")
 
 
-def _batch_tensors(
-    batch: dict[str, torch.Tensor | list[str]],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    bbox = batch["bbox"]
-    labels = batch["labels"]
-    mask = batch["mask"]
-    assert isinstance(bbox, torch.Tensor)
-    assert isinstance(labels, torch.Tensor)
-    assert isinstance(mask, torch.Tensor)
-    return bbox, labels, mask
-
-
-def _vendor_forward_trace(
-    generator: torch.nn.Module,
-    discriminator: torch.nn.Module,
-    batch: dict[str, torch.Tensor | list[str]],
-    *,
-    detach: bool = True,
-) -> dict[str, torch.Tensor]:
-    bbox, labels, mask = _batch_tensors(batch)
-    padding_mask = ~mask
-    latent_noise = randn(labels.shape[0], labels.shape[1], 4, device=labels.device)
-    bbox_fake = generator(latent_noise, labels, padding_mask)
-    discriminator_fake_for_g = discriminator(bbox_fake, labels, padding_mask)
-    loss_g = F.softplus(-discriminator_fake_for_g).mean()
-    discriminator_fake = discriminator(bbox_fake.detach(), labels, padding_mask)
-    loss_d_fake = F.softplus(discriminator_fake).mean()
-    discriminator_real, logits_cls, bbox_reconstruction = discriminator(
-        bbox, labels, padding_mask, reconst=True
-    )
-    loss_d_real = F.softplus(-discriminator_real).mean()
-    loss_d_reconstruction_labels = F.cross_entropy(logits_cls, labels[mask])
-    loss_d_reconstruction_boxes = F.mse_loss(bbox_reconstruction, bbox[mask])
-    loss_d = (
-        loss_d_real
-        + loss_d_fake
-        + loss_d_reconstruction_labels
-        + 10.0 * loss_d_reconstruction_boxes
-    )
-    values = {
-        "latent_noise": latent_noise,
-        "draw_latent_noise": latent_noise,
-        "condition_labels": labels,
-        "condition_mask": mask,
-        "padding_mask": padding_mask,
-        "generator_bbox": bbox_fake,
-        "generator_discriminator_logits": discriminator_fake_for_g,
-        "generator_loss": loss_g.reshape(1),
-        "discriminator_fake_bbox": bbox_fake,
-        "discriminator_fake_logits": discriminator_fake,
-        "discriminator_real_logits": discriminator_real,
-        "discriminator_class_logits": logits_cls,
-        "discriminator_bbox_reconstruction": bbox_reconstruction,
-        "discriminator_fake_loss": loss_d_fake.reshape(1),
-        "discriminator_real_loss": loss_d_real.reshape(1),
-        "discriminator_label_reconstruction_loss": loss_d_reconstruction_labels.reshape(
-            1
-        ),
-        "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
-            1
-        ),
-        "discriminator_loss": loss_d.reshape(1),
-    }
-    if detach:
-        return {key: value.detach().clone() for key, value in values.items()}
-    return values
-
-
 def _trace_report(
     reference: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
 ) -> StepReport:
@@ -254,8 +184,11 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor() -> None:
     target = _matched_target(fixture)
     torch.manual_seed(999)
     rng_state = capture_rng_state()
-    vendor_trace = _vendor_forward_trace(
-        fixture.vendor_generator, fixture.vendor_discriminator, fixture.batch
+    vendor_trace = vendor_forward_trace(
+        fixture.vendor_generator,
+        fixture.vendor_discriminator,
+        fixture.batch,
+        latent_size=4,
     )
     restore_rng_state(rng_state)
     package_trace = gan_forward_trace(
@@ -273,10 +206,11 @@ def test_s2_one_optimizer_step_matches_vendor() -> None:
     package_d = torch.optim.Adam(target.discriminator.parameters(), lr=1.0e-5)
     torch.manual_seed(999)
     rng_state = capture_rng_state()
-    vendor_trace = _vendor_forward_trace(
+    vendor_trace = vendor_forward_trace(
         fixture.vendor_generator,
         fixture.vendor_discriminator,
         fixture.batch,
+        latent_size=4,
         detach=False,
     )
     vendor_g.zero_grad()
