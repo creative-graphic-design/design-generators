@@ -2333,7 +2333,7 @@ def _vendor_evaluation_inputs(
     """Reconstruct the conditioning tensors from the original evaluator path."""
     _prepend_vendor_import_roots(scratch)
     from hydra.utils import instantiate
-    from trainer.trainer.helpers.task import get_cond
+    from trainer.helpers.task import get_cond
     from trainer.trainer.corrector_test import build_tokenizer
 
     vendor_meta = _load_vendor_metadata(vendor_pkl_paths["unconditional"], scratch)
