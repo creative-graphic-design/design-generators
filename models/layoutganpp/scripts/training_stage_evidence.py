@@ -26,6 +26,7 @@ import torch
 from jaxtyping import Float, Int, Shaped
 from lightning.pytorch import Callback, LightningModule, Trainer
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from torch import multiprocessing as torch_multiprocessing
 from torch_geometric.data import Data
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 
@@ -1035,10 +1036,17 @@ def _vendor_batch_digest(data: Data) -> str:
 def _vendor_worker_sequence_hash(
     split: str, seed: int, num_workers: int, steps: int
 ) -> str:
-    loader = _vendor_loader(split, seed, num_workers=num_workers)
+    previous_sharing_strategy = (
+        torch_multiprocessing.get_sharing_strategy() if num_workers else None
+    )
+    if previous_sharing_strategy is not None:
+        torch_multiprocessing.set_sharing_strategy("file_system")
+
     sequence = hashlib.sha256()
-    iterator = iter(loader)
+    iterator: Iterator[Data] | None = None
     try:
+        loader = _vendor_loader(split, seed, num_workers=num_workers)
+        iterator = iter(loader)
         for _ in range(steps):
             try:
                 data = next(iterator)
@@ -1048,7 +1056,10 @@ def _vendor_worker_sequence_hash(
                 ) from error
             sequence.update(_vendor_batch_digest(data).encode())
     finally:
-        del iterator
+        if iterator is not None:
+            del iterator
+        if previous_sharing_strategy is not None:
+            torch_multiprocessing.set_sharing_strategy(previous_sharing_strategy)
     return sequence.hexdigest()
 
 
