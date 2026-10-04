@@ -115,7 +115,9 @@ def colab(
                 timeout=timeout,
             )
     if result.returncode != 0 and not allow_nonzero:
-        raise ExecutorError(f"Colab command {args[0]} failed with exit code {result.returncode}")
+        raise ExecutorError(
+            f"Colab command {args[0]} failed with exit code {result.returncode}"
+        )
 
     return result.stdout.strip() if capture else ""
 
@@ -123,11 +125,13 @@ def colab(
 def assert_session_is_free(session_name: str) -> None:
     sessions = colab("sessions", capture=True)
     if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
-        raise ExecutorError(f"named session {session_name!r} already exists; it was not touched")
+        raise ExecutorError(
+            f"named session {session_name!r} already exists; it was not touched"
+        )
 
 
 def remote_preflight_source() -> str:
-    return '''from __future__ import annotations
+    return """from __future__ import annotations
 
 import json
 import hashlib
@@ -199,11 +203,12 @@ if config["download_inputs"]:
 if config["initialize_vendor_submodule"]:
     subprocess.run(["git", "-C", str(repository), "submodule", "update", "--init",
                     "--recursive"], check=True)
-'''
+"""
 
 
 def remote_failure_injection_source(source_commit: str) -> str:
-    return '''from __future__ import annotations
+    return """#!/usr/bin/env python3
+from __future__ import annotations
 
 import importlib.util
 import json
@@ -257,7 +262,7 @@ Path("/content/out/results/cpu-executor-smoke.json").write_text(
     json.dumps(result, indent=2, sort_keys=True) + "\\n"
 )
 print("queue_failure_gate_passed exit_code=37")
-'''.replace("__SOURCE_COMMIT__", source_commit)
+""".replace("__SOURCE_COMMIT__", source_commit)
 
 
 def temporary_files(
@@ -310,7 +315,11 @@ def build_run_job(
     seed = run.get("seed")
     config = manifest.get("config")
     evaluator = manifest.get("evaluator_command")
-    if not isinstance(run_id, str) or not isinstance(system, str) or not isinstance(seed, int):
+    if (
+        not isinstance(run_id, str)
+        or not isinstance(system, str)
+        or not isinstance(seed, int)
+    ):
         raise ExecutorError("run metadata must include run_id, system, and seed")
     if not isinstance(config, str) or not isinstance(evaluator, list):
         raise ExecutorError("manifest config and evaluator_command are required")
@@ -320,16 +329,22 @@ def build_run_job(
     output_root = output_template.format(run_id=run_id, segment_id=segment_id)
     expected_output_root = f"/content/out/checkpoints/{run_id}/{segment_id}"
     if output_root != expected_output_root:
-        raise ExecutorError("run runtime_output_root must be unique under its run and segment")
+        raise ExecutorError(
+            "run runtime_output_root must be unique under its run and segment"
+        )
     training_root = f"{output_root}/training"
     converted_root = f"{output_root}/converted"
     evaluation_template = run.get("evaluation_output")
     if not isinstance(evaluation_template, str):
         raise ExecutorError("run needs a per-segment evaluation_output template")
     evaluation_output = evaluation_template.format(run_id=run_id, segment_id=segment_id)
-    expected_evaluation_output = f"/content/out/results/{run_id}/{segment_id}/evaluation.json"
+    expected_evaluation_output = (
+        f"/content/out/results/{run_id}/{segment_id}/evaluation.json"
+    )
     if evaluation_output != expected_evaluation_output:
-        raise ExecutorError("run evaluation_output must be unique under its run and segment")
+        raise ExecutorError(
+            "run evaluation_output must be unique under its run and segment"
+        )
     log_root = f"/content/out/logs/{run_id}/{segment_id}"
     result_root = f"/content/out/results/{run_id}/{segment_id}"
     env_lines = (
@@ -349,33 +364,74 @@ def build_run_job(
     if system == "package":
         uv_sync = "uv sync --frozen --package canvas-vae --extra training"
         training_args = [
-            "uv", "run", "--frozen", "--no-sync", "--package", "canvas-vae",
-            "--extra", "training", "traingen", "fit", "--config", config,
-            f"--seed_everything={seed}", "--trainer.devices=1",
-            "--trainer.precision=32-true", f"--trainer.default_root_dir={training_root}",
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "traingen",
+            "fit",
+            "--config",
+            config,
+            f"--seed_everything={seed}",
+            "--trainer.devices=1",
+            "--trainer.precision=32-true",
+            f"--trainer.default_root_dir={training_root}",
         ]
         if resume_checkpoint is not None:
             training_args.append("--ckpt_path=/content/out/resume/checkpoint.ckpt")
         checkpoint_path = None
         converter_args = [
-            "uv", "run", "--frozen", "--no-sync", "--package", "canvas-vae",
-            "--extra", "training", "models/canvas-vae/scripts/convert_original_checkpoint.py",
-            "--vocabulary", "/content/repo/.cache/canvas-vae/data/rico/vocabulary.json",
-            "--output-dir", converted_root,
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "models/canvas-vae/scripts/convert_original_checkpoint.py",
+            "--vocabulary",
+            "/content/repo/.cache/canvas-vae/data/rico/vocabulary.json",
+            "--output-dir",
+            converted_root,
         ]
         converter_setup = ""
     elif system == "original":
         if resume_checkpoint is not None:
-            raise ExecutorError("original TensorFlow runs do not support optimizer-state resume")
-        uv_sync = "uv sync --frozen --package canvas-vae --extra training --extra vendor"
+            raise ExecutorError(
+                "original TensorFlow runs do not support optimizer-state resume"
+            )
+        uv_sync = (
+            "uv sync --frozen --package canvas-vae --extra training --extra vendor"
+        )
         original_args = run.get("train_original_arguments")
-        if not isinstance(original_args, list) or not all(isinstance(value, str) for value in original_args):
-            raise ExecutorError("original run is missing resolved train_original.py arguments")
-        resolved = [value.format(seed=seed, output_root=output_root) for value in original_args]
+        if not isinstance(original_args, list) or not all(
+            isinstance(value, str) for value in original_args
+        ):
+            raise ExecutorError(
+                "original run is missing resolved train_original.py arguments"
+            )
+        resolved = [
+            value.format(seed=seed, output_root=output_root) for value in original_args
+        ]
         training_args = [
-            "uv", "run", "--frozen", "--no-sync", "--package", "canvas-vae",
-            "--extra", "training", "--extra", "vendor", "python",
-            "models/canvas-vae/scripts/train_original.py", *resolved,
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "--extra",
+            "vendor",
+            "python",
+            "models/canvas-vae/scripts/train_original.py",
+            *resolved,
         ]
         training_root = f"{output_root}/original-training"
         env_lines += (f"mkdir -p {shlex.quote(training_root)}",)
@@ -385,11 +441,21 @@ def build_run_job(
             "uv sync --frozen --project /content/repo --package canvas-vae --extra convert\n"
         )
         converter_args = [
-            "uv", "run", "--frozen", "--no-sync", "--project", "/content/repo",
-            "--package", "canvas-vae", "models/canvas-vae/scripts/convert_original_checkpoint.py",
-            "--checkpoint", checkpoint_path,
-            "--vocabulary", "/content/repo/.cache/canvas-vae/original/data/rico/vocabulary.json",
-            "--output-dir", converted_root,
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "models/canvas-vae/scripts/convert_original_checkpoint.py",
+            "--checkpoint",
+            checkpoint_path,
+            "--vocabulary",
+            "/content/repo/.cache/canvas-vae/original/data/rico/vocabulary.json",
+            "--output-dir",
+            converted_root,
         ]
     else:
         raise ExecutorError(f"unsupported CanvasVAE run system: {system}")
@@ -410,11 +476,11 @@ def build_run_job(
 
     if system == "package":
         converter_command = (
-            f"{shlex.join(converter_args[:9])} --checkpoint \"$last_checkpoints\" "
+            f'{shlex.join(converter_args[:9])} --checkpoint "$last_checkpoints" '
             f"{shlex.join(converter_args[9:])} > {log_root}/convert.log 2>&1"
         )
         checkpoint_hash_command = (
-            f"sha256sum \"$last_checkpoints\" {shlex.quote(evaluation_output)} "
+            f'sha256sum "$last_checkpoints" {shlex.quote(evaluation_output)} '
             f"> {result_root}/artifact-hashes.txt"
         )
         post_train_lines = [
@@ -456,16 +522,26 @@ def make_wrapper_cell(
     command = [
         "bash",
         "/content/colab-job.sh",
-        "--job", job_name,
-        "--hub-repo", "shunk031/colab-jobs",
-        "--hub-prefix", hub_prefix,
-        "--hub-token-file", "/content/s5-upload-token",
-        "--sync-path", "/content/out/checkpoints",
-        "--sync-path", "/content/out/logs",
-        "--sync-path", "/content/out/results",
-        "--sync-interval", "15m",
-        "--ttl", ttl,
-        "--env-file", "/content/s5-run.env",
+        "--job",
+        job_name,
+        "--hub-repo",
+        "shunk031/colab-jobs",
+        "--hub-prefix",
+        hub_prefix,
+        "--hub-token-file",
+        "/content/s5-upload-token",
+        "--sync-path",
+        "/content/out/checkpoints",
+        "--sync-path",
+        "/content/out/logs",
+        "--sync-path",
+        "/content/out/results",
+        "--sync-interval",
+        "15m",
+        "--ttl",
+        ttl,
+        "--env-file",
+        "/content/s5-run.env",
         "--",
         *shlex.split(run_command),
     ]
@@ -529,13 +605,22 @@ def run_named_session(
         cell_path = preflight_path.with_name("preflight-cell.py")
         cell_path.write_text(remote_preflight_cell, encoding="utf-8")
         colab(
-            "exec", "--session", session_name, "--timeout", "1800", "-f",
-            str(cell_path.resolve()), timeout=1900,
+            "exec",
+            "--session",
+            session_name,
+            "--timeout",
+            "1800",
+            "-f",
+            str(cell_path.resolve()),
+            timeout=1900,
         )
 
         if resume_checkpoint is not None:
             colab(
-                "upload", "--session", session_name, str(resume_checkpoint),
+                "upload",
+                "--session",
+                session_name,
+                str(resume_checkpoint),
                 "/content/out/resume/checkpoint.ckpt",
             )
 
@@ -545,9 +630,16 @@ def run_named_session(
         )
         wrapper_started = True
         colab(
-            "exec", "--session", session_name, "--timeout", "7800", "-f",
-            str(launch_cell.resolve()), output_path=output_capture,
-            timeout=7920, allow_nonzero=allow_nonzero_job,
+            "exec",
+            "--session",
+            session_name,
+            "--timeout",
+            "7800",
+            "-f",
+            str(launch_cell.resolve()),
+            output_path=output_capture,
+            timeout=7920,
+            allow_nonzero=allow_nonzero_job,
         )
     except (ExecutorError, OSError, subprocess.SubprocessError):
         if not wrapper_started:
@@ -558,7 +650,9 @@ def run_named_session(
 
     sessions = colab("sessions", capture=True)
     if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
-        raise ExecutorError(f"wrapper did not release task-owned session {session_name!r}")
+        raise ExecutorError(
+            f"wrapper did not release task-owned session {session_name!r}"
+        )
 
 
 def execute_run(
@@ -575,21 +669,35 @@ def execute_run(
     if manifest.get("queue_status") != "ready":
         raise ExecutorError("manifest queue_status is not ready; refusing B2 dispatch")
     config_digest = manifest.get("config_sha256")
-    if not isinstance(config_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", config_digest):
+    if not isinstance(config_digest, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", config_digest
+    ):
         raise ExecutorError("manifest config_sha256 must be a full SHA-256 digest")
 
     raw_runs = manifest.get("runs")
     if not isinstance(raw_runs, list):
         raise ExecutorError("manifest runs must be an array")
-    for field in ("run_id", "session_name", "artifact_prefix", "runtime_output_root", "evaluation_output"):
-        values = [candidate.get(field) for candidate in raw_runs if isinstance(candidate, dict)]
+    for field in (
+        "run_id",
+        "session_name",
+        "artifact_prefix",
+        "runtime_output_root",
+        "evaluation_output",
+    ):
+        values = [
+            candidate.get(field)
+            for candidate in raw_runs
+            if isinstance(candidate, dict)
+        ]
         if (
             len(values) != len(raw_runs)
             or not all(isinstance(value, str) and value for value in values)
             or len(values) != len(set(values))
         ):
             raise ExecutorError(f"manifest runs need unique {field} values")
-    matches = [run for run in raw_runs if isinstance(run, dict) and run.get("run_id") == run_id]
+    matches = [
+        run for run in raw_runs if isinstance(run, dict) and run.get("run_id") == run_id
+    ]
     if len(matches) != 1 or not RUN_ID_PATTERN.fullmatch(run_id):
         raise ExecutorError(f"manifest must define exactly one valid run_id {run_id!r}")
     run = matches[0]
@@ -601,9 +709,13 @@ def execute_run(
     if resume_checkpoint is not None and not resume_checkpoint.is_file():
         raise ExecutorError("resume requires an existing explicit checkpoint file")
     if not RUN_ID_PATTERN.fullmatch(segment_id):
-        raise ExecutorError("segment_id must use lowercase letters, digits, and hyphens")
+        raise ExecutorError(
+            "segment_id must use lowercase letters, digits, and hyphens"
+        )
     if resume_checkpoint is not None and segment_id == "segment-001":
-        raise ExecutorError("resume requires a new segment_id to keep prior artifacts immutable")
+        raise ExecutorError(
+            "resume requires a new segment_id to keep prior artifacts immutable"
+        )
 
     runner = manifest.get("runner_command")
     if runner != ["python3", "models/canvas-vae/scripts/s5_rico_seed_executor.py"]:
@@ -611,25 +723,38 @@ def execute_run(
     runtime_plan = manifest.get("runtime_plan")
     if not isinstance(runtime_plan, dict):
         raise ExecutorError("manifest runtime_plan must be an object")
-    if runtime_plan.get("gpu") != "A100" or runtime_plan.get("one_named_session_per_run") is not True:
+    if (
+        runtime_plan.get("gpu") != "A100"
+        or runtime_plan.get("one_named_session_per_run") is not True
+    ):
         raise ExecutorError("runtime must use one named A100 session per run")
     if runtime_plan.get("one_training_run_at_a_time") is not True:
         raise ExecutorError("runtime must execute only one training run at a time")
     if runtime_plan.get("queue_supervisor_sequential") is not True:
         raise ExecutorError("queue supervisor must execute runs sequentially")
-    if runtime_plan.get("self_release") is not True or runtime_plan.get("sync_interval") != "15m":
+    if (
+        runtime_plan.get("self_release") is not True
+        or runtime_plan.get("sync_interval") != "15m"
+    ):
         raise ExecutorError("runtime must self-release and sync every 15 minutes")
-    if runtime_plan.get("wrapper_ttl") != "2h" or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}":
+    if (
+        runtime_plan.get("wrapper_ttl") != "2h"
+        or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
+    ):
         raise ExecutorError("runtime wrapper TTL must remain 2h")
     resume_policy = runtime_plan.get("resume_policy")
     if (
         not isinstance(resume_policy, dict)
         or resume_policy.get("explicit_download_required") is not True
-        or resume_policy.get("downloaded_checkpoint_path") != "${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
-        or resume_policy.get("package_resume_flag") != "--ckpt_path=${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
+        or resume_policy.get("downloaded_checkpoint_path")
+        != "${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
+        or resume_policy.get("package_resume_flag")
+        != "--ckpt_path=${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
         or resume_policy.get("implicit_latest_checkpoint_resume") is not False
     ):
-        raise ExecutorError("runtime resume policy must require an explicit checkpoint path")
+        raise ExecutorError(
+            "runtime resume policy must require an explicit checkpoint path"
+        )
     if runtime_plan.get("source_gate_before_artifact_sync") is not True:
         raise ExecutorError("source gate must pass before artifact synchronization")
     expected_sync_paths = [
@@ -651,7 +776,9 @@ def execute_run(
     if not isinstance(session_name, str) or not isinstance(artifact_prefix, str):
         raise ExecutorError("run needs a named session and unique Hub artifact prefix")
     if not RUN_ID_PATTERN.fullmatch(session_name):
-        raise ExecutorError("run session_name must use lowercase letters, digits, and hyphens")
+        raise ExecutorError(
+            "run session_name must use lowercase letters, digits, and hyphens"
+        )
 
     with tempfile.TemporaryDirectory(prefix="cvae-s5-run-") as temporary:
         temporary_directory = Path(temporary)
@@ -659,26 +786,42 @@ def execute_run(
             temporary_directory, manifest, run, pinned, download_inputs=True
         )
         run_path.write_text(
-            build_run_job(manifest, run, pinned, segment_id, resume_checkpoint), encoding="utf-8"
+            build_run_job(manifest, run, pinned, segment_id, resume_checkpoint),
+            encoding="utf-8",
         )
         run_env = temporary_directory / "run.env"
         run_env.write_text(
-            "CANVAS_VAE_S5_SOURCE_COMMIT=" + pinned + "\n"
-            + "CANVAS_VAE_S5_RUN_ID=" + run_id + "\n",
+            "CANVAS_VAE_S5_SOURCE_COMMIT="
+            + pinned
+            + "\n"
+            + "CANVAS_VAE_S5_RUN_ID="
+            + run_id
+            + "\n",
             encoding="utf-8",
         )
         run_env.chmod(0o600)
         capture_path = (
-            REPOSITORY_ROOT / ".cache/canvas-vae/full-run/rico/executor-logs"
+            REPOSITORY_ROOT
+            / ".cache/canvas-vae/full-run/rico/executor-logs"
             / f"{run_id}-{segment_id}.log"
         )
         capture_path.parent.mkdir(parents=True, exist_ok=True)
         job_name = f"cvae-s5-{run_id}-{segment_id}"
         run_named_session(
-            session_name, "A100", wrapper_path, token_path, preflight_path,
-            preflight_script, run_path, job_name, f"{artifact_prefix}/{segment_id}",
-            str(runtime_plan["wrapper_ttl"]), "bash /content/run-job.sh",
-            run_env, capture_path, resume_checkpoint,
+            session_name,
+            "A100",
+            wrapper_path,
+            token_path,
+            preflight_path,
+            preflight_script,
+            run_path,
+            job_name,
+            f"{artifact_prefix}/{segment_id}",
+            str(runtime_plan["wrapper_ttl"]),
+            "bash /content/run-job.sh",
+            run_env,
+            capture_path,
+            resume_checkpoint,
         )
 
 
@@ -720,24 +863,29 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
         }
         smoke_run: JsonObject = {"system": "package"}
         preflight_path, preflight_script, run_path = temporary_files(
-            temporary_directory, smoke_manifest, smoke_run, source_commit,
+            temporary_directory,
+            smoke_manifest,
+            smoke_run,
+            source_commit,
             download_inputs=False,
         )
         injected = temporary_directory / "injected-failure.py"
         injected.write_text(
             remote_failure_injection_source(source_commit), encoding="utf-8"
         )
+        injected.chmod(0o700)
         run_path.write_text(
             "#!/usr/bin/env bash\nset -Eeuo pipefail\n"
             "cd /content/repo\n"
-            f"test \"$(git rev-parse HEAD)\" = {shlex.quote(source_commit)}\n"
-            "test -z \"$(git status --porcelain)\"\n"
+            f'test "$(git rev-parse HEAD)" = {shlex.quote(source_commit)}\n'
+            'test -z "$(git status --porcelain)"\n'
             "unset MPLBACKEND\nexport NVIDIA_TF32_OVERRIDE=0\n"
             "export TF_ENABLE_ONEDNN_OPTS=0\nexport CUDA_VISIBLE_DEVICES=''\n"
             "uv run --frozen --package canvas-vae --extra training --with pytest pytest "
             "models/canvas-vae/tests/test_training.py::test_lightning_fit_smoke -m training\n"
             "mkdir -p /content/out/results\n"
-            "python /content/injected-failure.py\n",
+            "chmod 700 /content/injected-failure.py\n"
+            "/content/injected-failure.py\n",
             encoding="utf-8",
         )
         run_path.chmod(0o700)
@@ -746,7 +894,7 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
             f"CANVAS_VAE_S5_SOURCE_COMMIT={source_commit}\n", encoding="utf-8"
         )
         run_env.chmod(0o600)
-        capture_path = REPOSITORY_ROOT / ".cache/canvas-vae/s5/cpu-executor-smoke-retry3.log"
+        capture_path = REPOSITORY_ROOT / ".cache/canvas-vae/s5" / f"{session_name}.log"
         capture_path.parent.mkdir(parents=True, exist_ok=True)
         run_named_session(
             session_name=session_name,
@@ -756,8 +904,8 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
             preflight_path=preflight_path,
             preflight_script=preflight_script,
             run_script=run_path,
-            job_name="cvae-s5-cpu-executor-smoke-retry3",
-            hub_prefix=f"{HUB_REPOSITORY_PREFIX}/cpu-executor-smoke-20261005-s5c-retry3",
+            job_name=session_name,
+            hub_prefix=f"{HUB_REPOSITORY_PREFIX}/{session_name}",
             ttl="2h",
             run_command="bash /content/run-job.sh",
             run_env=run_env,
@@ -785,13 +933,17 @@ def main() -> int:
     try:
         if args.cpu_smoke:
             if args.session_name is None or args.source_commit is None:
-                raise ExecutorError("CPU smoke requires --session-name and --source-commit")
+                raise ExecutorError(
+                    "CPU smoke requires --session-name and --source-commit"
+                )
             execute_cpu_smoke(args.session_name, args.source_commit)
         else:
             if args.run_id is None:
                 raise ExecutorError("--run-id is required for a queue run")
             execute_run(
-                args.manifest.resolve(), args.run_id, args.segment_id,
+                args.manifest.resolve(),
+                args.run_id,
+                args.segment_id,
                 args.resume_checkpoint,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
