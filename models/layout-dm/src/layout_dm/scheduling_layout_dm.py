@@ -458,9 +458,12 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         pad_positions = (attribute_indices != 0) & (
             condition.input_ids.to(model_log_prob.device) != self.pad_token_id
         )
-        pad_class = torch.arange(
-            self.vocab_size, device=model_log_prob.device
-        ).reshape(1, -1, 1) == self.pad_token_id
+        pad_class = (
+            torch.arange(self.vocab_size, device=model_log_prob.device).reshape(
+                1, -1, 1
+            )
+            == self.pad_token_id
+        )
         restricted = pad_positions.unsqueeze(1) & pad_class
         return model_log_prob.masked_fill(restricted, math.log(1.0e-30))
 
