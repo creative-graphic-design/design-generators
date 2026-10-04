@@ -107,7 +107,9 @@ class AggregatedCategoricalTransformer(nn.Module):
         )
         backbone = TransformerEncoder(layer, num_hidden_layers)
         cat_emb = nn.Embedding(vocab_size, hidden_size)
-        drop = nn.Dropout(dropout)
+        # The token embedding dropout is fixed at 0.1; ``dropout`` controls
+        # only the transformer backbone, matching the released recipe.
+        drop = nn.Dropout(0.1)
         head = nn.Sequential(
             nn.LayerNorm(hidden_size),
             nn.Linear(hidden_size, 1, bias=False),
