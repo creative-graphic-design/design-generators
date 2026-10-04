@@ -84,6 +84,7 @@ def select_predictions(
             keep_local = torch.arange(
                 top_scores.numel(), device=top_scores.device, dtype=torch.long
             )
+
         keep_local = keep_local[top_scores[keep_local] > class_threshold]
         count = min(keep_local.numel(), num_proposals)
         keep_local = keep_local[:count]
@@ -92,4 +93,5 @@ def select_predictions(
         batch_labels[batch_index, :count] = labels[keep_local]
         batch_scores[batch_index, :count] = top_scores[keep_local]
         batch_mask[batch_index, :count] = True
+
     return batch_boxes, batch_labels, batch_mask, batch_scores, kept_indices

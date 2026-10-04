@@ -858,7 +858,7 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         original_assign_levels = pooler_module.RADMProposalHead._assign_pooler_levels
 
         def trace_assign_levels(boxes: torch.Tensor) -> torch.Tensor:
-            levels = cast(Any, original_assign_levels)(boxes)
+            levels = original_assign_levels(boxes)
             captured["scatter"].append(
                 {
                     "levels": levels.detach().cpu().clone(),
@@ -874,10 +874,10 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         )
     else:
         pooler_module = importlib.import_module("detectron2.modeling.poolers")
-        original_assign_levels = pooler_module.assign_boxes_to_levels
+        original_assign_levels = getattr(pooler_module, "assign_boxes_to_levels")
 
         def trace_assign_levels(*args: Any, **kwargs: Any) -> torch.Tensor:
-            levels = cast(Any, original_assign_levels)(*args, **kwargs)
+            levels = original_assign_levels(*args, **kwargs)
             captured["scatter"].append(
                 {
                     "levels": levels.detach().cpu().clone(),

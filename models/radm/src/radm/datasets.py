@@ -48,11 +48,13 @@ def normalize_coco_annotations(
         raw_bbox = row["bbox"]
         if not isinstance(raw_bbox, Sequence):
             raise TypeError("annotation bbox must be a sequence")
+
         numeric_bbox = cast(Sequence[SupportsFloat], raw_bbox)
         left, top, box_width, box_height = (float(value) for value in numeric_bbox)
         boxes.append(
             (left / width, top / height, box_width / width, box_height / height)
         )
         labels.append(int(cast(SupportsInt, row["category_id"])) - 1)
+
     bbox = ltwh_to_xywh(torch.tensor(boxes, dtype=torch.float32)).unsqueeze(0)
     return bbox, torch.tensor(labels, dtype=torch.long).unsqueeze(0)

@@ -113,18 +113,6 @@ def test_resolve_torch_generator_builds_identical_local_streams() -> None:
     )
 
 
-def test_resolve_torch_generator_accepts_a_draw_device() -> None:
-    first = resolve_torch_generator(seed=123, device="cpu")
-    second = resolve_torch_generator(seed=123, device="cpu")
-
-    assert first is not None
-    assert second is not None
-    assert torch.equal(
-        torch.randn(8, generator=first),
-        torch.randn(8, generator=second),
-    )
-
-
 def test_resolve_torch_generator_both_absent_returns_none() -> None:
     assert resolve_torch_generator() is None
 

@@ -90,6 +90,9 @@ ROOT_VENUE_BADGE_COLORS = {
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
 }
+MODEL_VENUE_BADGE_COLORS = {
+    "CIKM 2023": "6b7280",
+}
 ROOT_TASK_BADGE_COLORS = {
     "task-agnostic": "2f80ed",
     "task-aware": "9b51e0",
@@ -352,12 +355,15 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     if label == "venue":
         if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
             return ROOT_VENUE_BADGE_COLORS[message]
+        if message in MODEL_VENUE_BADGE_COLORS:
+            return MODEL_VENUE_BADGE_COLORS[message]
+
         return "purple"
 
     if label == "models":
         return "purple"
 
-    if label == "vendor-parity" and message == "not-run":
+    if label == "vendor-parity" and message in {"not-run", "not-verified"}:
         return "lightgrey"
 
     if label == "core" or label == "vendor-parity":

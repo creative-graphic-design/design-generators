@@ -189,10 +189,12 @@ class RADMProcessor(ProcessorMixin):
         del kwargs
         if return_tensors != "pt":
             raise ValueError("RADMProcessor only supports return_tensors='pt'")
+
         content = dict(content or {})
         resolved_images = images or content.get("image") or content.get("images")
         if resolved_images is None:
             raise ValueError("RADM requires images or content['image']")
+
         encoded = self.image_processor.preprocess(
             cast(ImageInput | Sequence[ImageInput], resolved_images),
             return_tensors="pt",
@@ -251,6 +253,7 @@ class RADMProcessor(ProcessorMixin):
             raise NotImplementedError(
                 f"RADM does not support condition_type={canonical}"
             )
+
         return canonical
 
     def decode(
@@ -332,6 +335,7 @@ class RADMProcessor(ProcessorMixin):
                     "nms_keep_indices": keep,
                 }
             )
+
         output = LayoutGenerationOutput(
             bbox=xyxy_to_xywh_normalized(selected_boxes).detach().cpu(),
             labels=labels.detach().cpu(),
@@ -342,8 +346,10 @@ class RADMProcessor(ProcessorMixin):
         )
         if output_type == "dataclass":
             return output
+
         if output_type == "dict":
             return dict(output)
+
         raise ValueError(f"Unsupported output_type: {output_type}")
 
     def _text_features(
@@ -364,13 +370,16 @@ class RADMProcessor(ProcessorMixin):
                 dtype=torch.float32,
                 device=device,
             )
+
         tensor = torch.as_tensor(value, dtype=torch.float32, device=device)
         if tensor.ndim == 2:
             tensor = tensor.unsqueeze(0)
+
         if tensor.shape[-1] != self.config.text_feature_dim:
             raise ValueError(
                 f"text_features last dimension must be {self.config.text_feature_dim}"
             )
+
         return tensor
 
     def _text_mask(
@@ -388,9 +397,11 @@ class RADMProcessor(ProcessorMixin):
             return torch.ones(
                 batch_size, text_count, 1, dtype=torch.bool, device=device
             )
+
         tensor = torch.as_tensor(value, dtype=torch.bool, device=device)
         if tensor.ndim == 2:
             tensor = tensor.unsqueeze(-1)
+
         return tensor
 
 
@@ -401,6 +412,7 @@ def _processor_root(
     root = Path(pretrained_model_name_or_path)
     if subfolder is None:
         return root
+
     return root / subfolder
 
 

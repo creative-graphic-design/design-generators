@@ -19,16 +19,19 @@ def _training_parameter_order(name: str) -> tuple[int, ...]:
         level = int(name.split(".")[4]) + 2
         tensor = 0 if name.endswith(".weight") else 1
         return (0, level, 0, tensor)
+
     if name.startswith("backbone.body.fpn.layer_blocks."):
         level = int(name.split(".")[4]) + 2
         tensor = 0 if name.endswith(".weight") else 1
         return (0, level, 1, tensor)
+
     if name.startswith("backbone.body.body.layer"):
         layer_start = len("backbone.body.body.layer")
         layer = int(name[layer_start])
         block_start = name.index(".", layer_start) + 1
         block_end = name.index(".", block_start)
         block = int(name[block_start:block_end])
+
         suffix = name[block_end + 1 :]
         if suffix.startswith("downsample.0."):
             tensor = 0
@@ -40,7 +43,9 @@ def _training_parameter_order(name: str) -> tuple[int, ...]:
             tensor = 3
         else:
             raise ValueError(f"Unexpected trainable backbone parameter: {name}")
+
         return (1, layer, block, tensor)
+
     return (2,)
 
 
@@ -58,10 +63,12 @@ def build_radm_optimizer(
     for _, (name, parameter) in named_parameters:
         if not parameter.requires_grad or id(parameter) in seen:
             continue
+
         seen.add(id(parameter))
         learning_rate = effective.learning_rate
         if name.startswith("backbone."):
             learning_rate *= effective.backbone_multiplier
+
         parameters.append(
             {
                 "params": [parameter],
@@ -115,6 +122,7 @@ class RADMWarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
         self.warmup_method = "linear"
         if self.warmup_method not in ("constant", "linear"):
             raise ValueError("warmup_method must be constant or linear")
+
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self) -> list[float | Float[torch.Tensor, ""]]:
@@ -126,6 +134,7 @@ class RADMWarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
             else:
                 alpha = float(self.last_epoch) / max(self.warmup_iters, 1)
                 warmup_factor = self.warmup_factor * (1 - alpha) + alpha
+
         decay = self.gamma ** bisect_right(self._milestone_values, self.last_epoch)
         return [base_lr * warmup_factor * decay for base_lr in self.base_lrs]
 

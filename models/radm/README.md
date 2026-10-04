@@ -22,18 +22,20 @@ model-index:
           split: "local reference fixture"
         metrics:
           - type: "vendor-parity"
-            value: "not run"
+            value: "not verified"
             name: "Vendor parity"
 ---
+
+<!-- --8<-- [start:card] -->
 
 # Model Card for RADM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2306.09086&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2306.09086)
-![venue](https://img.shields.io/static/v1?label=venue&message=CIKM+2023&color=purple&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=CIKM+2023&color=6b7280&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [RADM](https://arxiv.org/abs/2306.09086), the CIKM 2023 relation-aware diffusion method for controllable poster layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
@@ -46,7 +48,7 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 - **Developed by:** RADM authors.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware; task: single-task; conditioning: none.
+- **Model type:** content-aware; task: single-task; conditioning: content_image.
 - **Language(s) (NLP):** not applicable.
 - **License:** unconfirmed for the checked original source and any user-supplied or converted weights.
 
@@ -138,7 +140,7 @@ data. Data provenance and the CGL-v2 license remain unresolved; see
 
 ### Training Procedure
 
-Phase 1 ships the member-scoped LightningCLI entry surface and captured effective recipe under `configs/training`. The checked original recipe uses one GPU, batch size 16, AdamW at `2.5e-5`, weight decay `1e-4`, warmup plus milestones at 150k and 220k, and `MAX_ITER=250000`. The model predicts four classes while the five-entry CGL vocabulary is preserved explicitly in the captured class mapping. Source-generated S0-S2 evidence is accepted; the two-layer S3 record separates synchronized graph/operation checks from the natural trajectory drift envelope, the S4 loader evidence is exact for the recorded CGL stream, and the amended 300-record lockstep preflight plus CGL S5 terminal comparison are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md). The S5 interpretation remains pending maintainer verdict.
+Phase 1 ships the member-scoped LightningCLI entry surface and captured effective recipe under `configs/training`. The model predicts four classes while the five-entry CGL vocabulary is preserved explicitly in the captured class mapping. Source-generated S0-S2 evidence is accepted, S3 records the synchronized and natural trajectory checks, and S4 records the mapper oracle plus the failed full-stream comparison. S5 remains blocked pending retraining with the corrected stream; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Evaluation
 
@@ -158,10 +160,10 @@ Metrics are exact scheduler/timestep agreement, exact tensor equality where the 
 
 ### Parity Results
 
-| Dataset         | Compared path                                                  | Cases | Assertion                                                             |
-| --------------- | -------------------------------------------------------------- | ----: | --------------------------------------------------------------------- |
-| CGL             | original Detectron2 RADM path vs. converted `🧨diffusers` path |     0 | not run; no released checkpoint or local parity assets were available |
-| Synthetic smoke | randomly initialized RADM pipeline save/load                   |     1 | schema smoke only, no original-code parity claim                      |
+| Dataset         | Compared path                                                  | Cases | Assertion                                                                                                                              |
+| --------------- | -------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| CGL             | original Detectron2 RADM path vs. converted `🧨diffusers` path |     0 | not run; vendor parity is not verified, and the recorded evaluation-path artifact is diagnosis evidence, not an accepted parity result |
+| Synthetic smoke | randomly initialized RADM pipeline save/load                   |     1 | schema smoke only, no original-code parity claim                                                                                       |
 
 No accepted original-code inference parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
 
@@ -211,3 +213,5 @@ Repository wrapper code is Apache-2.0. The checked original RADM source has no l
   year={2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

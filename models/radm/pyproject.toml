@@ -56,7 +56,6 @@ omit = [
     "models/radm/src/radm/training/*",
     "src/radm/training/*",
     "*/src/radm/training/*",
-    "models/radm/src/radm/evaluation.py",
 ]
 
 [build-system]

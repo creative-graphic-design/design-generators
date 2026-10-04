@@ -81,8 +81,19 @@ def test_root_readme_model_classification_badges_follow_policy() -> None:
         if badge.label in {"task", "content"}
     ]
 
-    assert len(badges) == 56
+    assert len(badges) == 58
     assert {badge.label for badge in badges} == {"task", "content"}
+
+
+def test_cikm_model_venue_badge_uses_neutral_catalog_color() -> None:
+    check_readme_badges = _load_check_readme_badges()
+
+    assert (
+        check_readme_badges._expected_color(
+            REPO_ROOT / "models" / "radm" / "README.md", "venue", "CIKM 2023"
+        )
+        == "6b7280"
+    )
 
 
 def test_docs_index_classification_badges_follow_root_policy(

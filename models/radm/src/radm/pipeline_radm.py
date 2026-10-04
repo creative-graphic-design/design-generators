@@ -180,9 +180,7 @@ class RADMPipeline(DiffusionPipeline):
         """
         del labels, bbox, mask, num_elements, box_format, normalized, canvas_size
         self.processor.validate_condition(condition_type)
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             images,
             content=content,
@@ -233,6 +231,7 @@ class RADMPipeline(DiffusionPipeline):
             ).prev_sample
             if trajectory is not None:
                 trajectory.append(sample.detach().cpu())
+
         intermediates = {
             "condition_type": str(ConditionType.content_image),
             "original_sizes": encoded["original_sizes"].detach().cpu(),
@@ -241,6 +240,7 @@ class RADMPipeline(DiffusionPipeline):
         }
         if trajectory is not None:
             intermediates["trajectory"] = trajectory
+
         output = self.processor.decode(
             boxes_xyxy=final_boxes,
             logits=logits,
@@ -256,6 +256,7 @@ class RADMPipeline(DiffusionPipeline):
         )
         if isinstance(output, LayoutGenerationOutput) and trajectory is not None:
             output.trajectory = trajectory
+
         return output
 
     generate = __call__

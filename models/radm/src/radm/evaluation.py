@@ -57,6 +57,7 @@ def layout_predictions_to_coco(
     """
     if len(image_ids) != boxes_xyxy.shape[0]:
         raise ValueError("image_ids must align with the prediction batch")
+
     results: list[CocoPrediction] = []
     for batch_index, image_id in enumerate(image_ids):
         resized_width, resized_height = image_scales[batch_index, :2].tolist()
@@ -96,6 +97,7 @@ def layout_predictions_to_coco(
                     "category_id": category_id,
                 }
             )
+
     return results
 
 
@@ -136,6 +138,7 @@ def evaluate_cgl_predictions(
         evaluator = COCOeval(coco, detections, "bbox")
         if image_ids is not None:
             evaluator.params.imgIds = [int(image_id) for image_id in image_ids]
+
         evaluator.evaluate()
         evaluator.accumulate()
         evaluator.summarize()
@@ -155,6 +158,7 @@ def evaluate_cgl_predictions(
             per_category[f"AP-{category['name']}"] = (
                 float(precision.mean() * 100.0) if precision.size else float("nan")
             )
+
         results = {"bbox": {**bbox_metrics, **per_category}}
     else:
         results = {"bbox": {name: float("nan") for name in COCO_BBOX_METRIC_NAMES}}
@@ -182,6 +186,7 @@ def evaluate_cgl_predictions(
             output_root / "coco_instances_results.json"
         ).as_posix()
         report["metrics_path"] = (output_root / "metrics.json").as_posix()
+
     return report
 
 
@@ -233,9 +238,11 @@ def evaluate_checkpoint(
             remaining = None if max_samples is None else max_samples - offset
             if remaining is not None and remaining <= 0:
                 break
+
             current_batch = int(batch["images"].shape[0])
             if remaining is not None and remaining < current_batch:
                 raise ValueError("max_samples must align with the test batch size")
+
             batch_device = {
                 key: value.to(device) if isinstance(value, torch.Tensor) else value
                 for key, value in batch.items()
@@ -278,6 +285,7 @@ def evaluate_checkpoint(
                     sample,
                     generator=generator,
                 ).prev_sample
+
             selected_boxes, labels, mask, scores, _ = select_predictions(
                 boxes_xyxy=final_boxes,
                 logits=logits,

@@ -57,8 +57,10 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         """Initialize RADM scheduler metadata."""
         if beta_schedule != "cosine":
             raise ValueError("RADM only supports beta_schedule='cosine'")
+
         if prediction_type != "sample":
             raise ValueError("RADM only supports prediction_type='sample'")
+
         self.num_train_timesteps = int(num_train_timesteps)
         self.num_inference_steps = int(num_inference_steps)
         self.eta = float(eta)
@@ -229,6 +231,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         """
         if noise is None:
             noise = torch.randn_like(x_start)
+
         t = _as_batch_timesteps(timestep, x_start.shape[0], x_start.device)
         sqrt_alpha = _extract(self.sqrt_alphas_cumprod, t, x_start.shape).to(
             device=x_start.device, dtype=x_start.dtype
@@ -322,8 +325,10 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
                     dtype=model_output.dtype,
                 )
                 prev_sample = prev_sample + sigma * noise
+
         if not return_dict:
             return (prev_sample, model_output)
+
         return RADMSchedulerOutput(
             prev_sample=prev_sample,
             pred_original_sample=model_output,
@@ -369,6 +374,7 @@ def _as_batch_timesteps(
     t = torch.as_tensor(timestep, device=device, dtype=torch.long)
     if t.ndim == 0:
         t = t.repeat(batch_size)
+
     return t
 
 
@@ -408,7 +414,9 @@ def _previous_timestep(timesteps: Int[torch.Tensor, "steps"], timestep: int) -> 
     matches = (timesteps.cpu() == timestep).nonzero()
     if len(matches) == 0:
         return timestep - 1
+
     index = int(matches[0].item())
     if index >= len(timesteps) - 1:
         return -1
+
     return int(timesteps[index + 1].item())

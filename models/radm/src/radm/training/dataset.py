@@ -115,6 +115,7 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
         annotations: dict[int, list[RADMCOCOAnnotation]] = defaultdict(list)
         for annotation in payload["annotations"]:
             annotations[int(annotation["image_id"])].append(annotation)
+
         self.annotations = annotations
 
     def __len__(self) -> int:
@@ -131,12 +132,14 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             image_tensor = torch.from_numpy(np.asarray(rgb, dtype="float32")).permute(
                 2, 0, 1
             )
+
         original_height, original_width = image_tensor.shape[-2:]
         boxes: list[list[float]] = []
         labels: list[int] = []
         for annotation in self.annotations[image_id]:
             if int(annotation.get("iscrowd", 0)) != 0:
                 continue
+
             left, top, box_width, box_height = (
                 float(value) for value in annotation["bbox"]
             )
@@ -149,6 +152,7 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
                 ]
             )
             labels.append(int(annotation["category_id"]) - 1)
+
         box_tensor = torch.tensor(boxes, dtype=torch.float32).reshape(-1, 4)
         if self.train:
             image_tensor, box_tensor, transform_metadata = (
@@ -233,6 +237,7 @@ class RADMDataCollator:
         """Pad proposal and text dimensions and stack a training batch."""
         if not examples:
             raise ValueError("RADMDataCollator requires at least one example")
+
         size_divisibility = 32
         max_height = max(int(example["image"].shape[-2]) for example in examples)
         max_width = max(int(example["image"].shape[-1]) for example in examples)
@@ -246,6 +251,7 @@ class RADMDataCollator:
             height, width = example["image"].shape[-2:]
             images[index, :, :height, :width] = example["image"]
             image_mask[index, :height, :width] = True
+
         batch = len(examples)
         boxes = images.new_zeros(batch, self.effective.num_proposals, 4)
         labels = torch.zeros(batch, self.effective.num_proposals, dtype=torch.long)
@@ -259,6 +265,7 @@ class RADMDataCollator:
             labels[index, :element_count] = example["labels"][:element_count]
             mask[index, :element_count] = True
             text_mask[index] = example["text_mask"]
+
         text_features = (
             torch.cat([example["text_features"] for example in examples], dim=0)
             .unsqueeze(0)
@@ -353,6 +360,7 @@ def _apply_training_transforms_with_metadata(
             "unsupported released ResizeShortestEdge sampling style: "
             f"{effective.min_size_train_sampling}"
         )
+
     image, transformed_boxes = _resize_shortest_edge(
         image,
         transformed_boxes,
@@ -405,6 +413,7 @@ def _resize_shortest_edge(
             transformed_boxes[:, (1, 3)] = torch.trunc(
                 transformed_boxes[:, (1, 3)].to(dtype=torch.float64) * scale_y
             ).to(dtype=transformed_boxes.dtype)
+
         resized = Image.fromarray(
             np.ascontiguousarray(image.permute(1, 2, 0).to(torch.uint8).numpy())
         ).resize(
@@ -414,6 +423,7 @@ def _resize_shortest_edge(
         image = torch.from_numpy(
             np.ascontiguousarray(np.asarray(resized).transpose(2, 0, 1))
         ).to(dtype=image.dtype)
+
     return image, transformed_boxes
 
 
@@ -435,16 +445,20 @@ def load_text_features(
                 f"Missing text feature {feature_path}; enable the explicit "
                 "all-padding fallback only when it is part of the claim"
             )
+
         return (
             torch.zeros(effective.max_text_num, effective.text_feature_dim),
             torch.zeros(effective.max_text_num, 1, dtype=torch.bool),
         )
+
     payload = torch.load(feature_path, map_location="cpu", weights_only=True)
     features = torch.cat([tensor.reshape(1, -1) for tensor in payload["feats"]])
     if features.shape[-1] != effective.text_feature_dim:
         raise ValueError("text feature dimension does not match effective config")
+
     if features.shape[0] > effective.max_text_num:
         raise ValueError("text feature count exceeds effective max_text_num")
+
     count = features.shape[0]
     padded = torch.zeros(effective.max_text_num, effective.text_feature_dim)
     padded[:count] = features

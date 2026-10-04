@@ -1,14 +1,23 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
+from typing import cast
 
+import numpy as np
 import torch
 import pytest
 from PIL import Image
 from torch.utils.data import SequentialSampler
 
-from radm.evaluation import layout_predictions_to_coco
+from radm import RADMConfig
+from radm.evaluation import (
+    evaluate_cgl_predictions,
+    evaluate_checkpoint,
+    layout_predictions_to_coco,
+)
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
 from radm.training.dataset import RADMCOCODataset
@@ -45,6 +54,146 @@ def _write_test_split(root: Path) -> tuple[Path, Path, Path]:
         encoding="utf-8",
     )
     return annotations, images, features
+
+
+def _install_fake_coco_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeCOCO:
+        def __init__(self, annotation_path: str) -> None:
+            self.annotation_path = annotation_path
+
+        def loadRes(self, predictions: list[dict[str, object]]) -> object:
+            return predictions
+
+        def getCatIds(self) -> list[int]:
+            return [1]
+
+        def loadCats(self, category_ids: list[int]) -> list[dict[str, str]]:
+            assert category_ids == [1]
+            return [{"name": "box"}]
+
+    class FakeCOCOeval:
+        def __init__(self, coco: FakeCOCO, detections: object, task: str) -> None:
+            assert isinstance(coco, FakeCOCO)
+            assert detections is not None
+            assert task == "bbox"
+            self.params = types.SimpleNamespace(imgIds=[])
+            self.stats = np.asarray([0.5, 0.6, 0.4, 0.3, 0.2, 0.1])
+            self.eval = {"precision": np.ones((1, 1, 1, 1, 1))}
+
+        def evaluate(self) -> None:
+            return None
+
+        def accumulate(self) -> None:
+            return None
+
+        def summarize(self) -> None:
+            return None
+
+    pycocotools = types.ModuleType("pycocotools")
+    coco = types.ModuleType("pycocotools.coco")
+    cocoeval = types.ModuleType("pycocotools.cocoeval")
+    setattr(coco, "COCO", FakeCOCO)
+    setattr(cocoeval, "COCOeval", FakeCOCOeval)
+    monkeypatch.setitem(sys.modules, "pycocotools", pycocotools)
+    monkeypatch.setitem(sys.modules, "pycocotools.coco", coco)
+    monkeypatch.setitem(sys.modules, "pycocotools.cocoeval", cocoeval)
+
+
+def test_evaluate_cgl_predictions_writes_empty_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_coco_api(monkeypatch)
+    report = evaluate_cgl_predictions(
+        tmp_path / "annotations.json",
+        [],
+        output_dir=tmp_path / "empty-output",
+        image_ids=[7],
+    )
+
+    assert report["prediction_count"] == 0
+    assert report["image_ids"] == [7]
+    assert (tmp_path / "empty-output" / "metrics.json").is_file()
+
+
+def test_evaluate_cgl_predictions_serializes_fake_coco_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_coco_api(monkeypatch)
+    predictions = [
+        {
+            "image_id": 7,
+            "bbox": [1.0, 2.0, 4.0, 3.0],
+            "score": 0.75,
+            "category_id": 1,
+        }
+    ]
+
+    report = evaluate_cgl_predictions(
+        tmp_path / "annotations.json",
+        predictions,
+        output_dir=tmp_path / "metrics-output",
+        image_ids=[7],
+    )
+
+    results = report["results"]
+    assert isinstance(results, dict)
+    assert results["bbox"]["AP"] == 50.0
+    assert results["bbox"]["AP-box"] == 100.0
+    assert report["results_path"]
+    assert report["metrics_path"]
+
+
+def test_layout_predictions_reject_misaligned_image_ids() -> None:
+    with pytest.raises(ValueError, match="image_ids must align"):
+        layout_predictions_to_coco(
+            image_ids=[],
+            boxes_xyxy=torch.zeros(1, 1, 4),
+            labels=torch.zeros(1, 1, dtype=torch.long),
+            mask=torch.ones(1, 1, dtype=torch.bool),
+            scores=torch.ones(1, 1),
+            image_scales=torch.ones(1, 4),
+            original_image_scales=torch.ones(1, 4),
+        )
+
+
+def test_evaluate_checkpoint_rejects_missing_test_stream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeTrainingModule:
+        model = object()
+
+        @classmethod
+        def load_from_checkpoint(
+            cls, *args: object, **kwargs: object
+        ) -> "FakeTrainingModule":
+            return cls()
+
+        def to(self, device: str) -> "FakeTrainingModule":
+            assert device == "cpu"
+            return self
+
+        def eval(self) -> "FakeTrainingModule":
+            return self
+
+    class EmptyDataModule:
+        test_dataset = None
+
+        def setup(self, stage: str) -> None:
+            assert stage == "test"
+
+        def test_dataloader(self) -> None:
+            return None
+
+    import radm.training.lightning_module as lightning_module
+
+    monkeypatch.setattr(lightning_module, "RADMTrainingModule", FakeTrainingModule)
+    with pytest.raises(ValueError, match="test annotations"):
+        evaluate_checkpoint(
+            tmp_path / "checkpoint.ckpt",
+            config=RADMConfig(),
+            effective=effective_radm_config(),
+            data_module=cast(RADMDataModule, EmptyDataModule()),
+        )
 
 
 def test_data_module_exposes_the_approved_test_stream(tmp_path: Path) -> None:
@@ -117,10 +266,10 @@ def test_evaluation_dataset_uses_fixed_resize_without_flip(tmp_path: Path) -> No
         torch.tensor(
             [
                 [
-                    (100 * 800 / 350) / 800,
-                    (100 * 1189 / 520) / 1189,
-                    (300 * 800 / 350) / 800,
-                    (200 * 1189 / 520) / 1189,
+                    torch.trunc(torch.tensor(100 * 800 / 350)) / 800,
+                    torch.trunc(torch.tensor(100 * 1189 / 520)) / 1189,
+                    torch.trunc(torch.tensor(300 * 800 / 350)) / 800,
+                    torch.trunc(torch.tensor(200 * 1189 / 520)) / 1189,
                 ]
             ]
         ),

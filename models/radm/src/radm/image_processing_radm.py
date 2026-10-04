@@ -88,6 +88,7 @@ class RADMImageProcessor(BaseImageProcessor):
         return_tensors = kwargs.pop("return_tensors", "pt")
         if return_tensors != "pt":
             raise ValueError("RADMImageProcessor only supports return_tensors='pt'")
+
         tensors: list[Float[torch.Tensor, "channels height width"]] = []
         original_sizes: list[tuple[int, int]] = []
         resized_sizes: list[tuple[int, int]] = []
@@ -100,7 +101,9 @@ class RADMImageProcessor(BaseImageProcessor):
             array = np.asarray(resized, dtype=np.float32)
             mean = np.asarray(self.pixel_mean, dtype=np.float32)
             std = np.asarray(self.pixel_std, dtype=np.float32)
+
             tensors.append(torch.from_numpy(((array - mean) / std).transpose(2, 0, 1)))
+
         padded, padding_mask = _pad_tensors(tensors, self.size_divisibility)
         return BatchFeature(
             {
@@ -116,6 +119,7 @@ def _resize_short_side(image: Image.Image, target: int) -> Image.Image:
     width, height = image.size
     if min(width, height) == target:
         return image
+
     scale = target / min(width, height)
     new_size = (max(1, round(width * scale)), max(1, round(height * scale)))
     return image.resize(new_size, Image.Resampling.BILINEAR)
@@ -124,8 +128,10 @@ def _resize_short_side(image: Image.Image, target: int) -> Image.Image:
 def _ensure_pil_batch(images: ImageInput | Sequence[ImageInput]) -> list[Image.Image]:
     if isinstance(images, Image.Image):
         return [images.convert("RGB")]
+
     if isinstance(images, torch.Tensor):
         return _tensor_images_to_pil(images)
+
     return [_to_pil(image) for image in images]
 
 
@@ -143,8 +149,10 @@ def _tensor_item_to_pil(item: Float[torch.Tensor, "..."]) -> Image.Image:
 def _to_pil(image: ImageInput) -> Image.Image:
     if isinstance(image, Image.Image):
         return image.convert("RGB")
+
     if isinstance(image, np.ndarray):
         return _array_to_rgb_image(np.asarray(image))
+
     raise TypeError(f"Unsupported image input: {type(image)!r}")
 
 
@@ -165,10 +173,12 @@ def _pad_tensors(
     if size_divisibility > 1:
         max_h = int(np.ceil(max_h / size_divisibility) * size_divisibility)
         max_w = int(np.ceil(max_w / size_divisibility) * size_divisibility)
+
     batch = tensors[0].new_zeros((len(tensors), tensors[0].shape[0], max_h, max_w))
     mask = torch.zeros((len(tensors), max_h, max_w), dtype=torch.bool)
     for index, tensor in enumerate(tensors):
         height, width = tensor.shape[-2:]
         batch[index, :, :height, :width] = tensor
         mask[index, :height, :width] = True
+
     return batch, mask

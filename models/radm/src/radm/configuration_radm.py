@@ -76,10 +76,13 @@ def default_id2label(
     mode = RADMLabelMode(label_mode)
     if dataset not in {DatasetName.cgl, DatasetName.cgl_v2}:
         raise ValueError(f"Unsupported RADM dataset_name: {dataset_name}")
+
     if mode is RADMLabelMode.english:
         return id2label_for_dataset(DatasetName.cgl)
+
     if mode is RADMLabelMode.original:
         return dict(enumerate(RADM_ORIGINAL_CGL_LABELS))
+
     raise ValueError(f"Unsupported RADM label_mode: {label_mode}")
 
 
@@ -181,6 +184,7 @@ class RADMConfig(ConfigMixin):
         dataset = normalize_dataset_name(dataset_name)
         if dataset not in {DatasetName.cgl, DatasetName.cgl_v2}:
             raise ValueError(f"Unsupported RADM dataset_name: {dataset_name}")
+
         raw_id2label = id2label or default_id2label(dataset)
         raw_original = original_id2label or default_id2label(
             dataset, label_mode=RADMLabelMode.original
@@ -205,6 +209,7 @@ class RADMConfig(ConfigMixin):
         self.roi_resolution = int(roi_resolution)
         self.roi_sampling_ratio = int(roi_sampling_ratio)
         self.with_vtram = bool(with_vtram)
+
         self.with_gram = bool(with_gram)
         self.deep_supervision = bool(deep_supervision)
         self.backbone_depth = int(backbone_depth)
@@ -220,6 +225,7 @@ class RADMConfig(ConfigMixin):
         self.class_threshold = float(class_threshold)
         self.nms_threshold = float(nms_threshold)
         self.denoiser_subfolder = denoiser_subfolder
+
         self.scheduler_subfolder = scheduler_subfolder
         self.processor_subfolder = processor_subfolder
         self.conversion_report = dict(conversion_report or {})

@@ -216,7 +216,6 @@ omit = [
     "models/layout-flow/src/layout_flow/training/*",
     "models/layoutdiffusion/src/layoutdiffusion/training/*",
     "models/radm/src/radm/training/*",
-    "models/radm/src/radm/evaluation.py",
     "scripts/*",
     "scripts/**/*",
     "vendor/*",

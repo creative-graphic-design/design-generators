@@ -20,13 +20,11 @@ file/rule count is unchanged; that is the granularity of this heuristic.
 
 The checker fails when the working baseline counts differ from the current scan.
 Once a count-format baseline exists in committed ``HEAD``, it also fails if a
-working count for an existing file is added or increased relative to that
-commit. New files may establish their initial residual counts in the working
-baseline; existing files remain shrink-only. This prevents hiding a new
-violation by appending it to the baseline. A missing or legacy location-format
-baseline in ``HEAD`` is treated as an initial baseline, which permits the merge
-that first introduces this checker to establish counts for content inherited
-from main.
+working count is added or increased relative to that commit. This permits only
+decreasing or removing residual counts and prevents hiding a new violation by
+appending it to the baseline. A missing or legacy location-format baseline in
+``HEAD`` is treated as an initial baseline, which permits the merge that first
+introduces this checker to establish counts for content inherited from main.
 An ``# Established rule: <rule>`` marker records that a rule has been
 introduced even after its residual count reaches zero. Established markers are
 also shrink-only: removing one relative to committed ``HEAD`` fails.
@@ -477,8 +475,7 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
                 count,
             )
             for (path, rule), count in baseline_current.items()
-            if (path, rule) in committed
-            and count > committed.get((path, rule), 0)
+            if count > committed.get((path, rule), 0)
             and not (rule in INTRODUCED_RULES and rule not in committed_rules)
         )
         if committed is not None

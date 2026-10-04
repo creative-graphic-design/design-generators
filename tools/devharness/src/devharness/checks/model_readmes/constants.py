@@ -46,6 +46,7 @@ MODEL_CONDITIONING_ORDER = (
     "label_size",
     "completion",
     "refinement",
+    "content_image",
     "text",
     "relation",
     "hierarchical",

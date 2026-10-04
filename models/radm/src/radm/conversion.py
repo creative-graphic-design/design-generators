@@ -115,17 +115,20 @@ def convert_original_state_dict(
                 converted[_reference_key_to_package_key(key)] = value
             except AssertionError:
                 unsupported.append(key)
+
     if not converted:
         raise RuntimeError(
             "No RADM denoiser keys were found in the checkpoint. "
             "Pass a checkpoint with denoiser/model.denoiser/module.denoiser keys "
             "or update the conversion mapping after inspecting the original state."
         )
+
     if unsupported:
         raise RuntimeError(
             "Unsupported original RADM state keys; refusing a partial conversion: "
             + ", ".join(sorted(unsupported)[:8])
         )
+
     return converted
 
 
@@ -133,10 +136,13 @@ def _reference_key_to_package_key(key: str) -> str:
     """Apply the inverse of the reviewed source namespace rules."""
     if key in RADM_DIFFUSION_STATE_KEYS:
         return key
+
     if key.startswith("head.head_series."):
         return key.replace("head.head_series.", "head.blocks.", 1)
+
     if key.startswith("head.time_mlp."):
         return key
+
     fpn_rules = (
         ("backbone.fpn_lateral2.", "backbone.body.fpn.inner_blocks.0.0."),
         ("backbone.fpn_lateral3.", "backbone.body.fpn.inner_blocks.1.0."),
@@ -150,6 +156,7 @@ def _reference_key_to_package_key(key: str) -> str:
     for reference_prefix, package_prefix in fpn_rules:
         if key.startswith(reference_prefix):
             return package_prefix + key[len(reference_prefix) :]
+
     if key.startswith("backbone.bottom_up."):
         package = key.replace("backbone.bottom_up.", "backbone.body.body.", 1)
         package = package.replace(
@@ -169,12 +176,14 @@ def _reference_key_to_package_key(key: str) -> str:
                 f"backbone.body.body.{package_layer}.",
                 1,
             )
+
         package = package.replace(".shortcut.norm.", ".downsample.1.")
         package = package.replace(".shortcut.", ".downsample.0.")
         package = package.replace(".conv1.norm.", ".bn1.")
         package = package.replace(".conv2.norm.", ".bn2.")
         package = package.replace(".conv3.norm.", ".bn3.")
         return package
+
     raise AssertionError(f"Unmapped original RADM topology key: {key}")
 
 
@@ -190,4 +199,5 @@ def _find_state_dict(
         value = payload.get(key)
         if isinstance(value, Mapping):
             return cast(Mapping[str, Float[torch.Tensor, "..."]], value)
+
     return cast(Mapping[str, Float[torch.Tensor, "..."]], payload)

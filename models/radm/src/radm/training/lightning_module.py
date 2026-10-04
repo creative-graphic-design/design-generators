@@ -55,11 +55,11 @@ class RADMTrainingModule(LightningModule):
     ) -> None:
         """Initialize the package model and checked effective training state."""
         super().__init__()
-        self.radm_config = config
         self.effective = effective
         self.model = model or RADMDenoiser(config=config)
         if self.model.radm_config is not config:
             raise ValueError("RADMTrainingModule model must use the supplied config")
+
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self.ema_enabled = effective.ema_enabled
         if self.ema_enabled:
@@ -120,11 +120,12 @@ class RADMTrainingModule(LightningModule):
         for index in range(batch_size):
             valid = batch["mask"][index]
             labels = batch["labels"][index][valid]
-            if labels.numel() and int(labels.max()) >= self.radm_config.num_classes:
+            if labels.numel() and int(labels.max()) >= self.model.config.num_classes:
                 raise ValueError(
                     "training labels include the fifth source vocabulary class, "
                     "but the released runtime predicts four classes"
                 )
+
             boxes_xyxy = batch["boxes_xyxy"][index][valid]
             boxes_cxcywh = _xyxy_to_cxcywh(boxes_xyxy)
             image_size_xyxy = batch["image_scales"][index]
@@ -146,6 +147,7 @@ class RADMTrainingModule(LightningModule):
                     ),
                 }
             )
+
         diffusion_input = torch.stack(diffused_boxes)
         diffusion_input_absolute = (
             diffusion_input * batch["forward_image_scales"][:, None, :]
@@ -164,7 +166,7 @@ class RADMTrainingModule(LightningModule):
         losses = _radm_loss(
             output,
             targets,
-            num_classes=self.radm_config.num_classes,
+            num_classes=self.model.config.num_classes,
             alpha=self.effective.alpha,
             gamma=self.effective.gamma,
             ota_k=self.effective.ota_k,
@@ -176,6 +178,7 @@ class RADMTrainingModule(LightningModule):
         total = output.logits.sum() * 0
         for value in losses.values():
             total = total + value
+
         if record_trace:
             self.latest_step_trace = {
                 "timestep": timestep_batch.detach(),
@@ -186,6 +189,7 @@ class RADMTrainingModule(LightningModule):
                 **{name: value.detach() for name, value in losses.items()},
                 "train_loss": total.detach(),
             }
+
         return total
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
@@ -216,6 +220,7 @@ def _radm_loss(
     boxes_by_head = output.auxiliary_boxes_absolute_xyxy
     if logits_by_head is None or boxes_by_head is None:
         raise ValueError("RADM output must expose auxiliary heads for training")
+
     losses: dict[str, Float[torch.Tensor, ""]] = {}
     head_order = (len(logits_by_head) - 1, *range(len(logits_by_head) - 1))
     for head_index in head_order:
@@ -249,6 +254,7 @@ def _radm_loss(
         losses[f"loss_ce{suffix}"] = class_weight * classification
         losses[f"loss_bbox{suffix}"] = l1_weight * l1
         losses[f"loss_giou{suffix}"] = giou_weight * giou
+
     return losses
 
 
@@ -271,6 +277,7 @@ def _dynamic_k_match(
             torch.zeros(boxes.shape[0], dtype=torch.bool, device=boxes.device),
             torch.empty(0, dtype=torch.long, device=boxes.device),
         )
+
     probabilities = logits.sigmoid()
     target_boxes = target["boxes_xyxy"]
     predicted_boxes = boxes
@@ -298,11 +305,13 @@ def _dynamic_k_match(
             cost[:, target_index], k=int(dynamic_k[target_index].item()), largest=False
         )
         matching[:, target_index][query_index] = 1.0
+
     anchor_matching_targets = matching.sum(1)
     if (anchor_matching_targets > 1).sum() > 0:
         _, target_index = torch.min(cost[anchor_matching_targets > 1], dim=1)
         matching[anchor_matching_targets > 1] *= 0
         matching[anchor_matching_targets > 1, target_index] = 1
+
     while (matching.sum(0) == 0).any():
         matched_queries = matching.sum(1) > 0
         cost[matched_queries] += 100000.0
@@ -312,10 +321,12 @@ def _dynamic_k_match(
         for target_index in unmatched_targets:
             query_index = torch.argmin(cost[:, target_index])
             matching[:, target_index][query_index] = 1.0
+
         if (matching.sum(1) > 1).sum() > 0:
             _, target_index = torch.min(cost[anchor_matching_targets > 1], dim=1)
             matching[anchor_matching_targets > 1] *= 0
             matching[anchor_matching_targets > 1, target_index] = 1
+
     selected = matching.sum(1).bool()
     matched_targets = matching[selected].argmax(dim=1)
     return selected, matched_targets
@@ -339,6 +350,7 @@ def _classification_loss(
     ):
         if selected.any():
             target[batch_index, selected, item["labels"][matched]] = 1
+
     target = target[..., :num_classes]
     focal = _sigmoid_focal_loss(
         logits.flatten(0, 1), target.flatten(0, 1), alpha, gamma
@@ -363,9 +375,11 @@ def _box_losses(
         if selected.any():
             predicted.append(boxes[batch_index, selected])
             expected.append(item["boxes_xyxy"][matched])
+
     if not predicted:
         zero = boxes.sum() * 0
         return zero, zero
+
     expected_boxes = torch.cat(expected)
     # The checked regression objective uses normalized xyxy for L1 and
     # absolute xyxy for GIoU.

@@ -56,6 +56,7 @@ class RADMFrozenBatchNorm2d(FrozenBatchNorm2d):
             return x * scale.reshape(1, -1, 1, 1).to(x.dtype) + bias.reshape(
                 1, -1, 1, 1
             ).to(x.dtype)
+
         return F.batch_norm(
             x,
             running_mean,
@@ -75,6 +76,7 @@ class RADMBackbone(nn.Module):
         super().__init__()
         if freeze_at not in range(6):
             raise ValueError("backbone_freeze_at must be between 0 and 5")
+
         self.body = resnet_fpn_backbone(
             backbone_name=f"resnet{depth}",
             weights=None,
@@ -99,6 +101,7 @@ class RADMBackbone(nn.Module):
             x = getattr(body, name)(x)
             if name in body.return_layers:
                 outputs[body.return_layers[name]] = x
+
         return outputs
 
     def forward(
@@ -116,12 +119,16 @@ class RADMBackbone(nn.Module):
             inner_top_down = F.interpolate(last_inner, scale_factor=2.0, mode="nearest")
             last_inner = inner_lateral + inner_top_down
             results.insert(0, fpn.get_result_from_layer_blocks(last_inner, index))
+
         if fpn.extra_blocks is not None:
             results, names = fpn.extra_blocks(results, values, names)
+
         raw = OrderedDict(zip(names, results, strict=True))
+
         values = list(raw.values())[:4]
         if len(values) != 4:
             raise RuntimeError("RADM FPN must produce p2, p3, p4, and p5")
+
         return OrderedDict(
             (name, value)
             for name, value in zip(("p2", "p3", "p4", "p5"), values, strict=True)
@@ -230,6 +237,7 @@ class RADMVisualTextualAttention(nn.Module):
                 dtype=torch.bool,
                 device=text_features.device,
             )
+
         text_features = text_features.repeat(self.propose_num, 1, 1)
         text_mask = text_mask.repeat(self.propose_num, 1, 1)
         batch_tokens, roi_tokens_count = roi_tokens.shape[:2]
@@ -306,6 +314,7 @@ class RADMGeometryRelationAwareModule(nn.Module):
         """Build logarithmic pairwise geometry features."""
         if rois.shape[1] != targets.shape[1]:
             raise ValueError("geometry inputs must have four coordinates")
+
         rois_repeat = rois[..., None].repeat(1, 1, targets.shape[0])
         target_x, target_y, target_w, target_h = targets.unbind(dim=1)
         floor = torch.tensor(1e-3).to(targets.device)
@@ -318,6 +327,7 @@ class RADMGeometryRelationAwareModule(nn.Module):
         relative_w = rois_repeat[:, 2, :] / target_w
         relative_w = relative_w.maximum(floor)
         relative_h = rois_repeat[:, 3, :] / target_h
+
         relative_h = relative_h.maximum(floor)
         relative = torch.stack(
             (relative_x, relative_y, relative_w, relative_h), dim=-1
@@ -378,6 +388,7 @@ class RADMGeometryRelationAwareModule(nn.Module):
             weights = F.softmax(weights, dim=-1)
             weights = F.dropout(weights, p=self.drop_rate, training=self.training)
             topology[selected] = torch.mm(weights, transformed[selected])
+
         return topology
 
 
@@ -426,6 +437,7 @@ class RADMDynamicConv(nn.Module):
         features = self.activation(features)
         features = features.flatten(1)
         features = self.out_layer(features)
+
         features = self.norm3(features)
         return self.activation(features)
 
@@ -477,11 +489,13 @@ class RADMRelationBlock(nn.Module):
                 num_heads=2,
             )
             self.linear4 = nn.Linear(4, hidden_dim)
+
         if with_gram:
             self.GRAM = RADMGeometryRelationAwareModule(
                 pooled_dim=hidden_dim * roi_resolution * roi_resolution,
                 output_dim=64,
             )
+
         self.norm1 = nn.LayerNorm(hidden_dim)
         self.norm2 = nn.LayerNorm(hidden_dim)
         self.norm3 = nn.LayerNorm(hidden_dim)
@@ -559,6 +573,7 @@ class RADMRelationBlock(nn.Module):
             proposal_features = proposal_features.reshape(
                 batch, proposals, self.d_model
             )
+
         proposal_sequence = proposal_features.permute(1, 0, 2)
         attended = self.self_attn(
             proposal_sequence, proposal_sequence, value=proposal_sequence
@@ -584,14 +599,18 @@ class RADMRelationBlock(nn.Module):
         fused = fused * (scale + 1) + shift
         if self.with_vtram:
             fused = torch.cat((fused, textual), dim=1)
+
         if self.with_gram:
             fused = torch.cat((topology, fused), dim=1)
+
         cls_feature = fused.clone()
         for layer in self.cls_module:
             cls_feature = layer(cls_feature)
+
         reg_feature = fused.clone()
         for layer in self.reg_module:
             reg_feature = layer(reg_feature)
+
         class_logits = self.class_logits(cls_feature)
         deltas = self.bboxes_delta(reg_feature)
         predicted_boxes = _apply_box_deltas(
@@ -697,9 +716,11 @@ class RADMProposalHead(nn.Module):
             # in the corresponding repeated-head update.
             box_outputs.append(predicted_boxes)
             current_boxes = predicted_boxes.detach()
+
         if not self.deep_supervision:
             class_outputs = class_outputs[-1:]
             box_outputs = box_outputs[-1:]
+
         return torch.stack(class_outputs), torch.stack(box_outputs)
 
     def _roi_features(
@@ -744,6 +765,7 @@ class RADMProposalHead(nn.Module):
                 sampling_ratio=self.roi_sampling_ratio,
                 aligned=True,
             )
+
         return pooled.reshape(
             boxes_xyxy.shape[0],
             boxes_xyxy.shape[1],
@@ -842,7 +864,9 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
             }
             if any(value is None for value in values.values()):
                 raise TypeError("RADMDenoiser requires an explicit RADMConfig")
+
             config = RADMConfig(**values)  # type: ignore[arg-type]
+
         self.radm_config = config
         self.register_to_config(
             **{
@@ -871,6 +895,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         )
         if config.backbone_depth not in (18, 50):
             raise ValueError("backbone_depth must be 18 or 50")
+
         self.num_classes = config.num_classes
         self.num_proposals = config.num_proposals
         self.hidden_dim = config.hidden_dim
@@ -972,6 +997,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         if count == 0:
             boxes_cxcywh = boxes_cxcywh.new_tensor([[0.5, 0.5, 1.0, 1.0]])
             count = 1
+
         if count < self.num_proposals:
             placeholders = (
                 randn(
@@ -989,6 +1015,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
             clean = boxes_cxcywh[: self.num_proposals]
         else:
             clean = boxes_cxcywh
+
         clean = (clean * 2.0 - 1.0) * self.radm_config.snr_scale
         diffused = self.q_sample(clean, timestep, noise=noise)
         diffused = diffused.clamp(
@@ -1013,10 +1040,13 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         """Predict proposal classes and denoised boxes."""
         if text_features.ndim != 3:
             raise ValueError("text_features must have shape (batch, text, dim)")
+
         if boxes_xyxy.shape[1] != self.num_proposals:
             raise ValueError(f"expected {self.num_proposals} proposals")
+
         if timesteps.ndim == 0:
             timesteps = timesteps.repeat(boxes_xyxy.shape[0])
+
         timestep_batch = timesteps.to(
             device=boxes_xyxy.device, dtype=torch.long
         ).reshape(-1)
@@ -1028,6 +1058,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
             default_scale = boxes_xyxy.new_tensor(
                 (images.shape[-1], images.shape[-2], images.shape[-1], images.shape[-2])
             ).expand(boxes_xyxy.shape[0], -1)
+
         resolved_scales = default_scale if image_scales is None else image_scales
         auxiliary_logits, auxiliary_boxes_absolute = self.head(
             features,

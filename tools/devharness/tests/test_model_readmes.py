@@ -488,6 +488,16 @@ def test_vendor_parity_badge_contract_rejects_invalid_badges(
         parity.assert_vendor_parity_badge(tmp_path / "README.md", text)
 
 
+def test_vendor_parity_badge_contract_accepts_not_verified() -> None:
+    text = (
+        "### Parity Results\n"
+        "vendor parity is not verified.\n"
+        "![vendor-parity](https://img.shields.io/static/v1?message=not-verified)\n"
+    )
+
+    parity.assert_vendor_parity_badge(Path("models/example/README.md"), text)
+
+
 def test_reproducibility_contract_rejects_missing_link_and_walkthrough(
     tmp_path: Path,
 ) -> None:
@@ -665,7 +675,7 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
             "conditioning value",
         ),
         (
-            "- **Model type:** content-agnostic; task: single-task; conditioning: content_image.\n",
+            "- **Model type:** content-agnostic; task: single-task; conditioning: content-image.\n",
             "conditioning value",
         ),
         (
@@ -705,6 +715,19 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
 def test_model_type_contract_rejects_invalid_values(line: str, message: str) -> None:
     with pytest.raises(AssertionError, match=message):
         card.parse_model_type(Path("models/example/README.md"), line)
+
+
+def test_model_type_contract_accepts_content_image_conditioning() -> None:
+    line = (
+        "- **Model type:** content-aware; task: single-task; "
+        "conditioning: content_image.\n"
+    )
+
+    assert card.parse_model_type(Path("models/example/README.md"), line) == (
+        "content-aware",
+        "single-task",
+        ("content_image",),
+    )
 
 
 def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:

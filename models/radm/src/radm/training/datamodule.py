@@ -23,6 +23,7 @@ class RADMTrainingSampler(Sampler[int]):
         """Initialize the sampler with a fixed dataset size and RNG seed."""
         if size <= 0:
             raise ValueError("RADMTrainingSampler requires a non-empty dataset")
+
         self.size = size
         self.seed = int(seed)
 
@@ -152,6 +153,7 @@ class RADMDataModule(LightningDataModule):
                     self.val_text_feature_root,
                     train=False,
                 )
+
         if stage in {None, "test"}:
             if (
                 self.test_annotations is not None
@@ -170,6 +172,7 @@ class RADMDataModule(LightningDataModule):
         """Return the seeded grouped training loader."""
         if self.train_dataset is None:
             self.setup("fit")
+
         if self.train_dataset is None:
             raise RuntimeError("training dataset was not initialized")
 
@@ -190,6 +193,7 @@ class RADMDataModule(LightningDataModule):
         """Return the validation loader when explicit validation paths exist."""
         if self.val_dataset is None:
             self.setup("fit")
+
         return (
             None
             if self.val_dataset is None
@@ -200,6 +204,7 @@ class RADMDataModule(LightningDataModule):
         """Return the approved CGL test loader without reshuffling its stream."""
         if self.test_dataset is None:
             self.setup("test")
+
         return (
             None
             if self.test_dataset is None

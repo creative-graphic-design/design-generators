@@ -67,8 +67,10 @@ def build_reviewed_state_key_map(
     }
     if len(result) != len(package_model.state_dict()):
         raise AssertionError("Reviewed RADM key map is not exhaustive")
+
     if len(set(result.values())) != len(result):
         raise AssertionError("Reviewed RADM key map is not one-to-one")
+
     return result
 
 
@@ -85,13 +87,17 @@ def _package_key_to_reference_key(key: str) -> str:
     """Translate one explicitly reviewed package state namespace."""
     if key in RADM_DIFFUSION_STATE_KEYS:
         return key
+
     if key.startswith("head.time_mlp."):
         return key
+
     if key.startswith("head.blocks."):
         return key.replace("head.blocks.", "head.head_series.", 1)
+
     for package_prefix, reference_prefix in _FPN_RULES:
         if key.startswith(package_prefix):
             return reference_prefix + key[len(package_prefix) :]
+
     if key.startswith("backbone.body.body."):
         reference = key.replace("backbone.body.body.", "backbone.bottom_up.", 1)
         reference = reference.replace(
@@ -111,12 +117,14 @@ def _package_key_to_reference_key(key: str) -> str:
                 f"backbone.bottom_up.{reference_stage}.",
                 1,
             )
+
         reference = reference.replace(".downsample.0.", ".shortcut.")
         reference = reference.replace(".downsample.1.", ".shortcut.norm.")
         reference = reference.replace(".bn1.", ".conv1.norm.")
         reference = reference.replace(".bn2.", ".conv2.norm.")
         reference = reference.replace(".bn3.", ".conv3.norm.")
         return reference
+
     raise AssertionError(f"Unreviewed RADM topology key: {key}")
 
 
@@ -188,19 +196,23 @@ def compare_state_dict_topology(
         raise AssertionError(
             f"Package keys missing from reviewed map: {sorted(package_keys - mapped_package_keys)[:8]}"
         )
+
     reference_keys = set(reference)
     mapped_reference_keys = set(key_map.values())
     missing = sorted(mapped_reference_keys - reference_keys)
     if missing:
         raise AssertionError(f"Missing reference topology keys: {missing[:8]}")
+
     invalid_allowlist = sorted(set(allowlist) & mapped_reference_keys)
     if invalid_allowlist:
         raise AssertionError(
             f"Allowlisted mapped keys are not extras: {invalid_allowlist}"
         )
+
     unexpected = sorted(reference_keys - mapped_reference_keys - set(allowlist))
     if unexpected:
         raise AssertionError(f"Unexpected reference topology keys: {unexpected[:8]}")
+
     for package_key, reference_key in key_map.items():
         if tuple(package[package_key].shape) != tuple(reference[reference_key].shape):
             raise AssertionError(
@@ -228,6 +240,7 @@ def assert_radm_topology_parity(
             "RADM parameter-count mismatch: "
             f"{package_parameters} != {reference_parameters}"
         )
+
     compare_state_dict_topology(
         reference_model.state_dict(),
         package_model.state_dict(),
@@ -269,6 +282,7 @@ def assert_forward_parity(
         or package_output.auxiliary_boxes_xyxy is None
     ):
         raise AssertionError("package forward did not return all head outputs")
+
     torch.testing.assert_close(
         package_output.auxiliary_logits,
         reference_logits,
@@ -313,6 +327,7 @@ def assert_effective_runtime_state(
     assert effective.box_renewal is state.runtime_summary["box_renewal"]
     assert effective.use_ensemble is state.runtime_summary["use_ensemble"]
     assert effective.ema_enabled is state.runtime_summary["ema_enabled"]
+
     assert effective.amp_enabled is state.runtime_summary["amp_enabled"]
     assert effective.ddp_enabled is state.runtime_summary["ddp_enabled"]
     assert effective.simple_trainer is state.runtime_summary["simple_trainer"]
@@ -357,6 +372,7 @@ def assert_optimizer_scheduler_parity(
     assert isinstance(package_optimizer, torch.optim.AdamW)
     for name in ("betas", "eps"):
         assert reference_optimizer.defaults[name] == package_optimizer.defaults[name]
+
     assert len(reference_optimizer.param_groups) == len(package_optimizer.param_groups)
     for reference_group, package_group in zip(
         reference_optimizer.param_groups,

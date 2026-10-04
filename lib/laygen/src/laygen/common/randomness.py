@@ -315,14 +315,12 @@ def resolve_torch_generator(
     *,
     generator: torch.Generator | None = None,
     seed: int | None = None,
-    device: str | torch.device = "cpu",
 ) -> torch.Generator | None:
     """Resolve an explicit or locally seeded Torch generator.
 
     Args:
         generator: Explicit generator, which takes precedence over ``seed``.
         seed: Seed for a new local generator when ``generator`` is absent.
-        device: Device for a newly seeded generator.
 
     Returns:
         The explicit generator, a new CPU-local generator, or ``None``.
@@ -333,10 +331,8 @@ def resolve_torch_generator(
     if seed is None:
         return None
 
-    return _seeded_generator(seed=seed, device=device)
+    return _seeded_generator(seed=seed)
 
 
-def _seeded_generator(
-    *, seed: int, device: str | torch.device = "cpu"
-) -> torch.Generator:
-    return torch.Generator(device=device).manual_seed(seed)
+def _seeded_generator(*, seed: int) -> torch.Generator:
+    return torch.Generator().manual_seed(seed)
