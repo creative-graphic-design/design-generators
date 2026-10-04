@@ -1876,7 +1876,9 @@ def _evaluation_environment(scratch: Path) -> dict[str, str]:
     runtime = os.environ.get("LAYOUT_CORRECTOR_AUDIT_VENV")
     if runtime is not None:
         environment["PATH"] = f"{runtime}/bin:{environment['PATH']}"
-    environment["PYTHONPATH"] = str(scratch / "src" / "trainer")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (str(scratch), str(scratch / "src" / "trainer"))
+    )
     environment["CUDA_VISIBLE_DEVICES"] = "0"
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     return environment
