@@ -238,6 +238,9 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert module._reference_model_value() is reference.model
     assert module.initialization_device == "cpu"
     assert len(module.optim_groups()) == 2
+    module._reference_model_value().train()
+    module.on_train_epoch_start()
+    assert module._reference_model_value().training is False
 
     optimizer_config = module.configure_optimizers()
     assert isinstance(optimizer_config, dict)
@@ -329,6 +332,9 @@ class _FakeDenoiser(nn.Module):
     def __init__(self, **kwargs: object) -> None:
         super().__init__()
         self.weight = nn.Parameter(torch.ones(1))
+
+    def initialize_weights(self) -> None:
+        pass
 
     def forward(
         self, *, input_ids: torch.Tensor, timesteps: torch.Tensor

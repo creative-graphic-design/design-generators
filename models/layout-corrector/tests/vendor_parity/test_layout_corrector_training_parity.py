@@ -1260,6 +1260,7 @@ def _run_package_natural_side(
     module = fixture.package
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     module.to(device)
+    module.train()
     module.model.model.load_state_dict(initial_state, strict=True)
     module.scheduler = None
     module.latest_gradient_norm = None

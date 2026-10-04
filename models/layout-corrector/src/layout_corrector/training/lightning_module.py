@@ -94,6 +94,10 @@ class LayoutCorrectorTrainingModule(LightningModule):
         history.data = history.to(device)
         count.data = count.to(device)
 
+    def on_train_epoch_start(self) -> None:
+        """Keep the frozen LayoutDM reference in evaluation mode."""
+        self._reference_model_value().eval()
+
     def _reference_value(self) -> FrozenLayoutDMReference:
         return cast(
             FrozenLayoutDMReference,
