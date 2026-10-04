@@ -1044,6 +1044,37 @@ def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
             1,
             initial_layout,
         )
+    state_path = json_path.with_suffix(".pt")
+    torch.save(
+        {
+            "parameters": {
+                name: value.cpu()
+                for name, value in {
+                    **_named_parameters(vendor_generator, "generator"),
+                    **_named_parameters(vendor_discriminator, "discriminator"),
+                }.items()
+            },
+            "gradients": {
+                name: value.cpu()
+                for name, value in {
+                    **_named_gradients(vendor_generator, "generator"),
+                    **_named_gradients(vendor_discriminator, "discriminator"),
+                }.items()
+            },
+            "optimizer_state": {
+                name: value.cpu()
+                for name, value in {
+                    **_named_optimizer_state(
+                        vendor_optimizers[0], vendor_generator, "generator"
+                    ),
+                    **_named_optimizer_state(
+                        vendor_optimizers[1], vendor_discriminator, "discriminator"
+                    ),
+                }.items()
+            },
+        },
+        state_path,
+    )
     json_path.write_text(
         json.dumps(
             {
@@ -1052,6 +1083,7 @@ def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
                 "repeat": repeat,
                 "seed": SEED,
                 "process_id": os.getpid(),
+                "state_artifact": str(state_path.relative_to(ROOT)),
                 "device": str(device),
                 "batch": batch_meta,
                 "initial_layout_sha256": tensor_sha256(initial_layout),
@@ -1084,7 +1116,11 @@ def _run_s2_vendor_self_repeat_process(repeat: int) -> dict[str, Any]:
         check=True,
         cwd=ROOT,
     )
-    return json.loads(json_path.read_text())
+    run = json.loads(json_path.read_text())
+    run["_state"] = torch.load(
+        json_path.with_suffix(".pt"), map_location="cpu", weights_only=True
+    )
+    return run
 
 
 def _scalar_self_envelope(runs: list[dict[str, Any]], field: str) -> dict[str, Any]:
@@ -1102,6 +1138,29 @@ def _scalar_self_envelope(runs: list[dict[str, Any]], field: str) -> dict[str, A
         "max_relative_difference": maximum_abs / denominator if denominator else 0.0,
         "process_ids": [run["process_id"] for run in runs],
     }
+
+
+def _comparison_self_envelope(
+    comparisons: list[dict[str, Any]], field: str
+) -> dict[str, Any]:
+    worst_abs = max(comparisons, key=lambda item: item["max_abs_difference"])
+    return {
+        "field": field,
+        "repeat_count": len(comparisons) + 1,
+        "max_abs_difference": max(item["max_abs_difference"] for item in comparisons),
+        "max_relative_difference": max(
+            item["max_relative_difference"] for item in comparisons
+        ),
+        "first_difference_at_max_abs": worst_abs["first_difference"],
+        "comparisons": comparisons,
+    }
+
+
+def _inside_self_envelope(comparison: dict[str, Any], envelope: dict[str, Any]) -> bool:
+    return comparison["passed"] or (
+        comparison["max_abs_difference"] <= envelope["max_abs_difference"]
+        and comparison["max_relative_difference"] <= envelope["max_relative_difference"]
+    )
 
 
 class _NaturalParityCallback(Callback):
@@ -1667,19 +1726,66 @@ def run_s2() -> Path:
     gc.collect()
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    vendor_self_runs = [
-        _run_s2_vendor_self_repeat_process(repeat)
-        for repeat in range(1, S2_VENDOR_SELF_REPEATS + 1)
-    ]
+    vendor_self_runs: list[dict[str, Any]] = []
+    vendor_self_baseline: dict[str, dict[str, torch.Tensor]] | None = None
+    vendor_self_comparisons: dict[str, list[dict[str, Any]]] = {
+        "parameters": [],
+        "gradients": [],
+        "optimizer_state": [],
+    }
+    for repeat in range(1, S2_VENDOR_SELF_REPEATS + 1):
+        run = _run_s2_vendor_self_repeat_process(repeat)
+        state = cast(dict[str, dict[str, torch.Tensor]], run.pop("_state"))
+        vendor_self_runs.append(run)
+        if vendor_self_baseline is None:
+            vendor_self_baseline = state
+            continue
+        for field, comparisons in vendor_self_comparisons.items():
+            comparisons.append(
+                _state_compare(vendor_self_baseline[field], state[field])
+            )
+        del state
+    if vendor_self_baseline is None:
+        raise RuntimeError("S2 vendor self-repeat did not produce a baseline")
     vendor_self_envelope = _scalar_self_envelope(
         vendor_self_runs, "loss_reconstruction"
     )
+    vendor_state_self_envelopes: dict[str, dict[str, Any]] = {}
+    for field, comparisons in vendor_self_comparisons.items():
+        if not comparisons:
+            raise RuntimeError(f"S2 vendor self-repeat has no comparisons for {field}")
+        vendor_state_self_envelopes[field] = _comparison_self_envelope(
+            comparisons, field
+        )
     vendor_operator = _vendor_cross_entropy_operator()
-    package_difference = trace_comparison["first_difference"]
-    trace_inside_envelope = (
-        package_difference is None
-        or trace_comparison["max_abs_difference"]
-        <= vendor_self_envelope["max_abs_difference"]
+    package_differences = {
+        "loss": trace_comparison,
+        "gradients": gradient_comparison,
+        "parameters": state_comparison,
+        "optimizer_state": optimizer_comparison,
+    }
+    package_inside_self_envelope = {
+        "loss": (
+            trace_comparison["passed"]
+            or trace_comparison["max_abs_difference"]
+            <= vendor_self_envelope["max_abs_difference"]
+        ),
+        **{
+            field: _inside_self_envelope(comparison, vendor_state_self_envelopes[field])
+            for field, comparison in (
+                ("gradients", gradient_comparison),
+                ("parameters", state_comparison),
+                ("optimizer_state", optimizer_comparison),
+            )
+        },
+    }
+    first_difference = next(
+        (
+            comparison["first_difference"]
+            for comparison in package_differences.values()
+            if comparison["first_difference"] is not None
+        ),
+        None,
     )
     self_processes_are_distinct = len(
         {run["process_id"] for run in vendor_self_runs}
@@ -1695,12 +1801,15 @@ def run_s2() -> Path:
         run["deterministic_warning"]["contains_nll_loss2d"] for run in vendor_self_runs
     )
     cause = {
-        "kind": "nondeterministic CUDA nll_loss2d forward reduction",
+        "kind": "nondeterministic CUDA nll_loss2d cross_entropy reduction",
         "operator": vendor_operator,
         "package_operator": "torch.nn.functional.cross_entropy",
+        "reduction": "mean (implicit default in both operators)",
+        "first_difference": first_difference,
         "vendor_self_repeat": {
             "repeat_count": len(vendor_self_runs),
-            "envelope": vendor_self_envelope,
+            "loss_envelope": vendor_self_envelope,
+            "state_envelopes": vendor_state_self_envelopes,
             "processes_are_distinct": self_processes_are_distinct,
             "source_is_current": self_source_is_current,
             "seed_is_paired": self_seed_is_paired,
@@ -1708,16 +1817,13 @@ def run_s2() -> Path:
             "warning_is_captured": self_warning_is_captured,
         },
         "package_vendor_difference": {
-            "first_difference": package_difference,
-            "max_abs_difference": trace_comparison["max_abs_difference"],
-            "max_relative_difference": trace_comparison["max_relative_difference"],
-            "inside_vendor_self_envelope": trace_inside_envelope,
+            "comparisons": package_differences,
+            "inside_vendor_self_envelope": package_inside_self_envelope,
         },
     }
     cause_passed = (
-        package_difference is not None
-        and package_difference["name"] == "loss_reconstruction"
-        and trace_inside_envelope
+        first_difference is not None
+        and all(package_inside_self_envelope.values())
         and self_processes_are_distinct
         and self_source_is_current
         and self_seed_is_paired
