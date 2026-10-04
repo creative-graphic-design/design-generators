@@ -122,8 +122,57 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
 
 def _dataset_display_name(value: str, slug: str | None = None) -> str:
     normalized = value.removeprefix("https://huggingface.co/datasets/")
-    if slug == "layoutganpp" and normalized == "creative-graphic-design/Rico":
-        return "RICO13"
+    if slug is not None:
+        metadata = project_metadata(REPO_ROOT / "models" / slug)
+        tool = metadata.get("tool")
+        if not isinstance(tool, dict):
+            tool = {}
+
+        design_generators = tool.get("design-generators")
+        if not isinstance(design_generators, dict):
+            design_generators = {}
+
+        declared = design_generators.get("datasets")
+        if not isinstance(declared, list):
+            declared = []
+
+        source_name = normalized.rsplit("/", maxsplit=1)[-1].casefold()
+        display_names = {
+            "rico13": "RICO13",
+            "rico25": "RICO25",
+            "publaynet": "PubLayNet",
+            "magazine": "Magazine",
+            "pku_posterlayout": "PKU",
+            "cgl": "CGL",
+            "posterlayout": "PosterLayout",
+            "ad_banner": "Ad Banner",
+            "crello": "Crello",
+            "coco-grounded": "COCO-grounded",
+            "vg-msdn": "VG-MSDN",
+            "smarttext-demo": "SmartText demo",
+            "grit": "GRIT",
+            "nsr-1k": "NSR-1K",
+            "web": "Web",
+            "info ppt": "InfoPPT",
+            "coco": "COCO",
+        }
+        for dataset in declared:
+            if not isinstance(dataset, str):
+                continue
+
+            declared_name = dataset.casefold().replace("-", "").replace("_", "")
+            source_key = source_name.replace("-", "").replace("_", "")
+            if declared_name == source_key or declared_name.startswith(source_key):
+                return display_names.get(
+                    dataset.casefold(),
+                    {
+                        "creative-graphic-design/Rico": "RICO25",
+                        "creative-graphic-design/PubLayNet": "PubLayNet",
+                        "creative-graphic-design/magazine": "Magazine",
+                        "creative-graphic-design/CGL-Dataset": "CGL",
+                        "creative-graphic-design/PKU-PosterLayout": "PKU",
+                    }.get(normalized, dataset),
+                )
 
     return {
         "creative-graphic-design/Rico": "RICO25",

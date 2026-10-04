@@ -90,12 +90,8 @@ def gan_forward_trace(
     valid_labels = labels[mask]
     loss_d_reconstruction_labels = F.cross_entropy(logits_cls, valid_labels)
     loss_d_reconstruction_boxes = F.mse_loss(bbox_reconstruction, bbox[mask])
-    loss_d = (
-        loss_d_real
-        + loss_d_fake
-        + loss_d_reconstruction_labels
-        + 10.0 * loss_d_reconstruction_boxes
-    )
+    loss_d = loss_d_real + loss_d_fake
+    loss_d += loss_d_reconstruction_labels + 10.0 * loss_d_reconstruction_boxes
     values = {
         "latent_noise": latent_noise,
         "draw_latent_noise": latent_noise,

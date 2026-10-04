@@ -31,6 +31,7 @@ from torch_geometric.data import Data
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 
 from laygen.common.randomness import randn, resolve_torch_generator
+from laygen.modeling_outputs import LayoutGenerationOutput
 from traingen_parity.compare import (
     BatchStreamReport,
     OptimizerStepReport,
@@ -52,7 +53,8 @@ from traingen_parity.trace import (
     tensor_sha256,
 )
 
-from layoutganpp import LayoutGANPPModel
+from layoutganpp import LayoutGANPPPipeline
+from layoutganpp.evaluation import out_of_bounds_counts
 from layoutganpp.training import LayoutGANPPTrainingModule
 from layoutganpp.training.dataset import (
     LayoutGANPPDataset,
@@ -77,6 +79,7 @@ CHECKPOINT = (
 CONVERTED = ROOT / ".cache" / "layoutganpp" / "converted" / "layoutganpp-magazine"
 VENDOR_CHECKPOINT = VENDOR_WORK / "pretrained" / "layoutganpp_magazine.pth.tar"
 VENDOR_LAYOUTNET = VENDOR_WORK / "pretrained" / "layoutnet_magazine.pth.tar"
+ASSET_ACQUISITION = ROOT / ".cache" / "layoutganpp" / "original" / "acquisition.json"
 VENDOR_BATCH_SIZE = 64
 WEIGHT_BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
 CHECKPOINT_URL = f"{WEIGHT_BASE_URL}/layoutganpp_magazine.pth.tar"
@@ -91,7 +94,7 @@ S4_EVALUATION_SEED = 42005
 S3_STEPS = 300
 S3_REPEATS = 2
 S3_WORKER_HASH_STEPS = 20
-TRACE_ATOL = 1.0e-6
+PREDICTION_ATOL = 1.0e-6
 RELATIVE_LOSS_LIMIT = 1.0e-3
 
 JsonValue: TypeAlias = (
@@ -126,8 +129,30 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _asset_record(path: Path, url: str, acquisition: str) -> dict[str, JsonValue]:
+def _asset_record(path: Path, url: str, asset_name: str) -> dict[str, JsonValue]:
+    if not ASSET_ACQUISITION.exists():
+        raise FileNotFoundError(
+            f"missing asset acquisition record: {ASSET_ACQUISITION}"
+        )
+    acquisition_manifest = cast(
+        dict[str, JsonValue], json.loads(ASSET_ACQUISITION.read_text())
+    )
+    assets = acquisition_manifest.get("assets")
+    if not isinstance(assets, dict) or not isinstance(assets.get(asset_name), dict):
+        raise ValueError(f"asset acquisition record lacks {asset_name}")
+    acquisition = cast(dict[str, JsonValue], assets[asset_name])
+    if acquisition.get("url") != url:
+        raise ValueError(f"asset acquisition URL does not match {asset_name}")
     available = path.exists()
+    if available:
+        if acquisition.get("size_bytes") != path.stat().st_size:
+            raise ValueError(
+                f"asset size does not match acquisition record: {asset_name}"
+            )
+        if acquisition.get("sha256") != _sha256(path):
+            raise ValueError(
+                f"asset hash does not match acquisition record: {asset_name}"
+            )
     return {
         "url": url,
         "path": str(path.relative_to(ROOT)),
@@ -516,8 +541,7 @@ def _trajectory_comparison_summary(
             build_step_trace("left", left_tensors),
             build_step_trace("right", right_tensors),
             tolerances={
-                name: TensorTolerance(atol=TRACE_ATOL, rtol=0.0)
-                for name in float_fields
+                name: TensorTolerance(atol=0.0, rtol=0.0) for name in float_fields
             },
         )
         if not report.passed and first_divergence is None:
@@ -528,7 +552,7 @@ def _trajectory_comparison_summary(
                     "field": field,
                     left_system: left_values.get(field),
                     right_system: right_values.get(field),
-                    "limit": TRACE_ATOL,
+                    "limit": 0.0,
                 }
             else:
                 first = next(item for item in report.comparisons if not item.passed)
@@ -539,7 +563,7 @@ def _trajectory_comparison_summary(
                     right_system: right_values.get(first.name),
                     "max_abs": first.max_abs_diff,
                     "max_rel": first.max_rel_diff,
-                    "limit": TRACE_ATOL,
+                    "limit": 0.0,
                 }
 
         for field in sorted(set(left_values) & set(right_values)):
@@ -607,7 +631,7 @@ def _trajectory_comparison_summary(
     return {
         "population": f"{steps} optimizer steps and all recorded scalar fields per step",
         "criterion": "traingen_parity.compare_step_trace",
-        "atol": TRACE_ATOL,
+        "atol": 0.0,
         "rtol": 0.0,
         "within_tolerance": first_divergence is None,
         "bitwise_equal": first_non_bitwise is None,
@@ -623,13 +647,6 @@ def _trajectory_comparison_summary(
             "maximum_field": maximum_relative_loss_field,
             "outcome": "PASS" if first_relative_loss is None else "FAIL",
         },
-        "cause": (
-            "No non-bitwise scalar differences were observed."
-            if first_non_bitwise is None
-            else "FP32 accumulation/order differences between the plain-PyTorch vendor "
-            "path and package Lightning path; matched inputs and latent draws make "
-            "this a floating-point comparison, not a data or RNG mismatch."
-        ),
         "asserted": True,
     }
 
@@ -774,6 +791,8 @@ def _vendor_forward_trace(
     loss_d_reconstruction_boxes = torch.nn.functional.mse_loss(
         bbox_reconstruction, bbox[mask]
     )
+    loss_d = loss_d_real + loss_d_fake
+    loss_d += loss_d_reconstruction_labels + 10.0 * loss_d_reconstruction_boxes
     values = {
         "latent_noise": latent_noise,
         "draw_latent_noise": latent_noise,
@@ -796,12 +815,7 @@ def _vendor_forward_trace(
         "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
             1
         ),
-        "discriminator_loss": (
-            loss_d_real
-            + loss_d_fake
-            + loss_d_reconstruction_labels
-            + 10.0 * loss_d_reconstruction_boxes
-        ).reshape(1),
+        "discriminator_loss": loss_d.reshape(1),
     }
     if detach:
         return {key: value.detach().clone() for key, value in values.items()}
@@ -816,14 +830,19 @@ def _vendor_iteration(
     optimizer_d: torch.optim.Optimizer,
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
     trace = _vendor_forward_trace(generator, discriminator, batch, detach=False)
+    update_order: list[int] = []
     optimizer_g.zero_grad()
     trace["generator_loss"].mean().backward()
     optimizer_g.step()
+    update_order.append(0)
     optimizer_d.zero_grad()
     trace["discriminator_loss"].mean().backward()
     optimizer_d.step()
+    update_order.append(1)
     result = {key: value.detach().clone() for key, value in trace.items()}
-    result["update_order"] = torch.tensor([0, 1], device=result["latent_noise"].device)
+    result["update_order"] = torch.tensor(
+        update_order, device=result["latent_noise"].device, dtype=torch.long
+    )
     return result
 
 
@@ -877,6 +896,56 @@ def _stage_s0(device: torch.device) -> Path:
         vendor_generator_order == package_generator_order
         and vendor_discriminator_order == package_discriminator_order
     )
+    parameter_counts = {
+        "vendor_generator": sum(p.numel() for p in vendor_generator.parameters()),
+        "package_generator": sum(p.numel() for p in package.generator.parameters()),
+        "vendor_discriminator": sum(
+            p.numel() for p in vendor_discriminator.parameters()
+        ),
+        "package_discriminator": sum(
+            p.numel() for p in package.discriminator.parameters()
+        ),
+    }
+    initialization_reports = [
+        compare_optimizer_step(vendor_generator_state, package_generator_state),
+        compare_optimizer_step(vendor_discriminator_state, package_discriminator_state),
+    ]
+    first_divergence = _first_report_divergence(initialization_reports)
+    if first_divergence is None and not optimizer_defaults_equal:
+        first_divergence = {
+            "field": "optimizer_defaults",
+            "vendor": {
+                "generator": vendor_g.defaults,
+                "discriminator": vendor_d.defaults,
+            },
+            "package": {
+                "generator": package_g.defaults,
+                "discriminator": package_d.defaults,
+            },
+        }
+    if first_divergence is None and not optimizer_state_equal:
+        first_divergence = {"field": "optimizer_state"}
+    if first_divergence is None and not optimizer_parameter_order_equal:
+        first_divergence = {
+            "field": "optimizer_parameter_order",
+            "vendor": {
+                "generator": vendor_generator_order,
+                "discriminator": vendor_discriminator_order,
+            },
+            "package": {
+                "generator": package_generator_order,
+                "discriminator": package_discriminator_order,
+            },
+        }
+    if first_divergence is None and (
+        parameter_counts["vendor_generator"] != parameter_counts["package_generator"]
+        or parameter_counts["vendor_discriminator"]
+        != parameter_counts["package_discriminator"]
+    ):
+        first_divergence = {
+            "field": "parameter_counts",
+            "values": parameter_counts,
+        }
     dataset_equal = all(
         len(vendor_rows[split]) == len(package_rows[split])
         and [str(row.attr["name"]) for row in vendor_rows[split]]
@@ -892,10 +961,10 @@ def _stage_s0(device: torch.device) -> Path:
         and optimizer_defaults_equal
         and optimizer_state_equal
         and optimizer_parameter_order_equal
-        and sum(p.numel() for p in vendor_generator.parameters())
-        == sum(p.numel() for p in package.generator.parameters())
-        and sum(p.numel() for p in vendor_discriminator.parameters())
-        == sum(p.numel() for p in package.discriminator.parameters())
+        and parameter_counts["vendor_generator"]
+        == parameter_counts["package_generator"]
+        and parameter_counts["vendor_discriminator"]
+        == parameter_counts["package_discriminator"]
         else "FAIL",
         source_manifest=".cache/layoutganpp/data/magazine/source-manifest.json",
         source_manifest_sha256=source_hash,
@@ -909,16 +978,7 @@ def _stage_s0(device: torch.device) -> Path:
             "compared_as": "independently constructed state metadata; no weights copied",
             "values_equal": initialization_equal,
         },
-        parameter_counts={
-            "vendor_generator": sum(p.numel() for p in vendor_generator.parameters()),
-            "package_generator": sum(p.numel() for p in package.generator.parameters()),
-            "vendor_discriminator": sum(
-                p.numel() for p in vendor_discriminator.parameters()
-            ),
-            "package_discriminator": sum(
-                p.numel() for p in package.discriminator.parameters()
-            ),
-        },
+        parameter_counts=parameter_counts,
         state_dict_key_map={
             "generator": {
                 "map": dict(
@@ -1001,7 +1061,9 @@ def _stage_s0(device: torch.device) -> Path:
             and optimizer_parameter_order_equal
         ),
         inactive_rules=["scheduler", "EMA", "AMP", "multi-worker randomness in S0"],
-        first_divergence=None,
+        first_divergence=first_divergence
+        if first_divergence is not None or dataset_equal
+        else {"field": "dataset_static"},
     )
     return _write("s0-static", payload)
 
@@ -2035,7 +2097,9 @@ def _production_metadata_summary(
             trainer = metadata.get("trainer")
             if system == "package":
                 if not isinstance(trainer, dict):
-                    raise TypeError("package production metadata lacks Trainer settings")
+                    raise TypeError(
+                        "package production metadata lacks Trainer settings"
+                    )
                 if not trainer_settings:
                     trainer_settings = dict(trainer)
                 elif trainer_settings != trainer:
@@ -2310,7 +2374,7 @@ def _clear_vendor_processed_cache() -> bool:
 
 def _parse_vendor_metrics(text: str) -> dict[str, float]:
     metrics: dict[str, float] = {}
-    for name in ("FID", "Max. IoU"):
+    for name in ("FID", "Max. IoU", "Alignment", "Overlap"):
         match = re.search(
             rf"^\s*{re.escape(name)}:\s+([-+0-9.eE]+)",
             text,
@@ -2320,6 +2384,23 @@ def _parse_vendor_metrics(text: str) -> dict[str, float]:
             raise RuntimeError(f"vendor evaluator did not report {name}")
         metrics[name] = float(match.group(1))
     return metrics
+
+
+def _metric_comparison(
+    metrics: Mapping[str, dict[str, float]],
+) -> dict[str, JsonValue]:
+    vendor = metrics["vendor"]
+    package = metrics["package"]
+    differences = {
+        name: abs(vendor[name] - package[name]) for name in vendor if name in package
+    }
+    return {
+        "passed": set(vendor) == set(package)
+        and all(value == 0.0 for value in differences.values()),
+        "population": "FID, Max. IoU, Alignment, and Overlap printed by eval.py",
+        "differences": differences,
+        "alignment_overlap_display_scale": "eval.py prints Alignment and Overlap multiplied by 100",
+    }
 
 
 def _compare_prediction_rows(
@@ -2353,35 +2434,9 @@ def _compare_prediction_rows(
         ):
             return maximum, {"index": index, "field": "labels"}
 
-    if maximum > TRACE_ATOL:
+    if maximum > PREDICTION_ATOL:
         return maximum, {"field": "prediction_values", "max_abs": maximum}
     return maximum, None
-
-
-def _out_of_bounds_counts(
-    values: list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
-) -> dict[str, int]:
-    box_count = 0
-    layout_count = 0
-    for boxes, _ in values:
-        tensor = torch.as_tensor(boxes)
-        if not tensor.numel():
-            invalid = tensor.new_zeros(0, dtype=torch.bool)
-        else:
-            components_outside = ((tensor < 0) | (tensor > 1)).any(dim=1)
-            left = tensor[:, 0] - tensor[:, 2] / 2
-            top = tensor[:, 1] - tensor[:, 3] / 2
-            right = tensor[:, 0] + tensor[:, 2] / 2
-            bottom = tensor[:, 1] + tensor[:, 3] / 2
-            edges_outside = (left < 0) | (top < 0) | (right > 1) | (bottom > 1)
-            invalid = components_outside | edges_outside
-
-        box_count += int(invalid.sum().item())
-        layout_count += int(invalid.any().item())
-    return {
-        "out_of_bounds_box_count": box_count,
-        "out_of_bounds_layout_count": layout_count,
-    }
 
 
 def _stage_s4(device: torch.device) -> Path:
@@ -2437,12 +2492,12 @@ def _stage_s4(device: torch.device) -> Path:
                 "trained_checkpoint": _asset_record(
                     CHECKPOINT,
                     CHECKPOINT_URL,
-                    "models/layoutganpp/scripts/download_original_weights.py via GET",
+                    "trained_checkpoint",
                 ),
                 "layoutnet_fid": _asset_record(
                     VENDOR_LAYOUTNET,
                     LAYOUTNET_URL,
-                    "official URL via GET",
+                    "layoutnet_fid",
                 ),
             },
             "inputs": {
@@ -2496,7 +2551,6 @@ def _stage_s4(device: torch.device) -> Path:
                     "artifact": str(evaluation_path.relative_to(ROOT)),
                     "reason": blocker,
                 },
-                first_divergence=None,
             ),
         )
 
@@ -2523,11 +2577,8 @@ def _stage_s4(device: torch.device) -> Path:
         check=True,
         env=vendor_environment,
     )
-    package_model = (
-        cast(LayoutGANPPModel, LayoutGANPPModel.from_pretrained(CONVERTED))
-        .to(device)
-        .eval()
-    )
+    package_pipeline = LayoutGANPPPipeline.from_pretrained(CONVERTED)
+    package_pipeline.model.to(device).eval()
     package_loader = DataLoader(
         LayoutGANPPDataset(
             dataset_name="magazine",
@@ -2551,14 +2602,15 @@ def _stage_s4(device: torch.device) -> Path:
             labels = cast(torch.Tensor, batch["labels"]).to(device)
             mask = cast(torch.Tensor, batch["mask"]).to(device)
             bbox = cast(torch.Tensor, batch["bbox"]).to(device)
-            latent = randn(labels.shape[0], labels.shape[1], LATENT_SIZE, device=device)
-            output = package_model(latents=latent, labels=labels, padding_mask=~mask)
-            for index in range(labels.shape[0]):
-                valid = mask[index].bool()
+            output = package_pipeline(labels=labels, mask=mask, output_type="dataclass")
+            if not isinstance(output, LayoutGenerationOutput):
+                raise TypeError("package evaluation did not return a layout output")
+            for index in range(output.labels.shape[0]):
+                valid = output.mask[index].bool()
                 package_predictions.append(
                     (
                         output.bbox[index][valid].cpu().numpy(),
-                        labels[index][valid].cpu().numpy(),
+                        output.labels[index][valid].cpu().numpy(),
                     )
                 )
             input_batches.append(
@@ -2610,8 +2662,9 @@ def _stage_s4(device: torch.device) -> Path:
         vendor_predictions, package_predictions
     )
     out_of_bounds = {
-        system: _out_of_bounds_counts(values) for system, values in predictions.items()
+        system: out_of_bounds_counts(values) for system, values in predictions.items()
     }
+    metric_comparison = _metric_comparison(evaluator_metrics)
     package_weight_files = sorted(CONVERTED.glob("*.safetensors"))
     if len(package_weight_files) != 1:
         raise RuntimeError(
@@ -2622,7 +2675,10 @@ def _stage_s4(device: torch.device) -> Path:
         cwd=ROOT,
         text=True,
     ).strip()
-    passed = maximum_difference <= TRACE_ATOL and first_divergence is None
+    prediction_passed = (
+        maximum_difference <= PREDICTION_ATOL and first_divergence is None
+    )
+    evaluation_passed = prediction_passed and bool(metric_comparison["passed"])
     prediction_files = {
         "vendor": {
             "path": str(vendor_pickle.relative_to(ROOT)),
@@ -2648,7 +2704,7 @@ def _stage_s4(device: torch.device) -> Path:
         for system, command in evaluator_command_argv.items()
     }
     evaluation_payload = {
-        "status": "PASS" if passed else "FAIL",
+        "status": "PASS" if evaluation_passed else "FAIL",
         "source_commit": _source_commit(),
         "runtime": _audit_runtime(),
         "source_manifest": source,
@@ -2676,12 +2732,12 @@ def _stage_s4(device: torch.device) -> Path:
             "trained_checkpoint": _asset_record(
                 CHECKPOINT,
                 CHECKPOINT_URL,
-                "models/layoutganpp/scripts/download_original_weights.py via GET",
+                "trained_checkpoint",
             ),
             "layoutnet_fid": _asset_record(
                 VENDOR_LAYOUTNET,
                 LAYOUTNET_URL,
-                "official URL via GET",
+                "layoutnet_fid",
             ),
         },
         "inputs": {
@@ -2730,12 +2786,13 @@ def _stage_s4(device: torch.device) -> Path:
             "package": _source_commit(),
         },
         "prediction_comparison": {
-            "passed": passed,
+            "passed": prediction_passed,
             "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
             "max_abs_difference": maximum_difference,
-            "limit": TRACE_ATOL,
+            "limit": PREDICTION_ATOL,
             "first_divergence": first_divergence,
         },
+        "metric_comparison": metric_comparison,
     }
     evaluation_path.write_text(
         json.dumps(evaluation_payload, indent=2, sort_keys=True) + "\n"
@@ -2743,7 +2800,7 @@ def _stage_s4(device: torch.device) -> Path:
     payload = _record(
         "s4-loader-eval",
         started,
-        result="PASS" if passed else "FAIL",
+        result="PASS" if evaluation_passed else "FAIL",
         source_manifest=source,
         source_manifest_sha256=source_hash,
         loader_streams=loader_streams,
@@ -2811,12 +2868,13 @@ def _stage_s4(device: torch.device) -> Path:
             "\n".join(package_names).encode()
         ).hexdigest(),
         prediction_comparison={
-            "passed": passed,
+            "passed": prediction_passed,
             "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
             "max_abs_difference": maximum_difference,
-            "limit": TRACE_ATOL,
+            "limit": PREDICTION_ATOL,
             "first_divergence": first_divergence,
         },
+        metric_comparison=metric_comparison,
         first_divergence=first_divergence,
     )
     return _write("s4-loader-eval", payload)
