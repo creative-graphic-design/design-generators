@@ -1,4 +1,5 @@
 from pathlib import Path
+from shutil import copyfile
 from typing import cast
 
 import pytest
@@ -25,6 +26,30 @@ def test_config_derives_token_ids_and_round_trips(tmp_path: Path) -> None:
 
     assert loaded.retrieval_metadata == {"table": "cache/retrieval.json"}
     assert loaded.original_hydra_config == {"generator": {"_target_": "vendor"}}
+
+
+def test_config_drops_local_initialization_paths_when_saved(tmp_path: Path) -> None:
+    config = RalfConfig(
+        resnet_weights_path="/local/resnet50.pth",
+        fidnet_weights_path="/local/fidnet.pth",
+        cache_dir="/host/cache",
+        data_root="/host/data",
+    )
+
+    save_root = tmp_path / "saved"
+    load_root = tmp_path / "different-root"
+    config.save_pretrained(save_root)
+    load_root.mkdir()
+    copyfile(save_root / "config.json", load_root / "config.json")
+    saved = (save_root / "config.json").read_text(encoding="utf-8")
+    loaded = RalfConfig.from_pretrained(load_root)
+
+    assert "resnet_weights_path" not in saved
+    assert "fidnet_weights_path" not in saved
+    assert "cache_dir" not in saved
+    assert "data_root" not in saved
+    assert loaded.resnet_weights_path is None
+    assert loaded.fidnet_weights_path is None
 
 
 def test_pku_config_keeps_invalid_label_for_source_vocabulary() -> None:

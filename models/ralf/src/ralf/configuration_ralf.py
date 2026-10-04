@@ -1,7 +1,7 @@
 """Configuration for RALF checkpoints."""
 
 from collections.abc import Mapping, Sequence
-from typing import Final, Literal
+from typing import Final, Literal, cast
 
 from transformers import PretrainedConfig
 
@@ -37,6 +37,22 @@ RalfConfigValue = (
     | dict[str, "RalfConfigValue"]
 )
 RalfConfigMetadata = Mapping[str, RalfConfigValue]
+
+RALF_RUNTIME_PATH_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "resnet_weights_path",
+        "fidnet_weights_path",
+        "cache_dir",
+        "data_root",
+        "output_dir",
+        "workdir",
+        "log_dir",
+        "checkpoint_dir",
+        "retrieval_index_path",
+        "validation_retrieval_index_path",
+        "relationship_table_path",
+    }
+)
 
 DEFAULT_VAR_ORDER: Final[tuple[RalfLayoutVariable, ...]] = (
     "label",
@@ -199,6 +215,14 @@ class RalfConfig(PretrainedConfig):
         self.eos_token_id = eos_token_id
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def to_dict(self) -> dict[str, RalfConfigValue]:
+        """Return portable configuration data without local initialization paths."""
+        output = cast(dict[str, RalfConfigValue], super().to_dict())
+        for key in RALF_RUNTIME_PATH_KEYS:
+            output.pop(key, None)
+
+        return output
 
     @property
     def num_bbox_tokens(self) -> int:

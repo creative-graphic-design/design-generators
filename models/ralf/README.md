@@ -149,7 +149,7 @@ print(out.mask)
 
 ### Training Procedure
 
-Converted checkpoints port the released weights unchanged. The package additionally carries a training path: the CGL unconditional recipe is retrained in this repository through `traingen fit` and reproduces the original implementation (three package/vendor seed pairs score inside each other's range on all fifteen original-evaluator metrics). Stage evidence and commands are in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md). PKU and the other CGL conditions are not retrained.
+Converted checkpoints port the released weights unchanged. The package also carries a training path for all twelve dataset/condition combinations listed in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md): six CGL conditions and six PKU conditions. Each campaign has S0-S5 evidence, five matched package/vendor training seeds, and inference seeds `0/1/2`; the document records the condition-specific recipes, evaluator settings, evidence populations, and both-direction range verdicts.
 
 #### Preprocessing
 
@@ -157,7 +157,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training for converted checkpoints; the CGL unconditional recipe is additionally rerun in this repository (30 epochs, Adam 1e-4, batch 32; see [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md)).
+- **Training regime:** original upstream training for converted checkpoints; all twelve CGL and PKU condition recipes are additionally rerun in this repository with five matched package/vendor seeds per condition. See [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md) for the condition-specific epoch counts, optimizers, loaders, and evaluator settings.
 
 #### Speeds, Sizes, Times
 
@@ -195,7 +195,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-Checkpoint conversion performs no training. The CGL unconditional training reproduction ran six 30-epoch trainings (three seeds per system) on single V100 GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
+Checkpoint conversion performs no training. The twelve-condition reproduction used five matched package/vendor training seeds per condition on explicitly selected GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 

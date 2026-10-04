@@ -120,6 +120,29 @@ class RalfPipeline(LayoutGenerationPipeline):
         self.processor = processor or RalfProcessor.from_config(model.config)
 
     @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        *,
+        local_files_only: bool = False,
+        config: PretrainedConfig | None = None,
+        components: Mapping[str, RalfPipelineComponent] | None = None,
+    ) -> "RalfPipeline":
+        """Load RALF while requiring the saved model-backed configuration."""
+        if config is not None:
+            raise TypeError(
+                "RalfPipeline does not accept a config override; "
+                "load the pipeline's saved config"
+            )
+
+        loaded = super().from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            components=components,
+        )
+        return cast(RalfPipeline, loaded)
+
+    @classmethod
     def _from_pretrained_components(
         cls,
         *,
