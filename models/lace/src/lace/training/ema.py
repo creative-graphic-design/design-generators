@@ -32,9 +32,10 @@ class LaceEMA:
 
         for name, parameter in module.named_parameters():
             if parameter.requires_grad:
-                self.shadow[name].mul_(self.mu).add_(
-                    parameter.detach(), alpha=1 - self.mu
-                )
+                updated = (1 - self.mu) * parameter.detach() + self.mu * self.shadow[
+                    name
+                ]
+                self.shadow[name].copy_(updated)
 
     def state_dict(self) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Return detached EMA tensors."""
