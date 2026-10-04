@@ -113,13 +113,11 @@ class RalfPipeline(LayoutGenerationPipeline):
         self,
         model: RalfForConditionalLayoutGeneration,
         processor: RalfProcessor | None = None,
-        config: RalfConfig | None = None,
     ) -> None:
         """Initialize the RALF pipeline."""
-        super().__init__(config or model.config)
-        self.config = config or model.config
+        super().__init__(model.config)
         self.model = model
-        self.processor = processor or RalfProcessor.from_config(self.config)
+        self.processor = processor or RalfProcessor.from_config(model.config)
 
     @classmethod
     def _from_pretrained_components(
@@ -130,7 +128,6 @@ class RalfPipeline(LayoutGenerationPipeline):
     ) -> "RalfPipeline":
         """Build a pipeline from checkpoint components."""
         return cls(
-            config=cast(RalfConfig, config),
             model=cast(RalfForConditionalLayoutGeneration, components["model"]),
             processor=cast(RalfProcessor, components["processor"]),
         )

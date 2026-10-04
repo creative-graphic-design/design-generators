@@ -113,7 +113,6 @@ class RalfTrainingModule(LightningModule):
     ) -> None:
         """Initialize the package-local Lightning training module."""
         super().__init__()
-        self.ralf_config = config
         relationship_table = None
         if condition_type == "relation":
             existing_table = None if model is None else model.relationship_table
@@ -175,7 +174,7 @@ class RalfTrainingModule(LightningModule):
             _, condition_kwargs = self._prepare_refinement_layout(batch)
             return condition_kwargs
         elif self.condition_type in {"label", "label_size", "completion", "relation"}:
-            encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
+            encoded = RalfLayoutTokenizer(self.model.config).encode_layout(
                 labels=batch["layout_labels"],
                 bbox=batch["layout_bbox"],
                 mask=batch["layout_mask"],
@@ -218,7 +217,7 @@ class RalfTrainingModule(LightningModule):
             perturbed[~batch["layout_mask"]] = 0.0
             bbox[..., bbox_index] = perturbed
 
-        encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
+        encoded = RalfLayoutTokenizer(self.model.config).encode_layout(
             labels=batch["layout_labels"],
             bbox=bbox,
             mask=batch["layout_mask"],

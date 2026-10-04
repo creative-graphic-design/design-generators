@@ -1636,7 +1636,7 @@ class RalfS3TraceCallback(Callback):
         torch.backends.cudnn.allow_tf32 = False
         reseed(self.seed)
         vendor_model = build_vendor_model(
-            ralf_module.ralf_config, cache_dir=self.cache_dir
+            ralf_module.model.config, cache_dir=self.cache_dir
         )
         vendor_model.to(ralf_module.device)
         vendor_model.train()
