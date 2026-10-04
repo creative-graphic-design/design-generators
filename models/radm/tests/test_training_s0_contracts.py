@@ -656,6 +656,7 @@ def test_s0_resize_matches_vendor_integer_target_coordinates() -> None:
         boxes,
         min_size=480,
         max_size=1333,
+        truncate_boxes=True,
     )
 
     torch.testing.assert_close(

@@ -76,13 +76,13 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
-The `conditioning:` value of the model card's `Model type:` line uses the canonical condition names above, plus these catalog-only values, which are not `condition_type` arguments:
+The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
 
 - `evaluation`: evaluate layouts rather than generate them.
 - `saliency`: predict saliency as the package's primary public operation.
-- `none`: legacy shorthand for a package whose only accepted condition is `content_image`; new model cards should write `content_image` when that is the package's actual condition.
+- `none`: the package's only accepted condition is `content_image`.
 
-The `content_image` condition also classifies the Content axis, but it may appear in the model-card Conditioning value when it is the package's only accepted condition.
+The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
 
 ### Pipeline arguments
 

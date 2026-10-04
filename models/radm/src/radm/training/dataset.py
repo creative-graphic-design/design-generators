@@ -366,6 +366,7 @@ def _apply_training_transforms_with_metadata(
         transformed_boxes,
         min_size=min_size,
         max_size=effective.max_size_train,
+        truncate_boxes=True,
     )
     return image, transformed_boxes, {"flipped": flipped, "min_size": min_size}
 
@@ -383,6 +384,7 @@ def _apply_evaluation_transforms(
         boxes_xyxy,
         min_size=800,
         max_size=1333,
+        truncate_boxes=True,
     )
 
 
@@ -392,6 +394,7 @@ def _resize_shortest_edge(
     *,
     min_size: int,
     max_size: int,
+    truncate_boxes: bool = False,
 ) -> tuple[
     Float[torch.Tensor, "channels height width"],
     Float[torch.Tensor, "elements 4"],
@@ -401,18 +404,20 @@ def _resize_shortest_edge(
     original_height, original_width = image.shape[-2:]
     scale = min_size / min(original_height, original_width)
     scale = min(scale, max_size / max(original_height, original_width))
+
     resized_height = max(1, round(original_height * scale))
     resized_width = max(1, round(original_width * scale))
     if (resized_height, resized_width) != (original_height, original_width):
         if transformed_boxes.numel():
             scale_x = resized_width / original_width
             scale_y = resized_height / original_height
-            transformed_boxes[:, (0, 2)] = torch.trunc(
-                transformed_boxes[:, (0, 2)].to(dtype=torch.float64) * scale_x
-            ).to(dtype=transformed_boxes.dtype)
-            transformed_boxes[:, (1, 3)] = torch.trunc(
-                transformed_boxes[:, (1, 3)].to(dtype=torch.float64) * scale_y
-            ).to(dtype=transformed_boxes.dtype)
+            scaled_boxes = transformed_boxes.to(dtype=torch.float64)
+            scaled_boxes[:, (0, 2)] *= scale_x
+            scaled_boxes[:, (1, 3)] *= scale_y
+            if truncate_boxes:
+                scaled_boxes = torch.trunc(scaled_boxes)
+
+            transformed_boxes = scaled_boxes.to(dtype=transformed_boxes.dtype)
 
         resized = Image.fromarray(
             np.ascontiguousarray(image.permute(1, 2, 0).to(torch.uint8).numpy())
@@ -423,6 +428,11 @@ def _resize_shortest_edge(
         image = torch.from_numpy(
             np.ascontiguousarray(np.asarray(resized).transpose(2, 0, 1))
         ).to(dtype=image.dtype)
+
+    if transformed_boxes.numel():
+        width, height = image.shape[-1], image.shape[-2]
+        transformed_boxes[:, (0, 2)] = transformed_boxes[:, (0, 2)].clamp(0, width)
+        transformed_boxes[:, (1, 3)] = transformed_boxes[:, (1, 3)].clamp(0, height)
 
     return image, transformed_boxes
 

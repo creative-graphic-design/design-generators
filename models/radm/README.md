@@ -48,7 +48,7 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 - **Developed by:** RADM authors.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware; task: single-task; conditioning: content_image.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** unconfirmed for the checked original source and any user-supplied or converted weights.
 

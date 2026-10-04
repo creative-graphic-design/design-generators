@@ -297,6 +297,7 @@ def _full_training_stream(
                 "source_target_sha256": [],
                 "package_target_sha256": [],
                 "max_target_abs": 0.0,
+                "target_mismatches": [],
             }
             checks: list[bool] = [source_ids == package_ids]
             if len(source_metadata) != len(source_batch):
@@ -335,6 +336,27 @@ def _full_training_stream(
                     if source_boxes.numel()
                     else 0.0
                 )
+                if target_difference > 1e-6:
+                    source_boxes_absolute = (
+                        source_instances.gt_boxes.tensor.detach().cpu()
+                    )
+                    package_boxes_absolute = package_boxes * source_scale
+                    difference = (source_boxes_absolute - package_boxes_absolute).abs()
+                    mismatch_indices = torch.nonzero(difference > 1e-6, as_tuple=False)
+                    target_mismatches = cast(
+                        list[dict[str, object]], batch_report["target_mismatches"]
+                    )
+                    target_mismatches.append(
+                        {
+                            "item_index": item_index,
+                            "image_id": source_item["image_id"],
+                            "source_target_dtype": str(source_boxes_absolute.dtype),
+                            "package_target_dtype": str(package_boxes_absolute.dtype),
+                            "differing_box_coordinates": mismatch_indices.tolist(),
+                            "source_boxes_xyxy": source_boxes_absolute.tolist(),
+                            "package_boxes_xyxy": package_boxes_absolute.tolist(),
+                        }
+                    )
                 batch_report["source_target_sha256"].append(
                     _tensor_sha256(source_boxes)
                 )
@@ -562,8 +584,18 @@ def _run_s4(*, include_full_training_stream: bool = True) -> dict[str, object]:
                 "reason": "fast aligned-mapper oracle only",
             }
 
+    stream_status = (
+        full_training_stream.get("status")
+        if isinstance(full_training_stream, dict)
+        else None
+    )
+    status = (
+        "PASS"
+        if first_divergence is None and stream_status in {"PASS", "NOT_RUN"}
+        else "FAIL"
+    )
     return {
-        "status": "PASS" if first_divergence is None else "FAIL",
+        "status": status,
         "stage": "S4",
         "first_divergence": first_divergence,
         "data_root": str(data_root),
