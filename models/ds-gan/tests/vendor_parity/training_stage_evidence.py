@@ -786,12 +786,12 @@ def _vendor_step(
 
     def capture_random_init(batch_size: int, max_elem: int) -> torch.Tensor:
         if initial_layout is not None:
-            layout = initial_layout.detach().cpu()
+            layout = initial_layout.detach().cpu().clone()
             captured_layout.append(layout)
             return layout
 
         layout = original_random_init(batch_size, max_elem)
-        captured_layout.append(layout.detach())
+        captured_layout.append(layout.detach().clone())
         return layout
 
     def capture_generator(
@@ -1640,7 +1640,7 @@ def _synchronized_step(
     _copy_optimizer_state(package_optimizers[1], vendor_optimizers[1])
     _copy_scheduler_state(package_schedulers[0], vendor_schedulers[0])
     _copy_scheduler_state(package_schedulers[1], vendor_schedulers[1])
-    vendor_rng = capture_rng_state()
+    vendor_rng = copy.deepcopy(capture_rng_state())
     vendor_trace = _vendor_step(
         vendor_generator,
         vendor_discriminator,
@@ -1649,7 +1649,7 @@ def _synchronized_step(
         _vendor_criterion(device),
         epoch,
     )
-    vendor_after_rng = capture_rng_state()
+    vendor_after_rng = copy.deepcopy(capture_rng_state())
     package_numpy_rng = np.random.RandomState()
     package_numpy_rng.set_state(vendor_rng.numpy)
     package_torch_generator = torch.Generator(device="cpu")
@@ -1673,48 +1673,61 @@ def _synchronized_step(
             repr(package_numpy_rng.get_state()).encode()
         ).hexdigest(),
     }
+    trace_comparison = _trace_compare(vendor_trace, package_trace)
+    gradient_comparison = _state_compare(
+        {
+            **_named_gradients(vendor_generator, "generator"),
+            **_named_gradients(vendor_discriminator, "discriminator"),
+        },
+        {
+            **_named_gradients(package_module.generator, "generator"),
+            **_named_gradients(package_module.discriminator, "discriminator"),
+        },
+    )
+    parameter_comparison = _state_compare(
+        {
+            **_named_parameters(vendor_generator, "generator"),
+            **_named_parameters(vendor_discriminator, "discriminator"),
+        },
+        {
+            **_named_parameters(package_module.generator, "generator"),
+            **_named_parameters(package_module.discriminator, "discriminator"),
+        },
+    )
+    optimizer_comparison = _state_compare(
+        {
+            **_named_optimizer_state(
+                vendor_optimizers[0], vendor_generator, "generator"
+            ),
+            **_named_optimizer_state(
+                vendor_optimizers[1], vendor_discriminator, "discriminator"
+            ),
+        },
+        {
+            **_named_optimizer_state(
+                package_optimizers[0], package_module.generator, "generator"
+            ),
+            **_named_optimizer_state(
+                package_optimizers[1], package_module.discriminator, "discriminator"
+            ),
+        },
+    )
+    per_step_deltas = {
+        "trace_max_abs": trace_comparison["max_abs_difference"],
+        "gradient_max_abs": gradient_comparison["max_abs_difference"],
+        "parameter_max_abs": parameter_comparison["max_abs_difference"],
+        "optimizer_state_max_abs": optimizer_comparison["max_abs_difference"],
+    }
     return {
         "step": step,
         "epoch": epoch,
-        "trace": _trace_compare(vendor_trace, package_trace),
-        "gradients": _state_compare(
-            {
-                **_named_gradients(vendor_generator, "generator"),
-                **_named_gradients(vendor_discriminator, "discriminator"),
-            },
-            {
-                **_named_gradients(package_module.generator, "generator"),
-                **_named_gradients(package_module.discriminator, "discriminator"),
-            },
-        ),
-        "parameters": _state_compare(
-            {
-                **_named_parameters(vendor_generator, "generator"),
-                **_named_parameters(vendor_discriminator, "discriminator"),
-            },
-            {
-                **_named_parameters(package_module.generator, "generator"),
-                **_named_parameters(package_module.discriminator, "discriminator"),
-            },
-        ),
-        "optimizer_state": _state_compare(
-            {
-                **_named_optimizer_state(
-                    vendor_optimizers[0], vendor_generator, "generator"
-                ),
-                **_named_optimizer_state(
-                    vendor_optimizers[1], vendor_discriminator, "discriminator"
-                ),
-            },
-            {
-                **_named_optimizer_state(
-                    package_optimizers[0], package_module.generator, "generator"
-                ),
-                **_named_optimizer_state(
-                    package_optimizers[1], package_module.discriminator, "discriminator"
-                ),
-            },
-        ),
+        "trace": trace_comparison,
+        "gradients": gradient_comparison,
+        "parameters": parameter_comparison,
+        "optimizer_state": optimizer_comparison,
+        "per_step_deltas": per_step_deltas,
+        "rng_before": _rng_digest(vendor_rng),
+        "rng_after": {"vendor": vendor_rng_digest, "package": package_rng_digest},
         "rng_equal_after_operation": vendor_rng_digest == package_rng_digest,
         "learning_rates": {
             "vendor": [
@@ -1737,6 +1750,7 @@ def _synchronized_step(
 
 def run_s3_synchronized() -> Path:
     _set_determinism(SEED)
+    _vendor_main()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     (
         vendor_generator,
