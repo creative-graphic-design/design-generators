@@ -2837,6 +2837,8 @@ def main() -> None:
     parser.add_argument("--steps", type=int, default=S3_STEPS)
     parser.add_argument("--rss-report", type=Path)
     args = parser.parse_args()
+    if args.rss_report is not None and not args.rss_report.is_absolute():
+        args.rss_report = ROOT / args.rss_report
     apply_determinism(DeterminismConfig(seed=INIT_SEED))
     if not torch.cuda.is_available() and args.stage in {
         "s3-lockstep",
