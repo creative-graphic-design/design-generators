@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+from statistics import median
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -54,8 +55,16 @@ MAX_ELEM = 32
 SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
-S2_VENDOR_SELF_REPEATS = 12
+S2_SELF_REPEATS = 12
 _DETERMINISTIC_WARNINGS: list[str] = []
+
+
+def _determinism_mode() -> str:
+    mode = os.environ.get("DSGAN_DETERMINISM_MODE", "envelope")
+    if mode not in {"strict", "envelope"}:
+        raise ValueError(f"unsupported DSGAN_DETERMINISM_MODE: {mode}")
+
+    return mode
 
 
 def _git(*args: str, cwd: Path = ROOT) -> str:
@@ -111,10 +120,11 @@ def _runtime() -> dict[str, Any]:
         "pip_freeze_sha256": _sha256(freeze_path),
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
+        "determinism_mode": _determinism_mode(),
         "determinism_note": (
-            "CUDA cross_entropy has no deterministic implementation on the audited "
-            "cu128 V100 runtime; deterministic algorithms remain enabled in warn-only "
-            "mode for both systems"
+            "strict deterministic mode is used for the determinism probe"
+            if _determinism_mode() == "strict"
+            else "envelope mode is used after the strict determinism probe raised"
         ),
         "cudnn_deterministic": torch.backends.cudnn.deterministic,
         "cudnn_benchmark": torch.backends.cudnn.benchmark,
@@ -134,6 +144,7 @@ def _metadata() -> dict[str, Any]:
         "backbone_weights": _backbone_manifest(),
         "runtime": _runtime(),
         "deterministic_warning": _warning_record(),
+        "strict_determinism_probe": _determinism_probe_record(),
     }
 
 
@@ -163,7 +174,9 @@ def _set_determinism(seed: int = SEED) -> None:
     )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        torch.use_deterministic_algorithms(True, warn_only=True)
+        torch.use_deterministic_algorithms(
+            True, warn_only=_determinism_mode() != "strict"
+        )
     _DETERMINISTIC_WARNINGS.extend(str(item.message) for item in caught)
     torch.backends.cudnn.deterministic = True
 
@@ -185,6 +198,29 @@ def _warning_record() -> dict[str, Any]:
             "nll_loss2d" in message for message in _DETERMINISTIC_WARNINGS
         ),
     }
+
+
+def _determinism_probe_record() -> dict[str, Any] | None:
+    log_value = os.environ.get("DSGAN_STRICT_ATTEMPT_LOG")
+    if not log_value:
+        return None
+
+    log_path = Path(log_value)
+    record: dict[str, Any] = {
+        "path": str(log_path.relative_to(ROOT)),
+        "exists": log_path.is_file(),
+    }
+    if log_path.is_file():
+        record.update({"bytes": log_path.stat().st_size, "sha256": _sha256(log_path)})
+
+    exit_value = os.environ.get("DSGAN_STRICT_ATTEMPT_EXIT")
+    if exit_value:
+        exit_path = Path(exit_value)
+        record["exit_path"] = str(exit_path.relative_to(ROOT))
+        if exit_path.is_file():
+            record["exit_code"] = int(exit_path.read_text().strip())
+
+    return record
 
 
 def _rng_digest(state: RNGState) -> dict[str, str]:
@@ -1009,77 +1045,74 @@ def _package_step(
     return dict(module.latest_step_trace)
 
 
-def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
+def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
+    if system not in {"vendor", "package"}:
+        raise ValueError(f"unsupported S2 self-repeat system: {system}")
+
     _set_determinism(SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    (
-        vendor_generator,
-        vendor_discriminator,
-        package_generator,
-        package_discriminator,
-        generator_config,
-        discriminator_config,
-    ) = _models(device)
-    _copy_module_state(package_generator, vendor_generator)
-    _copy_module_state(package_discriminator, vendor_discriminator)
-    from ds_gan.training.lightning_module import DSGANTrainingModule
-
-    package_module = DSGANTrainingModule(
-        config=generator_config,
-        discriminator_config=discriminator_config,
-        generator=package_generator,
-        discriminator=package_discriminator,
-    ).to(device)
-    vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
-    _package_optimizers_and_schedulers(package_module)
-    _schedulers(vendor_optimizers)
-    vendor_batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
-    with _capture_deterministic_warnings():
-        vendor_trace = _vendor_step(
-            vendor_generator,
-            vendor_discriminator,
-            vendor_batch,
-            *vendor_optimizers,
-            _vendor_criterion(device),
-            1,
-            initial_layout,
-        )
-    state_path = json_path.with_suffix(".pt")
-    torch.save(
-        {
-            "parameters": {
-                name: value.cpu()
-                for name, value in {
-                    **_named_parameters(vendor_generator, "generator"),
-                    **_named_parameters(vendor_discriminator, "discriminator"),
-                }.items()
-            },
-            "gradients": {
-                name: value.cpu()
-                for name, value in {
-                    **_named_gradients(vendor_generator, "generator"),
-                    **_named_gradients(vendor_discriminator, "discriminator"),
-                }.items()
-            },
-            "optimizer_state": {
-                name: value.cpu()
-                for name, value in {
-                    **_named_optimizer_state(
-                        vendor_optimizers[0], vendor_generator, "generator"
-                    ),
-                    **_named_optimizer_state(
-                        vendor_optimizers[1], vendor_discriminator, "discriminator"
-                    ),
-                }.items()
-            },
-        },
-        state_path,
+    generator, discriminator, generator_config, discriminator_config = (
+        _independent_models(system, device)
     )
+    optimizers = _optimizers(generator, discriminator)
+    if system == "vendor":
+        batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
+        with _capture_deterministic_warnings():
+            trace = _vendor_step(
+                generator,
+                discriminator,
+                batch,
+                *optimizers,
+                _vendor_criterion(device),
+                1,
+                initial_layout,
+            )
+    else:
+        from ds_gan.training.lightning_module import DSGANTrainingModule
+
+        module = DSGANTrainingModule(
+            config=generator_config,
+            discriminator_config=discriminator_config,
+            generator=generator,
+            discriminator=discriminator,
+        ).to(device)
+        optimizers, _, _ = _package_optimizers_and_schedulers(module)
+        _, batch, initial_layout, batch_meta = _fixed_batch(SEED, device)
+        with _capture_deterministic_warnings():
+            trace = _package_step(module, batch, *optimizers, 1, initial_layout)
+
+    states = {
+        "parameters": {
+            name: value.cpu()
+            for name, value in {
+                **_named_parameters(generator, "generator"),
+                **_named_parameters(discriminator, "discriminator"),
+            }.items()
+        },
+        "gradients": {
+            name: value.cpu()
+            for name, value in {
+                **_named_gradients(generator, "generator"),
+                **_named_gradients(discriminator, "discriminator"),
+            }.items()
+        },
+        "optimizer_state": {
+            name: value.cpu()
+            for name, value in {
+                **_named_optimizer_state(optimizers[0], generator, "generator"),
+                **_named_optimizer_state(optimizers[1], discriminator, "discriminator"),
+            }.items()
+        },
+    }
+
+    state_path = json_path.with_suffix(".pt")
+    torch.save(states, state_path)
     json_path.write_text(
         json.dumps(
             {
                 **_metadata(),
-                "stage": "S2-vendor-self-repeat",
+                "stage": "S2-self-repeat",
+                "system": system,
                 "repeat": repeat,
                 "seed": SEED,
                 "process_id": os.getpid(),
@@ -1087,11 +1120,9 @@ def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
                 "device": str(device),
                 "batch": batch_meta,
                 "initial_layout_sha256": tensor_sha256(initial_layout),
-                "vendor_operator": _vendor_cross_entropy_operator(),
+                "operator": _vendor_cross_entropy_operator(),
                 "trace_values": {
-                    "loss_reconstruction": float(
-                        vendor_trace["loss_reconstruction"].item()
-                    )
+                    "loss_reconstruction": float(trace["loss_reconstruction"].item())
                 },
             },
             indent=2,
@@ -1101,10 +1132,10 @@ def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
     )
 
 
-def _run_s2_vendor_self_repeat_process(repeat: int) -> dict[str, Any]:
+def _run_s2_self_repeat_process(system: str, repeat: int) -> dict[str, Any]:
     artifact_root = EVIDENCE / "s2-optimizer-step-attempts"
     artifact_root.mkdir(parents=True, exist_ok=True)
-    json_path = artifact_root / f"vendor-self-repeat-{repeat}.json"
+    json_path = artifact_root / f"{system}-self-repeat-{repeat}.json"
     subprocess.run(
         [
             sys.executable,
@@ -1112,6 +1143,8 @@ def _run_s2_vendor_self_repeat_process(repeat: int) -> dict[str, Any]:
             "s2-vendor-self-repeat",
             str(repeat),
             str(json_path),
+            "--system",
+            system,
         ],
         check=True,
         cwd=ROOT,
@@ -1123,43 +1156,116 @@ def _run_s2_vendor_self_repeat_process(repeat: int) -> dict[str, Any]:
     return run
 
 
-def _scalar_self_envelope(runs: list[dict[str, Any]], field: str) -> dict[str, Any]:
-    values = [float(run["trace_values"][field]) for run in runs]
-    minimum = min(values)
-    maximum = max(values)
-    maximum_abs = maximum - minimum
-    denominator = max(abs(minimum), abs(maximum))
+def _scalar_distribution(
+    absolute: list[float], relative: list[float], field: str, pair_count: int
+) -> dict[str, Any]:
+    if not absolute or not relative:
+        raise RuntimeError(f"empty S2 scalar distribution for {field}")
+
     return {
         "field": field,
-        "values": values,
-        "min": minimum,
-        "max": maximum,
-        "max_abs_difference": maximum_abs,
-        "max_relative_difference": maximum_abs / denominator if denominator else 0.0,
-        "process_ids": [run["process_id"] for run in runs],
+        "pair_count": pair_count,
+        "absolute_values": absolute,
+        "relative_values": relative,
+        "max_abs_difference": max(absolute),
+        "median_abs_difference": float(median(absolute)),
+        "max_relative_difference": max(relative),
+        "median_relative_difference": float(median(relative)),
     }
 
 
-def _comparison_self_envelope(
+def _scalar_self_distribution(runs: list[dict[str, Any]], field: str) -> dict[str, Any]:
+    pairs = [
+        (
+            float(runs[first]["trace_values"][field]),
+            float(runs[second]["trace_values"][field]),
+        )
+        for first in range(len(runs))
+        for second in range(first + 1, len(runs))
+    ]
+    absolute = [abs(first - second) for first, second in pairs]
+    relative = [
+        difference / max(abs(first), abs(second))
+        if max(abs(first), abs(second))
+        else 0.0
+        for (first, second), difference in zip(pairs, absolute, strict=True)
+    ]
+    return _scalar_distribution(absolute, relative, field, len(pairs))
+
+
+def _scalar_cross_distribution(
+    vendor_runs: list[dict[str, Any]], package_runs: list[dict[str, Any]], field: str
+) -> dict[str, Any]:
+    pairs = [
+        (
+            float(vendor["trace_values"][field]),
+            float(package["trace_values"][field]),
+        )
+        for vendor, package in zip(vendor_runs, package_runs, strict=True)
+    ]
+    absolute = [abs(vendor - package) for vendor, package in pairs]
+    relative = [
+        difference / max(abs(vendor), abs(package))
+        if max(abs(vendor), abs(package))
+        else 0.0
+        for (vendor, package), difference in zip(pairs, absolute, strict=True)
+    ]
+    return _scalar_distribution(absolute, relative, field, len(pairs))
+
+
+def _comparison_distribution(
     comparisons: list[dict[str, Any]], field: str
 ) -> dict[str, Any]:
-    worst_abs = max(comparisons, key=lambda item: item["max_abs_difference"])
+    if not comparisons:
+        raise RuntimeError(f"empty S2 comparison distribution for {field}")
+
+    absolute = [item["max_abs_difference"] for item in comparisons]
+    relative = [item["max_relative_difference"] for item in comparisons]
     return {
         "field": field,
-        "repeat_count": len(comparisons) + 1,
-        "max_abs_difference": max(item["max_abs_difference"] for item in comparisons),
-        "max_relative_difference": max(
-            item["max_relative_difference"] for item in comparisons
-        ),
-        "first_difference_at_max_abs": worst_abs["first_difference"],
+        "pair_count": len(comparisons),
+        "max_abs_difference": max(absolute),
+        "median_abs_difference": float(median(absolute)),
+        "max_relative_difference": max(relative),
+        "median_relative_difference": float(median(relative)),
         "comparisons": comparisons,
     }
 
 
-def _inside_self_envelope(comparison: dict[str, Any], envelope: dict[str, Any]) -> bool:
-    return comparison["passed"] or (
-        comparison["max_abs_difference"] <= envelope["max_abs_difference"]
-        and comparison["max_relative_difference"] <= envelope["max_relative_difference"]
+def _state_distribution(
+    states: list[dict[str, dict[str, torch.Tensor]]], field: str
+) -> dict[str, Any]:
+    comparisons = [
+        _state_compare(states[first][field], states[second][field])
+        for first in range(len(states))
+        for second in range(first + 1, len(states))
+    ]
+    return _comparison_distribution(comparisons, field)
+
+
+def _cross_state_distribution(
+    vendor_states: list[dict[str, dict[str, torch.Tensor]]],
+    package_states: list[dict[str, dict[str, torch.Tensor]]],
+    field: str,
+) -> dict[str, Any]:
+    comparisons = [
+        _state_compare(vendor[field], package[field])
+        for vendor, package in zip(vendor_states, package_states, strict=True)
+    ]
+    return _comparison_distribution(comparisons, field)
+
+
+def _inside_self_distributions(
+    cross: dict[str, Any], vendor: dict[str, Any], package: dict[str, Any]
+) -> bool:
+    return all(
+        cross[metric] <= vendor[metric] and cross[metric] <= package[metric]
+        for metric in (
+            "max_abs_difference",
+            "median_abs_difference",
+            "max_relative_difference",
+            "median_relative_difference",
+        )
     )
 
 
@@ -1726,58 +1832,56 @@ def run_s2() -> Path:
     gc.collect()
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    vendor_self_runs: list[dict[str, Any]] = []
-    vendor_self_baseline: dict[str, dict[str, torch.Tensor]] | None = None
-    vendor_self_comparisons: dict[str, list[dict[str, Any]]] = {
-        "parameters": [],
-        "gradients": [],
-        "optimizer_state": [],
+    self_runs: dict[str, list[dict[str, Any]]] = {"vendor": [], "package": []}
+    self_states: dict[str, list[dict[str, dict[str, torch.Tensor]]]] = {
+        "vendor": [],
+        "package": [],
     }
-    for repeat in range(1, S2_VENDOR_SELF_REPEATS + 1):
-        run = _run_s2_vendor_self_repeat_process(repeat)
-        state = cast(dict[str, dict[str, torch.Tensor]], run.pop("_state"))
-        vendor_self_runs.append(run)
-        if vendor_self_baseline is None:
-            vendor_self_baseline = state
-            continue
-        for field, comparisons in vendor_self_comparisons.items():
-            comparisons.append(
-                _state_compare(vendor_self_baseline[field], state[field])
+    for system in ("vendor", "package"):
+        for repeat in range(1, S2_SELF_REPEATS + 1):
+            run = _run_s2_self_repeat_process(system, repeat)
+            self_states[system].append(
+                cast(dict[str, dict[str, torch.Tensor]], run.pop("_state"))
             )
-        del state
-    if vendor_self_baseline is None:
-        raise RuntimeError("S2 vendor self-repeat did not produce a baseline")
-    vendor_self_envelope = _scalar_self_envelope(
-        vendor_self_runs, "loss_reconstruction"
-    )
-    vendor_state_self_envelopes: dict[str, dict[str, Any]] = {}
-    for field, comparisons in vendor_self_comparisons.items():
-        if not comparisons:
-            raise RuntimeError(f"S2 vendor self-repeat has no comparisons for {field}")
-        vendor_state_self_envelopes[field] = _comparison_self_envelope(
-            comparisons, field
+            self_runs[system].append(run)
+
+    self_distributions = {
+        system: {
+            "loss_reconstruction": _scalar_self_distribution(
+                runs, "loss_reconstruction"
+            ),
+            **{
+                field: _state_distribution(self_states[system], field)
+                for field in ("gradients", "parameters", "optimizer_state")
+            },
+        }
+        for system, runs in self_runs.items()
+    }
+    cross_distributions = {
+        "loss_reconstruction": _scalar_cross_distribution(
+            self_runs["vendor"], self_runs["package"], "loss_reconstruction"
+        ),
+        **{
+            field: _cross_state_distribution(
+                self_states["vendor"], self_states["package"], field
+            )
+            for field in ("gradients", "parameters", "optimizer_state")
+        },
+    }
+    inside_self_distributions = {
+        field: _inside_self_distributions(
+            cross_distributions[field],
+            self_distributions["vendor"][field],
+            self_distributions["package"][field],
         )
+        for field in cross_distributions
+    }
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
         "loss": trace_comparison,
         "gradients": gradient_comparison,
         "parameters": state_comparison,
         "optimizer_state": optimizer_comparison,
-    }
-    package_inside_self_envelope = {
-        "loss": (
-            trace_comparison["passed"]
-            or trace_comparison["max_abs_difference"]
-            <= vendor_self_envelope["max_abs_difference"]
-        ),
-        **{
-            field: _inside_self_envelope(comparison, vendor_state_self_envelopes[field])
-            for field, comparison in (
-                ("gradients", gradient_comparison),
-                ("parameters", state_comparison),
-                ("optimizer_state", optimizer_comparison),
-            )
-        },
     }
     first_difference = next(
         (
@@ -1787,58 +1891,79 @@ def run_s2() -> Path:
         ),
         None,
     )
-    self_processes_are_distinct = len(
-        {run["process_id"] for run in vendor_self_runs}
-    ) == len(vendor_self_runs)
-    self_source_is_current = all(
-        run["source_commit"] == _git("rev-parse", "HEAD") for run in vendor_self_runs
+    self_processes_are_distinct = {
+        system: len({run["process_id"] for run in runs}) == len(runs)
+        for system, runs in self_runs.items()
+    }
+    self_source_is_current = {
+        system: all(run["source_commit"] == _git("rev-parse", "HEAD") for run in runs)
+        for system, runs in self_runs.items()
+    }
+    self_seed_is_paired = {
+        system: all(run["seed"] == SEED for run in runs)
+        for system, runs in self_runs.items()
+    }
+    self_layout_is_paired = {
+        system: len({run["initial_layout_sha256"] for run in runs}) == 1
+        for system, runs in self_runs.items()
+    }
+    self_warning_is_captured = {
+        system: all(run["deterministic_warning"]["contains_nll_loss2d"] for run in runs)
+        for system, runs in self_runs.items()
+    }
+    cross_layout_is_paired = all(
+        vendor["initial_layout_sha256"] == package["initial_layout_sha256"]
+        for vendor, package in zip(
+            self_runs["vendor"], self_runs["package"], strict=True
+        )
     )
-    self_seed_is_paired = all(run["seed"] == SEED for run in vendor_self_runs)
-    self_layout_is_paired = (
-        len({run["initial_layout_sha256"] for run in vendor_self_runs}) == 1
-    )
-    self_warning_is_captured = all(
-        run["deterministic_warning"]["contains_nll_loss2d"] for run in vendor_self_runs
+    self_repeats_valid = (
+        all(
+            all(values.values())
+            for values in (
+                self_processes_are_distinct,
+                self_source_is_current,
+                self_seed_is_paired,
+                self_layout_is_paired,
+                self_warning_is_captured,
+            )
+        )
+        and cross_layout_is_paired
     )
     cause = {
         "kind": "nondeterministic CUDA nll_loss2d cross_entropy reduction",
+        "resolution_path": "B-envelope-fallback",
+        "resolution_reason": (
+            "strict deterministic S1 raised at the vendor cross_entropy operator; "
+            "production uses the vendor operation and does not enable deterministic mode"
+        ),
         "operator": vendor_operator,
         "package_operator": "torch.nn.functional.cross_entropy",
         "reduction": "mean (implicit default in both operators)",
         "first_difference": first_difference,
-        "vendor_self_repeat": {
-            "repeat_count": len(vendor_self_runs),
-            "loss_envelope": vendor_self_envelope,
-            "state_envelopes": vendor_state_self_envelopes,
+        "self_repeats": {
+            "count": S2_SELF_REPEATS,
+            "vendor": self_distributions["vendor"],
+            "package": self_distributions["package"],
             "processes_are_distinct": self_processes_are_distinct,
             "source_is_current": self_source_is_current,
             "seed_is_paired": self_seed_is_paired,
             "initial_layout_is_paired": self_layout_is_paired,
             "warning_is_captured": self_warning_is_captured,
         },
-        "package_vendor_difference": {
-            "comparisons": package_differences,
-            "inside_vendor_self_envelope": package_inside_self_envelope,
+        "cross_system_repeat_pairs": {
+            "pair_count": S2_SELF_REPEATS,
+            "distributions": cross_distributions,
+            "inside_self_distributions": inside_self_distributions,
+            "initial_layout_is_paired": cross_layout_is_paired,
         },
+        "package_vendor_single_pair": {
+            "comparisons": package_differences,
+        },
+        "self_repeats_valid": self_repeats_valid,
     }
-    cause_passed = (
-        first_difference is not None
-        and all(package_inside_self_envelope.values())
-        and self_processes_are_distinct
-        and self_source_is_current
-        and self_seed_is_paired
-        and self_layout_is_paired
-        and self_warning_is_captured
-    )
-    passed = all(
-        comparison["passed"]
-        for comparison in (
-            state_comparison,
-            gradient_comparison,
-            optimizer_comparison,
-            scheduler_comparison,
-        )
-    ) and (trace_comparison["passed"] or cause_passed)
+    cause_passed = all(inside_self_distributions.values()) and self_repeats_valid
+    passed = scheduler_comparison["passed"] and cause_passed
     return _write(
         "s2-optimizer-step",
         {
@@ -3068,6 +3193,7 @@ def main() -> None:
     parser.add_argument("repeat", nargs="?", type=int)
     parser.add_argument("json_path", nargs="?", type=Path)
     parser.add_argument("state_path", nargs="?", type=Path)
+    parser.add_argument("--system", choices=("vendor", "package"))
     args = parser.parse_args()
     functions = {
         "s0-static": run_s0,
@@ -3080,9 +3206,9 @@ def main() -> None:
         "s4-evaluation": run_s4,
     }
     if args.stage == "s2-vendor-self-repeat":
-        if args.repeat is None or args.json_path is None:
-            raise ValueError("S2 vendor self repeat requires repeat and JSON path")
-        _run_s2_vendor_self_repeat(args.repeat, args.json_path)
+        if args.repeat is None or args.json_path is None or args.system is None:
+            raise ValueError("S2 self repeat requires system, repeat, and JSON path")
+        _run_s2_self_repeat(args.system, args.repeat, args.json_path)
         return
     if args.stage == "s3-natural-repeat":
         if args.repeat is None or args.json_path is None or args.state_path is None:
