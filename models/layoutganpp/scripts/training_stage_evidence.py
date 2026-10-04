@@ -1391,6 +1391,53 @@ def _vendor_training_trajectory(
         def zero_grad(self) -> None:
             self.raw.zero_grad()
 
+        def state_dict(
+            self,
+        ) -> dict[
+            str,
+            dict[
+                int,
+                dict[str, Shaped[torch.Tensor, "..."] | float | int | bool | None],
+            ]
+            | list[
+                dict[
+                    str,
+                    Shaped[torch.Tensor, "..."]
+                    | float
+                    | int
+                    | bool
+                    | None
+                    | list[int]
+                    | tuple[float, float],
+                ]
+            ],
+        ]:
+            return cast(
+                dict[
+                    str,
+                    dict[
+                        int,
+                        dict[
+                            str,
+                            Shaped[torch.Tensor, "..."] | float | int | bool | None,
+                        ],
+                    ]
+                    | list[
+                        dict[
+                            str,
+                            Shaped[torch.Tensor, "..."]
+                            | float
+                            | int
+                            | bool
+                            | None
+                            | list[int]
+                            | tuple[float, float],
+                        ]
+                    ],
+                ],
+                self.raw.state_dict(),
+            )
+
         def step(
             self, closure: Callable[[], float] | None = None
         ) -> int | float | None:
