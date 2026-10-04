@@ -1902,7 +1902,7 @@ def _evaluation_parity(
     feature_path = fid_root / "feature" / f"fid_feat_test_{dataset}.pk"
     with feature_path.open("rb") as stream:
         test_features = pickle.load(stream)
-    sys.path.insert(0, str(fid_root.parent))
+    sys.path.insert(0, str(fid_root))
     import test as vendor_test
 
     class CapturingVendor:
@@ -2169,7 +2169,7 @@ def _evaluation_parity(
     processed_count = len(vendor_layouts)
     fid_metadata: dict[str, object] | None = None
     if fid_root is not None:
-        sys.path.insert(0, str(fid_root.parent))
+        sys.path.insert(0, str(fid_root))
         from fid.model import load_fidnet_v3
 
         fid_dataset = vendor_dataset
