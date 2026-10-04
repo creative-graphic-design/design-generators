@@ -1547,7 +1547,7 @@ def test_s3_natural_lockstep_matches_vendor(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     steps = _s3_steps()
     _apply_s3_determinism()
-    fixture = _fixture(dataset, device)
+    fixture = _fixture(dataset, device, seed=NATURAL_STREAM_SEED)
     vendor_batches, package_batches, loader_record = _natural_training_batches(
         dataset, fixture.vendor_tokenizer, steps
     )
