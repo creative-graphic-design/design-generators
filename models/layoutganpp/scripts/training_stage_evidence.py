@@ -1439,6 +1439,9 @@ def _vendor_training_trajectory(
             return self.length
 
         def __getitem__(self, index: int) -> Data:
+            if not 0 <= index < self.length:
+                raise IndexError(index)
+
             return self.rows[index % len(self.rows)]
 
     class Sequence:
