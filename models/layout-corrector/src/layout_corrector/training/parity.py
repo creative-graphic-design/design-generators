@@ -20,7 +20,12 @@ from traingen_parity.compare import (
     compare_optimizer_step,
     compare_step_trace,
 )
-from traingen_parity.determinism import RNGState, capture_rng_state
+from traingen_parity.determinism import (
+    DeterminismConfig,
+    RNGState,
+    apply_determinism,
+    capture_rng_state,
+)
 from traingen_parity.trace import StepTrace, build_step_trace
 from traingen_parity.trace import tensor_sha256
 
@@ -134,6 +139,7 @@ class ProductionTraceCallback(Callback):
         trace_path: str,
         initial_state_path: str,
         final_state_path: str,
+        seed: int,
     ) -> None:
         """Initialize paths and buffers for one production training run.
 
@@ -141,13 +147,24 @@ class ProductionTraceCallback(Callback):
             trace_path: JSON output path for the per-step trace.
             initial_state_path: State dictionary loaded before training.
             final_state_path: Output path for the final model state.
+            seed: Seed applied to the production training process.
         """
         self.trace_path = Path(trace_path)
         self.initial_state_path = Path(initial_state_path)
         self.final_state_path = Path(final_state_path)
+        self.seed = seed
         self.rows: list[dict[str, object]] = []
         self._batch_rng_digest: str | None = None
         self._batch_digest: dict[str, str] = {}
+        self._initial_cpu_rng_state: Shaped[torch.Tensor, "..."] | None = None
+
+    def _restore_initial_cpu_rng(self, batch_idx: int) -> None:
+        """Undo Lightning's first iterator seed draw once per production run."""
+        if batch_idx == 0:
+            if self._initial_cpu_rng_state is None:
+                raise RuntimeError("production trace callback did not initialize RNG")
+
+            torch.set_rng_state(self._initial_cpu_rng_state)
 
     def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Load the paired initial state before the first production batch."""
@@ -161,7 +178,10 @@ class ProductionTraceCallback(Callback):
         module = cast(LayoutCorrectorTrainingModule, pl_module)
         module.model.model.load_state_dict(initial_state, strict=True)
         module.train()
-        torch.manual_seed(42975)
+        apply_determinism(
+            DeterminismConfig(seed=self.seed, deterministic_algorithms=False)
+        )
+        self._initial_cpu_rng_state = torch.get_rng_state()
 
     def on_train_batch_start(
         self,
@@ -171,7 +191,9 @@ class ProductionTraceCallback(Callback):
         batch_idx: int,
     ) -> None:
         """Capture input and RNG digests at the production batch boundary."""
-        del trainer, pl_module, batch_idx
+        del trainer, pl_module
+        self._restore_initial_cpu_rng(batch_idx)
+
         self._batch_rng_digest = _rng_digest(capture_rng_state())
         self._batch_digest = {
             "input_ids": _tensor_digest(
@@ -191,7 +213,7 @@ class ProductionTraceCallback(Callback):
         batch_idx: int,
     ) -> None:
         """Record the completed production update and its state digests."""
-        del outputs, batch
+        del outputs
         module = cast(LayoutCorrectorTrainingModule, pl_module)
         trace = module.latest_step_trace
         gradient_norm = module.latest_gradient_norm
@@ -199,9 +221,16 @@ class ProductionTraceCallback(Callback):
             raise RuntimeError("production trace callback observed an incomplete step")
 
         optimizer = trainer.optimizers[0]
+        sample_ids = batch.get("id", [])
+        normalized_sample_ids = (
+            [str(value) for value in sample_ids]
+            if isinstance(sample_ids, (list, tuple))
+            else [str(sample_ids)]
+        )
         self.rows.append(
             {
                 "step": batch_idx,
+                "sample_ids": normalized_sample_ids,
                 "loss": float(trace["train_loss"].detach().cpu().item()),
                 "gradient_norm": float(gradient_norm.detach().cpu().item()),
                 "learning_rate": float(optimizer.param_groups[0]["lr"]),
@@ -240,9 +269,12 @@ class ProductionTraceCallback(Callback):
                 {
                     "rows": self.rows,
                     "scheduler": module.scheduler,
+                    "trace_seed": self.seed,
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),
                     "validation_batches": trainer.num_val_batches,
                     "train_batches": trainer.num_training_batches,
+                    "observed_train_batches": len(self.rows),
+                    "max_steps": trainer.max_steps,
                     "num_workers": getattr(datamodule, "num_workers", None),
                     "max_epochs": trainer.max_epochs,
                     "model_training": module.model.training,

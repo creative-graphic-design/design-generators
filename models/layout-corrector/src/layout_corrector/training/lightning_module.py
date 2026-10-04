@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import os
 from pathlib import Path
 from typing import cast
 
@@ -10,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from jaxtyping import Float, Int, Shaped
 from laygen.common.randomness import multinomial, randint
-from lightning.pytorch import LightningModule
+from lightning.pytorch import Callback, LightningModule
 from lightning.pytorch.utilities.types import (
     LRSchedulerConfigType,
     OptimizerLRScheduler,
@@ -84,6 +85,40 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.scheduler_threshold = scheduler_threshold
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self.latest_gradient_norm: Shaped[torch.Tensor, ""] | None = None
+
+    def configure_callbacks(self) -> list[Callback]:
+        """Enable the opt-in production trace callback for parity evidence."""
+        callback_paths = {
+            name: os.environ.get(name)
+            for name in (
+                "LAYOUT_CORRECTOR_TRACE_PATH",
+                "LAYOUT_CORRECTOR_INITIAL_STATE_PATH",
+                "LAYOUT_CORRECTOR_FINAL_STATE_PATH",
+                "LAYOUT_CORRECTOR_TRACE_SEED",
+            )
+        }
+        if not any(callback_paths.values()):
+            return []
+
+        if not all(callback_paths.values()):
+            raise RuntimeError(
+                "Layout-Corrector production tracing requires all trace paths and seed"
+            )
+
+        from .parity import ProductionTraceCallback
+
+        return [
+            ProductionTraceCallback(
+                trace_path=cast(str, callback_paths["LAYOUT_CORRECTOR_TRACE_PATH"]),
+                initial_state_path=cast(
+                    str, callback_paths["LAYOUT_CORRECTOR_INITIAL_STATE_PATH"]
+                ),
+                final_state_path=cast(
+                    str, callback_paths["LAYOUT_CORRECTOR_FINAL_STATE_PATH"]
+                ),
+                seed=int(cast(str, callback_paths["LAYOUT_CORRECTOR_TRACE_SEED"])),
+            )
+        ]
 
     def _ensure_reference_device(self, device: torch.device) -> None:
         reference_model = self._reference_model_value()

@@ -17,6 +17,11 @@ from .config import (
 )
 
 
+def _preserve_torch_worker_seed(worker_id: int) -> None:
+    """Keep PyTorch's default worker seed stream for random-order transforms."""
+    del worker_id
+
+
 class LayoutCorrectorDataModule(LightningDataModule):
     """Construct train, validation, and test loaders from processed LayoutDM data."""
 
@@ -82,6 +87,7 @@ class LayoutCorrectorDataModule(LightningDataModule):
             shuffle=shuffle,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
+            worker_init_fn=_preserve_torch_worker_seed,
         )
 
     def train_dataloader(

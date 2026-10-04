@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 from typing import cast
 
@@ -11,6 +13,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 
 pytest.importorskip("lightning")
+pytest.importorskip("traingen")
 
 import layout_corrector.training.dataset as dataset_module
 import layout_corrector.training.reference as reference_module
@@ -25,6 +28,29 @@ from layout_corrector.training import (
 )
 from layout_corrector.training.dataset import first_sample_ids
 from layout_dm.configuration_layout_dm import LayoutDMConfig
+
+
+@pytest.mark.parametrize("dataset", ("rico25", "publaynet"))
+def test_shipped_training_config_prints_with_traingen(dataset: str) -> None:
+    """Ensure the documented package training config is accepted by traingen."""
+    root = Path(__file__).resolve().parents[3]
+    config = (
+        root
+        / "models"
+        / "layout-corrector"
+        / "configs"
+        / "training"
+        / f"layoutcorrector_{dataset}.yaml"
+    )
+    executable = Path(sys.executable).with_name("traingen")
+    result = subprocess.run(
+        [str(executable), "fit", "--config", str(config), "--print_config"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def _tiny_config() -> LayoutCorrectorConfig:
@@ -214,7 +240,9 @@ def test_training_data_module_loads_each_split(monkeypatch: pytest.MonkeyPatch) 
 
     module.setup("fit")
     assert set(module._datasets) == {"train", "validation"}
-    assert isinstance(module.train_dataloader().sampler, RandomSampler)
+    train_loader = module.train_dataloader()
+    assert isinstance(train_loader.sampler, RandomSampler)
+    assert train_loader.worker_init_fn is dataset_module._preserve_torch_worker_seed
     assert isinstance(module.val_dataloader().sampler, SequentialSampler)
     assert isinstance(module.test_dataloader().sampler, SequentialSampler)
     module.setup()

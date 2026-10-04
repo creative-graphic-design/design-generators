@@ -1110,17 +1110,22 @@ def _natural_training_batches(
     package_loader = package_module.train_dataloader()
     seed = 42975
     torch.manual_seed(seed)
-    vendor_batches: list[dict[str, torch.Tensor]] = []
+    vendor_batches: list[dict[str, Any]] = []
     vendor_ids: list[list[str]] = []
     for batch_index, batch in enumerate(vendor_loader):
         if batch_index >= steps:
             break
         bbox, labels, _, mask = sparse_to_dense(batch)
         encoded = tokenizer.encode({"bbox": bbox, "label": labels, "mask": mask})
+        sample_ids = [str(value) for value in batch.attr["name"]]
         vendor_batches.append(
-            {"input_ids": encoded["seq"], "attention_mask": encoded["mask"]}
+            {
+                "input_ids": encoded["seq"],
+                "attention_mask": encoded["mask"],
+                "id": sample_ids,
+            }
         )
-        vendor_ids.append([str(value) for value in batch.attr["name"]])
+        vendor_ids.append(sample_ids)
     torch.manual_seed(seed)
     package_batches: list[dict[str, Any]] = []
     package_ids: list[list[str]] = []
@@ -1184,6 +1189,7 @@ def _run_natural_side(
                 "optimizer_state_digest": _optimizer_state_digest(optimizer),
                 "parameter_state_digest": _state_dict_digest(model.state_dict()),
                 "rng_digest": rng_digest,
+                "sample_ids": [str(value) for value in batch.get("id", [])],
                 "timesteps_digest": _tensor_digest(trace["t"]),
                 "importance_probability_digest": (
                     None
@@ -1206,8 +1212,6 @@ def _run_package_natural_side(
     initial_state: dict[str, torch.Tensor],
     steps: int,
 ) -> tuple[list[dict[str, Any]], dict[str, torch.Tensor], dict[str, Any]]:
-    from omegaconf import OmegaConf
-
     del batches
     with tempfile.TemporaryDirectory(prefix="layout-corrector-natural-") as root_text:
         root = Path(root_text)
@@ -1215,7 +1219,7 @@ def _run_package_natural_side(
         final_state_path = root / "final-state.pt"
         trace_path = root / "trace.json"
         torch.save(initial_state, initial_state_path)
-        config = OmegaConf.load(
+        config_path = (
             ROOT
             / "models"
             / "layout-corrector"
@@ -1225,40 +1229,35 @@ def _run_package_natural_side(
         )
         cluster_path = _cluster_path(fixture.dataset)
         checkpoint_path = _checkpoint_path(fixture.dataset)
-        config.model.init_args.layout_dm_checkpoint_path = str(checkpoint_path)
-        config.model.init_args.cluster_centers_path = str(cluster_path)
-        config.data.init_args.config.cluster_centers_path = str(cluster_path)
-        config.data.init_args.processed_data_dir = str(_layout_dm_cache() / "datasets")
-        config.seed_everything = NATURAL_STREAM_SEED
-        config.trainer.max_epochs = 1
-        config.trainer.limit_train_batches = steps
-        config.trainer.limit_val_batches = 1
-        config.trainer.accelerator = "gpu"
-        config.trainer.devices = 1
-        config.trainer.default_root_dir = str(root / "trainer")
-        config.trainer.callbacks = [
-            {
-                "class_path": "layout_corrector.training.parity.ProductionTraceCallback",
-                "init_args": {
-                    "trace_path": str(trace_path),
-                    "initial_state_path": str(initial_state_path),
-                    "final_state_path": str(final_state_path),
-                },
-            }
-        ]
-        config_path = root / "config.yaml"
-        OmegaConf.save(config, config_path)
         executable = Path(sys.executable).with_name("traingen")
-        command = [str(executable), "fit", "--config", str(config_path)]
+        command = [
+            str(executable),
+            "fit",
+            "--config",
+            str(config_path),
+            f"--seed_everything={NATURAL_STREAM_SEED}",
+            "--trainer.max_epochs=1",
+            f"--trainer.max_steps={steps}",
+            f"--trainer.default_root_dir={root / 'trainer'}",
+            f"--model.init_args.layout_dm_checkpoint_path={checkpoint_path}",
+            f"--model.init_args.cluster_centers_path={cluster_path}",
+            f"--data.init_args.config.cluster_centers_path={cluster_path}",
+            f"--data.init_args.processed_data_dir={_layout_dm_cache() / 'datasets'}",
+        ]
         environment = os.environ.copy()
         environment["CUDA_VISIBLE_DEVICES"] = "0"
         environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+        environment["LAYOUT_CORRECTOR_TRACE_PATH"] = str(trace_path)
+        environment["LAYOUT_CORRECTOR_INITIAL_STATE_PATH"] = str(initial_state_path)
+        environment["LAYOUT_CORRECTOR_FINAL_STATE_PATH"] = str(final_state_path)
+        environment["LAYOUT_CORRECTOR_TRACE_SEED"] = str(NATURAL_STREAM_SEED)
         subprocess.run(command, cwd=ROOT, env=environment, check=True)
         record = json.loads(trace_path.read_text())
         if command[1:3] != ["fit", "--config"]:
             raise AssertionError(f"unexpected production command: {command}")
         record["production_command"] = command
         record["production_path"] = command[0:2]
+        record["production_config"] = str(config_path.relative_to(ROOT))
         rows = cast(list[dict[str, Any]], record["rows"])
         if len(rows) != steps:
             raise AssertionError(
@@ -1281,11 +1280,14 @@ def _natural_comparison(
     assert Path(package_record["production_path"][0]).name == "traingen"
     assert package_record["production_path"][1] == "fit"
     assert package_record["scheduler"] == "reduce_on_plateau"
+    assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
     assert package_record["max_epochs"] == 1
     assert package_record["model_training"] is True
     assert package_record["validation_batches"]
-    assert package_record["train_batches"] == len(package_rows)
+    assert package_record["observed_train_batches"] == len(package_rows)
+    assert package_record["max_steps"] == len(package_rows)
+    assert package_record["train_batches"] >= len(package_rows)
     assert package_record["scheduler_state_digest"]
     comparison_fields = (
         "input_ids_digest",
@@ -1306,6 +1308,7 @@ def _natural_comparison(
         zip(vendor_rows, package_rows, strict=True)
     ):
         assert vendor["step"] == package["step"] == index
+        assert vendor["sample_ids"] == package["sample_ids"]
         for field in comparison_fields:
             if vendor[field] != package[field]:
                 digest_mismatches.setdefault(field, []).append(index)
