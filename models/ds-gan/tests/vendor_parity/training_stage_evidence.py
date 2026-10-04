@@ -932,6 +932,7 @@ class _NaturalParityCallback(Callback):
         self._vendor_gradients: dict[str, torch.Tensor] = {}
         self._vendor_optimizer_state: dict[str, torch.Tensor] = {}
         self._batch_report: BatchStreamReport | None = None
+        self.iterations = 0
 
     def on_train_epoch_start(self, trainer: Any, pl_module: Any) -> None:
         del pl_module
@@ -1001,6 +1002,7 @@ class _NaturalParityCallback(Callback):
                 trainer.optimizers[1], pl_module.discriminator, "discriminator"
             ),
         }
+        self.iterations += 1
         scheduler_values = {
             "vendor_last_epoch": [
                 scheduler.last_epoch for scheduler in self.vendor_schedulers
@@ -1016,8 +1018,9 @@ class _NaturalParityCallback(Callback):
                 [group["lr"] for group in optimizer.param_groups]
                 for optimizer in trainer.optimizers
             ],
-            "stepped": trainer.global_step % TRAIN_BATCHES_PER_EPOCH == 0,
+            "stepped": self.iterations % TRAIN_BATCHES_PER_EPOCH == 0,
         }
+        scheduler_values["iteration"] = self.iterations
         scheduler_equal = (
             scheduler_values["vendor_last_epoch"]
             == scheduler_values["package_last_epoch"]
@@ -1026,7 +1029,7 @@ class _NaturalParityCallback(Callback):
         )
         self.rows.append(
             {
-                "step": trainer.global_step,
+                "step": self.iterations,
                 "epoch": trainer.current_epoch + 1,
                 "batch_stream": {
                     "passed": self._batch_report.passed,
@@ -1043,6 +1046,7 @@ class _NaturalParityCallback(Callback):
                 "scheduler": {**scheduler_values, "passed": scheduler_equal},
             }
         )
+        trainer.should_stop = self.iterations >= LOCKSTEP_STEPS
 
     def on_train_epoch_end(self, trainer: Any, pl_module: Any) -> None:
         del trainer, pl_module
@@ -1445,7 +1449,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         accelerator="gpu" if device.type == "cuda" else "cpu",
         devices=1,
         precision="32-true",
-        max_steps=LOCKSTEP_STEPS,
+        max_epochs=LOCKSTEP_STEPS // TRAIN_BATCHES_PER_EPOCH + 2,
         limit_train_batches=TRAIN_BATCHES_PER_EPOCH,
         num_sanity_val_steps=0,
         enable_checkpointing=False,
@@ -1457,9 +1461,9 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         callbacks=[callback],
     )
     trainer.fit(package_module, train_dataloaders=package_loader)
-    if trainer.global_step != LOCKSTEP_STEPS:
+    if len(callback.rows) != LOCKSTEP_STEPS:
         raise RuntimeError(
-            f"package Trainer stopped at {trainer.global_step} steps, expected {LOCKSTEP_STEPS}"
+            f"package Trainer produced {len(callback.rows)} iterations, expected {LOCKSTEP_STEPS}"
         )
     trace_rows = callback.rows
     first_divergence = next(
@@ -1577,6 +1581,18 @@ def _run_vendor_alone(repeat: int, device: torch.device) -> dict[str, Any]:
     }
 
 
+class _StopAfterIterations(Callback):
+    def __init__(self) -> None:
+        self.iterations = 0
+
+    def on_train_batch_end(
+        self, trainer: Any, pl_module: Any, outputs: Any, batch: Any, batch_idx: int
+    ) -> None:
+        del pl_module, outputs, batch, batch_idx
+        self.iterations += 1
+        trainer.should_stop = self.iterations >= LOCKSTEP_STEPS
+
+
 def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
     from ds_gan.training.lightning_module import DSGANTrainingModule
 
@@ -1590,11 +1606,12 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
+    stopper = _StopAfterIterations()
     trainer = Trainer(
         accelerator="gpu" if device.type == "cuda" else "cpu",
         devices=1,
         precision="32-true",
-        max_steps=LOCKSTEP_STEPS,
+        max_epochs=LOCKSTEP_STEPS // TRAIN_BATCHES_PER_EPOCH + 2,
         limit_train_batches=TRAIN_BATCHES_PER_EPOCH,
         num_sanity_val_steps=0,
         enable_checkpointing=False,
@@ -1603,15 +1620,16 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
         deterministic="warn",
         gradient_clip_val=None,
         gradient_clip_algorithm="norm",
+        callbacks=[stopper],
     )
     trainer.fit(package_module, train_dataloaders=package_loader)
-    if trainer.global_step != LOCKSTEP_STEPS:
+    if stopper.iterations != LOCKSTEP_STEPS:
         raise RuntimeError(
-            f"package Trainer stopped at {trainer.global_step} steps, expected {LOCKSTEP_STEPS}"
+            f"package Trainer produced {stopper.iterations} iterations, expected {LOCKSTEP_STEPS}"
         )
     return {
         "repeat": repeat,
-        "steps": trainer.global_step,
+        "steps": stopper.iterations,
         "seed": SEED,
         "package_training_entry_point": (
             f"{type(package_module).__module__}.{type(package_module).__qualname__}.training_step"
