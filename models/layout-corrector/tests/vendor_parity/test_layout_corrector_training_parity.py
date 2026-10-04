@@ -1844,6 +1844,7 @@ def _evaluation_environment(scratch: Path) -> dict[str, str]:
         (str(scratch), str(scratch / "src" / "trainer"))
     )
     environment["CUDA_VISIBLE_DEVICES"] = "0"
+    environment["PYTHONHASHSEED"] = "0"
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     return environment
 
@@ -1927,6 +1928,17 @@ def _run_vendor_evaluation(
         for path in pkl_paths.values():
             if not path.is_file():
                 raise FileNotFoundError(path)
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
+                str(retained_scratch / "results" / dataset / "layout_corrector"),
+                "--force",
+            ],
+            cwd=retained_scratch,
+            env=_evaluation_environment(retained_scratch),
+            check=True,
+        )
         return retained_scratch, command, pkl_paths, job_dir, True
 
     scratch = Path(tempfile.mkdtemp(prefix=f"layout-corrector-evaluation-{dataset}-"))
