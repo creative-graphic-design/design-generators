@@ -1954,8 +1954,8 @@ def _evaluation_parity(
         vendor_loader,
     )
     vendor_test.test_fid_feat = lambda *_, **__: test_features
-    vendor_test.load_fidnet_v3 = lambda dataset_arg, _, device_arg: (
-        original_load_fidnet(dataset_arg, str(fid_root / "FIDNetV3"), device_arg)
+    vendor_test.load_fidnet_v3 = lambda dataset_arg, _, *, device: original_load_fidnet(
+        dataset_arg, str(fid_root / "FIDNetV3"), device
     )
     try:
         vendor_result = vendor_test.test_layout_cond(
