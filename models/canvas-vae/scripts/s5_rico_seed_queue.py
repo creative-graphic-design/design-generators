@@ -1,7 +1,7 @@
-"""Plan or supervise the CanvasVAE RICO S5 seed queue.
+"""Plan or supervise the CanvasVAE RICO full-run seed queue.
 
 The queue pins one clean source commit and checks it before every run. Its
-per-run executor is intentionally supplied only after all S5 launch gates,
+per-run executor is intentionally supplied only after all launch gates,
 including conversion and evaluation-path parity, are complete.
 """
 
@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TypeAlias, TypedDict
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -25,6 +25,37 @@ DEFAULT_MANIFEST = (
 )
 BLOCKED_EXIT = 78
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
+
+
+class QueueRun(TypedDict):
+    """One original or package training run."""
+
+    run_id: str
+    system: str
+    seed: int
+    session_name: str
+    artifact_prefix: str
+
+
+class ParityArtifact(TypedDict):
+    """Repository-relative evaluation parity file and digest."""
+
+    path: str
+    sha256: str
+
+
+class QueueManifest(TypedDict):
+    """Validated queue fields used by the supervisor."""
+
+    dataset: str
+    queue_status: str
+    source_commit: str | None
+    evaluation_path_parity: ParityArtifact
+    runner_command: list[str] | None
+    runs: list[QueueRun]
 
 
 class QueueError(Exception):
@@ -56,7 +87,7 @@ def current_source_state() -> tuple[str, bool]:
     return commit, clean
 
 
-def emit(record: dict[str, Any]) -> None:
+def emit(record: dict[str, JsonValue]) -> None:
     print(json.dumps(record, sort_keys=True), flush=True)
 
 
@@ -69,7 +100,7 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def source_gate(run: dict[str, Any], pinned_commit: str, require_clean: bool) -> None:
+def source_gate(run: QueueRun, pinned_commit: str, require_clean: bool) -> None:
     current_commit, clean = current_source_state()
     passed = current_commit == pinned_commit and (clean or not require_clean)
     emit(
@@ -88,30 +119,77 @@ def source_gate(run: dict[str, Any], pinned_commit: str, require_clean: bool) ->
         )
 
 
-def load_manifest(path: Path) -> dict[str, Any]:
+def load_manifest(path: Path) -> QueueManifest:
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
+        decoded: JsonValue = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise QueueError(f"cannot read manifest {path}: {error}") from error
 
-    if not isinstance(manifest, dict):
+    if not isinstance(decoded, dict):
         raise QueueError("manifest root must be a JSON object")
 
-    runs = manifest.get("runs")
-    if not isinstance(runs, list) or not runs:
-        raise QueueError("manifest must define a non-empty runs list")
-    for run in runs:
-        if not isinstance(run, dict) or not all(
-            isinstance(run.get(key), str) and run[key]
-            for key in ("run_id", "system", "session_name", "artifact_prefix")
-        ):
-            raise QueueError("each run needs run_id, system, session_name, and artifact_prefix")
+    dataset = decoded.get("dataset")
+    queue_status = decoded.get("queue_status")
+    source_commit = decoded.get("source_commit")
+    if not isinstance(dataset, str) or not isinstance(queue_status, str):
+        raise QueueError("manifest needs dataset and queue_status strings")
+    if source_commit is not None and not isinstance(source_commit, str):
+        raise QueueError("manifest source_commit must be a string or null")
 
-    return manifest
+    parity = decoded.get("evaluation_path_parity")
+    if not isinstance(parity, dict):
+        raise QueueError("manifest evaluation_path_parity must be an object")
+    parity_path = parity.get("path")
+    parity_sha256 = parity.get("sha256")
+    if not isinstance(parity_path, str) or not isinstance(parity_sha256, str):
+        raise QueueError("manifest evaluation_path_parity needs path and sha256 strings")
+
+    runner = decoded.get("runner_command")
+    if runner is not None and (
+        not isinstance(runner, list)
+        or not all(isinstance(part, str) for part in runner)
+    ):
+        raise QueueError("manifest runner_command must be a string list or null")
+
+    raw_runs = decoded.get("runs")
+    if not isinstance(raw_runs, list) or not raw_runs:
+        raise QueueError("manifest must define a non-empty runs list")
+    runs: list[QueueRun] = []
+    for raw_run in raw_runs:
+        if not isinstance(raw_run, dict):
+            raise QueueError("each run needs run_id, system, session_name, and artifact_prefix")
+        run_id = raw_run.get("run_id")
+        system = raw_run.get("system")
+        seed = raw_run.get("seed")
+        session_name = raw_run.get("session_name")
+        artifact_prefix = raw_run.get("artifact_prefix")
+        if not all(
+            isinstance(value, str) and value
+            for value in (run_id, system, session_name, artifact_prefix)
+        ) or not isinstance(seed, int):
+            raise QueueError("each run needs text identifiers and an integer seed")
+        runs.append(
+            {
+                "run_id": run_id,
+                "system": system,
+                "seed": seed,
+                "session_name": session_name,
+                "artifact_prefix": artifact_prefix,
+            }
+        )
+
+    return {
+        "dataset": dataset,
+        "queue_status": queue_status,
+        "source_commit": source_commit,
+        "evaluation_path_parity": {"path": parity_path, "sha256": parity_sha256},
+        "runner_command": runner,
+        "runs": runs,
+    }
 
 
 def launch_preconditions(
-    manifest: dict[str, Any], manifest_path: Path
+    manifest: QueueManifest, manifest_path: Path
 ) -> tuple[str, list[str]]:
     pinned_commit = manifest.get("source_commit")
     if not isinstance(pinned_commit, str) or not COMMIT_PATTERN.fullmatch(pinned_commit):
@@ -119,9 +197,7 @@ def launch_preconditions(
     if manifest.get("queue_status") != "ready":
         raise QueueError("launch refused: manifest queue_status is not ready", BLOCKED_EXIT)
 
-    parity = manifest.get("evaluation_path_parity")
-    if not isinstance(parity, dict):
-        raise QueueError("launch refused: evaluation_path_parity artifact is missing", BLOCKED_EXIT)
+    parity = manifest["evaluation_path_parity"]
     parity_path = parity.get("path")
     parity_sha256 = parity.get("sha256")
     if not isinstance(parity_path, str) or not parity_path:
@@ -164,7 +240,7 @@ def launch_preconditions(
 
 
 def run_queue(
-    manifest: dict[str, Any],
+    manifest: QueueManifest,
     pinned_commit: str,
     runner_command: list[str] | None,
     dry_run: bool,
