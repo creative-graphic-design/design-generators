@@ -130,7 +130,15 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Create the initial log one-hot sample for reverse diffusion."""
         if condition is not None:
-            ids = condition.input_ids.to(device)
+            ids = torch.full(
+                condition.input_ids.shape,
+                self.mask_token_id,
+                dtype=condition.input_ids.dtype,
+                device=device,
+            )
+            ids = torch.where(
+                condition.mask.to(device), condition.input_ids.to(device), ids
+            )
         else:
             ids = torch.full(
                 (batch_size, token_length),

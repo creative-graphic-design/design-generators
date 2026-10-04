@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from laygen.common.discrete import SamplingMode
+from layout_dm.conditioning import LayoutDMCondition
 from layout_dm.sampling import LayoutDMSamplingConfig
 from layout_dm.scheduling_layout_dm import LayoutDMScheduler
 
@@ -48,3 +49,25 @@ def test_scheduler_keeps_constrained_posterior_floor():
 
     assert out.model_log_prob is not None
     assert out.model_log_prob[0, 1, 0].item() == pytest.approx(math.log(1e-30))
+
+
+def test_scheduler_masks_weak_condition_tokens_at_initialization():
+    scheduler = LayoutDMScheduler(
+        vocab_size=4,
+        mask_token_id=3,
+        pad_token_id=2,
+    )
+    condition = LayoutDMCondition(
+        input_ids=torch.tensor([[1, 2]]),
+        mask=torch.tensor([[True, False]]),
+        type="c",
+    )
+
+    sample = scheduler.initial_sample(
+        batch_size=1,
+        token_length=2,
+        device=torch.device("cpu"),
+        condition=condition,
+    )
+
+    assert torch.equal(torch.argmax(sample, dim=1), torch.tensor([[1, 3]]))
