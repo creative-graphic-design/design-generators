@@ -35,7 +35,6 @@ from traingen_parity.determinism import (
     RNGState,
     apply_determinism,
     capture_rng_state,
-    restore_rng_state,
 )
 from traingen_parity.trace import build_step_trace, tensor_sha256
 
@@ -1651,11 +1650,29 @@ def _synchronized_step(
         epoch,
     )
     vendor_after_rng = capture_rng_state()
-    restore_rng_state(vendor_rng)
+    package_numpy_rng = np.random.RandomState()
+    package_numpy_rng.set_state(vendor_rng.numpy)
+    package_torch_generator = torch.Generator(device="cpu")
+    package_torch_generator.set_state(vendor_rng.torch_cpu)
     package_trace = _package_step(
-        package_module, package_batch, *package_optimizers, epoch
+        package_module,
+        package_batch,
+        *package_optimizers,
+        epoch,
+        numpy_rng=package_numpy_rng,
+        torch_generator=package_torch_generator,
     )
-    package_after_rng = capture_rng_state()
+    import hashlib
+
+    vendor_rng_digest = _rng_digest(vendor_after_rng)
+    package_rng_digest = {
+        "torch_cpu": tensor_sha256(package_torch_generator.get_state()),
+        "torch_cuda": vendor_rng_digest["torch_cuda"],
+        "python": vendor_rng_digest["python"],
+        "numpy": hashlib.sha256(
+            repr(package_numpy_rng.get_state()).encode()
+        ).hexdigest(),
+    }
     return {
         "step": step,
         "epoch": epoch,
@@ -1698,8 +1715,7 @@ def _synchronized_step(
                 ),
             },
         ),
-        "rng_equal_after_operation": _rng_digest(vendor_after_rng)
-        == _rng_digest(package_after_rng),
+        "rng_equal_after_operation": vendor_rng_digest == package_rng_digest,
         "learning_rates": {
             "vendor": [
                 [group["lr"] for group in optimizer.param_groups]
