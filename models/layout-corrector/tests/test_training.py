@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 
@@ -212,6 +214,35 @@ def test_training_parity_digests_capture_runtime_state(
     assert parity_module._optimizer_state_digest(optimizer)
     assert parity_module._rng_digest(parity_module.capture_rng_state())
     assert parity_module._scheduler_state_digest({"last_epoch": 1, "best": 0.5})
+
+
+def test_production_trace_accepts_stop_before_validation(tmp_path: Path) -> None:
+    trace_path = tmp_path / "trace.json"
+    callback = parity_module.ProductionTraceCallback(
+        trace_path=str(trace_path),
+        initial_state_path=str(tmp_path / "initial.pt"),
+        final_state_path=str(tmp_path / "final.pt"),
+        seed=42975,
+    )
+    model = nn.Module()
+    model.model = nn.Linear(1, 1)
+    module = SimpleNamespace(model=model, pre_model_rng_digest="model-rng")
+    trainer = SimpleNamespace(
+        lr_scheduler_configs=[],
+        datamodule=SimpleNamespace(num_workers=16),
+        num_val_batches=8,
+        num_training_batches=561,
+        max_steps=300,
+        max_epochs=50,
+    )
+
+    callback.on_fit_end(cast(Trainer, trainer), cast(LightningModule, module))
+
+    record = json.loads(trace_path.read_text())
+    assert record["validation_batches"] == 8
+    assert record["validation_executed"] is False
+    assert record["validation_loss"] is None
+    assert record["scheduler_class"] is None
 
 
 class _FakeProcessedDataset(Dataset[dict[str, object]]):

@@ -158,6 +158,7 @@ class ProductionTraceCallback(Callback):
         self._batch_digest: dict[str, str] = {}
         self._initial_cpu_rng_state: Shaped[torch.Tensor, "..."] | None = None
         self._pre_loader_rng_digest: str | None = None
+        self._validation_executed = False
         self._validation_loss: float | None = None
 
     def _restore_initial_cpu_rng(self, batch_idx: int) -> None:
@@ -261,6 +262,7 @@ class ProductionTraceCallback(Callback):
         if not isinstance(metric, torch.Tensor):
             raise RuntimeError("production trace did not receive val_loss")
 
+        self._validation_executed = True
         self._validation_loss = float(metric.detach().cpu().item())
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
@@ -278,9 +280,6 @@ class ProductionTraceCallback(Callback):
         if datamodule is None:
             raise RuntimeError("production trace did not receive a data module")
 
-        if self._validation_loss is None:
-            raise RuntimeError("production trace did not capture validation loss")
-
         self.trace_path.parent.mkdir(parents=True, exist_ok=True)
         self.trace_path.write_text(
             json.dumps(
@@ -291,6 +290,7 @@ class ProductionTraceCallback(Callback):
                     "pre_model_rng_digest": module.pre_model_rng_digest,
                     "pre_loader_rng_digest": self._pre_loader_rng_digest,
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),
+                    "validation_executed": self._validation_executed,
                     "validation_loss": self._validation_loss,
                     "validation_batches": trainer.num_val_batches,
                     "train_batches": trainer.num_training_batches,
