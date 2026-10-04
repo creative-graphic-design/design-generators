@@ -1055,9 +1055,22 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
 
     _set_determinism(SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    generator, discriminator, generator_config, discriminator_config = (
-        _independent_models(system, device)
-    )
+    (
+        vendor_generator,
+        vendor_discriminator,
+        package_generator,
+        package_discriminator,
+        generator_config,
+        discriminator_config,
+    ) = _models(device)
+    _copy_module_state(package_generator, vendor_generator)
+    _copy_module_state(package_discriminator, vendor_discriminator)
+    if system == "vendor":
+        generator = vendor_generator
+        discriminator = vendor_discriminator
+    else:
+        generator = package_generator
+        discriminator = package_discriminator
     optimizers = _optimizers(generator, discriminator)
     if system == "vendor":
         batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
