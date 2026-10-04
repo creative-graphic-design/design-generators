@@ -129,6 +129,13 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _rng_digest() -> str:
+    """Hash the live RNG state without advancing any random stream."""
+    return hashlib.sha256(
+        pickle.dumps(capture_rng_state(), protocol=pickle.HIGHEST_PROTOCOL)
+    ).hexdigest()
+
+
 def _asset_record(path: Path, url: str, asset_name: str) -> dict[str, JsonValue]:
     if not ASSET_ACQUISITION.exists():
         raise FileNotFoundError(
@@ -1571,10 +1578,13 @@ def _package_training_trajectory(
     rss_samples: dict[str, int],
     sample_prefix: str,
 ) -> tuple[int, dict[str, JsonValue]]:
+    torch.manual_seed(INIT_SEED)
+    pre_model_rng_digest = _rng_digest()
     _, _, package = _build_models(device, copy_vendor_weights=False)
     package.generator.load_state_dict(initial_generator, strict=True)
     package.discriminator.load_state_dict(initial_discriminator, strict=True)
     training_modes_at_step: dict[str, bool] = {}
+    first_loader_sample_ids: list[str] = []
 
     class Capture(Callback):
         def __init__(self) -> None:
@@ -1626,13 +1636,32 @@ def _package_training_trajectory(
             _copy_state_into(self.previous_generator, package_module.generator)
             _copy_state_into(self.previous_discriminator, package_module.discriminator)
 
+        def on_train_batch_start(
+            self,
+            trainer: Trainer,
+            pl_module: LightningModule,
+            batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
+            batch_idx: int,
+        ) -> None:
+            del trainer, pl_module, batch_idx
+            if first_loader_sample_ids:
+                return
+            names = batch.get("names")
+            if not isinstance(names, list) or not all(
+                isinstance(name, str) for name in names
+            ):
+                raise TypeError("package loader did not provide sample IDs")
+            first_loader_sample_ids.extend(names)
+
     capture = Capture()
     data_loader = DataLoader(
         _BatchStreamDataset(steps),
         batch_size=None,
         num_workers=0,
     )
+    pre_loader_rng_digest = _rng_digest()
     torch.manual_seed(seed)
+    latent_seed_rng_digest = _rng_digest()
     trainer = Trainer(
         accelerator="gpu" if device.type == "cuda" else "cpu",
         devices=1,
@@ -1681,7 +1710,13 @@ def _package_training_trajectory(
             "fit_loop_batches": trainer.fit_loop.max_batches,
             "model_training_at_optimizer_step": training_modes_at_step,
         },
-        "requested_latent_seed": seed,
+        "configured_latent_seed": seed,
+        "rng_observations": {
+            "pre_model_rng_digest": pre_model_rng_digest,
+            "pre_loader_rng_digest": pre_loader_rng_digest,
+            "latent_seed_rng_digest": latent_seed_rng_digest,
+            "first_loader_sample_ids": first_loader_sample_ids,
+        },
     }
     return capture.record_count, metadata
 
@@ -1709,6 +1744,8 @@ def _vendor_training_trajectory(
         "second": None,
     }
     training_modes_at_step: dict[str, bool] = {}
+    rng_observations: dict[str, JsonValue] = {}
+    first_loader_sample_ids: list[str] = []
     capture_state = {"record_count": 0}
     previous_generator = {
         name: value.detach().clone() for name, value in initial_generator.items()
@@ -1719,6 +1756,9 @@ def _vendor_training_trajectory(
 
     class CapturingGenerator(generator_cls):
         def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            if "pre_model_rng_digest" in rng_observations:
+                raise RuntimeError("vendor constructed more than one generator")
+            rng_observations["pre_model_rng_digest"] = _rng_digest()
             super().__init__(*args, **kwargs)
             captured_models["generator"] = self
 
@@ -1729,6 +1769,7 @@ def _vendor_training_trajectory(
             constructed_states["generator"] = _state_map(captured_models["generator"])
             constructed_states["discriminator"] = _state_map(self)
             torch.manual_seed(seed)
+            rng_observations["latent_seed_rng_digest"] = _rng_digest()
 
     class CapturingAdam:
         def __init__(
@@ -1862,19 +1903,20 @@ def _vendor_training_trajectory(
         def __iter__(self) -> Iterator[Data]:
             for _ in range(self.length):
                 try:
-                    yield next(self.iterator)
+                    data = next(self.iterator)
                 except StopIteration:
                     self.iterator = iter(self.loader)
-                    yield next(self.iterator)
+                    data = next(self.iterator)
+                if not first_loader_sample_ids:
+                    first_loader_sample_ids.extend(
+                        str(item.attr["name"]) for item in data.to_data_list()
+                    )
+                yield data
 
     train_rows = _vendor_rows("train")
     val_rows = _vendor_rows("val")
     train_dataset = DatasetView(train_rows, steps * VENDOR_BATCH_SIZE)
     val_dataset = DatasetView(val_rows, len(val_rows))
-    train_loader = _vendor_loader(
-        "train", S3_BATCH_SEED, num_workers=loader_num_workers
-    )
-    val_loader = _vendor_loader("val", S3_BATCH_SEED, num_workers=loader_num_workers)
     val_batch_count = (len(val_rows) + VENDOR_BATCH_SIZE - 1) // VENDOR_BATCH_SIZE
     captured_module = importlib.util.spec_from_file_location(
         "layoutganpp_vendor_train", VENDOR_ROOT / "train.py"
@@ -1891,6 +1933,8 @@ def _vendor_training_trajectory(
         train_dataset if split == "train" else val_dataset
     )
 
+    loader_observed = False
+
     def data_loader(
         dataset: Dataset[Data],
         batch_size: int,
@@ -1898,9 +1942,14 @@ def _vendor_training_trajectory(
         shuffle: bool,
         **kwargs: bool,
     ) -> Sequence:
+        nonlocal loader_observed
         del dataset, batch_size, num_workers, kwargs
+        split = "train" if shuffle else "val"
+        if split == "train" and not loader_observed:
+            rng_observations["pre_loader_rng_digest"] = _rng_digest()
+            loader_observed = True
         return Sequence(
-            train_loader if shuffle else val_loader,
+            _vendor_loader(split, S3_BATCH_SEED, num_workers=loader_num_workers),
             steps if shuffle else val_batch_count,
         )
 
@@ -2002,7 +2051,11 @@ def _vendor_training_trajectory(
             for optimizer in captured_optimizers
         ],
         "model_training_at_optimizer_step": training_modes_at_step,
-        "requested_latent_seed": seed,
+        "configured_latent_seed": seed,
+        "rng_observations": {
+            **rng_observations,
+            "first_loader_sample_ids": first_loader_sample_ids,
+        },
     }
     del device
     return record_count, metadata
@@ -2052,11 +2105,13 @@ def _production_metadata_summary(
     dict[str, int],
     dict[str, dict[str, bool]],
     dict[str, JsonValue],
+    dict[int, dict[str, dict[str, JsonValue]]],
 ]:
-    seeds: dict[int, dict[str, int]] = {}
+    configured_seeds: dict[int, dict[str, int]] = {}
     counts: dict[str, int] = {}
     training_modes: dict[str, dict[str, bool]] = {}
     trainer_settings: dict[str, JsonValue] = {}
+    rng_observations: dict[int, dict[str, dict[str, JsonValue]]] = {}
     with path.open() as handle:
         for line in handle:
             item = cast(dict[str, JsonValue], json.loads(line))
@@ -2069,9 +2124,31 @@ def _production_metadata_summary(
                 or not isinstance(metadata, dict)
             ):
                 raise TypeError("production metadata JSONL record has invalid fields")
-            latent_seed = metadata.get("requested_latent_seed")
-            if not isinstance(latent_seed, int):
-                raise TypeError("production metadata is missing its latent seed")
+            configured_seed = metadata.get("configured_latent_seed")
+            if not isinstance(configured_seed, int):
+                raise TypeError("production metadata is missing its configured seed")
+            observations = metadata.get("rng_observations")
+            if not isinstance(observations, dict):
+                raise TypeError("production metadata is missing RNG observations")
+            required_digests = (
+                "pre_model_rng_digest",
+                "pre_loader_rng_digest",
+                "latent_seed_rng_digest",
+            )
+            if any(
+                not isinstance(observations.get(name), str) for name in required_digests
+            ):
+                raise TypeError("production metadata is missing an RNG digest")
+            first_loader_sample_ids = observations.get("first_loader_sample_ids")
+            if (
+                not isinstance(first_loader_sample_ids, list)
+                or not first_loader_sample_ids
+            ):
+                raise TypeError(
+                    "production metadata is missing first loader sample IDs"
+                )
+            if not all(isinstance(name, str) for name in first_loader_sample_ids):
+                raise TypeError("production metadata has invalid loader sample IDs")
             modes = metadata.get("model_training_at_optimizer_step")
             trainer_metadata = metadata.get("trainer")
             if modes is None and isinstance(trainer_metadata, dict):
@@ -2087,7 +2164,8 @@ def _production_metadata_summary(
                 raise RuntimeError(
                     "production training path did not use train mode at an optimizer step"
                 )
-            seeds.setdefault(repeat, {})[system] = latent_seed
+            configured_seeds.setdefault(repeat, {})[system] = configured_seed
+            rng_observations.setdefault(repeat, {})[system] = dict(observations)
             counts[system] = counts.get(system, 0) + 1
             previous_modes = training_modes.setdefault(system, dict(modes))
             if previous_modes != modes:
@@ -2106,7 +2184,7 @@ def _production_metadata_summary(
                     raise RuntimeError(
                         "package Trainer settings changed across production repeats"
                     )
-    return seeds, counts, training_modes, trainer_settings
+    return configured_seeds, counts, training_modes, trainer_settings, rng_observations
 
 
 def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path:
@@ -2225,27 +2303,68 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         ),
         None,
     )
-    latent_seed_runs, metadata_counts, training_modes, trainer_settings = (
-        _production_metadata_summary(metadata_path)
-    )
+    (
+        configured_seed_runs,
+        metadata_counts,
+        training_modes,
+        trainer_settings,
+        seed_observations,
+    ) = _production_metadata_summary(metadata_path)
     latent_seed_policy: list[dict[str, JsonValue]] = []
-    for repeat, system_seeds in sorted(latent_seed_runs.items()):
+    seed_boundary_passed = True
+    for repeat, system_seeds in sorted(configured_seed_runs.items()):
         seeds = set(system_seeds.values())
         if len(seeds) != 1:
             raise RuntimeError(
                 f"systems used different latent seeds for repeat {repeat}"
             )
+        observations = seed_observations.get(repeat)
+        if observations is None or set(observations) != set(system_seeds):
+            raise RuntimeError(
+                f"production seed observations are incomplete for repeat {repeat}"
+            )
+        pre_model_digests = {
+            cast(str, item["pre_model_rng_digest"]) for item in observations.values()
+        }
+        pre_loader_digests = {
+            cast(str, item["pre_loader_rng_digest"]) for item in observations.values()
+        }
+        latent_seed_digests = {
+            cast(str, item["latent_seed_rng_digest"]) for item in observations.values()
+        }
+        first_loader_sample_ids = [
+            cast(list[str], item["first_loader_sample_ids"])
+            for item in observations.values()
+        ]
+        paired_observation = {
+            "pre_model_rng_digest_equal": len(pre_model_digests) == 1,
+            "pre_loader_rng_digest_equal": len(pre_loader_digests) == 1,
+            "latent_seed_rng_digest_equal": len(latent_seed_digests) == 1,
+            "first_loader_sample_ids_equal": (
+                len(first_loader_sample_ids) == 2
+                and first_loader_sample_ids[0] == first_loader_sample_ids[1]
+            ),
+        }
+        seed_boundary_passed = seed_boundary_passed and all(
+            (
+                paired_observation["pre_model_rng_digest_equal"],
+                paired_observation["latent_seed_rng_digest_equal"],
+                paired_observation["first_loader_sample_ids_equal"],
+            )
+        )
         latent_seed_policy.append(
             {
                 "repeat": repeat,
-                "seed": next(iter(seeds)),
+                "configured_seed": next(iter(seeds)),
                 "systems": sorted(system_seeds),
+                "observations": observations,
+                "paired_observation": paired_observation,
             }
         )
     latent_seeds = sorted(
         {
             seed
-            for system_seeds in latent_seed_runs.values()
+            for system_seeds in configured_seed_runs.values()
             for seed in system_seeds.values()
         }
     )
@@ -2298,6 +2417,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         result="PASS"
         if stream.passed
         and bool(natural_comparison["all_repeats_passed"])
+        and seed_boundary_passed
         and first is None
         and process.returncode == 0
         else "FAIL",
@@ -2312,7 +2432,10 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         },
         vendor_loader_worker_policy=worker_policy,
         latent_seeds=latent_seeds,
-        latent_seed_policy={"per_repeat_run": latent_seed_policy},
+        latent_seed_policy={
+            "per_repeat_run": latent_seed_policy,
+            "observed_seed_boundary_passed": seed_boundary_passed,
+        },
         repeat_run_envelope=repeat_envelope,
         synchronized_layer={
             "status": "not-needed" if first is None else "required",
