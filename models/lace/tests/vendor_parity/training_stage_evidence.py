@@ -978,6 +978,60 @@ def _tensor_hashes(values: Mapping[str, torch.Tensor]) -> dict[str, str]:
     return {name: tensor_sha256(value) for name, value in values.items()}
 
 
+def _canonical_hash_pair(
+    vendor_hashes: Mapping[str, str], package_hashes: Mapping[str, str]
+) -> tuple[dict[str, str], dict[str, str], dict[str, object]]:
+    """Compare hashes after measuring any package parameter-name prefix."""
+    vendor_names = set(vendor_hashes)
+    package_names = set(package_hashes)
+    if vendor_names == package_names:
+        return (
+            dict(vendor_hashes),
+            dict(package_hashes),
+            {
+                "vendor_namespace": "vendor.model.named_parameters()",
+                "package_namespace": "LightningModule.named_parameters()",
+                "package_prefix": "",
+                "matched_parameter_count": len(vendor_names),
+                "renamed": False,
+            },
+        )
+
+    prefixes = {
+        package_name[: -len(vendor_name)]
+        for vendor_name in vendor_names
+        for package_name in package_names
+        if package_name.endswith(vendor_name)
+    }
+    valid_prefixes = sorted(
+        prefix
+        for prefix in prefixes
+        if prefix
+        and all(name.startswith(prefix) for name in package_names)
+        and {name[len(prefix) :] for name in package_names} == vendor_names
+    )
+    if len(valid_prefixes) != 1:
+        raise RuntimeError(
+            "could not measure a unique package parameter-name prefix for "
+            f"{len(vendor_names)} vendor and {len(package_names)} package hashes"
+        )
+    prefix = valid_prefixes[0]
+    canonical_package_hashes = {
+        name[len(prefix) :]: digest for name, digest in package_hashes.items()
+    }
+    return (
+        dict(vendor_hashes),
+        canonical_package_hashes,
+        {
+            "vendor_namespace": "vendor.model.named_parameters()",
+            "package_namespace": "LightningModule.named_parameters()",
+            "package_prefix": prefix,
+            "matched_parameter_count": len(vendor_names),
+            "renamed": True,
+        },
+    )
+
+
 def _mapping_l2_norm(values: Mapping[str, torch.Tensor]) -> float:
     total = torch.zeros((), dtype=torch.float64)
     for value in values.values():
@@ -1251,6 +1305,20 @@ def _natural_pair_records(
     for vendor_record, package_record in zip(
         vendor_runs[0], package_runs[0], strict=True
     ):
+        vendor_gradient_hashes, package_gradient_hashes, gradient_namespace = (
+            _canonical_hash_pair(
+                cast(dict[str, str], vendor_record["gradient_hashes"]),
+                cast(dict[str, str], package_record["gradient_hashes"]),
+            )
+        )
+        (
+            vendor_clipped_gradient_hashes,
+            package_clipped_gradient_hashes,
+            clipped_gradient_namespace,
+        ) = _canonical_hash_pair(
+            cast(dict[str, str], vendor_record["clipped_gradient_hashes"]),
+            cast(dict[str, str], package_record["clipped_gradient_hashes"]),
+        )
         records.append(
             {
                 "step": vendor_record["step"],
@@ -1285,14 +1353,12 @@ def _natural_pair_records(
                     _record_float(vendor_record, "clipped_gradient_norm")
                     - _record_float(package_record, "clipped_gradient_norm")
                 ),
-                "vendor_gradient_hashes": vendor_record["gradient_hashes"],
-                "package_gradient_hashes": package_record["gradient_hashes"],
-                "vendor_clipped_gradient_hashes": vendor_record[
-                    "clipped_gradient_hashes"
-                ],
-                "package_clipped_gradient_hashes": package_record[
-                    "clipped_gradient_hashes"
-                ],
+                "vendor_gradient_hashes": vendor_gradient_hashes,
+                "package_gradient_hashes": package_gradient_hashes,
+                "gradient_hash_namespace": gradient_namespace,
+                "vendor_clipped_gradient_hashes": vendor_clipped_gradient_hashes,
+                "package_clipped_gradient_hashes": package_clipped_gradient_hashes,
+                "clipped_gradient_hash_namespace": clipped_gradient_namespace,
                 "vendor_learning_rate": vendor_record["learning_rate"],
                 "package_learning_rate": package_record["learning_rate"],
                 "vendor_optimizer_state_hashes": vendor_record[
@@ -1313,14 +1379,18 @@ def _natural_pair_records(
                 "package_parameter_hashes": package_record["parameter_hashes"],
                 "vendor_ema_hashes": vendor_record["ema_hashes"],
                 "package_ema_hashes": package_record["ema_hashes"],
-                "gradient_hashes_equal": vendor_record["gradient_hashes"]
-                == package_record["gradient_hashes"],
-                "clipped_gradient_hashes_equal": vendor_record[
-                    "clipped_gradient_hashes"
-                ]
-                == package_record["clipped_gradient_hashes"],
+                "gradient_hashes_equal": vendor_gradient_hashes
+                == package_gradient_hashes,
+                "clipped_gradient_hashes_equal": vendor_clipped_gradient_hashes
+                == package_clipped_gradient_hashes,
                 "optimizer_state_hashes_equal": vendor_record["optimizer_state_hashes"]
                 == package_record["optimizer_state_hashes"],
+                "parameter_hashes_equal": vendor_record["parameter_hashes"]
+                == package_record["parameter_hashes"],
+                "ema_hashes_equal": vendor_record["ema_hashes"]
+                == package_record["ema_hashes"],
+                "learning_rate_equal": vendor_record["learning_rate"]
+                == package_record["learning_rate"],
             }
         )
     envelope_records = [
@@ -1555,8 +1625,15 @@ def run_s3(args: argparse.Namespace) -> Path:
             record
             for record in natural_records
             if _record_float(record, "loss_abs_diff") != 0.0
+            or _record_float(record, "gradient_norm_abs_diff") != 0.0
+            or _record_float(record, "clipped_gradient_norm_abs_diff") != 0.0
             or _record_float(record, "parameter_l2_norm_abs_diff") != 0.0
             or not bool(record["gradient_hashes_equal"])
+            or not bool(record["clipped_gradient_hashes_equal"])
+            or not bool(record["optimizer_state_hashes_equal"])
+            or not bool(record["parameter_hashes_equal"])
+            or not bool(record["ema_hashes_equal"])
+            or not bool(record["learning_rate_equal"])
         ),
         None,
     )
@@ -1614,15 +1691,30 @@ def run_s3(args: argparse.Namespace) -> Path:
             "max_gradient_norm_abs_diff": max(
                 record["gradient_norm_abs_diff"] for record in natural_records
             ),
+            "max_clipped_gradient_norm_abs_diff": max(
+                record["clipped_gradient_norm_abs_diff"] for record in natural_records
+            ),
             "final_vendor_loss": natural_records[-1]["vendor_loss"],
             "final_package_loss": natural_records[-1]["package_loss"],
             "first_nonzero_difference": natural_first_nonzero,
             "first_gradient_hash_difference": natural_first_gradient_hash_difference,
             "first_relative_loss_divergence_over_1e-3": natural_first_divergence,
+            "gradient_hash_namespace": natural_records[0]["gradient_hash_namespace"],
+            "clipped_gradient_hash_namespace": natural_records[0][
+                "clipped_gradient_hash_namespace"
+            ],
             "exact": all(
                 record["loss_abs_diff"] == 0.0
+                and record["gradient_norm_abs_diff"] == 0.0
+                and record["clipped_gradient_norm_abs_diff"] == 0.0
                 and record["parameter_l2_norm_abs_diff"] == 0.0
                 and record["batch_ids_equal"]
+                and record["gradient_hashes_equal"]
+                and record["clipped_gradient_hashes_equal"]
+                and record["optimizer_state_hashes_equal"]
+                and record["parameter_hashes_equal"]
+                and record["ema_hashes_equal"]
+                and record["learning_rate_equal"]
                 for record in natural_records
             ),
             "repeat_run_envelope": repeat_envelope,
