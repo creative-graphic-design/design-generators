@@ -1868,6 +1868,7 @@ def _evaluation_parity(
         raise ValueError(
             "evaluation-path parity must use the vendor default batch size 256"
         )
+    checkpoint = checkpoint.resolve()
     device = torch.device(device_name)
     output_root = output_root.resolve()
     spec = get_dataset_spec(dataset)
