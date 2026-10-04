@@ -14,7 +14,13 @@ from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Protocol, cast  # noqa: TID251 - vendor APIs are dynamic.
+from typing import (
+    TYPE_CHECKING,
+    Any,  # noqa: TID251 - vendor APIs are dynamic.
+    Final,
+    Protocol,
+    cast,
+)  # noqa: TID251 - vendor APIs are dynamic.
 
 import pytest
 import torch
@@ -55,6 +61,9 @@ from layout_corrector.training.parity import (
     build_layout_corrector_step_trace,
     compare_layout_corrector_step,
 )
+
+if TYPE_CHECKING:
+    from layout_corrector.training.parity import DigestValue
 from layout_corrector.training.config import (
     LayoutCorrectorTrainingDatasetName,
     LayoutCorrectorTrainingSplit,
@@ -72,6 +81,7 @@ DATASETS: Final[tuple[LayoutCorrectorTrainingDatasetName, ...]] = (
 CORRECTOR_HIDDEN_SIZE: Final = 432
 CORRECTOR_INTERMEDIATE_SIZE: Final = 1728
 EVALUATION_BATCH_SIZE: Final = 512
+
 EVALUATION_CONDITIONS: Final[tuple[str, ...]] = ("unconditional", "c", "cwh")
 EVALUATION_CORRECTOR_T_LIST: Final[tuple[int, ...]] = (10, 20, 30)
 EVALUATION_SEED: Final[int] = 0
@@ -1253,7 +1263,9 @@ def _run_natural_side(
         {
             "scheduler_class": type(scheduler).__name__,
             "scheduler_state": scheduler.state_dict(),
-            "scheduler_state_digest": _scheduler_state_digest(scheduler.state_dict()),
+            "scheduler_state_digest": _scheduler_state_digest(
+                cast("DigestValue", scheduler.state_dict())
+            ),
             "validation_batches": len(validation_loader),
             "validation_executed": False,
             "validation_loss": None,
@@ -2008,10 +2020,14 @@ def _vendor_import_roots(scratch: Path) -> tuple[Path, ...]:
     return (scratch, scratch / "src", scratch / "src" / "trainer")
 
 
-def _load_vendor_metadata(vendor_path: Path, scratch: Path) -> dict[str, Any]:
+def _prepend_vendor_import_roots(scratch: Path) -> None:
     for import_root in reversed(_vendor_import_roots(scratch)):
         if str(import_root) not in sys.path:
             sys.path.insert(0, str(import_root))
+
+
+def _load_vendor_metadata(vendor_path: Path, scratch: Path) -> dict[str, Any]:
+    _prepend_vendor_import_roots(scratch)
     with vendor_path.open("rb") as handle:
         return cast(dict[str, Any], pickle.load(handle))
 
@@ -2315,6 +2331,7 @@ def _vendor_evaluation_inputs(
     vendor_pkl_paths: dict[str, Path], scratch: Path
 ) -> dict[str, list[dict[str, Any]]]:
     """Reconstruct the conditioning tensors from the original evaluator path."""
+    _prepend_vendor_import_roots(scratch)
     from hydra.utils import instantiate
     from trainer.trainer.helpers.task import get_cond
     from trainer.trainer.corrector_test import build_tokenizer

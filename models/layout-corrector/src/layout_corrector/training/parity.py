@@ -127,7 +127,7 @@ def _rng_digest(state: RNGState) -> str:
 
 def _scheduler_state_digest(state: DigestValue) -> str:
     """Digest the configured scheduler state for the production record."""
-    return _nested_value_digest(state)
+    return _nested_value_digest(cast("DigestValue", state))
 
 
 class ProductionTraceCallback(Callback):
