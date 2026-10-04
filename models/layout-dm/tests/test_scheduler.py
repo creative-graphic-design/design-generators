@@ -71,3 +71,22 @@ def test_scheduler_masks_weak_condition_tokens_at_initialization():
     )
 
     assert torch.equal(torch.argmax(sample, dim=1), torch.tensor([[1, 3]]))
+
+
+def test_scheduler_restricts_padding_for_conditional_attributes():
+    scheduler = LayoutDMScheduler(
+        vocab_size=4,
+        mask_token_id=3,
+        pad_token_id=2,
+    )
+    condition = LayoutDMCondition(
+        input_ids=torch.tensor([[1, 3]]),
+        mask=torch.tensor([[True, False]]),
+        type="c",
+    )
+    log_prob = torch.zeros(1, 4, 2)
+
+    output = scheduler.apply_condition(log_prob, condition)
+
+    assert output[0, 2, 1].item() == pytest.approx(math.log(1.0e-30))
+    assert output[0, 1, 0].item() == pytest.approx(0.0)

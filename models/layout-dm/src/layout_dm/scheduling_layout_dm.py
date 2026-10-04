@@ -409,12 +409,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         """
         log_x_recon = self.predict_start(denoiser_output)
         model_log_prob = self.q_posterior(log_x_recon, sample, timestep)
-        if condition is not None:
-            strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
-            strong_log_prob = index_to_log_onehot(
-                condition.input_ids.to(model_log_prob.device), self.vocab_size
-            )
-            model_log_prob = torch.where(strong_mask, strong_log_prob, model_log_prob)
+        model_log_prob = self.apply_condition(model_log_prob, condition)
         if sampling.name is SamplingMode.random:
             probabilities = (model_log_prob / sampling.temperature).softmax(dim=1)
             ids = multinomial(
@@ -439,6 +434,35 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
             pred_original_sample=log_x_recon,
             model_log_prob=model_log_prob,
         )
+
+    def apply_condition(
+        self,
+        model_log_prob: Float[torch.Tensor, "batch vocab tokens"],
+        condition: LayoutDMCondition | None,
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
+        """Apply strong conditions and conditional padding restrictions."""
+        if condition is None:
+            return model_log_prob
+
+        strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
+        strong_log_prob = index_to_log_onehot(
+            condition.input_ids.to(model_log_prob.device), self.vocab_size
+        )
+        model_log_prob = torch.where(strong_mask, strong_log_prob, model_log_prob)
+        if condition.type not in ("c", "cwh"):
+            return model_log_prob
+
+        attribute_indices = torch.arange(
+            model_log_prob.shape[-1], device=model_log_prob.device
+        ).remainder(len(self.var_order))
+        pad_positions = (attribute_indices != 0) & (
+            condition.input_ids.to(model_log_prob.device) != self.pad_token_id
+        )
+        pad_class = torch.arange(
+            self.vocab_size, device=model_log_prob.device
+        ).reshape(1, -1, 1) == self.pad_token_id
+        restricted = pad_positions.unsqueeze(1) & pad_class
+        return model_log_prob.masked_fill(restricted, math.log(1.0e-30))
 
 
 def _alpha_schedule(

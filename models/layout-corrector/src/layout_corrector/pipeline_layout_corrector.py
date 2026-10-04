@@ -383,15 +383,9 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                     model_log_prob, current, timestep_batch
                 )
                 model_log_prob[:, self.layout_dm.tokenizer.mask_token_id, :] = -70.0
-            if condition is not None:
-                strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
-                strong_log_prob = index_to_log_onehot(
-                    condition.input_ids.to(model_log_prob.device),
-                    self.layout_dm.scheduler.vocab_size,
-                )
-                model_log_prob = torch.where(
-                    strong_mask, strong_log_prob, model_log_prob
-                )
+            model_log_prob = self.layout_dm.scheduler.apply_condition(
+                model_log_prob, condition
+            )
             x0_recon_ids = multinomial(
                 (model_log_prob / sampling.temperature)
                 .softmax(dim=1)
