@@ -857,6 +857,26 @@ def _stage_s0(device: torch.device) -> Path:
         vendor_g.state_dict()["state"] == package_g.state_dict()["state"] == {}
         and vendor_d.state_dict()["state"] == package_d.state_dict()["state"] == {}
     )
+    vendor_generator_order = _optimizer_parameter_names(
+        vendor_g,
+        {"generator": vendor_generator, "discriminator": vendor_discriminator},
+    )
+    package_generator_order = _optimizer_parameter_names(
+        package_g,
+        {"generator": package.generator, "discriminator": package.discriminator},
+    )
+    vendor_discriminator_order = _optimizer_parameter_names(
+        vendor_d,
+        {"generator": vendor_generator, "discriminator": vendor_discriminator},
+    )
+    package_discriminator_order = _optimizer_parameter_names(
+        package_d,
+        {"generator": package.generator, "discriminator": package.discriminator},
+    )
+    optimizer_parameter_order_equal = (
+        vendor_generator_order == package_generator_order
+        and vendor_discriminator_order == package_discriminator_order
+    )
     dataset_equal = all(
         len(vendor_rows[split]) == len(package_rows[split])
         and [str(row.attr["name"]) for row in vendor_rows[split]]
@@ -871,6 +891,7 @@ def _stage_s0(device: torch.device) -> Path:
         and initialization_equal
         and optimizer_defaults_equal
         and optimizer_state_equal
+        and optimizer_parameter_order_equal
         and sum(p.numel() for p in vendor_generator.parameters())
         == sum(p.numel() for p in package.generator.parameters())
         and sum(p.numel() for p in vendor_discriminator.parameters())
@@ -899,10 +920,48 @@ def _stage_s0(device: torch.device) -> Path:
             ),
         },
         state_dict_key_map={
-            "generator_equal": list(vendor_generator.state_dict())
-            == list(package.generator.state_dict()),
-            "discriminator_equal": list(vendor_discriminator.state_dict())
-            == list(package.discriminator.state_dict()),
+            "generator": {
+                "map": dict(
+                    zip(
+                        vendor_generator.state_dict(),
+                        package.generator.state_dict(),
+                        strict=True,
+                    )
+                ),
+                "missing": sorted(
+                    set(vendor_generator.state_dict())
+                    - set(package.generator.state_dict())
+                ),
+                "extra": sorted(
+                    set(package.generator.state_dict())
+                    - set(vendor_generator.state_dict())
+                ),
+                "allowed_extra": [],
+                "values_equal": _state_values_equal(
+                    vendor_generator_state, package_generator_state
+                ),
+            },
+            "discriminator": {
+                "map": dict(
+                    zip(
+                        vendor_discriminator.state_dict(),
+                        package.discriminator.state_dict(),
+                        strict=True,
+                    )
+                ),
+                "missing": sorted(
+                    set(vendor_discriminator.state_dict())
+                    - set(package.discriminator.state_dict())
+                ),
+                "extra": sorted(
+                    set(package.discriminator.state_dict())
+                    - set(vendor_discriminator.state_dict())
+                ),
+                "allowed_extra": [],
+                "values_equal": _state_values_equal(
+                    vendor_discriminator_state, package_discriminator_state
+                ),
+            },
         },
         optimizer_static_state={
             "class": "torch.optim.Adam",
@@ -912,6 +971,13 @@ def _stage_s0(device: torch.device) -> Path:
             "package_discriminator_defaults": package_d.defaults,
             "defaults_equal": optimizer_defaults_equal,
             "state_empty": optimizer_state_equal,
+            "parameter_order": {
+                "vendor_generator": vendor_generator_order,
+                "package_generator": package_generator_order,
+                "vendor_discriminator": vendor_discriminator_order,
+                "package_discriminator": package_discriminator_order,
+            },
+            "parameter_order_equal": optimizer_parameter_order_equal,
         },
         dataset_static={
             split: {
@@ -929,7 +995,11 @@ def _stage_s0(device: torch.device) -> Path:
             for split in vendor_rows
         },
         initial_state_equal=initialization_equal,
-        optimizer_static_equal=optimizer_defaults_equal and optimizer_state_equal,
+        optimizer_static_equal=(
+            optimizer_defaults_equal
+            and optimizer_state_equal
+            and optimizer_parameter_order_equal
+        ),
         inactive_rules=["scheduler", "EMA", "AMP", "multi-worker randomness in S0"],
         first_divergence=None,
     )
@@ -1549,8 +1619,7 @@ def _package_training_trajectory(
             "fit_loop_batches": trainer.fit_loop.max_batches,
             "model_training_at_optimizer_step": training_modes_at_step,
         },
-        "fit_calls": 1,
-        "latent_seed": seed,
+        "requested_latent_seed": seed,
     }
     return capture.record_count, metadata
 
@@ -1859,8 +1928,7 @@ def _vendor_training_trajectory(
             ["python", str((VENDOR_ROOT / "train.py").relative_to(ROOT)), *args]
         ),
         "training_module_calls": record_count,
-        "loader_num_workers": loader_num_workers,
-        "loader_context": "spawn" if loader_num_workers else "in-process",
+        "requested_loader_num_workers": loader_num_workers,
         "optimizer_creation_order": [
             _optimizer_parameter_names(
                 optimizer.raw,
@@ -1872,7 +1940,7 @@ def _vendor_training_trajectory(
             for optimizer in captured_optimizers
         ],
         "model_training_at_optimizer_step": training_modes_at_step,
-        "latent_seed": seed,
+        "requested_latent_seed": seed,
     }
     del device
     return record_count, metadata
@@ -1921,10 +1989,12 @@ def _production_metadata_summary(
     dict[int, dict[str, int]],
     dict[str, int],
     dict[str, dict[str, bool]],
+    dict[str, JsonValue],
 ]:
     seeds: dict[int, dict[str, int]] = {}
     counts: dict[str, int] = {}
     training_modes: dict[str, dict[str, bool]] = {}
+    trainer_settings: dict[str, JsonValue] = {}
     with path.open() as handle:
         for line in handle:
             item = cast(dict[str, JsonValue], json.loads(line))
@@ -1937,7 +2007,7 @@ def _production_metadata_summary(
                 or not isinstance(metadata, dict)
             ):
                 raise TypeError("production metadata JSONL record has invalid fields")
-            latent_seed = metadata.get("latent_seed")
+            latent_seed = metadata.get("requested_latent_seed")
             if not isinstance(latent_seed, int):
                 raise TypeError("production metadata is missing its latent seed")
             modes = metadata.get("model_training_at_optimizer_step")
@@ -1962,7 +2032,17 @@ def _production_metadata_summary(
                 raise RuntimeError(
                     f"production training modes changed across {system} repeats"
                 )
-    return seeds, counts, training_modes
+            trainer = metadata.get("trainer")
+            if system == "package":
+                if not isinstance(trainer, dict):
+                    raise TypeError("package production metadata lacks Trainer settings")
+                if not trainer_settings:
+                    trainer_settings = dict(trainer)
+                elif trainer_settings != trainer:
+                    raise RuntimeError(
+                        "package Trainer settings changed across production repeats"
+                    )
+    return seeds, counts, training_modes, trainer_settings
 
 
 def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path:
@@ -2034,17 +2114,55 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
     package_repeats = _trajectory_repeat_ids(natural_path, "package")
     if not vendor_repeats or not package_repeats:
         raise RuntimeError("natural trajectory is missing a system")
-    natural_comparison = _trajectory_comparison_summary(
-        natural_path,
-        "vendor",
-        vendor_repeats[0],
-        "package",
-        package_repeats[0],
-        steps,
+    if vendor_repeats != package_repeats:
+        raise RuntimeError(
+            f"natural trajectory repeats differ: vendor={vendor_repeats}, "
+            f"package={package_repeats}"
+        )
+    repeat_comparisons: list[dict[str, JsonValue]] = []
+    for repeat in vendor_repeats:
+        repeat_comparisons.append(
+            {
+                "repeat": repeat,
+                "latent_seed": S3_LATENT_SEED + repeat,
+                "comparison": _trajectory_comparison_summary(
+                    natural_path,
+                    "vendor",
+                    repeat,
+                    "package",
+                    repeat,
+                    steps,
+                ),
+            }
+        )
+    natural_comparison: dict[str, JsonValue] = {
+        "asserted": True,
+        "population": f"{len(repeat_comparisons)} repeats x {steps} optimizer steps "
+        "and all recorded scalar fields per step",
+        "all_repeats_passed": all(
+            cast(dict[str, JsonValue], item["comparison"])["within_tolerance"]
+            and cast(
+                dict[str, JsonValue],
+                cast(dict[str, JsonValue], item["comparison"])[
+                    "relative_loss_criterion"
+                ],
+            )["outcome"]
+            == "PASS"
+            for item in repeat_comparisons
+        ),
+        "repeat_comparisons": repeat_comparisons,
+    }
+    first = next(
+        (
+            cast(dict[str, JsonValue], item["comparison"])["first_divergence"]
+            for item in repeat_comparisons
+            if cast(dict[str, JsonValue], item["comparison"])["first_divergence"]
+            is not None
+        ),
+        None,
     )
-    first = cast(dict[str, JsonValue] | None, natural_comparison["first_divergence"])
-    latent_seed_runs, metadata_counts, training_modes = _production_metadata_summary(
-        metadata_path
+    latent_seed_runs, metadata_counts, training_modes, trainer_settings = (
+        _production_metadata_summary(metadata_path)
     )
     latent_seed_policy: list[dict[str, JsonValue]] = []
     for repeat, system_seeds in sorted(latent_seed_runs.items()):
@@ -2094,7 +2212,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             )
             + "\n"
         )
-    production_path = OUTPUT_ROOT / "s3-lockstep" / "production-wiring.json"
+    production_path = OUTPUT_ROOT / "s3-lockstep" / "production-cli-smoke.txt"
     command = [
         sys.executable,
         "-m",
@@ -2114,7 +2232,10 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         "s3-lockstep",
         started,
         result="PASS"
-        if stream.passed and first is None and process.returncode == 0
+        if stream.passed
+        and bool(natural_comparison["all_repeats_passed"])
+        and first is None
+        and process.returncode == 0
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
         natural_steps=steps,
@@ -2134,9 +2255,12 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             "first_natural_divergence": first,
         },
         production_wiring={
-            "command": " ".join(command),
-            "returncode": process.returncode,
-            "artifact": str(production_path.relative_to(ROOT)),
+            "trainer_settings": trainer_settings,
+            "cli_smoke": {
+                "command": " ".join(command),
+                "returncode": process.returncode,
+                "artifact": str(production_path.relative_to(ROOT)),
+            },
             "metadata_artifact": str(metadata_path.relative_to(ROOT)),
             "metadata_record_counts": metadata_counts,
             "package_trainer_run_count": metadata_counts.get("package", 0),

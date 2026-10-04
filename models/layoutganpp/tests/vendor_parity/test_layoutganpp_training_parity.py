@@ -66,6 +66,7 @@ def _build_fixture(device: torch.device) -> Fixture:
     vendor_discriminator = discriminator_cls(5, d_model=256, nhead=4, num_layers=8).to(
         device
     )
+    torch.manual_seed(123)
     target = LayoutGANPPTrainingModule(
         dataset_name="magazine",
         latent_size=4,
@@ -227,6 +228,18 @@ def test_s0_training_static_state_matches_vendor() -> None:
     assert list(fixture.target.discriminator.state_dict()) == list(
         fixture.vendor_discriminator.state_dict()
     )
+    for package_value, vendor_value in zip(
+        fixture.target.generator.state_dict().values(),
+        fixture.vendor_generator.state_dict().values(),
+        strict=True,
+    ):
+        assert torch.equal(package_value, vendor_value)
+    for package_value, vendor_value in zip(
+        fixture.target.discriminator.state_dict().values(),
+        fixture.vendor_discriminator.state_dict().values(),
+        strict=True,
+    ):
+        assert torch.equal(package_value, vendor_value)
     assert generator_cls and discriminator_cls
     assert len(load_rows("magazine", DATA_ROOT, "train")) > 0
     vendor_g = torch.optim.Adam(fixture.vendor_generator.parameters(), lr=1.0e-5)
