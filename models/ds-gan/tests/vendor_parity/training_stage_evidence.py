@@ -53,6 +53,7 @@ MAX_ELEM = 32
 SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
+S2_VENDOR_SELF_REPEATS = 12
 _DETERMINISTIC_WARNINGS: list[str] = []
 
 
@@ -291,6 +292,19 @@ def _vendor_main() -> Any:
         vendor_main.coef = [0.1, 0.8, 1, 1]
         _VENDOR_MAIN = vendor_main
     return _VENDOR_MAIN
+
+
+def _vendor_cross_entropy_operator() -> dict[str, str | int]:
+    path = VENDOR / "RecLoss.py"
+    for line_number, line in enumerate(path.read_text().splitlines(), 1):
+        if "F.cross_entropy(" in line:
+            return {
+                "path": str(path.relative_to(ROOT)),
+                "line": line_number,
+                "expression": line.strip(),
+            }
+
+    raise RuntimeError("vendor cross_entropy operator was not found")
 
 
 def _configs() -> tuple[Any, Any, dict[str, Any], dict[str, Any]]:
@@ -986,6 +1000,100 @@ def _package_step(
     return dict(module.latest_step_trace)
 
 
+def _run_s2_vendor_self_repeat(repeat: int, json_path: Path) -> None:
+    _set_determinism(SEED)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    (
+        vendor_generator,
+        vendor_discriminator,
+        package_generator,
+        package_discriminator,
+        generator_config,
+        discriminator_config,
+    ) = _models(device)
+    _copy_module_state(package_generator, vendor_generator)
+    _copy_module_state(package_discriminator, vendor_discriminator)
+    from ds_gan.training.lightning_module import DSGANTrainingModule
+
+    package_module = DSGANTrainingModule(
+        config=generator_config,
+        discriminator_config=discriminator_config,
+        generator=package_generator,
+        discriminator=package_discriminator,
+    ).to(device)
+    vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
+    _package_optimizers_and_schedulers(package_module)
+    _schedulers(vendor_optimizers)
+    vendor_batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
+    with _capture_deterministic_warnings():
+        vendor_trace = _vendor_step(
+            vendor_generator,
+            vendor_discriminator,
+            vendor_batch,
+            *vendor_optimizers,
+            _vendor_criterion(device),
+            1,
+            initial_layout,
+        )
+    json_path.write_text(
+        json.dumps(
+            {
+                **_metadata(),
+                "stage": "S2-vendor-self-repeat",
+                "repeat": repeat,
+                "process_id": os.getpid(),
+                "device": str(device),
+                "batch": batch_meta,
+                "initial_layout_sha256": tensor_sha256(initial_layout),
+                "vendor_operator": _vendor_cross_entropy_operator(),
+                "trace_values": {
+                    "loss_reconstruction": float(
+                        vendor_trace["loss_reconstruction"].item()
+                    )
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _run_s2_vendor_self_repeat_process(repeat: int) -> dict[str, Any]:
+    artifact_root = EVIDENCE / "s2-optimizer-step-attempts"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    json_path = artifact_root / f"vendor-self-repeat-{repeat}.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "s2-vendor-self-repeat",
+            str(repeat),
+            str(json_path),
+        ],
+        check=True,
+        cwd=ROOT,
+    )
+    return json.loads(json_path.read_text())
+
+
+def _scalar_self_envelope(runs: list[dict[str, Any]], field: str) -> dict[str, Any]:
+    values = [float(run["trace_values"][field]) for run in runs]
+    minimum = min(values)
+    maximum = max(values)
+    maximum_abs = maximum - minimum
+    denominator = max(abs(minimum), abs(maximum))
+    return {
+        "field": field,
+        "values": values,
+        "min": minimum,
+        "max": maximum,
+        "max_abs_difference": maximum_abs,
+        "max_relative_difference": maximum_abs / denominator if denominator else 0.0,
+        "process_ids": [run["process_id"] for run in runs],
+    }
+
+
 class _NaturalParityCallback(Callback):
     def __init__(
         self,
@@ -1524,16 +1632,72 @@ def run_s2() -> Path:
             config["frequency"] for config in package_scheduler_configs
         ],
     }
+    vendor_self_runs = [
+        _run_s2_vendor_self_repeat_process(repeat)
+        for repeat in range(1, S2_VENDOR_SELF_REPEATS + 1)
+    ]
+    vendor_self_envelope = _scalar_self_envelope(
+        vendor_self_runs, "loss_reconstruction"
+    )
+    vendor_operator = _vendor_cross_entropy_operator()
+    package_difference = trace_comparison["first_difference"]
+    trace_inside_envelope = (
+        package_difference is None
+        or trace_comparison["max_abs_difference"]
+        <= vendor_self_envelope["max_abs_difference"]
+    )
+    self_processes_are_distinct = len(
+        {run["process_id"] for run in vendor_self_runs}
+    ) == len(vendor_self_runs)
+    self_source_is_current = all(
+        run["source_commit"] == _git("rev-parse", "HEAD") for run in vendor_self_runs
+    )
+    self_seed_is_paired = all(run["seed"] == SEED for run in vendor_self_runs)
+    self_layout_is_paired = (
+        len({run["initial_layout_sha256"] for run in vendor_self_runs}) == 1
+    )
+    self_warning_is_captured = all(
+        run["deterministic_warning"]["contains_nll_loss2d"] for run in vendor_self_runs
+    )
+    cause = {
+        "kind": "nondeterministic CUDA nll_loss2d forward reduction",
+        "operator": vendor_operator,
+        "package_operator": "torch.nn.functional.cross_entropy",
+        "vendor_self_repeat": {
+            "repeat_count": len(vendor_self_runs),
+            "envelope": vendor_self_envelope,
+            "processes_are_distinct": self_processes_are_distinct,
+            "source_is_current": self_source_is_current,
+            "seed_is_paired": self_seed_is_paired,
+            "initial_layout_is_paired": self_layout_is_paired,
+            "warning_is_captured": self_warning_is_captured,
+        },
+        "package_vendor_difference": {
+            "first_difference": package_difference,
+            "max_abs_difference": trace_comparison["max_abs_difference"],
+            "max_relative_difference": trace_comparison["max_relative_difference"],
+            "inside_vendor_self_envelope": trace_inside_envelope,
+        },
+    }
+    cause_passed = (
+        package_difference is not None
+        and package_difference["name"] == "loss_reconstruction"
+        and trace_inside_envelope
+        and self_processes_are_distinct
+        and self_source_is_current
+        and self_seed_is_paired
+        and self_layout_is_paired
+        and self_warning_is_captured
+    )
     passed = all(
         comparison["passed"]
         for comparison in (
-            trace_comparison,
             state_comparison,
             gradient_comparison,
             optimizer_comparison,
             scheduler_comparison,
         )
-    )
+    ) and (trace_comparison["passed"] or cause_passed)
     return _write(
         "s2-optimizer-step",
         {
@@ -1546,6 +1710,7 @@ def run_s2() -> Path:
             "post_step_parameters": state_comparison,
             "optimizer_state": optimizer_comparison,
             "scheduler": scheduler_comparison,
+            "cause": cause,
         },
     )
 
@@ -2749,6 +2914,7 @@ def main() -> None:
             "s0-static",
             "s1-forward-loss",
             "s2-optimizer-step",
+            "s2-vendor-self-repeat",
             "s3-lockstep",
             "s3-lockstep-synchronized",
             "s3-natural-repeat",
@@ -2772,6 +2938,11 @@ def main() -> None:
         "s4-bridge": run_s4_bridge,
         "s4-evaluation": run_s4,
     }
+    if args.stage == "s2-vendor-self-repeat":
+        if args.repeat is None or args.json_path is None:
+            raise ValueError("S2 vendor self repeat requires repeat and JSON path")
+        _run_s2_vendor_self_repeat(args.repeat, args.json_path)
+        return
     if args.stage == "s3-natural-repeat":
         if args.repeat is None or args.json_path is None or args.state_path is None:
             raise ValueError(
