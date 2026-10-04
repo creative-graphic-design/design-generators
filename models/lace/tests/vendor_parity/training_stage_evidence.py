@@ -392,7 +392,8 @@ def _vendor_training_iteration(
         name: _parameter_grad(parameter).detach().clone()
         for name, parameter in named_parameters.items()
     }
-    gradient_norm = torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
+    gradient_norm = _named_gradient_norm(named_parameters)
+    torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
     clipped_gradients = {
         name: _parameter_grad(parameter).detach().clone()
         for name, parameter in named_parameters.items()
@@ -405,11 +406,11 @@ def _vendor_training_iteration(
         "step": step,
         "batch_ids": batch_ids,
         "loss": float(trace["train_loss"].item()),
-        "gradient_norm": float(gradient_norm.item()),
+        "gradient_norm": gradient_norm,
         "learning_rate": optimizer.param_groups[0]["lr"],
         "gradient_hashes": _tensor_hashes(gradients),
         "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
-        "clipped_gradient_norm": _gradient_norm(named_parameters.values()),
+        "clipped_gradient_norm": _named_gradient_norm(named_parameters),
         "optimizer_state_hashes": _tensor_hashes(optimizer_state),
         "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
         "parameter_l2_norm": _mapping_l2_norm(vendor.model.state_dict()),
@@ -828,8 +829,10 @@ def run_s2(args: argparse.Namespace) -> Path:
             },
         ),
     )
-    vendor_grad_norm = torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
-    package_grad_norm = torch.nn.utils.clip_grad_norm_(target.model.parameters(), 1.0)
+    vendor_grad_norm = _named_gradient_norm(vendor_parameters)
+    package_grad_norm = _named_gradient_norm(package_parameters)
+    torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
+    torch.nn.utils.clip_grad_norm_(target.model.parameters(), 1.0)
     clipped_report = compare_step_trace(
         build_step_trace(
             "vendor-clipped",
@@ -934,9 +937,7 @@ def run_s2(args: argparse.Namespace) -> Path:
                 }
             ),
         },
-        "gradient_norm_max_abs_diff": float(
-            (vendor_grad_norm - package_grad_norm).abs().item()
-        ),
+        "gradient_norm_max_abs_diff": abs(vendor_grad_norm - package_grad_norm),
         "parameter_max_abs_diff": max(
             (item.max_abs_diff for item in post_report.comparisons), default=0.0
         ),
@@ -979,7 +980,11 @@ def _tensor_hashes(values: Mapping[str, torch.Tensor]) -> dict[str, str]:
 
 
 def _canonical_hash_pair(
-    vendor_hashes: Mapping[str, str], package_hashes: Mapping[str, str]
+    vendor_hashes: Mapping[str, str],
+    package_hashes: Mapping[str, str],
+    *,
+    vendor_namespace: str,
+    package_namespace: str,
 ) -> tuple[dict[str, str], dict[str, str], dict[str, object]]:
     """Compare hashes after measuring any package parameter-name prefix."""
     vendor_names = set(vendor_hashes)
@@ -989,8 +994,8 @@ def _canonical_hash_pair(
             dict(vendor_hashes),
             dict(package_hashes),
             {
-                "vendor_namespace": "vendor.model.named_parameters()",
-                "package_namespace": "LightningModule.named_parameters()",
+                "vendor_namespace": vendor_namespace,
+                "package_namespace": package_namespace,
                 "package_prefix": "",
                 "matched_parameter_count": len(vendor_names),
                 "renamed": False,
@@ -1023,8 +1028,8 @@ def _canonical_hash_pair(
         dict(vendor_hashes),
         canonical_package_hashes,
         {
-            "vendor_namespace": "vendor.model.named_parameters()",
-            "package_namespace": "LightningModule.named_parameters()",
+            "vendor_namespace": vendor_namespace,
+            "package_namespace": package_namespace,
             "package_prefix": prefix,
             "matched_parameter_count": len(vendor_names),
             "renamed": True,
@@ -1034,7 +1039,8 @@ def _canonical_hash_pair(
 
 def _mapping_l2_norm(values: Mapping[str, torch.Tensor]) -> float:
     total = torch.zeros((), dtype=torch.float64)
-    for value in values.values():
+    for name in sorted(values):
+        value = values[name]
         total += value.detach().double().square().sum().cpu()
     return float(total.sqrt().item())
 
@@ -1063,9 +1069,10 @@ def _batch_tensors(
     }
 
 
-def _gradient_norm(parameters: Iterable[nn.Parameter]) -> float:
+def _named_gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
     squared_norm = torch.zeros((), dtype=torch.float64)
-    for parameter in parameters:
+    for name in sorted(parameters):
+        parameter = parameters[name]
         if parameter.grad is not None:
             squared_norm += parameter.grad.detach().double().square().sum().cpu()
     return float(squared_norm.sqrt().item())
@@ -1106,7 +1113,7 @@ class _PackageNaturalTraceCallback(Callback):
                 if parameter.grad is not None
             }
         )
-        self._pre_clip_norm = _gradient_norm(pl_module.parameters())
+        self._pre_clip_norm = _named_gradient_norm(parameters)
 
     def on_before_optimizer_step(
         self,
@@ -1147,7 +1154,7 @@ class _PackageNaturalTraceCallback(Callback):
         self._record.update(
             {
                 "clipped_gradient_hashes": _tensor_hashes(gradients),
-                "clipped_gradient_norm": _gradient_norm(parameters.values()),
+                "clipped_gradient_norm": _named_gradient_norm(parameters),
             }
         )
         optimizer_state = _optimizer_state_tensors(optimizer)
@@ -1309,6 +1316,8 @@ def _natural_pair_records(
             _canonical_hash_pair(
                 cast(dict[str, str], vendor_record["gradient_hashes"]),
                 cast(dict[str, str], package_record["gradient_hashes"]),
+                vendor_namespace="vendor.model.named_parameters()",
+                package_namespace="LightningModule.named_parameters()",
             )
         )
         (
@@ -1318,6 +1327,38 @@ def _natural_pair_records(
         ) = _canonical_hash_pair(
             cast(dict[str, str], vendor_record["clipped_gradient_hashes"]),
             cast(dict[str, str], package_record["clipped_gradient_hashes"]),
+            vendor_namespace="vendor.model.named_parameters()",
+            package_namespace="LightningModule.named_parameters()",
+        )
+        (
+            vendor_optimizer_state_hashes,
+            package_optimizer_state_hashes,
+            optimizer_state_namespace,
+        ) = _canonical_hash_pair(
+            cast(dict[str, str], vendor_record["optimizer_state_hashes"]),
+            cast(dict[str, str], package_record["optimizer_state_hashes"]),
+            vendor_namespace="vendor optimizer state tensors",
+            package_namespace="package optimizer state tensors",
+        )
+        (
+            vendor_parameter_hashes,
+            package_parameter_hashes,
+            parameter_namespace,
+        ) = _canonical_hash_pair(
+            cast(dict[str, str], vendor_record["parameter_hashes"]),
+            cast(dict[str, str], package_record["parameter_hashes"]),
+            vendor_namespace="vendor.model.state_dict()",
+            package_namespace="package.model.state_dict()",
+        )
+        (
+            vendor_ema_hashes,
+            package_ema_hashes,
+            ema_namespace,
+        ) = _canonical_hash_pair(
+            cast(dict[str, str], vendor_record["ema_hashes"]),
+            cast(dict[str, str], package_record["ema_hashes"]),
+            vendor_namespace="vendor EMA shadow state",
+            package_namespace="package EMA shadow state",
         )
         records.append(
             {
@@ -1361,12 +1402,9 @@ def _natural_pair_records(
                 "clipped_gradient_hash_namespace": clipped_gradient_namespace,
                 "vendor_learning_rate": vendor_record["learning_rate"],
                 "package_learning_rate": package_record["learning_rate"],
-                "vendor_optimizer_state_hashes": vendor_record[
-                    "optimizer_state_hashes"
-                ],
-                "package_optimizer_state_hashes": package_record[
-                    "optimizer_state_hashes"
-                ],
+                "vendor_optimizer_state_hashes": vendor_optimizer_state_hashes,
+                "package_optimizer_state_hashes": package_optimizer_state_hashes,
+                "optimizer_state_hash_namespace": optimizer_state_namespace,
                 "optimizer_state_l2_norm_abs_diff": abs(
                     _record_float(vendor_record, "optimizer_state_l2_norm")
                     - _record_float(package_record, "optimizer_state_l2_norm")
@@ -1375,20 +1413,21 @@ def _natural_pair_records(
                     _record_float(vendor_record, "parameter_l2_norm")
                     - _record_float(package_record, "parameter_l2_norm")
                 ),
-                "vendor_parameter_hashes": vendor_record["parameter_hashes"],
-                "package_parameter_hashes": package_record["parameter_hashes"],
-                "vendor_ema_hashes": vendor_record["ema_hashes"],
-                "package_ema_hashes": package_record["ema_hashes"],
+                "vendor_parameter_hashes": vendor_parameter_hashes,
+                "package_parameter_hashes": package_parameter_hashes,
+                "parameter_hash_namespace": parameter_namespace,
+                "vendor_ema_hashes": vendor_ema_hashes,
+                "package_ema_hashes": package_ema_hashes,
+                "ema_hash_namespace": ema_namespace,
                 "gradient_hashes_equal": vendor_gradient_hashes
                 == package_gradient_hashes,
                 "clipped_gradient_hashes_equal": vendor_clipped_gradient_hashes
                 == package_clipped_gradient_hashes,
-                "optimizer_state_hashes_equal": vendor_record["optimizer_state_hashes"]
-                == package_record["optimizer_state_hashes"],
-                "parameter_hashes_equal": vendor_record["parameter_hashes"]
-                == package_record["parameter_hashes"],
-                "ema_hashes_equal": vendor_record["ema_hashes"]
-                == package_record["ema_hashes"],
+                "optimizer_state_hashes_equal": vendor_optimizer_state_hashes
+                == package_optimizer_state_hashes,
+                "parameter_hashes_equal": vendor_parameter_hashes
+                == package_parameter_hashes,
+                "ema_hashes_equal": vendor_ema_hashes == package_ema_hashes,
                 "learning_rate_equal": vendor_record["learning_rate"]
                 == package_record["learning_rate"],
             }
@@ -1548,12 +1587,12 @@ def run_s3(args: argparse.Namespace) -> Path:
                 build_step_trace("vendor", vendor_gradients),
                 build_step_trace("package", package_gradients),
             )
-            vendor_grad_norm = torch.nn.utils.clip_grad_norm_(
-                synchronized_vendor.model.parameters(), 1.0
-            )
-            package_grad_norm = torch.nn.utils.clip_grad_norm_(
-                synchronized_package.model.parameters(), 1.0
-            )
+            vendor_parameters = dict(synchronized_vendor.model.named_parameters())
+            package_parameters = dict(synchronized_package.model.named_parameters())
+            vendor_grad_norm = _named_gradient_norm(vendor_parameters)
+            package_grad_norm = _named_gradient_norm(package_parameters)
+            torch.nn.utils.clip_grad_norm_(synchronized_vendor.model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(synchronized_package.model.parameters(), 1.0)
             synchronized_vendor_optimizer.step()
             synchronized_package_optimizer.step()
             parameter_report = compare_optimizer_step(
@@ -1567,9 +1606,7 @@ def run_s3(args: argparse.Namespace) -> Path:
                 "batch_ids": package_source_batch["id"],
                 "vendor_loss": float(vendor_trace["train_loss"].item()),
                 "package_loss": float(package_trace["train_loss"].item()),
-                "gradient_norm_max_abs_diff": float(
-                    (vendor_grad_norm - package_grad_norm).abs().item()
-                ),
+                "gradient_norm_max_abs_diff": abs(vendor_grad_norm - package_grad_norm),
                 "gradient_max_abs_diff": max(
                     (item.max_abs_diff for item in gradient_report.comparisons),
                     default=0.0,
