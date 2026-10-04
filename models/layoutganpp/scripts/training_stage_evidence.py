@@ -2517,6 +2517,12 @@ def _stage_s4(device: torch.device) -> Path:
         dict[str, JsonValue],
         torch.load(VENDOR_CHECKPOINT, map_location="cpu", weights_only=False)["args"],
     )
+    eval_settings_by_system = {
+        system: {
+            "batch_size": _command_option(command, "--batch_size"),
+        }
+        for system, command in evaluator_command_argv.items()
+    }
     evaluation_payload = {
         "status": "PASS" if passed else "FAIL",
         "source_commit": _source_commit(),
@@ -2573,14 +2579,7 @@ def _stage_s4(device: torch.device) -> Path:
                 ),
                 "sampling_seed": _command_option(vendor_command, "--seed"),
             },
-            "eval_commands": {
-                system: {
-                    "batch_size": _command_option(
-                        evaluator_command_argv[system], "--batch_size"
-                    )
-                    for system in evaluator_commands
-                },
-            },
+            "eval_commands": eval_settings_by_system,
         },
         "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
         "evaluator": {
