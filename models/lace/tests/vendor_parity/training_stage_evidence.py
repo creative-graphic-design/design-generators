@@ -2172,6 +2172,12 @@ def _evaluation_parity(
         "overlap": float(100 * package_overlap_sum / len(vendor_loader)),
         "maximum_iou": float(compute_maximum_iou(reference_layouts, package_layouts)),
     }
+    metric_functions = {
+        "alignment": _source_entrypoint(compute_alignment),
+        "overlap": _source_entrypoint(compute_overlap),
+        "maximum_iou": _source_entrypoint(compute_maximum_iou),
+        "generative_model_scores": _source_entrypoint(compute_generative_model_scores),
+    }
     processed_count = len(vendor_layouts)
     fid_metadata: dict[str, object] | None = None
     if fid_root is not None:
@@ -2236,6 +2242,12 @@ def _evaluation_parity(
         "metric_implementation": _source_entrypoint(compute_alignment),
         "vendor_metrics": vendor_metrics,
         "package_metrics": package_metrics,
+        "metric_computation": {
+            "vendor": metric_functions,
+            "package": metric_functions,
+            "reduction": "per-batch mean, summed across batches, divided by the vendor loader batch count",
+            "package_evaluation_metric_path": None,
+        },
         "metric_values_equal": vendor_metrics == package_metrics,
         "fid": fid_metadata,
         "processed_layout_count": processed_count,
