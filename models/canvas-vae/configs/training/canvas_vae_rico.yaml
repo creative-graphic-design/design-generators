@@ -33,4 +33,4 @@ data:
   init_args:
     data_dir: .cache/canvas-vae/data/rico
     batch_size: 1024
-    num_workers: 0
+    num_workers: 2

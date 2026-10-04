@@ -1,24 +1,34 @@
 {
   "schema_version": 1,
   "dataset": "rico",
-  "queue_status": "blocked_pending_evaluation_path_parity_and_b1_completion",
+  "queue_status": "blocked_pending_user_b2_check",
   "source_commit": null,
   "config": "models/canvas-vae/configs/training/canvas_vae_rico.yaml",
   "config_sha256": null,
   "evaluator_command": [
     "uv",
     "run",
+    "--frozen",
+    "--no-sync",
     "--package",
     "canvas-vae",
+    "--extra",
+    "training",
     "models/canvas-vae/scripts/evaluate.py",
     "--checkpoint",
-    "<converted-checkpoint>",
+    "{converted_checkpoint}",
     "--data-dir",
-    ".cache/canvas-vae/data/rico",
+    "/content/repo/.cache/canvas-vae/data/rico",
     "--seeds",
     "0",
     "1",
-    "2"
+    "2",
+    "--batch-size",
+    "1024",
+    "--device",
+    "cpu",
+    "--output",
+    "{evaluation_output}"
   ],
   "checkpoint_rule": "final epoch-500 weights: original final.ckpt; package last.ckpt",
   "artifacts": {
@@ -29,15 +39,20 @@
     "sha256": "<64-character-sha256>"
   },
   "launched_at": null,
-  "runner_command": null,
+  "runner_command": [
+    "python3",
+    "models/canvas-vae/scripts/s5_rico_seed_executor.py"
+  ],
   "runtime_plan": {
     "gpu": "A100",
     "one_named_session_per_run": true,
+    "one_training_run_at_a_time": true,
+    "source_branch": "feat/canvas-vae",
     "wrapper_script": "${S5_WRAPPER_PATH}",
     "wrapper_ttl": "2h",
     "minimum_verified_runtime_lifetime": "greater than 2h before allocation",
     "sync_interval": "15m",
-    "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}",
+    "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}/{segment_id}",
     "sync_paths": [
       "${S5_RUNTIME_ROOT}/out/checkpoints",
       "${S5_RUNTIME_ROOT}/out/logs",
@@ -45,21 +60,35 @@
     ],
     "resume_policy": {
       "explicit_download_required": true,
-      "downloaded_checkpoint_path": "${S5_RUNTIME_ROOT}/resume/checkpoint.ckpt",
-      "package_resume_flag": "--ckpt_path=${S5_RUNTIME_ROOT}/resume/checkpoint.ckpt",
-      "implicit_latest_checkpoint_resume": false
+      "downloaded_checkpoint_path": "${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt",
+      "package_resume_flag": "--ckpt_path=${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt",
+      "implicit_latest_checkpoint_resume": false,
+      "new_segment_id_required": true
     },
-    "self_release": true
+    "self_release": true,
+    "source_gate_before_artifact_sync": true,
+    "queue_supervisor_sequential": true
   },
   "environment": {
     "precision": "fp32",
-    "package_pytorch_matmul_precision": "highest",
-    "package_cuda_matmul_allow_tf32": false,
+    "package": {
+      "trainer_precision": "32-true",
+      "num_workers": 2,
+      "torch_float32_matmul_precision": "highest",
+      "torch_cuda_matmul_allow_tf32": false,
+      "NVIDIA_TF32_OVERRIDE": "0"
+    },
     "original": {
       "NVIDIA_TF32_OVERRIDE": "0",
       "TF_ENABLE_ONEDNN_OPTS": "0",
-      "unset": ["MPLBACKEND"]
+      "unset": [
+        "MPLBACKEND"
+      ]
     },
+    "global_unset": [
+      "MPLBACKEND",
+      "UV_PROJECT_ENVIRONMENT"
+    ],
     "tensorflow_one_dnn_note": {
       "upstream_issue": "https://github.com/tensorflow/tensorflow/issues/62607",
       "observed_error": "NotFoundError: No registered '_MklLayerNorm' OpKernel for 'GPU' devices compatible with node {{node custom_model/layer_normalization/add}}",
@@ -73,42 +102,115 @@
       "system": "original",
       "seed": 0,
       "session_name": "cvae-s5-rico-original-seed0",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0",
+      "runtime_output_root": "/content/out/checkpoints/rico-original-seed0/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-original-seed0/{segment_id}/evaluation.json",
+      "train_original_arguments": [
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/original/data/rico",
+        "--job-dir",
+        "{output_root}/original-training",
+        "--seed",
+        "0",
+        "--",
+        "--batch-size",
+        "1024",
+        "--num-epochs",
+        "500",
+        "--validation-freq",
+        "20"
+      ]
     },
     {
       "run_id": "rico-original-seed1",
       "system": "original",
       "seed": 1,
       "session_name": "cvae-s5-rico-original-seed1",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1",
+      "runtime_output_root": "/content/out/checkpoints/rico-original-seed1/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-original-seed1/{segment_id}/evaluation.json",
+      "train_original_arguments": [
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/original/data/rico",
+        "--job-dir",
+        "{output_root}/original-training",
+        "--seed",
+        "1",
+        "--",
+        "--batch-size",
+        "1024",
+        "--num-epochs",
+        "500",
+        "--validation-freq",
+        "20"
+      ]
     },
     {
       "run_id": "rico-original-seed2",
       "system": "original",
       "seed": 2,
       "session_name": "cvae-s5-rico-original-seed2",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2",
+      "runtime_output_root": "/content/out/checkpoints/rico-original-seed2/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-original-seed2/{segment_id}/evaluation.json",
+      "train_original_arguments": [
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/original/data/rico",
+        "--job-dir",
+        "{output_root}/original-training",
+        "--seed",
+        "2",
+        "--",
+        "--batch-size",
+        "1024",
+        "--num-epochs",
+        "500",
+        "--validation-freq",
+        "20"
+      ]
     },
     {
       "run_id": "rico-package-seed0",
       "system": "package",
       "seed": 0,
       "session_name": "cvae-s5-rico-package-seed0",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0",
+      "runtime_output_root": "/content/out/checkpoints/rico-package-seed0/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-package-seed0/{segment_id}/evaluation.json"
     },
     {
       "run_id": "rico-package-seed1",
       "system": "package",
       "seed": 1,
       "session_name": "cvae-s5-rico-package-seed1",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1",
+      "runtime_output_root": "/content/out/checkpoints/rico-package-seed1/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-package-seed1/{segment_id}/evaluation.json"
     },
     {
       "run_id": "rico-package-seed2",
       "system": "package",
       "seed": 2,
       "session_name": "cvae-s5-rico-package-seed2",
-      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2"
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2",
+      "runtime_output_root": "/content/out/checkpoints/rico-package-seed2/{segment_id}",
+      "evaluation_output": "/content/out/results/rico-package-seed2/{segment_id}/evaluation.json"
     }
-  ]
+  ],
+  "input_data": {
+    "repository": "<private-hub-repository>",
+    "revision": "<40-character-hub-revision>",
+    "prefix": "<repository-prefix-containing-package-and-original-rico-data>"
+  },
+  "projection_path": "<repository-relative-sequential-b2-projection.json>",
+  "projection_sha256": null,
+  "actual_spend_cu": null,
+  "budget": {
+    "authorized_total_cap_cu": 60.0,
+    "actual_spend_cu": null,
+    "projected_b2_cu": null,
+    "projected_total_cu": null,
+    "projected_headroom_cu": null,
+    "b2_launch_authorized": false
+  }
 }

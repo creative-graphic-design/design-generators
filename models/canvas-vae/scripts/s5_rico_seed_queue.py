@@ -38,6 +38,8 @@ class QueueRun(TypedDict):
     seed: int
     session_name: str
     artifact_prefix: str
+    runtime_output_root: str
+    evaluation_output: str
 
 
 class ParityArtifact(TypedDict):
@@ -55,6 +57,7 @@ class QueueManifest(TypedDict):
     source_commit: str | None
     evaluation_path_parity: ParityArtifact
     runner_command: list[str] | None
+    runtime_plan: dict[str, JsonValue]
     runs: list[QueueRun]
 
 
@@ -152,6 +155,9 @@ def load_manifest(path: Path) -> QueueManifest:
         or not all(isinstance(part, str) for part in runner)
     ):
         raise QueueError("manifest runner_command must be a string list or null")
+    runtime_plan = decoded.get("runtime_plan")
+    if not isinstance(runtime_plan, dict):
+        raise QueueError("manifest runtime_plan must be an object")
 
     raw_runs = decoded.get("runs")
     if not isinstance(raw_runs, list) or not raw_runs:
@@ -167,11 +173,37 @@ def load_manifest(path: Path) -> QueueManifest:
         seed = raw_run.get("seed")
         session_name = raw_run.get("session_name")
         artifact_prefix = raw_run.get("artifact_prefix")
+        runtime_output_root = raw_run.get("runtime_output_root")
+        evaluation_output = raw_run.get("evaluation_output")
         if not all(
             isinstance(value, str) and value
-            for value in (run_id, system, session_name, artifact_prefix)
+            for value in (
+                run_id,
+                system,
+                session_name,
+                artifact_prefix,
+                runtime_output_root,
+                evaluation_output,
+            )
         ) or not isinstance(seed, int):
-            raise QueueError("each run needs text identifiers and an integer seed")
+            raise QueueError(
+                "each run needs identifiers, unique output templates, and an integer seed"
+            )
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", run_id):
+            raise QueueError(f"invalid run_id {run_id!r}")
+        if system not in {"package", "original"}:
+            raise QueueError(f"invalid run system {system!r}")
+        if runtime_output_root != f"/content/out/checkpoints/{run_id}/{{segment_id}}":
+            raise QueueError(
+                f"run {run_id} has a non-unique checkpoint output template"
+            )
+        if (
+            evaluation_output
+            != f"/content/out/results/{run_id}/{{segment_id}}/evaluation.json"
+        ):
+            raise QueueError(
+                f"run {run_id} has a non-unique evaluation output template"
+            )
         runs.append(
             {
                 "run_id": run_id,
@@ -179,8 +211,22 @@ def load_manifest(path: Path) -> QueueManifest:
                 "seed": seed,
                 "session_name": session_name,
                 "artifact_prefix": artifact_prefix,
+                "runtime_output_root": runtime_output_root,
+                "evaluation_output": evaluation_output,
             }
         )
+
+    unique_fields = (
+        "run_id",
+        "session_name",
+        "artifact_prefix",
+        "runtime_output_root",
+        "evaluation_output",
+    )
+    for field in unique_fields:
+        values = [run[field] for run in runs]
+        if len(values) != len(set(values)):
+            raise QueueError(f"manifest runs must have unique {field} values")
 
     return {
         "dataset": dataset,
@@ -188,6 +234,7 @@ def load_manifest(path: Path) -> QueueManifest:
         "source_commit": source_commit,
         "evaluation_path_parity": {"path": parity_path, "sha256": parity_sha256},
         "runner_command": runner,
+        "runtime_plan": runtime_plan,
         "runs": runs,
     }
 
@@ -238,13 +285,27 @@ def launch_preconditions(
         )
 
     runner = manifest.get("runner_command")
+    if not isinstance(runner, list) or runner != [
+        "python3",
+        "models/canvas-vae/scripts/s5_rico_seed_executor.py",
+    ]:
+        raise QueueError(
+            "launch refused: runner_command must call the fail-closed per-run executor",
+            BLOCKED_EXIT,
+        )
+    runtime_plan = manifest["runtime_plan"]
     if (
-        not isinstance(runner, list)
-        or not runner
-        or not all(isinstance(part, str) and part for part in runner)
+        runtime_plan.get("gpu") != "A100"
+        or runtime_plan.get("one_named_session_per_run") is not True
+        or runtime_plan.get("one_training_run_at_a_time") is not True
+        or runtime_plan.get("self_release") is not True
+        or runtime_plan.get("sync_interval") != "15m"
+        or runtime_plan.get("wrapper_ttl") != "2h"
+        or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
     ):
         raise QueueError(
-            "launch refused: runner_command is not configured", BLOCKED_EXIT
+            "launch refused: manifest runtime plan is not sequential and fail-closed",
+            BLOCKED_EXIT,
         )
 
     try:
