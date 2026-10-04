@@ -113,6 +113,7 @@ def _sha256(path: Path) -> str:
 
 
 def _source_entrypoint(function: Callable[..., object]) -> str:
+    function = inspect.unwrap(function)
     source = inspect.getsourcefile(function)
     if source is None:
         raise RuntimeError(f"cannot locate source for {function!r}")
