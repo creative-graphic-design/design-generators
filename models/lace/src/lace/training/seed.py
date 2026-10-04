@@ -16,7 +16,6 @@ def apply_lace_seed_mode(seed_mode: LaceSeedMode | str, *, seed: int = 42975) ->
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-        torch.set_float32_matmul_precision("medium")
         return
 
     apply_determinism(DeterminismConfig(seed=seed))

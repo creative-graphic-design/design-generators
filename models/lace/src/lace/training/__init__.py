@@ -6,10 +6,5 @@ from .config import (
     LaceTrainingSplit as LaceTrainingSplit,
 )
 from .dataset import LaceProcessedDataset as LaceProcessedDataset
-
-try:
-    from .datamodule import LaceDataModule as LaceDataModule
-    from .lightning_module import LaceTrainingModule as LaceTrainingModule
-except ModuleNotFoundError as exc:
-    if exc.name != "lightning":
-        raise
+from .datamodule import LaceDataModule as LaceDataModule
+from .lightning_module import LaceTrainingModule as LaceTrainingModule

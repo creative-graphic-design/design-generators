@@ -9,6 +9,8 @@ import pytest
 import torch
 from torch import nn
 
+pytest.importorskip("lightning")
+
 from lace.configuration_lace import default_model_config
 from lace.modeling_lace import LaceTransformerModel
 from lace.training.config import LaceSeedMode

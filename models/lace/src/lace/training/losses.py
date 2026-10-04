@@ -11,57 +11,75 @@ from jaxtyping import Bool, Float, Int
 def xywh_to_ltrb_reference(
     bbox: Float[torch.Tensor, "batch elements 4"],
 ) -> Float[torch.Tensor, "batch elements 4"]:
-    """Convert center boxes using the reference implementation's split order."""
-    channels = bbox.permute(2, 0, 1)
-    xc, yc, width, height = channels
-    ltrb = torch.stack(
-        (xc - width / 2, yc - height / 2, xc + width / 2, yc + height / 2),
-        dim=0,
+    """Convert center boxes with the reference allocation and assignments."""
+    bbox_ltrb = torch.zeros(bbox.shape).to(bbox.device)
+    bbox_xy = torch.abs(bbox[:, :, :2])
+    bbox_wh = torch.abs(bbox[:, :, 2:])
+    bbox_ltrb[:, :, :2] = bbox_xy - 0.5 * bbox_wh
+    bbox_ltrb[:, :, 2:] = bbox_xy + 0.5 * bbox_wh
+    return bbox_ltrb
+
+
+def _piou_ltrb(
+    bbox_ltrb: Float[torch.Tensor, "batch elements 4"],
+    mask: Float[torch.Tensor, "batch elements"] | None = None,
+) -> Float[torch.Tensor, "batch elements elements"]:
+    """Compute the reference pairwise IoU operation in its source order."""
+    n_box = bbox_ltrb.shape[1]
+    device = bbox_ltrb.device
+
+    area_bbox = (bbox_ltrb[:, :, 2] - bbox_ltrb[:, :, 0]) * (
+        bbox_ltrb[:, :, 3] - bbox_ltrb[:, :, 1]
     )
-    return ltrb.permute(1, 2, 0)
+    area_bbox_psum = area_bbox.unsqueeze(-1) + area_bbox.unsqueeze(-2)
+
+    x1y1 = bbox_ltrb[:, :, [0, 1]]
+    x1y1 = torch.swapaxes(x1y1, 1, 2)
+    x1y1_i = torch.max(x1y1.unsqueeze(-1), x1y1.unsqueeze(-2))
+
+    x2y2 = bbox_ltrb[:, :, [2, 3]]
+    x2y2 = torch.swapaxes(x2y2, 1, 2)
+    x2y2_i = torch.min(x2y2.unsqueeze(-1), x2y2.unsqueeze(-2))
+
+    wh_i = F.relu(x2y2_i - x1y1_i)
+    area_i = wh_i[:, 0, :, :] * wh_i[:, 1, :, :]
+    piou = area_i / (area_bbox_psum - area_i + 1e-10)
+    piou.masked_fill_(torch.eye(n_box, n_box).to(torch.bool).to(device), 0)
+
+    if mask is not None:
+        mask = mask.unsqueeze(2)
+        select_mask = torch.matmul(mask, torch.transpose(mask, dim0=1, dim1=2))
+        piou = piou * select_mask.to(device)
+
+    return piou
 
 
 def pairwise_iou(
     bbox: Float[torch.Tensor, "batch elements 4"],
     mask: Float[torch.Tensor, "batch elements"],
 ) -> Float[torch.Tensor, "batch elements elements"]:
-    """Return the pairwise intersection-over-union matrix."""
-    ltrb = xywh_to_ltrb_reference(bbox)
-    n_box = ltrb.shape[1]
-
-    area = (ltrb[:, :, 2] - ltrb[:, :, 0]) * (ltrb[:, :, 3] - ltrb[:, :, 1])
-    area_sum = area.unsqueeze(-1) + area.unsqueeze(-2)
-    lt = ltrb[:, :, [0, 1]].swapaxes(1, 2)
-    rb = ltrb[:, :, [2, 3]].swapaxes(1, 2)
-    inter_lt = torch.max(lt.unsqueeze(-1), lt.unsqueeze(-2))
-    inter_rb = torch.min(rb.unsqueeze(-1), rb.unsqueeze(-2))
-    inter_wh = F.relu(inter_rb - inter_lt)
-    inter_area = inter_wh[:, 0] * inter_wh[:, 1]
-
-    iou = inter_area / (area_sum - inter_area + 1e-10)
-    diagonal = torch.eye(n_box, dtype=torch.bool, device=bbox.device)
-    iou.masked_fill_(diagonal, 0)
-    select_mask = torch.matmul(mask.unsqueeze(2), mask.unsqueeze(1))
-
-    return iou * select_mask
+    """Return the reference pairwise intersection-over-union matrix."""
+    return _piou_ltrb(xywh_to_ltrb_reference(bbox), mask)
 
 
 def alignment_matrix(
     bbox: Float[torch.Tensor, "batch elements 4"],
     mask: Bool[torch.Tensor, "batch elements"],
 ) -> Float[torch.Tensor, "batch elements 6 elements"]:
-    """Return the raw coordinate-alignment matrix used by LACE."""
-    ltrb = xywh_to_ltrb_reference(bbox).permute(2, 0, 1)
-    xl, yt, xr, yb = ltrb
+    """Return the reference raw coordinate-alignment matrix."""
     bbox_t = bbox.permute(2, 0, 1)
-    xc, yc = bbox_t[:2]
-    coords = torch.stack((xl, xc, xr, yt, yc, yb), dim=1)
-    coords = coords.unsqueeze(-1) - coords.unsqueeze(-2)
-    idx = torch.arange(coords.size(2), device=coords.device)
-    coords[:, :, idx, idx] = 1.0
-    coords = coords.abs().permute(0, 2, 1, 3)
-    coords[~mask] = 1.0
-    return coords
+    xc, yc, width, height = bbox_t
+    xl = xc - width / 2
+    yt = yc - height / 2
+    xr = xc + width / 2
+    yb = yc + height / 2
+    x = torch.stack([xl, xc, xr, yt, yc, yb], dim=1)
+    x = x.unsqueeze(-1) - x.unsqueeze(-2)
+    idx = torch.arange(x.size(2), device=x.device)
+    x[:, :, idx, idx] = 1.0
+    x = x.abs().permute(0, 2, 1, 3)
+    x[~mask] = 1.0
+    return x
 
 
 def constraint_temporal_weight(

@@ -55,10 +55,7 @@ class LaceProcessedDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
         if not path.exists():
             raise FileNotFoundError(path)
 
-        try:
-            loaded = torch.load(path, map_location="cpu", weights_only=False)
-        except TypeError:
-            loaded = torch.load(path, map_location="cpu")
+        loaded = torch.load(path, map_location="cpu", weights_only=False)
 
         data, slices = loaded
         self.data = cast(_ProcessedData, data)

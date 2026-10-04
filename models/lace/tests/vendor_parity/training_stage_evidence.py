@@ -11,6 +11,7 @@ import argparse
 import copy
 from contextlib import nullcontext
 import hashlib
+from importlib import metadata
 import inspect
 import json
 import os
@@ -19,6 +20,7 @@ import platform
 import subprocess
 import sys
 import time
+import warnings
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Callable, cast
@@ -112,6 +114,54 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _state_dict_sha256(state: Mapping[str, torch.Tensor]) -> str:
+    digest = hashlib.sha256()
+    for name in sorted(state):
+        value = state[name].detach().cpu().contiguous()
+        digest.update(name.encode())
+        digest.update(b"\0")
+        digest.update(str(value.dtype).encode())
+        digest.update(b"\0")
+        digest.update(repr(tuple(value.shape)).encode())
+        digest.update(b"\0")
+        digest.update(value.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _fid_provenance(
+    fid_root: Path, dataset: str, vendor_commit: str
+) -> dict[str, object]:
+    metadata_path = fid_root / "provenance.json"
+    provenance = json.loads(metadata_path.read_text())
+    if not isinstance(provenance, dict):
+        raise TypeError("FID provenance must be a JSON object")
+    model_path = fid_root / "fid" / "model.py"
+    weight_path = fid_root / "FIDNetV3" / f"{dataset}-max25" / "model_best.pth.tar"
+    feature_path = fid_root / "feature" / f"fid_feat_test_{dataset}.pk"
+    provenance["fid_evaluator_sha256"] = _sha256(model_path)
+    provenance["fidnet_v3"] = {
+        **cast(dict[str, object], provenance["fidnet_v3"]),
+        "path": str(
+            Path("<LACE_FID_ROOT>")
+            / "FIDNetV3"
+            / f"{dataset}-max25"
+            / "model_best.pth.tar"
+        ),
+        "sha256": _sha256(weight_path),
+    }
+    provenance["feature_cache"] = {
+        **cast(dict[str, object], provenance["feature_cache"]),
+        "path": str(
+            Path("<LACE_FID_ROOT>") / "feature" / f"fid_feat_test_{dataset}.pk"
+        ),
+        "sha256": _sha256(feature_path),
+        "source_commit": vendor_commit,
+        "source_url": f"https://github.com/puar-playground/LACE/blob/{vendor_commit}/test.py",
+    }
+    provenance["fid_evaluator_path"] = "<LACE_FID_ROOT>/fid/model.py"
+    return provenance
+
+
 def _source_entrypoint(function: Callable[..., object]) -> str:
     function = inspect.unwrap(function)
     source = inspect.getsourcefile(function)
@@ -123,32 +173,45 @@ def _source_entrypoint(function: Callable[..., object]) -> str:
     return f"{Path(source).resolve().relative_to(ROOT).as_posix()}::{name}"
 
 
-def _runtime_metadata() -> dict[str, object]:
+def _distribution_metadata(name: str) -> dict[str, object]:
+    distribution = metadata.distribution(name)
+    direct_url_text = distribution.read_text("direct_url.json")
+    direct_url = json.loads(direct_url_text) if direct_url_text else None
+    if not isinstance(direct_url, dict):
+        raise RuntimeError(f"{name} has no direct_url.json provenance")
+    archive_info = direct_url.get("archive_info", {})
+    hashes = archive_info.get("hashes", {}) if isinstance(archive_info, dict) else {}
+    wheel_sha256 = hashes.get("sha256") if isinstance(hashes, dict) else None
+    if not isinstance(wheel_sha256, str):
+        raise RuntimeError(f"{name} direct_url.json has no SHA-256 wheel hash")
     return {
-        "torch_wheel": "torch-2.8.0+cu128",
-        "torchvision_wheel": "torchvision-0.23.0+cu128",
-        "cuda_tag": "cu128",
+        "version": distribution.version,
+        "direct_url": direct_url,
+        "wheel_sha256": wheel_sha256,
+    }
+
+
+def _runtime_metadata(output_root: Path) -> dict[str, object]:
+    freeze_root = output_root / "runtime"
+    freeze_root.mkdir(parents=True, exist_ok=True)
+    freeze_path = freeze_root / "pip-freeze.txt"
+    freeze = subprocess.run(
+        [sys.executable, "-m", "pip", "freeze"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    freeze_path.write_text(freeze.stdout)
+    return {
+        "torch_version": torch.__version__,
+        "torchvision": _distribution_metadata("torchvision"),
+        "torch": _distribution_metadata("torch"),
+        "cuda_version": torch.version.cuda,
         "python": platform.python_version(),
-        "audit_venv_placeholder": "<LACE_AUDIT_VENV>",
-        "venv_creation_command": "python3.11 -m venv <LACE_AUDIT_VENV>",
-        "torch_wheel_file_url": (
-            "file://<LACE_AUDIT_WHEEL_ROOT>/"
-            "torch-2.8.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl"
-        ),
-        "torch_wheel_sha256": (
-            "039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed"
-        ),
-        "torchvision_wheel_file_url": (
-            "file://<LACE_AUDIT_WHEEL_ROOT>/"
-            "torchvision-0.23.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl"
-        ),
-        "torchvision_wheel_sha256": (
-            "93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb"
-        ),
-        "pip_freeze_sha256": os.environ.get(
-            "LACE_AUDIT_FREEZE_SHA256", "<LACE_AUDIT_FREEZE_SHA256>"
-        ),
-        "lockfile_environment_used_for_cpu_checks_and_tests": True,
+        "python_executable": sys.executable,
+        "pip_freeze_command": [sys.executable, "-m", "pip", "freeze"],
+        "pip_freeze_artifact": str(freeze_path.relative_to(ROOT)),
+        "pip_freeze_sha256": _sha256(freeze_path),
     }
 
 
@@ -172,27 +235,13 @@ def _training_config(dataset: str) -> dict[str, int]:
     return config
 
 
-def _tiny_config(dataset: str) -> dict[str, int]:
-    config = cast(dict[str, int], dict(default_model_config(dataset)))
-    config.update(
-        {
-            "dim_transformer": 16,
-            "nhead": 2,
-            "num_layers": 1,
-            "dim_feedforward": 32,
-        }
-    )
-    return config
-
-
 def _build_training_fixture(
     dataset: str,
     device: torch.device,
     *,
-    tiny: bool,
     seed: int = 42975,
 ) -> tuple[VendorDiffusion, LaceTrainingModule]:
-    config = _tiny_config(dataset) if tiny else _training_config(dataset)
+    config = _training_config(dataset)
     torch.manual_seed(123)
     vendor = VendorDiffusion(
         num_timesteps=config["diffusion_step"],
@@ -576,7 +625,7 @@ def run_s0(args: argparse.Namespace) -> Path:
     output = Path(args.output_root) / "s0-static"
     dataset = args.dataset
     config = _training_config(dataset)
-    vendor, target = _build_training_fixture(dataset, torch.device("cpu"), tiny=False)
+    vendor, target = _build_training_fixture(dataset, torch.device("cpu"))
     vendor_state = vendor.model.state_dict()
     package_state = target.model.state_dict()
     shape_equal = set(vendor_state) == set(package_state) and all(
@@ -596,7 +645,7 @@ def run_s0(args: argparse.Namespace) -> Path:
         "stage": "S0",
         "source_commit": source_commit,
         "vendor_commit": vendor_commit,
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output),
         "dataset": dataset,
         "reproduction_stream": {
             "consumer_stages": ["S1", "S2", "S3", "S4"],
@@ -675,7 +724,7 @@ def run_s1(args: argparse.Namespace) -> Path:
     )
     if not vendor_batches or not package_batches:
         raise RuntimeError("real training loader produced no batch")
-    vendor, target = _build_training_fixture(args.dataset, device, tiny=False)
+    vendor, target = _build_training_fixture(args.dataset, device)
     batch = {
         key: cast(torch.Tensor, package_batches[0][key]).to(device)
         for key in ("bbox", "labels", "mask")
@@ -686,7 +735,7 @@ def run_s1(args: argparse.Namespace) -> Path:
         "stage": "S1",
         "source_commit": source_commit,
         "vendor_commit": vendor_commit,
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output),
         "device": str(device),
         "dataset": args.dataset,
         "topology": _training_config(args.dataset),
@@ -734,7 +783,7 @@ def run_s2(args: argparse.Namespace) -> Path:
     )
     if not vendor_batches or not package_batches:
         raise RuntimeError("real training loader produced no batch")
-    vendor, target = _build_training_fixture(args.dataset, device, tiny=False)
+    vendor, target = _build_training_fixture(args.dataset, device)
     batch = {
         key: cast(torch.Tensor, package_batches[0][key]).to(device)
         for key in ("bbox", "labels", "mask")
@@ -745,12 +794,17 @@ def run_s2(args: argparse.Namespace) -> Path:
     vendor_ema.register(vendor.model)
     package_ema = target.ema_helper
     sdpa_context = sdpa_kernel(SDPBackend.MATH) if args.sdpa_math else nullcontext()
-    with sdpa_context:
-        vendor_trace, package_trace = _paired_trace(vendor, target, batch, detach=False)
-        vendor_optimizer.zero_grad()
-        package_optimizer.zero_grad()
-        vendor_trace["train_loss"].backward()
-        package_trace["train_loss"].backward()
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        with sdpa_context:
+            vendor_trace, package_trace = _paired_trace(
+                vendor, target, batch, detach=False
+            )
+            vendor_optimizer.zero_grad()
+            package_optimizer.zero_grad()
+            vendor_trace["train_loss"].backward()
+            package_trace["train_loss"].backward()
+        warning_messages = [str(warning.message) for warning in caught_warnings]
     vendor_parameters = dict(vendor.model.named_parameters())
     package_parameters = dict(target.model.named_parameters())
     vendor_gradients = {
@@ -798,9 +852,7 @@ def run_s2(args: argparse.Namespace) -> Path:
     )
     vendor_ema.update(vendor.model)
     package_ema.update(target.model)
-    probe_vendor, probe_package = _build_training_fixture(
-        args.dataset, device, tiny=False
-    )
+    probe_vendor, probe_package = _build_training_fixture(args.dataset, device)
     probe_package.model.load_state_dict(
         copy.deepcopy(probe_vendor.model.state_dict()), strict=True
     )
@@ -815,7 +867,6 @@ def run_s2(args: argparse.Namespace) -> Path:
         )
     probe_vendor_optimizer.step()
     probe_package_optimizer.step()
-    diagnostic_record = os.environ.get("LACE_DETERMINISTIC_DIAGNOSTIC_RECORD")
     ema_max_abs_diff = _state_max_diff(vendor_ema.shadow, package_ema.shadow)
     optimizer_state_max_abs_diff = _optimizer_state_diff(
         vendor_optimizer, package_optimizer
@@ -828,7 +879,7 @@ def run_s2(args: argparse.Namespace) -> Path:
         "stage": "S2",
         "source_commit": source_commit,
         "vendor_commit": vendor_commit,
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output),
         "device": str(device),
         "dataset": args.dataset,
         "loader": {
@@ -843,7 +894,7 @@ def run_s2(args: argparse.Namespace) -> Path:
             "torch_use_deterministic_algorithms": args.deterministic_algorithms,
             "warn_only": args.warn_only,
             "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
-            "warning": os.environ.get("LACE_DETERMINISTIC_WARNING"),
+            "warnings": warning_messages,
         },
         "sdpa_condition": {
             "backend": "math" if args.sdpa_math else "vendor-default",
@@ -856,7 +907,6 @@ def run_s2(args: argparse.Namespace) -> Path:
                 if args.sdpa_math
                 else "not run"
             ),
-            "natural_backward_cause": "Memory Efficient attention backward (attention_backward.cu:775)",
         },
         "gradient_report": {
             "before_clipping": {
@@ -910,7 +960,6 @@ def run_s2(args: argparse.Namespace) -> Path:
             "same_gradient_probe_optimizer_state_max_abs_diff": _optimizer_state_diff(
                 probe_vendor_optimizer, probe_package_optimizer
             ),
-            "cause_of_normal_step_difference": "gradient tensors differ before clipping; the identical Adam implementation produces identical updates when given the same gradients",
         },
         "exact": (
             gradient_report.passed
@@ -921,13 +970,6 @@ def run_s2(args: argparse.Namespace) -> Path:
             and learning_rate_equal
         ),
     }
-    if diagnostic_record:
-        payload["deterministic_diagnostic"] = {
-            "artifact": os.environ.get(
-                "LACE_DETERMINISTIC_DIAGNOSTIC_ARTIFACT", diagnostic_record
-            ),
-            "record": json.loads(Path(diagnostic_record).read_text()),
-        }
     return _write_json(output, "summary.json", payload)
 
 
@@ -1091,7 +1133,7 @@ def _run_natural_system(
     steps: int,
     seed: int,
 ) -> list[dict[str, object]]:
-    vendor, target = _build_training_fixture(dataset, device, tiny=False, seed=seed)
+    vendor, target = _build_training_fixture(dataset, device, seed=seed)
     if system == "package":
         callback = _PackageNaturalTraceCallback()
         datamodule = LaceDataModule(
@@ -1136,16 +1178,10 @@ def _run_natural_system(
     if system not in {"vendor", "package"}:
         raise ValueError(system)
 
-    vendor_optimizer: torch.optim.Optimizer | None = None
-    vendor_ema: VendorEMA | None = None
-    package_optimizer: torch.optim.Optimizer | None = None
-    if system == "vendor":
-        vendor_optimizer = torch.optim.Adam(vendor.model.parameters(), lr=1e-5)
-        vendor_ema = VendorEMA(mu=0.9999)
-        vendor_ema.register(vendor.model)
-    else:
-        package_optimizer = cast(torch.optim.Optimizer, target.configure_optimizers())
-    vendor_batches, package_batches = _loader_batches(
+    vendor_optimizer = torch.optim.Adam(vendor.model.parameters(), lr=1e-5)
+    vendor_ema = VendorEMA(mu=0.9999)
+    vendor_ema.register(vendor.model)
+    vendor_batches, _ = _loader_batches(
         dataset,
         data_root,
         "train",
@@ -1154,61 +1190,21 @@ def _run_natural_system(
         seed=42975,
         steps=steps,
     )
-    batches = vendor_batches if system == "vendor" else package_batches
+    batches = vendor_batches
     torch.manual_seed(seed)
     records: list[dict[str, object]] = []
     for step, source_batch in enumerate(batches, start=1):
         batch = _batch_tensors(source_batch, device)
-        if system == "vendor":
-            if vendor_optimizer is None or vendor_ema is None:
-                raise RuntimeError("vendor optimizer state was not initialized")
-            records.append(
-                _vendor_training_iteration(
-                    vendor,
-                    batch,
-                    optimizer=vendor_optimizer,
-                    ema=vendor_ema,
-                    num_classes=target.num_classes,
-                    batch_ids=source_batch["id"],
-                    step=step,
-                )
-            )
-            continue
-
-        if package_optimizer is None:
-            raise RuntimeError("package optimizer state was not initialized")
-        trace = _package_trace(target, batch, detach=False)
-        package_optimizer.zero_grad()
-        trace["train_loss"].backward()
-        named_parameters = dict(target.model.named_parameters())
-        gradients = {
-            name: _parameter_grad(parameter).detach().clone()
-            for name, parameter in named_parameters.items()
-        }
-        gradient_norm = torch.nn.utils.clip_grad_norm_(target.model.parameters(), 1.0)
-        clipped_gradients = {
-            name: _parameter_grad(parameter).detach().clone()
-            for name, parameter in named_parameters.items()
-        }
-        package_optimizer.step()
-        target.ema_helper.update(target.model)
-        optimizer_state = _optimizer_state_tensors(package_optimizer)
         records.append(
-            {
-                "step": step,
-                "batch_ids": source_batch["id"],
-                "loss": float(trace["train_loss"].item()),
-                "gradient_norm": float(gradient_norm.item()),
-                "learning_rate": package_optimizer.param_groups[0]["lr"],
-                "gradient_hashes": _tensor_hashes(gradients),
-                "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
-                "clipped_gradient_norm": _gradient_norm(named_parameters.values()),
-                "optimizer_state_hashes": _tensor_hashes(optimizer_state),
-                "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
-                "parameter_l2_norm": _mapping_l2_norm(target.model.state_dict()),
-                "parameter_hashes": _tensor_hashes(target.model.state_dict()),
-                "ema_hashes": _tensor_hashes(target.ema_helper.shadow),
-            }
+            _vendor_training_iteration(
+                vendor,
+                batch,
+                optimizer=vendor_optimizer,
+                ema=vendor_ema,
+                num_classes=target.num_classes,
+                batch_ids=source_batch["id"],
+                step=step,
+            )
         )
     if len(records) != steps:
         raise RuntimeError(
@@ -1264,6 +1260,15 @@ def _natural_pair_records(
                 "loss_abs_diff": abs(
                     _record_float(vendor_record, "loss")
                     - _record_float(package_record, "loss")
+                ),
+                "loss_relative_diff": abs(
+                    _record_float(vendor_record, "loss")
+                    - _record_float(package_record, "loss")
+                )
+                / max(
+                    abs(_record_float(vendor_record, "loss")),
+                    abs(_record_float(package_record, "loss")),
+                    1e-12,
                 ),
                 "vendor_gradient_norm": vendor_record["gradient_norm"],
                 "package_gradient_norm": package_record["gradient_norm"],
@@ -1323,23 +1328,10 @@ def _natural_pair_records(
             "vendor_repeat_loss_abs_diff": abs(
                 _record_float(left, "loss") - _record_float(right, "loss")
             ),
-            "package_repeat_loss_abs_diff": abs(
-                _record_float(left, "loss") - _record_float(right, "loss")
-            ),
             "vendor_repeat_parameter_l2_norm_abs_diff": abs(
                 _record_float(left, "parameter_l2_norm")
                 - _record_float(right, "parameter_l2_norm")
             ),
-            "package_repeat_parameter_l2_norm_abs_diff": abs(
-                _record_float(left, "parameter_l2_norm")
-                - _record_float(right, "parameter_l2_norm")
-            ),
-        }
-        for left, right in zip(vendor_runs[0], vendor_runs[1], strict=True)
-    ]
-    envelope_records = [
-        {
-            **record,
             "package_repeat_loss_abs_diff": abs(
                 _record_float(package_runs[0][index], "loss")
                 - _record_float(package_runs[1][index], "loss")
@@ -1349,7 +1341,9 @@ def _natural_pair_records(
                 - _record_float(package_runs[1][index], "parameter_l2_norm")
             ),
         }
-        for index, record in enumerate(envelope_records)
+        for index, (left, right) in enumerate(
+            zip(vendor_runs[0], vendor_runs[1], strict=True)
+        )
     ]
     return records, {
         "runs_per_system": 2,
@@ -1414,7 +1408,7 @@ def run_s3(args: argparse.Namespace) -> Path:
     )
 
     synchronized_vendor, synchronized_package = _build_training_fixture(
-        args.dataset, device, tiny=False
+        args.dataset, device
     )
     synchronized_vendor_optimizer = torch.optim.Adam(
         synchronized_vendor.model.parameters(), lr=1e-5
@@ -1536,16 +1530,6 @@ def run_s3(args: argparse.Namespace) -> Path:
                     synchronized_package_ema,
                 )
             )
-            record["parameter_max_abs_diff_after_sync"] = _state_max_diff(
-                synchronized_vendor.model.state_dict(),
-                synchronized_package.model.state_dict(),
-            )
-            record["ema_max_abs_diff_after_sync"] = _state_max_diff(
-                synchronized_vendor_ema.shadow, synchronized_package_ema.shadow
-            )
-            record["optimizer_state_max_abs_diff_after_sync"] = _optimizer_state_diff(
-                synchronized_vendor_optimizer, synchronized_package_optimizer
-            )
             synchronized_records.append(record)
     for record in natural_records:
         record["source_commit"] = source_commit
@@ -1561,7 +1545,25 @@ def run_s3(args: argparse.Namespace) -> Path:
         (
             record
             for record in natural_records
-            if _record_float(record, "loss_abs_diff") > 1e-3
+            if _record_float(record, "loss_relative_diff") > 1e-3
+        ),
+        None,
+    )
+    natural_first_nonzero = next(
+        (
+            record
+            for record in natural_records
+            if _record_float(record, "loss_abs_diff") != 0.0
+            or _record_float(record, "parameter_l2_norm_abs_diff") != 0.0
+            or not bool(record["gradient_hashes_equal"])
+        ),
+        None,
+    )
+    natural_first_gradient_hash_difference = next(
+        (
+            record
+            for record in natural_records
+            if not bool(record["gradient_hashes_equal"])
         ),
         None,
     )
@@ -1569,7 +1571,7 @@ def run_s3(args: argparse.Namespace) -> Path:
         "stage": "S3",
         "source_commit": source_commit,
         "vendor_commit": vendor_commit,
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output),
         "device": str(device),
         "dataset": args.dataset,
         "steps": args.steps,
@@ -1580,7 +1582,8 @@ def run_s3(args: argparse.Namespace) -> Path:
         "batch_size": args.batch_size,
         "natural_seed": 10000,
         "determinism_condition": {
-            "torch_use_deterministic_algorithms": False,
+            "torch_use_deterministic_algorithms": args.deterministic_algorithms,
+            "warn_only": args.warn_only,
             "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
         },
         "sdpa_condition": {
@@ -1612,7 +1615,9 @@ def run_s3(args: argparse.Namespace) -> Path:
             ),
             "final_vendor_loss": natural_records[-1]["vendor_loss"],
             "final_package_loss": natural_records[-1]["package_loss"],
-            "first_loss_divergence_over_1e-3": natural_first_divergence,
+            "first_nonzero_difference": natural_first_nonzero,
+            "first_gradient_hash_difference": natural_first_gradient_hash_difference,
+            "first_relative_loss_divergence_over_1e-3": natural_first_divergence,
             "exact": all(
                 record["loss_abs_diff"] == 0.0
                 and record["parameter_l2_norm_abs_diff"] == 0.0
@@ -1623,27 +1628,40 @@ def run_s3(args: argparse.Namespace) -> Path:
         },
         "synchronized": {
             "artifact": synchronized_artifact,
-            "max_parameter_abs_diff_before_sync": max(
-                record["parameter_max_abs_diff"] for record in synchronized_records
-            ),
-            "max_parameter_abs_diff_after_sync": max(
-                record["parameter_max_abs_diff_after_sync"]
-                for record in synchronized_records
-            ),
-            "max_ema_abs_diff_after_sync": max(
-                record["ema_max_abs_diff_after_sync"] for record in synchronized_records
-            ),
-            "max_optimizer_state_abs_diff_after_sync": max(
-                record["optimizer_state_max_abs_diff_after_sync"]
-                for record in synchronized_records
-            ),
-            "optimizer_state_storage_independent": all(storage_independence),
-            "exact_after_sync": all(
-                record["parameter_max_abs_diff_after_sync"] == 0.0
-                and record["ema_max_abs_diff_after_sync"] == 0.0
-                and record["optimizer_state_max_abs_diff_after_sync"] == 0.0
-                and record["learning_rate_equal"]
-                for record in synchronized_records
+            "population": {
+                "optimizer_steps": len(synchronized_records),
+                "batch_size": args.batch_size,
+            },
+            "pre_sync": {
+                "gradient_hashes_differed_steps": sum(
+                    not bool(record["gradient_hashes_equal"])
+                    for record in synchronized_records
+                ),
+                "max_gradient_abs_diff": max(
+                    record["gradient_max_abs_diff"] for record in synchronized_records
+                ),
+                "max_parameter_abs_diff": max(
+                    record["parameter_max_abs_diff"] for record in synchronized_records
+                ),
+                "max_ema_abs_diff": max(
+                    record["ema_max_abs_diff"] for record in synchronized_records
+                ),
+                "max_optimizer_state_abs_diff": max(
+                    record["optimizer_state_max_abs_diff"]
+                    for record in synchronized_records
+                ),
+                "s0_s2_gate": all(
+                    record["gradient_hashes_equal"]
+                    and record["parameter_max_abs_diff"] == 0.0
+                    and record["ema_max_abs_diff"] == 0.0
+                    and record["optimizer_state_max_abs_diff"] == 0.0
+                    and record["learning_rate_equal"]
+                    for record in synchronized_records
+                ),
+            },
+            "storage_independence": all(storage_independence),
+            "synchronization_role": (
+                "diagnostic state copy after each step; no post-sync exactness claim"
             ),
         },
     }
@@ -1751,7 +1769,7 @@ def _loader_batches(
     batch_size: int,
     shuffle: bool,
     seed: int,
-    steps: int,
+    steps: int | None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     vendor_loader, package_loader = _loader_pair(
         dataset,
@@ -1763,8 +1781,8 @@ def _loader_batches(
     )
     vendor_batches: list[dict[str, object]] = []
     package_batches: list[dict[str, object]] = []
-    for vendor_batch, package_batch in zip(vendor_loader, package_loader, strict=False):
-        if len(vendor_batches) >= steps:
+    for vendor_batch, package_batch in zip(vendor_loader, package_loader, strict=True):
+        if steps is not None and len(vendor_batches) >= steps:
             break
         vendor_batches.append(_vendor_batch_to_mapping(vendor_batch))
         package_batches.append(_package_batch_to_mapping(package_batch))
@@ -1784,7 +1802,9 @@ def _stream_split(
     split: str,
     *,
     batch_size: int,
-    max_batches: int,
+    max_batches: int | None,
+    shuffle: bool,
+    seed: int,
 ) -> dict[str, object]:
     vendor_dataset = _vendor_dataset(dataset, data_root, split)
     package_dataset = LaceProcessedDataset(
@@ -1798,13 +1818,13 @@ def _stream_split(
         data_root,
         split,
         batch_size=batch_size,
-        shuffle=False,
-        seed=314159,
+        shuffle=shuffle,
+        seed=seed,
         steps=max_batches,
     )
     rows: list[dict[str, object]] = []
     for index, (vendor_batch, package_batch) in enumerate(
-        zip(vendor_batches, package_batches, strict=False)
+        zip(vendor_batches, package_batches, strict=True)
     ):
         ids = cast(list[str], vendor_batch["id"])
         package_ids = cast(list[str], package_batch["id"])
@@ -1828,11 +1848,19 @@ def _stream_split(
     stream_report = compare_batch_stream(
         [cast(Mapping[str, torch.Tensor], batch) for batch in vendor_batches],
         [cast(Mapping[str, torch.Tensor], batch) for batch in package_batches],
-        steps=max_batches,
+        steps=len(vendor_batches),
     )
     return {
         "vendor_layout_count": len(vendor_dataset),
         "package_layout_count": len(package_dataset),
+        "population": {
+            "layouts": len(vendor_dataset),
+            "batches": len(rows),
+            "batch_size": batch_size,
+            "shuffle": shuffle,
+            "seed": seed,
+            "max_batches": max_batches,
+        },
         "batches_checked": len(rows),
         "rows": rows,
         "shared_helper": {
@@ -1911,7 +1939,7 @@ def _evaluation_parity(
         def __init__(self, wrapped: VendorDiffusion) -> None:
             self.wrapped = wrapped
             self.outputs: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
-            self.calls: list[dict[str, object]] = []
+            self.inputs: list[torch.Tensor] = []
             self.elapsed = 0.0
 
         @property
@@ -1933,17 +1961,7 @@ def _evaluation_parity(
             )
             self.elapsed += time.perf_counter() - started
             self.outputs.append(tuple(value.detach().cpu() for value in result))
-            self.calls.append(
-                {
-                    "condition_type": {"c": "label", "cwh": "label_size"}.get(
-                        cond, cond
-                    ),
-                    "stochastic": True,
-                    "generator_seed": seed,
-                    "batch_size": int(real_layout.shape[0]),
-                    "grad_enabled": torch.is_grad_enabled(),
-                }
-            )
+            self.inputs.append(real_layout.detach().cpu())
             return result
 
     wrapped_device = device
@@ -1980,13 +1998,14 @@ def _evaluation_parity(
         vendor_dataset, batch_size=batch_size, shuffle=False, num_workers=0
     )
     input_batches: list[dict[str, np.ndarray]] = []
+    vendor_input_layouts: list[np.ndarray] = []
+    package_input_layouts: list[np.ndarray] = []
     vendor_batches: list[dict[str, np.ndarray]] = []
     package_batches: list[dict[str, np.ndarray]] = []
     reference_layouts: list[tuple[np.ndarray, np.ndarray]] = []
     vendor_layouts: list[tuple[np.ndarray, np.ndarray]] = []
     package_layouts: list[tuple[np.ndarray, np.ndarray]] = []
     batch_records: list[dict[str, object]] = []
-    package_calls: list[dict[str, object]] = []
     preprocessing_equal = True
     package_elapsed = 0.0
     package_alignment_sum = torch.zeros((), device=device)
@@ -1997,26 +2016,18 @@ def _evaluation_parity(
         bbox, labels, _, mask = sparse_to_dense(test_batch)
         labels, bbox, mask = pad_until(labels, bbox, mask, max_seq_length=25)
         ids = _vendor_ids(test_batch)
-        vendor_real_layout = torch.cat(
-            (
-                nn.functional.one_hot(
-                    labels.masked_fill(~mask, spec.pad_label_id),
-                    num_classes=spec.num_classes_with_pad,
-                ).float(),
-                2 * (bbox - 0.5),
-            ),
-            dim=2,
-        )
         package_encoded = package.processor(bbox=bbox, labels=labels, mask=mask)
-        batch_preprocessing_equal = torch.equal(
-            vendor_real_layout, package_encoded["layout"]
-        )
+        vendor_real_layout = captured_vendor.inputs[batch_index]
+        package_layout = package_encoded["layout"]
+        batch_preprocessing_equal = torch.equal(vendor_real_layout, package_layout)
         preprocessing_equal = preprocessing_equal and batch_preprocessing_equal
         if not batch_preprocessing_equal:
             raise AssertionError("vendor and package TEST inputs differ")
         input_batches.append(
             {"bbox": bbox.numpy(), "labels": labels.numpy(), "mask": mask.numpy()}
         )
+        vendor_input_layouts.append(vendor_real_layout.numpy())
+        package_input_layouts.append(package_layout.numpy())
         for layout_bbox, layout_labels, layout_mask in zip(
             bbox, labels, mask, strict=True
         ):
@@ -2041,16 +2052,7 @@ def _evaluation_parity(
                     num_inference_steps=ddim_num_steps,
                 ),
             )
-            package_grad_enabled = torch.is_grad_enabled()
         package_elapsed += time.perf_counter() - package_started
-        package_call: dict[str, object] = {
-            "condition_type": "label",
-            "stochastic": package_generator is not None,
-            "generator_seed": 20260000 + batch_index,
-            "batch_size": int(bbox.shape[0]),
-            "grad_enabled": package_grad_enabled,
-        }
-        package_calls.append(package_call)
         vendor_cpu = {
             "bbox": vendor_cond,
             "labels": vendor_cond_labels,
@@ -2113,8 +2115,6 @@ def _evaluation_parity(
                 )
                 and torch.equal(vendor_cpu["labels"], package_cpu["labels"])
                 and torch.equal(vendor_cpu["mask"], package_cpu["mask"]),
-                "vendor_evaluation_settings": captured_vendor.calls[batch_index],
-                "package_evaluation_settings": package_call,
             }
         )
     if not input_batches:
@@ -2125,10 +2125,6 @@ def _evaluation_parity(
     ) -> np.ndarray:
         return np.concatenate([batch[key] for batch in batches], axis=0)
 
-    inputs = {
-        key: concatenate_batches(input_batches, key)
-        for key in ("bbox", "labels", "mask")
-    }
     vendor_predictions = {
         key: concatenate_batches(vendor_batches, key)
         for key in ("bbox", "labels", "mask")
@@ -2139,15 +2135,11 @@ def _evaluation_parity(
     }
     np.savez(
         evaluation_root / "vendor-inputs.npz",
-        bbox=inputs["bbox"],
-        labels=inputs["labels"],
-        mask=inputs["mask"],
+        layout=np.concatenate(vendor_input_layouts, axis=0),
     )
     np.savez(
         evaluation_root / "package-inputs.npz",
-        bbox=inputs["bbox"],
-        labels=inputs["labels"],
-        mask=inputs["mask"],
+        layout=np.concatenate(package_input_layouts, axis=0),
     )
     np.savez(
         evaluation_root / "vendor-predictions.npz",
@@ -2208,20 +2200,20 @@ def _evaluation_parity(
             "fid"
         ]
         package_metrics["fid"] = float(package_fid)
-        fid_metadata = {
-            "feature_cache": str(
-                Path("<LACE_FID_ROOT>") / "feature" / f"fid_feat_test_{dataset}.pk"
-            ),
-            "feature_cache_sha256": _sha256(feature_path),
-            "fid_checkpoint_sha256": _sha256(
-                fid_root / "FIDNetV3" / f"{dataset}-max25" / "model_best.pth.tar"
-            ),
-            "metric_function": _source_entrypoint(compute_generative_model_scores),
-        }
+        fid_metadata = _fid_provenance(fid_root, dataset, vendor_commit)
+        fid_metadata["metric_function"] = _source_entrypoint(
+            compute_generative_model_scores
+        )
+        fid_metadata["vendor_test_substitutions"] = [
+            "vendor_test.init_dataset -> captured approved LACE TEST dataset and loader",
+            "vendor_test.test_fid_feat -> loaded feature-cache tensors",
+            "vendor_test.load_fidnet_v3 -> FIDNetV3 weights under <LACE_FID_ROOT>",
+        ]
     vendor_input_hash = _sha256(evaluation_root / "vendor-inputs.npz")
     package_input_hash = _sha256(evaluation_root / "package-inputs.npz")
     vendor_weights_hash = _sha256(checkpoint)
-    package_weights_hash = _sha256(checkpoint)
+    vendor_state_hash = _state_dict_sha256(vendor.model.state_dict())
+    package_state_hash = _state_dict_sha256(package.model.state_dict())
     vendor_prediction_hash = _sha256(evaluation_root / "vendor-predictions.npz")
     package_prediction_hash = _sha256(evaluation_root / "package-predictions.npz")
     prediction_equal = all(record["predictions_equal"] for record in batch_records)
@@ -2255,15 +2247,11 @@ def _evaluation_parity(
         "processed_layout_count": processed_count,
         "expected_test_layout_count": len(vendor_dataset),
         "full_test_split": processed_count == len(vendor_dataset),
-        "inputs_sha256": vendor_input_hash,
         "vendor_inputs_sha256": vendor_input_hash,
         "package_inputs_sha256": package_input_hash,
         "vendor_predictions_sha256": vendor_prediction_hash,
         "package_predictions_sha256": package_prediction_hash,
         "weights_sha256": vendor_weights_hash,
-        "vendor_weights_sha256": vendor_weights_hash,
-        "package_weights_sha256": package_weights_hash,
-        "inputs_sha256_equal": vendor_input_hash == package_input_hash,
         "prediction_files_sha256": {
             "vendor": vendor_prediction_hash,
             "package": package_prediction_hash,
@@ -2290,12 +2278,6 @@ def _evaluation_parity(
             "batch_size": batch_size,
             "vendor_default_batch_size": 256,
         },
-        "evaluation_settings_equal": all(
-            vendor_call == package_call
-            for vendor_call, package_call in zip(
-                captured_vendor.calls, package_calls, strict=True
-            )
-        ),
         "sampling_seeds_sha256": hashlib.sha256(
             json.dumps(
                 [20260000 + index for index in range(len(batch_records))]
@@ -2315,22 +2297,15 @@ def _evaluation_parity(
         "checkpoint_source_url": LACE_CHECKPOINT_SOURCE_URL,
         "checkpoint_path": str(checkpoint.relative_to(ROOT)),
         "checkpoint_sha256": _sha256(checkpoint),
-        "weights_sha256_equal": vendor_weights_hash == package_weights_hash,
+        "vendor_state_dict_sha256": vendor_state_hash,
+        "package_state_dict_sha256": package_state_hash,
         "evaluator_commit": vendor_commit,
         "vendor_evaluator_source_commit": vendor_commit,
         "package_evaluator_source_commit": source_commit,
         "input_split": "test",
         "vendor_evaluation_entry": _source_entrypoint(vendor_test.test_layout_cond),
         "package_evaluation_entry": _source_entrypoint(package.__call__),
-        "runtime_condition": {
-            "vendor_grad_enabled": all(
-                not bool(call["grad_enabled"]) for call in captured_vendor.calls
-            ),
-            "package_grad_enabled": all(
-                not bool(call["grad_enabled"]) for call in package_calls
-            ),
-        },
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output_root),
         "test_split": test_check,
     }
     _write_json(evaluation_root, "evaluation.json", evaluation_payload)
@@ -2340,22 +2315,15 @@ def _evaluation_parity(
         "checkpoint_source_url": LACE_CHECKPOINT_SOURCE_URL,
         "checkpoint_path": str(checkpoint.relative_to(ROOT)),
         "checkpoint_sha256": _sha256(checkpoint),
-        "weights_sha256_equal": vendor_weights_hash == package_weights_hash,
+        "vendor_state_dict_sha256": vendor_state_hash,
+        "package_state_dict_sha256": package_state_hash,
         "evaluator_commit": vendor_commit,
         "vendor_evaluator_source_commit": vendor_commit,
         "package_evaluator_source_commit": source_commit,
         "input_split": "test",
         "vendor_evaluation_entry": _source_entrypoint(vendor_test.test_layout_cond),
         "package_evaluation_entry": _source_entrypoint(package.__call__),
-        "runtime_condition": {
-            "vendor_grad_enabled": all(
-                not bool(call["grad_enabled"]) for call in captured_vendor.calls
-            ),
-            "package_grad_enabled": all(
-                not bool(call["grad_enabled"]) for call in package_calls
-            ),
-        },
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output_root),
         "test_split": test_check,
         "metrics_exact": test_check["metric_values_equal"],
         "prediction_counts_recorded": all(
@@ -2376,8 +2344,10 @@ def run_s4(args: argparse.Namespace) -> Path:
                 dataset,
                 data_root,
                 split,
-                batch_size=4,
+                batch_size=(256 if split == "train" else args.evaluation_batch_size),
                 max_batches=args.max_batches,
+                shuffle=split == "train",
+                seed=42975,
             )
             for split in ("train", "val", "test")
         }
@@ -2403,7 +2373,7 @@ def run_s4(args: argparse.Namespace) -> Path:
         "stage": "S4",
         "source_commit": source_commit,
         "vendor_commit": vendor_commit,
-        "runtime": _runtime_metadata(),
+        "runtime": _runtime_metadata(output),
         "streams": streams,
         "evaluations": evaluations,
         "test_split_mandatory_check": all(
@@ -2438,7 +2408,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--lace-data-root", type=Path, default=None)
     parser.add_argument("--layoutdm-data-root", type=Path, default=None)
     parser.add_argument("--checkpoint-root", type=Path, default=None)
-    parser.add_argument("--max-batches", type=int, default=8)
+    parser.add_argument(
+        "--max-batches",
+        type=int,
+        default=None,
+        help="optional stream cap; the default checks every batch in every split",
+    )
     parser.add_argument("--evaluation-batch-size", type=int, default=256)
     parser.add_argument(
         "--evaluation-max-batches",
