@@ -142,7 +142,9 @@ def load_manifest(path: Path) -> QueueManifest:
     parity_path = parity.get("path")
     parity_sha256 = parity.get("sha256")
     if not isinstance(parity_path, str) or not isinstance(parity_sha256, str):
-        raise QueueError("manifest evaluation_path_parity needs path and sha256 strings")
+        raise QueueError(
+            "manifest evaluation_path_parity needs path and sha256 strings"
+        )
 
     runner = decoded.get("runner_command")
     if runner is not None and (
@@ -157,7 +159,9 @@ def load_manifest(path: Path) -> QueueManifest:
     runs: list[QueueRun] = []
     for raw_run in raw_runs:
         if not isinstance(raw_run, dict):
-            raise QueueError("each run needs run_id, system, session_name, and artifact_prefix")
+            raise QueueError(
+                "each run needs run_id, system, session_name, and artifact_prefix"
+            )
         run_id = raw_run.get("run_id")
         system = raw_run.get("system")
         seed = raw_run.get("seed")
@@ -192,18 +196,28 @@ def launch_preconditions(
     manifest: QueueManifest, manifest_path: Path
 ) -> tuple[str, list[str]]:
     pinned_commit = manifest.get("source_commit")
-    if not isinstance(pinned_commit, str) or not COMMIT_PATTERN.fullmatch(pinned_commit):
+    if not isinstance(pinned_commit, str) or not COMMIT_PATTERN.fullmatch(
+        pinned_commit
+    ):
         raise QueueError("launch requires a finalized 40-character source_commit")
     if manifest.get("queue_status") != "ready":
-        raise QueueError("launch refused: manifest queue_status is not ready", BLOCKED_EXIT)
+        raise QueueError(
+            "launch refused: manifest queue_status is not ready", BLOCKED_EXIT
+        )
 
     parity = manifest["evaluation_path_parity"]
     parity_path = parity.get("path")
     parity_sha256 = parity.get("sha256")
     if not isinstance(parity_path, str) or not parity_path:
-        raise QueueError("launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT)
-    if not isinstance(parity_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", parity_sha256):
-        raise QueueError("launch refused: evaluation_path_parity SHA-256 is missing", BLOCKED_EXIT)
+        raise QueueError(
+            "launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT
+        )
+    if not isinstance(parity_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", parity_sha256
+    ):
+        raise QueueError(
+            "launch refused: evaluation_path_parity SHA-256 is missing", BLOCKED_EXIT
+        )
     parity_file = (REPOSITORY_ROOT / parity_path).resolve()
     try:
         parity_file.relative_to(REPOSITORY_ROOT)
@@ -224,10 +238,14 @@ def launch_preconditions(
         )
 
     runner = manifest.get("runner_command")
-    if not isinstance(runner, list) or not runner or not all(
-        isinstance(part, str) and part for part in runner
+    if (
+        not isinstance(runner, list)
+        or not runner
+        or not all(isinstance(part, str) and part for part in runner)
     ):
-        raise QueueError("launch refused: runner_command is not configured", BLOCKED_EXIT)
+        raise QueueError(
+            "launch refused: runner_command is not configured", BLOCKED_EXIT
+        )
 
     try:
         manifest_path.relative_to(REPOSITORY_ROOT)
@@ -262,7 +280,9 @@ def run_queue(
             continue
 
         if runner_command is None:
-            raise QueueError("launch refused: runner command is not configured", BLOCKED_EXIT)
+            raise QueueError(
+                "launch refused: runner command is not configured", BLOCKED_EXIT
+            )
 
         environment = os.environ.copy()
         environment.update(
@@ -328,7 +348,9 @@ def main() -> int:
             raise QueueError("source gate requires a clean worktree")
 
         if args.launch:
-            pinned_commit, runner_command = launch_preconditions(manifest, manifest_path)
+            pinned_commit, runner_command = launch_preconditions(
+                manifest, manifest_path
+            )
             if current_commit != pinned_commit:
                 raise QueueError(
                     "launch refused: current HEAD differs from source_commit",
@@ -337,7 +359,9 @@ def main() -> int:
         else:
             manifest_commit = manifest.get("source_commit")
             pinned_commit = current_commit
-            if isinstance(manifest_commit, str) and COMMIT_PATTERN.fullmatch(manifest_commit):
+            if isinstance(manifest_commit, str) and COMMIT_PATTERN.fullmatch(
+                manifest_commit
+            ):
                 pinned_commit = manifest_commit
             runner_command = None
             if args.test_source_mismatch:
