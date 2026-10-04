@@ -230,7 +230,7 @@ def test_production_trace_accepts_stop_before_validation(tmp_path: Path) -> None
     trainer = SimpleNamespace(
         lr_scheduler_configs=[],
         datamodule=SimpleNamespace(num_workers=16),
-        num_val_batches=8,
+        num_val_batches=[8],
         num_training_batches=561,
         max_steps=300,
         max_epochs=50,

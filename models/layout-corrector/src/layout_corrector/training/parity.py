@@ -280,6 +280,10 @@ class ProductionTraceCallback(Callback):
         if datamodule is None:
             raise RuntimeError("production trace did not receive a data module")
 
+        validation_batches = trainer.num_val_batches
+        if isinstance(validation_batches, list):
+            validation_batches = sum(validation_batches)
+
         self.trace_path.parent.mkdir(parents=True, exist_ok=True)
         self.trace_path.write_text(
             json.dumps(
@@ -292,7 +296,7 @@ class ProductionTraceCallback(Callback):
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),
                     "validation_executed": self._validation_executed,
                     "validation_loss": self._validation_loss,
-                    "validation_batches": trainer.num_val_batches,
+                    "validation_batches": validation_batches,
                     "train_batches": trainer.num_training_batches,
                     "observed_train_batches": len(self.rows),
                     "max_steps": trainer.max_steps,
