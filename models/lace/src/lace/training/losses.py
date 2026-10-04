@@ -67,12 +67,9 @@ def alignment_matrix(
     mask: Bool[torch.Tensor, "batch elements"],
 ) -> Float[torch.Tensor, "batch elements 6 elements"]:
     """Return the reference raw coordinate-alignment matrix."""
-    bbox_t = bbox.permute(2, 0, 1)
-    xc, yc, width, height = bbox_t
-    xl = xc - width / 2
-    yt = yc - height / 2
-    xr = xc + width / 2
-    yb = yc + height / 2
+    bbox = bbox.permute(2, 0, 1)
+    xl, yt, xr, yb = _xywh_to_ltrb_split(bbox)
+    xc, yc = bbox[0], bbox[1]
     x = torch.stack([xl, xc, xr, yt, yc, yb], dim=1)
     x = x.unsqueeze(-1) - x.unsqueeze(-2)
     idx = torch.arange(x.size(2), device=x.device)
@@ -80,6 +77,23 @@ def alignment_matrix(
     x = x.abs().permute(0, 2, 1, 3)
     x[~mask] = 1.0
     return x
+
+
+def _xywh_to_ltrb_split(
+    bbox: Float[torch.Tensor, "4 batch elements"],
+) -> tuple[
+    Float[torch.Tensor, "batch elements"],
+    Float[torch.Tensor, "batch elements"],
+    Float[torch.Tensor, "batch elements"],
+    Float[torch.Tensor, "batch elements"],
+]:
+    """Split center boxes using the reference operation order."""
+    xc, yc, width, height = bbox
+    xl = xc - width / 2
+    yt = yc - height / 2
+    xr = xc + width / 2
+    yb = yc + height / 2
+    return xl, yt, xr, yb
 
 
 def constraint_temporal_weight(
