@@ -149,7 +149,7 @@ print(out.mask)
 
 ### Training Procedure
 
-Converted checkpoints port the released weights unchanged. The package also carries a training path for all twelve dataset/condition combinations listed in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md): six CGL conditions and six PKU conditions. Each campaign has S0-S5 evidence, five matched package/vendor training seeds, and inference seeds `0/1/2`; the document records the condition-specific recipes, evaluator settings, evidence populations, and both-direction range verdicts.
+Converted checkpoints port the released weights unchanged. The package also carries a training path for all twelve dataset/condition combinations listed in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md): six CGL conditions and six PKU conditions. Each campaign has S0-S5 evidence. CGL unconditional uses `training-seed n=3` per system; the other eleven conditions use `training-seed n=5` per system. The other eleven evaluations use inference seeds `0/1/2`; CGL unconditional uses its recorded per-run evaluation seed. The document records the condition-specific recipes, evaluator settings, evidence populations, and both-direction range verdicts.
 
 #### Preprocessing
 
@@ -157,7 +157,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training for converted checkpoints; all twelve CGL and PKU condition recipes are additionally rerun in this repository with five matched package/vendor seeds per condition. See [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md) for the condition-specific epoch counts, optimizers, loaders, and evaluator settings.
+- **Training regime:** original upstream training for converted checkpoints; all twelve CGL and PKU condition recipes are additionally rerun in this repository. CGL unconditional uses three matched package/vendor seeds; the other eleven conditions use five matched seeds per system. See [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md) for the condition-specific epoch counts, optimizers, loaders, and evaluator settings.
 
 #### Speeds, Sizes, Times
 
@@ -195,7 +195,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-Checkpoint conversion performs no training. The twelve-condition reproduction used five matched package/vendor training seeds per condition on explicitly selected GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
+Checkpoint conversion performs no training. The twelve-condition reproduction used three matched package/vendor training seeds for CGL unconditional and five matched seeds for each other condition on explicitly selected GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 

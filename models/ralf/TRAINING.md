@@ -8,7 +8,7 @@ tags:
 
 # RALF Training
 
-This document records end-to-end package training reproduction for all twelve RALF dataset/condition combinations: CGL unconditional, label, label-size, completion, refinement, and relation; and PKU unconditional, label, label-size, completion, refinement, and relation. Every condition has S0-S5 evidence, five matched package/vendor training seeds (`training-seed n=5` per system), and the original evaluator's test protocol with inference seeds `0/1/2`. Each condition is classified as `s5-practical-reproduction` using the both-direction range test, which asks whether each system mean falls within the other system's observed seed range; this is not a claim that independently trained weights produce identical samples. The condition sections below give the stage records, provenance commits, evidence populations, evaluator settings, and final verdicts.
+This document records end-to-end package training reproduction for all twelve RALF dataset/condition combinations: CGL unconditional, label, label-size, completion, refinement, and relation; and PKU unconditional, label, label-size, completion, refinement, and relation. Every condition has S0-S5 evidence. CGL unconditional uses three matched package/vendor training seeds (`training-seed n=3` per system); the other eleven conditions use five matched seeds (`training-seed n=5` per system). The original evaluator uses inference seeds `0/1/2` for the eleven five-seed conditions; the CGL unconditional evaluation uses its recorded per-run evaluation seed. Each condition is classified as `s5-practical-reproduction` using the both-direction range test, which asks whether each system mean falls within the other system's observed seed range; this is not a claim that independently trained weights produce identical samples. The condition sections below give the stage records, provenance commits, evidence populations, evaluator settings, and final verdicts.
 
 The CGL and PKU condition sections link their dataset-level evaluation-path parity artifacts, reconstructed launch manifests, and issue-308 amendment. Those artifacts establish the shared inference path used for the twelve endpoint comparisons; the statistical S5 results still compare independently trained package and vendor checkpoints. The full vendor-parity test suite rerun recorded 28 passed tests, 0 failed tests, and 0 skipped tests. The both-direction range test and its claim-strength limits are defined in [Validation Stages](#validation-stages).
 
@@ -283,7 +283,7 @@ The completion recipe selects the vendor `partial` task through `vendor/ralf/con
 
 ## Seed Policy
 
-The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are diagnostic evidence only. The full-run claim rests on its own seed scope: training seeds 1-3 on both systems, evaluated under the original protocol whose inference samples with the run configuration's evaluation seed.
+The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are diagnostic evidence only. The full-run seed scope is condition-specific: CGL unconditional uses training seeds 1-3 on both systems, while the other eleven conditions use training seeds 1-5 on both systems. The five-seed conditions use inference seeds 0/1/2; CGL unconditional uses the per-run evaluation seed recorded in its S5 records.
 
 ## Validation Stages
 
@@ -681,7 +681,7 @@ Here, pooled vendor means the combined vendor group with training seeds 1 throug
 
 Summary: Package means inside pooled vendor ranges `15/15`; pooled vendor means inside Package ranges `13/15`; both-direction range agreement `13/15`; Welch `p < 0.05` for `0/15` metrics.
 
-Verdict: Label-conditioned CGL training is reproduced within the vendor seed-to-seed variation. Vendor A versus vendor B has 13/15 both-direction range agreement and 0/15 Welch p-values below 0.05; package versus vendor B has 12/15 both-direction range agreement, with 14/15 package means inside the vendor-B ranges and 13/15 vendor-B means inside the package ranges, and 0/15 Welch p-values below 0.05. The one observation is that validity is lower across the five package seeds, with means `0.998568` versus `0.998710`, a difference of `1.4e-4`, or `2.05` standard errors; the exact permutation p-value is `0.070` over `3003` relabelings. No systematic cause was found.
+Verdict: Label-conditioned CGL training is reproduced within the vendor seed-to-seed variation. The primary package-versus-Vendor-A comparison in the table above has FID `0.5933068961` versus `0.5843330798`, 13/15 both-direction range agreement, and 0/15 Welch p-values below 0.05. The one observation is that validity is lower across the five package seeds, with means `0.998568` versus `0.998709`, a difference of `1.4e-4`, or `2.05` standard errors; the exact permutation p-value is `0.070` over `3003` relabelings. The separate Vendor-A versus Vendor-B control is reported below as a run-to-run noise-floor check and is not part of this primary package-versus-vendor verdict. No systematic cause was found.
 
 ### Validity investigation
 
