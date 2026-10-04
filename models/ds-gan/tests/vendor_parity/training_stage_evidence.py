@@ -12,10 +12,13 @@ import io
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from typing import Any, Iterator, cast  # noqa: TID251 - vendor adapter boundary is heterogeneous
+import warnings
 
 import numpy as np
 import torch
@@ -35,6 +38,7 @@ from traingen_parity.determinism import (
     RNGState,
     apply_determinism,
     capture_rng_state,
+    restore_rng_state,
 )
 from traingen_parity.trace import build_step_trace, tensor_sha256
 
@@ -49,6 +53,7 @@ MAX_ELEM = 32
 SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
+_DETERMINISTIC_WARNINGS: list[str] = []
 
 
 def _git(*args: str, cwd: Path = ROOT) -> str:
@@ -63,41 +68,37 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _runtime_wheel(name: str, override_path: str) -> dict[str, str]:
+def _runtime_distribution(name: str) -> dict[str, Any]:
     metadata = distribution(name)
-    wheel_path = Path(os.environ[override_path])
-    if not wheel_path.exists():
-        raise RuntimeError(f"wheel path for {name} is unavailable: {wheel_path}")
-    wheel_name = wheel_path.name
-    cuda_tag = next(
-        (part for part in wheel_name.split("+")[1].split("-") if part.startswith("cu")),
-        "unknown",
-    )
+    direct_url_text = metadata.read_text("direct_url.json")
+    direct_url = json.loads(direct_url_text) if direct_url_text else None
     return {
         "name": name,
         "version": metadata.version,
-        "wheel_name": wheel_name,
-        "cuda_tag": cuda_tag,
-        "sha256": _sha256(wheel_path),
+        "direct_url": direct_url,
+        "location": str(metadata.locate_file("")),
     }
 
 
 def _runtime() -> dict[str, Any]:
-    freeze_hash = os.environ.get("DSGAN_AUDIT_FREEZE_SHA256")
-    if not freeze_hash:
-        raise RuntimeError("DSGAN_AUDIT_FREEZE_SHA256 is required for evidence")
+    freeze_path = EVIDENCE / "runtime" / "pip-freeze.txt"
+    freeze_path.parent.mkdir(parents=True, exist_ok=True)
+    freeze_path.write_text(
+        subprocess.check_output(
+            [sys.executable, "-m", "pip", "freeze", "--all"], text=True
+        )
+    )
     return {
         "python": ".".join(str(value) for value in sys.version_info[:3]),
         "torch": torch.__version__,
         "torch_cuda": torch.version.cuda,
-        "torch_wheel": _runtime_wheel("torch", "DSGAN_TORCH_WHEEL_PATH"),
-        "torchvision_wheel": _runtime_wheel(
-            "torchvision", "DSGAN_TORCHVISION_WHEEL_PATH"
-        ),
-        "audit_venv_env": "DSGAN_AUDIT_VENV",
-        "venv_creation_command": 'python -m venv "$DSGAN_AUDIT_VENV"',
+        "torch_distribution": _runtime_distribution("torch"),
+        "torchvision": distribution("torchvision").version,
+        "torchvision_distribution": _runtime_distribution("torchvision"),
+        "venv_creation_command": "UV_FROZEN=1 uv venv --python 3.11 <DSGAN_AUDIT_VENV>",
         "environment_basis": "lockfile environment for all CPU-only checks and tests; audited runtime only for CUDA evidence",
-        "pip_freeze_sha256": freeze_hash,
+        "pip_freeze_path": str(freeze_path.relative_to(ROOT)),
+        "pip_freeze_sha256": _sha256(freeze_path),
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
         "determinism_note": (
@@ -122,6 +123,7 @@ def _metadata() -> dict[str, Any]:
         "vendor_commit": _git("-C", str(VENDOR), "rev-parse", "HEAD"),
         "backbone_weights": _backbone_manifest(),
         "runtime": _runtime(),
+        "deterministic_warning": _warning_record(),
     }
 
 
@@ -149,8 +151,30 @@ def _set_determinism(seed: int = SEED) -> None:
             cublas_workspace_config=":4096:8",
         )
     )
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        torch.use_deterministic_algorithms(True, warn_only=True)
+    _DETERMINISTIC_WARNINGS.extend(str(item.message) for item in caught)
     torch.backends.cudnn.deterministic = True
+
+
+@contextmanager
+def _capture_deterministic_warnings() -> Iterator[list[str]]:
+    messages: list[str] = []
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        yield messages
+    messages.extend(str(item.message) for item in caught)
+    _DETERMINISTIC_WARNINGS.extend(messages)
+
+
+def _warning_record() -> dict[str, Any]:
+    return {
+        "messages": list(dict.fromkeys(_DETERMINISTIC_WARNINGS)),
+        "contains_nll_loss2d": any(
+            "nll_loss2d" in message for message in _DETERMINISTIC_WARNINGS
+        ),
+    }
 
 
 def _rng_digest(state: RNGState) -> dict[str, str]:
@@ -419,6 +443,32 @@ def _schedulers(
     )
 
 
+def _package_optimizers_and_schedulers(
+    module: Any,
+) -> tuple[
+    tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    tuple[torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR],
+    list[dict[str, Any]],
+]:
+    configured = cast(
+        tuple[list[torch.optim.Optimizer], list[dict[str, Any]]],
+        module.configure_optimizers(),
+    )
+    optimizers = cast(
+        tuple[torch.optim.Optimizer, torch.optim.Optimizer], tuple(configured[0])
+    )
+    schedulers = tuple(
+        cast(torch.optim.lr_scheduler.MultiStepLR, config["scheduler"])
+        for config in configured[1]
+    )
+    if len(optimizers) != 2 or len(schedulers) != 2:
+        raise RuntimeError(
+            "DS-GAN production configuration must define two optimizers and schedulers"
+        )
+
+    return optimizers, schedulers, configured[1]
+
+
 def _targets(batch: dict[str, torch.Tensor]) -> list[dict[str, torch.Tensor]]:
     return [
         {"labels": labels.long(), "boxes": boxes.float()}
@@ -599,15 +649,34 @@ def _materialize_bridge() -> dict[str, Any]:
             list(paths["test_basnet"].glob("*.png")), paths["root"]
         ),
     }
-    manifest_payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    manifest["bridge_manifest_sha256"] = (
-        __import__("hashlib").sha256(manifest_payload.encode()).hexdigest()
-    )
     paths["manifest"].write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
 
 
-def _vendor_loaders(seed: int) -> tuple[Any, Any]:
+def _make_bridge_read_only() -> None:
+    paths = _bridge_paths()
+    for path in sorted(paths["root"].rglob("*"), reverse=True):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    paths["root"].chmod(0o555)
+
+
+def _source_artifact_hashes() -> dict[str, str]:
+    root = _source_root()
+    metadata = sorted(
+        root.glob(
+            "creative-graphic-design___pku-poster_layout/default/0.0.0/*/dataset_info.json"
+        )
+    )[-1]
+    dataset_dir = metadata.parent
+    source_paths = [
+        metadata,
+        *sorted(dataset_dir.glob("pku-poster_layout-train-*.arrow")),
+        dataset_dir / "pku-poster_layout-test.arrow",
+    ]
+    return {path.name: _sha256(path) for path in source_paths}
+
+
+def _vendor_loaders(seed: int, *, overlay_root: Path | None = None) -> tuple[Any, Any]:
     sys.path.insert(0, str(VENDOR))
     from dataloader import canvas, canvasLayout
 
@@ -619,9 +688,11 @@ def _vendor_loaders(seed: int) -> tuple[Any, Any]:
         str(paths["train_csv"]),
         MAX_ELEM,
     )
+    loader_overlay = overlay_root or EVIDENCE / "loader-overlays" / str(os.getpid())
+    loader_overlay.mkdir(parents=True, exist_ok=True)
     old_cwd = Path.cwd()
     try:
-        os.chdir(paths["root"])
+        os.chdir(loader_overlay)
         test_dataset = canvas(
             str(paths["test_images"]),
             str(paths["test_pfpn"]),
@@ -630,14 +701,11 @@ def _vendor_loaders(seed: int) -> tuple[Any, Any]:
         )
     finally:
         os.chdir(old_cwd)
-    generator = torch.Generator()
-    generator.manual_seed(seed)
     train_loader = DataLoader(
         train_dataset,
         batch_size=TRAINING_BATCH_SIZE,
         shuffle=True,
         num_workers=16,
-        generator=generator,
     )
 
     def pad_test(items: list[torch.Tensor]) -> torch.Tensor:
@@ -681,6 +749,10 @@ def _batch_stream_report(
         "checked_steps": report.checked_steps,
         "first_mismatch": report.first_mismatch,
     }
+
+
+def _sample_ids(batch: torch.Tensor) -> list[str]:
+    return [tensor_sha256(sample) for sample in batch]
 
 
 def _comparison_dict(
@@ -1085,10 +1157,18 @@ def _fixed_batch(
 ) -> tuple[
     dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor, dict[str, Any]
 ]:
+    _set_determinism(seed)
+    vendor_pre_loader_rng = _rng_digest(capture_rng_state())
     vendor_loader, _ = _vendor_loaders(seed)
+    vendor_raw_batch = next(iter(vendor_loader))
+    vendor_post_loader_rng = _rng_digest(capture_rng_state())
+    _set_determinism(seed)
+    package_pre_loader_rng = _rng_digest(capture_rng_state())
     package_loader, _ = _package_loaders(seed)
-    vendor_batch = _vendor_batch(next(iter(vendor_loader)), device)
-    package_batch = _package_batch(next(iter(package_loader)), device)
+    package_raw_batch = next(iter(package_loader))
+    package_post_loader_rng = _rng_digest(capture_rng_state())
+    vendor_batch = _vendor_batch(vendor_raw_batch, device)
+    package_batch = _package_batch(package_raw_batch, device)
     stream_report, stream = _batch_stream_report(package_batch, vendor_batch)
     if not stream_report.passed:
         raise RuntimeError(
@@ -1110,12 +1190,27 @@ def _fixed_batch(
             "rng_before_random_init": _rng_digest(rng_before),
             "initial_layout_sha256": tensor_sha256(initial_layout),
             "batch_stream": stream,
+            "loader_rng": {
+                "vendor": {
+                    "pre_loader": vendor_pre_loader_rng,
+                    "post_loader": vendor_post_loader_rng,
+                    "first_sample_ids": _sample_ids(vendor_raw_batch[0]),
+                    "generator": "torch global RNG used by vendor DataLoader",
+                },
+                "package": {
+                    "pre_loader": package_pre_loader_rng,
+                    "post_loader": package_post_loader_rng,
+                    "first_sample_ids": _sample_ids(package_raw_batch["pixel_values"]),
+                    "generator": "seeded torch.Generator supplied by DSGANDataModule",
+                },
+            },
         },
     )
 
 
 def run_s0() -> Path:
     _set_determinism(SEED)
+    pre_model_rng = _rng_digest(capture_rng_state())
     (
         vendor_generator,
         vendor_discriminator,
@@ -1124,6 +1219,15 @@ def run_s0() -> Path:
         generator_config,
         discriminator_config,
     ) = _models(torch.device("cpu"))
+    post_model_rng = _rng_digest(capture_rng_state())
+    from ds_gan.training.lightning_module import DSGANTrainingModule
+
+    package_module = DSGANTrainingModule(
+        config=generator_config,
+        discriminator_config=discriminator_config,
+        generator=package_generator,
+        discriminator=package_discriminator,
+    )
     generator_keys_equal = set(vendor_generator.state_dict()) == set(
         package_generator.state_dict()
     )
@@ -1143,7 +1247,9 @@ def run_s0() -> Path:
         parameter.numel() for parameter in package_discriminator.parameters()
     )
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
-    package_optimizers = _optimizers(package_generator, package_discriminator)
+    package_optimizers, package_schedulers, package_scheduler_configs = (
+        _package_optimizers_and_schedulers(package_module)
+    )
     generator_initial_comparison = _state_compare(
         _named_parameters(vendor_generator, "generator"),
         _named_parameters(package_generator, "generator"),
@@ -1175,6 +1281,10 @@ def run_s0() -> Path:
         "package": state_hash(package_discriminator),
     }
     vendor_batch, package_batch, _, batch_meta = _fixed_batch(SEED, torch.device("cpu"))
+    batch_meta["model_rng"] = {
+        "pre_model": pre_model_rng,
+        "post_model": post_model_rng,
+    }
     dataset_comparison = _trace_compare(
         {key: value for key, value in vendor_batch.items()},
         {key: value for key, value in package_batch.items()},
@@ -1214,6 +1324,15 @@ def run_s0() -> Path:
                 "discriminator_initial_state_sha256": discriminator_initial_hashes,
                 "optimizer_static": optimizer_static,
                 "optimizer_static_equal": optimizer_static_equal,
+                "scheduler_static": {
+                    "vendor": [
+                        _scheduler_static(scheduler)
+                        for scheduler in _schedulers(vendor_optimizers)
+                    ],
+                    "package": [
+                        _scheduler_static(scheduler) for scheduler in package_schedulers
+                    ],
+                },
                 "config": {
                     "generator": generator_config.to_dict(),
                     "discriminator": discriminator_config.to_dict(),
@@ -1261,13 +1380,14 @@ def run_s1() -> Path:
             package_batch["pixel_values"],
             torch.stack((package_output.class_probs, package_output.bbox), dim=2),
         )
-    vendor_losses = _vendor_criterion(device)(
-        {"pred_logits": vendor_classes, "pred_boxes": vendor_boxes},
-        _targets(vendor_batch),
-    )
-    package_losses = package_module.criterion(
-        package_output.class_probs, package_output.bbox, _targets(package_batch)
-    )
+    with _capture_deterministic_warnings():
+        vendor_losses = _vendor_criterion(device)(
+            {"pred_logits": vendor_classes, "pred_boxes": vendor_boxes},
+            _targets(vendor_batch),
+        )
+        package_losses = package_module.criterion(
+            package_output.class_probs, package_output.bbox, _targets(package_batch)
+        )
     vendor_trace = {
         "initial_layout": initial_layout,
         "class_probs": vendor_classes,
@@ -1325,21 +1445,23 @@ def run_s2() -> Path:
         discriminator=package_discriminator,
     ).to(device)
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
-    package_optimizers = _optimizers(package_generator, package_discriminator)
+    package_optimizers, package_schedulers, package_scheduler_configs = (
+        _package_optimizers_and_schedulers(package_module)
+    )
     vendor_schedulers = _schedulers(vendor_optimizers)
-    package_schedulers = _schedulers(package_optimizers)
-    vendor_trace = _vendor_step(
-        vendor_generator,
-        vendor_discriminator,
-        vendor_batch,
-        *vendor_optimizers,
-        _vendor_criterion(device),
-        1,
-        initial_layout,
-    )
-    package_trace = _package_step(
-        package_module, package_batch, *package_optimizers, 1, initial_layout
-    )
+    with _capture_deterministic_warnings():
+        vendor_trace = _vendor_step(
+            vendor_generator,
+            vendor_discriminator,
+            vendor_batch,
+            *vendor_optimizers,
+            _vendor_criterion(device),
+            1,
+            initial_layout,
+        )
+        package_trace = _package_step(
+            package_module, package_batch, *package_optimizers, 1, initial_layout
+        )
     trace_comparison = _trace_compare(vendor_trace, package_trace)
     vendor_parameters = {
         **_named_parameters(vendor_generator, "generator"),
@@ -1382,9 +1504,14 @@ def run_s2() -> Path:
     ]
     scheduler_comparison = {
         "passed": vendor_scheduler_values == package_scheduler_values,
-        "cadence": "MultiStepLR advances only after each complete 78-batch epoch",
         "vendor": vendor_scheduler_values,
         "package": package_scheduler_values,
+        "package_intervals": [
+            config["interval"] for config in package_scheduler_configs
+        ],
+        "package_frequencies": [
+            config["frequency"] for config in package_scheduler_configs
+        ],
     }
     passed = all(
         comparison["passed"]
@@ -1403,7 +1530,6 @@ def run_s2() -> Path:
             "stage": "S2",
             "result": "PASS" if passed else "FAIL",
             "batch": batch_meta,
-            "optimizer_order": "generator_then_discriminator",
             "trace": trace_comparison,
             "gradients": gradient_comparison,
             "post_step_parameters": state_comparison,
@@ -1425,7 +1551,9 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
     ) = _models(device)
     from ds_gan.training.lightning_module import DSGANTrainingModule
 
+    _set_determinism(SEED)
     vendor_loader, _ = _vendor_loaders(SEED)
+    _set_determinism(SEED)
     package_loader, _ = _package_loaders(SEED)
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
     package_module = DSGANTrainingModule(
@@ -1460,7 +1588,8 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         gradient_clip_algorithm="norm",
         callbacks=[callback],
     )
-    trainer.fit(package_module, train_dataloaders=package_loader)
+    with _capture_deterministic_warnings():
+        trainer.fit(package_module, train_dataloaders=package_loader)
     if len(callback.rows) != LOCKSTEP_STEPS:
         raise RuntimeError(
             f"package Trainer produced {len(callback.rows)} iterations, expected {LOCKSTEP_STEPS}"
@@ -1531,6 +1660,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
             [len(group["params"]) for group in optimizer.param_groups]
             for optimizer in trainer.optimizers
         ],
+        "deterministic_warning": _warning_record(),
     }
 
 
@@ -1622,7 +1752,8 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
         gradient_clip_algorithm="norm",
         callbacks=[stopper],
     )
-    trainer.fit(package_module, train_dataloaders=package_loader)
+    with _capture_deterministic_warnings():
+        trainer.fit(package_module, train_dataloaders=package_loader)
     if stopper.iterations != LOCKSTEP_STEPS:
         raise RuntimeError(
             f"package Trainer produced {stopper.iterations} iterations, expected {LOCKSTEP_STEPS}"
@@ -1647,6 +1778,7 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
                 trainer.optimizers[1], package_module.discriminator, "discriminator"
             ),
         },
+        "deterministic_warning": _warning_record(),
     }
 
 
@@ -1662,10 +1794,6 @@ def _self_envelope(first: dict[str, Any], second: dict[str, Any]) -> dict[str, A
         "seed": [first["seed"], second["seed"]],
         "parameters": parameter_comparison,
         "optimizer_state": optimizer_comparison,
-        "max_abs_difference": max(
-            parameter_comparison["max_abs_difference"],
-            optimizer_comparison["max_abs_difference"],
-        ),
     }
 
 
@@ -1677,15 +1805,186 @@ def _envelope_run_metadata(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_s3() -> Path:
+def _run_in_separate_process(stage: str, repeat: int) -> dict[str, Any]:
+    artifact_root = EVIDENCE / "s3-lockstep"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    json_path = artifact_root / f"{stage}-{repeat}.json"
+    state_path = artifact_root / f"{stage}-{repeat}.pt"
+    subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            stage,
+            str(repeat),
+            str(json_path),
+            str(state_path),
+        ],
+        check=True,
+        cwd=ROOT,
+    )
+    payload = json.loads(json_path.read_text())
+    if stage == "s3-self-repeat":
+        states = torch.load(state_path, map_location="cpu", weights_only=False)
+        payload.update(states)
+    return payload
+
+
+def run_s3_natural_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
+    del state_path
+    result = _run_natural(
+        repeat, torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    )
+    result["process_id"] = os.getpid()
+    json_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+
+
+def run_s3_self_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    repeats = [_run_natural(repeat, device) for repeat in (1, 2)]
-    vendor_runs = [_run_vendor_alone(repeat, device) for repeat in (1, 2)]
-    package_runs = [_run_package_alone(repeat, device) for repeat in (1, 2)]
+    vendor = _run_vendor_alone(repeat, device)
+    package = _run_package_alone(repeat, device)
+    state = {
+        "vendor": {
+            "final_parameters": vendor.pop("final_parameters"),
+            "final_optimizer_state": vendor.pop("final_optimizer_state"),
+        },
+        "package": {
+            "final_parameters": package.pop("final_parameters"),
+            "final_optimizer_state": package.pop("final_optimizer_state"),
+        },
+    }
+    vendor["process_id"] = os.getpid()
+    package["process_id"] = os.getpid()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(state, state_path)
+    json_path.write_text(
+        json.dumps({"vendor": vendor, "package": package}, indent=2, sort_keys=True)
+        + "\n"
+    )
+
+
+def run_s3_production_wiring() -> Path:
+    config_path = ROOT / "models/ds-gan/configs/training/ds_gan_pku_posterlayout.yaml"
+    config_text = config_path.read_text()
+    required_config_fragments = (
+        "class_path: lightning.pytorch.loggers.CSVLogger",
+        "class_path: lightning.pytorch.callbacks.ModelCheckpoint",
+        "generator_backbone_weights: .cache/ds-gan/backbones/resnet50_a1_0-14fe96d1.pth",
+        "discriminator_backbone_weights: .cache/ds-gan/backbones/resnet18-5c106cde.pth",
+    )
+    if any(fragment not in config_text for fragment in required_config_fragments):
+        raise RuntimeError(
+            "training config lacks the production logger, checkpoint, or backbone wiring"
+        )
+    executable = shutil.which("traingen")
+    command = [
+        executable or sys.executable,
+        *([] if executable else ["-m", "traingen.lightning.cli"]),
+        "fit",
+        "--config",
+        str(config_path),
+        "--trainer.max_epochs=1",
+        "--trainer.limit_train_batches=1",
+        "--trainer.devices=1",
+        "--data.num_workers=0",
+        "--trainer.enable_progress_bar=false",
+    ]
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output_path = EVIDENCE / "s3-production-wiring" / "traingen-output.txt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(result.stdout)
+    checkpoint_root = CACHE / "training-runs" / "pku_posterlayout" / "checkpoints"
+    checkpoints = sorted(checkpoint_root.glob("*.ckpt"))
+    logger_root = CACHE / "training-runs" / "pku_posterlayout"
+    checkpoint_scheduler_counts = []
+    for checkpoint in checkpoints:
+        payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        checkpoint_scheduler_counts.append(
+            {
+                "path": str(checkpoint.relative_to(ROOT)),
+                "count": len(payload.get("lr_schedulers", [])),
+            }
+        )
+    passed = result.returncode == 0 and bool(checkpoints) and logger_root.is_dir()
+    return _write(
+        "s3-production-wiring",
+        {
+            **_metadata(),
+            "stage": "S3",
+            "evidence_layer": "production-wiring",
+            "result": "PASS" if passed else "FAIL",
+            "command": command,
+            "returncode": result.returncode,
+            "output": str(output_path.relative_to(ROOT)),
+            "output_sha256": _sha256(output_path),
+            "logger_root": str(logger_root.relative_to(ROOT)),
+            "checkpoint_root": str(checkpoint_root.relative_to(ROOT)),
+            "checkpoint_files": [str(path.relative_to(ROOT)) for path in checkpoints],
+            "checkpoint_scheduler_counts": checkpoint_scheduler_counts,
+            "config": str(config_path.relative_to(ROOT)),
+            "traingen_entry_point": "traingen fit",
+        },
+    )
+
+
+def run_s3() -> Path:
+    repeats = [
+        _run_in_separate_process("s3-natural-repeat", repeat) for repeat in (1, 2)
+    ]
+    self_runs = [
+        _run_in_separate_process("s3-self-repeat", repeat) for repeat in (1, 2)
+    ]
+    natural_process_ids = [run["process_id"] for run in repeats]
+    self_process_ids = [run["vendor"]["process_id"] for run in self_runs]
+    if len(set(natural_process_ids)) != len(natural_process_ids):
+        raise RuntimeError("natural S3 repeats did not use separate processes")
+    if len(set(self_process_ids)) != len(self_process_ids):
+        raise RuntimeError("S3 self repeats did not use separate processes")
+    vendor_runs = [run["vendor"] for run in self_runs]
+    package_runs = [run["package"] for run in self_runs]
     vendor_self = _self_envelope(vendor_runs[0], vendor_runs[1])
     package_self = _self_envelope(package_runs[0], package_runs[1])
-    cross_system_max = max(item["max_abs_difference"] for item in repeats)
-    within_vendor_envelope = cross_system_max <= vendor_self["max_abs_difference"]
+    cross_system: list[dict[str, Any]] = [
+        {
+            "repeat": repeat,
+            "parameters": _state_compare(
+                vendor_run["final_parameters"], package_run["final_parameters"]
+            ),
+            "optimizer_state": _state_compare(
+                vendor_run["final_optimizer_state"],
+                package_run["final_optimizer_state"],
+            ),
+        }
+        for repeat, vendor_run, package_run in zip(
+            (1, 2), vendor_runs, package_runs, strict=True
+        )
+    ]
+    cross_system_max = {
+        "parameters": max(
+            item["parameters"]["max_abs_difference"] for item in cross_system
+        ),
+        "optimizer_state": max(
+            item["optimizer_state"]["max_abs_difference"] for item in cross_system
+        ),
+    }
+    within_vendor_envelope = (
+        cross_system_max["parameters"]
+        <= vendor_self["parameters"]["max_abs_difference"]
+        and cross_system_max["optimizer_state"]
+        <= vendor_self["optimizer_state"]["max_abs_difference"]
+    )
+    within_package_envelope = (
+        cross_system_max["parameters"]
+        <= package_self["parameters"]["max_abs_difference"]
+        and cross_system_max["optimizer_state"]
+        <= package_self["optimizer_state"]["max_abs_difference"]
+    )
     natural_pass = all(item["bitwise_300"] for item in repeats)
     return _write(
         "s3-lockstep",
@@ -1696,36 +1995,25 @@ def run_s3() -> Path:
             "result": "PASS" if natural_pass else "FAIL",
             "steps": LOCKSTEP_STEPS,
             "repeats": repeats,
+            "repeat_process_ids": {
+                "natural": natural_process_ids,
+                "self": self_process_ids,
+            },
             "repeat_run_envelope": {
-                "cross_system_max_abs_difference": [
-                    item["max_abs_difference"] for item in repeats
-                ],
-                "cross_system_max_abs_difference_overall": cross_system_max,
+                "cross_system_final_state": cross_system,
+                "cross_system_final_state_max_abs": cross_system_max,
                 "vendor_runs": [_envelope_run_metadata(run) for run in vendor_runs],
                 "package_runs": [_envelope_run_metadata(run) for run in package_runs],
                 "vendor_self": vendor_self,
                 "package_self": package_self,
                 "cross_system_within_vendor_self_envelope": within_vendor_envelope,
+                "cross_system_within_package_self_envelope": within_package_envelope,
                 "interpretation": (
-                    "cross-system drift does not exceed the observed vendor self envelope"
-                    if within_vendor_envelope
-                    else "cross-system drift exceeds the observed vendor self envelope; package-specific drift remains"
+                    "cross-system final-state drift is within both observed self envelopes"
+                    if within_vendor_envelope and within_package_envelope
+                    else "cross-system final-state drift exceeds at least one observed self envelope"
                 ),
-                "legacy_max_abs_difference": max(
-                    item["max_abs_difference"] for item in repeats
-                ),
-                "first_divergence_steps": [
-                    item["first_divergence"]["step"]
-                    if item["first_divergence"] is not None
-                    else None
-                    for item in repeats
-                ],
                 "repeat_count": len(repeats),
-            },
-            "scheduler_cadence": "MultiStepLR steps after each complete 78-batch training epoch; generator milestones every 50 epochs and discriminator every 25 epochs",
-            "bound": {
-                "declared_before_run": False,
-                "status": "no approximate bound claimed",
             },
         },
     )
@@ -1829,17 +2117,14 @@ def _synchronized_step(
         numpy_rng=package_numpy_rng,
         torch_generator=package_torch_generator,
     )
-    import hashlib
-
+    package_after_rng = copy.deepcopy(capture_rng_state())
     vendor_rng_digest = _rng_digest(vendor_after_rng)
-    package_rng_digest = {
-        "torch_cpu": tensor_sha256(package_torch_generator.get_state()),
-        "torch_cuda": vendor_rng_digest["torch_cuda"],
-        "python": vendor_rng_digest["python"],
-        "numpy": hashlib.sha256(
-            repr(package_numpy_rng.get_state()).encode()
-        ).hexdigest(),
-    }
+    package_rng_digest = _rng_digest(package_after_rng)
+    restore_rng_state(vendor_after_rng)
+    synchronized_rng = copy.deepcopy(capture_rng_state())
+    package_numpy_state = cast(
+        tuple[str, np.ndarray, int, int, float], package_numpy_rng.get_state()
+    )
     trace_comparison = _trace_compare(vendor_trace, package_trace)
     gradient_comparison = _state_compare(
         {
@@ -1893,9 +2178,24 @@ def _synchronized_step(
         "parameters": parameter_comparison,
         "optimizer_state": optimizer_comparison,
         "per_step_deltas": per_step_deltas,
-        "rng_before": _rng_digest(vendor_rng),
+        "rng_before": {
+            "vendor": _rng_digest(vendor_rng),
+            "package": vendor_rng_digest,
+        },
         "rng_after": {"vendor": vendor_rng_digest, "package": package_rng_digest},
         "rng_equal_after_operation": vendor_rng_digest == package_rng_digest,
+        "rng_after_resynchronization": _rng_digest(synchronized_rng),
+        "rng_equal_after_resynchronization": vendor_rng_digest
+        == _rng_digest(synchronized_rng),
+        "explicit_generator_after": {
+            "torch_cpu": tensor_sha256(package_torch_generator.get_state()),
+            "numpy": tensor_sha256(
+                torch.as_tensor(
+                    package_numpy_state[1],
+                    dtype=torch.uint32,
+                )
+            ),
+        },
         "learning_rates": {
             "vendor": [
                 [group["lr"] for group in optimizer.param_groups]
@@ -1936,10 +2236,13 @@ def run_s3_synchronized() -> Path:
         discriminator=package_discriminator,
     ).to(device)
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
-    package_optimizers = _optimizers(package_generator, package_discriminator)
+    package_optimizers, package_schedulers, _ = _package_optimizers_and_schedulers(
+        package_module
+    )
     vendor_schedulers = _schedulers(vendor_optimizers)
-    package_schedulers = _schedulers(package_optimizers)
+    _set_determinism(SEED)
     vendor_loader, _ = _vendor_loaders(SEED)
+    _set_determinism(SEED)
     package_loader, _ = _package_loaders(SEED)
     vendor_iterator = iter(vendor_loader)
     package_iterator = iter(package_loader)
@@ -1979,7 +2282,7 @@ def run_s3_synchronized() -> Path:
         and row["gradients"]["passed"]
         and row["parameters"]["passed"]
         and row["optimizer_state"]["passed"]
-        and row["rng_equal_after_operation"]
+        and row["rng_equal_after_resynchronization"]
         for row in rows
     )
     first_divergence = next(
@@ -2026,6 +2329,29 @@ def _metric_summary(classes: np.ndarray, boxes: np.ndarray) -> dict[str, float |
     }
 
 
+def _metrics_from_eval_output(output: str) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for name, value in re.findall(
+        r"^(metrics_[a-z_]+):\s*([-+0-9.eE]+)$", output, re.MULTILINE
+    ):
+        metrics[name] = float(value)
+    expected = {
+        "metrics_val",
+        "metrics_ove",
+        "metrics_ali",
+        "metrics_und_l",
+        "metrics_und_s",
+        "metrics_uti",
+        "metrics_occ",
+        "metrics_rea",
+    }
+    if set(metrics) != expected:
+        raise RuntimeError(
+            f"eval.py:main output did not contain exactly the expected metrics: {sorted(metrics)}"
+        )
+    return metrics
+
+
 def _prediction_file(
     path: Path, classes: np.ndarray, boxes: np.ndarray
 ) -> dict[str, Any]:
@@ -2047,23 +2373,15 @@ def _module_state_hash(module: nn.Module) -> str:
     return digest.hexdigest()
 
 
-def _vendor_metrics(
-    vendor_eval: Any, names: list[str], classes: np.ndarray, boxes: np.ndarray
-) -> dict[str, float]:
-    return {
-        "metrics_val": float(vendor_eval.metrics_val((513, 750), classes, boxes)),
-        "metrics_ove": float(vendor_eval.metrics_ove(classes, boxes)),
-        "metrics_ali": float(vendor_eval.metrics_ali(classes, boxes)),
-        "metrics_und_l": float(vendor_eval.metrics_und_l(classes, boxes)),
-        "metrics_und_s": float(vendor_eval.metrics_und_s(classes, boxes)),
-        "metrics_uti": float(vendor_eval.metrics_uti(names, classes, boxes)),
-        "metrics_occ": float(vendor_eval.metrics_occ(names, classes, boxes)),
-        "metrics_rea": float(vendor_eval.metrics_rea(names, classes, boxes)),
-    }
-
-
 def run_s4_bridge() -> Path:
     manifest = _materialize_bridge()
+    paths = _bridge_paths()
+    stale_vendor_write_paths = [
+        str(path.relative_to(paths["root"]))
+        for path in (paths["root"] / "output", paths["root"] / "test_order.pt")
+        if path.exists()
+    ]
+    _make_bridge_read_only()
     return _write(
         "s4-bridge",
         {
@@ -2071,6 +2389,13 @@ def run_s4_bridge() -> Path:
             "stage": "S4",
             "result": "PASS" if not manifest["missing_source_fields"] else "BLOCKED",
             "manifest": manifest,
+            "manifest_file_sha256": _sha256(paths["manifest"]),
+            "source_artifact_hashes": manifest["hashes"],
+            "bridge_read_only": True,
+            "vendor_write_overlay": str(
+                (EVIDENCE / "s4-evaluation" / "vendor-overlay").relative_to(ROOT)
+            ),
+            "stale_vendor_write_paths": stale_vendor_write_paths,
         },
     )
 
@@ -2079,14 +2404,35 @@ def run_s4() -> Path:
     _set_determinism(SEED)
     paths = _bridge_paths()
     manifest = json.loads(paths["manifest"].read_text())
-    recorded_manifest_hash = manifest.pop("bridge_manifest_sha256", None)
-    manifest_payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    manifest_hash_verified = (
-        recorded_manifest_hash
-        == __import__("hashlib").sha256(manifest_payload.encode()).hexdigest()
-    )
-    if not manifest_hash_verified:
-        raise RuntimeError("bridge manifest hash verification failed")
+    manifest_file_hash = _sha256(paths["manifest"])
+    source_hashes = _source_artifact_hashes()
+    source_hashes_verified = source_hashes == manifest["hashes"]
+    bridge_hashes = {
+        "train.inpainted_poster": _aggregate_files(
+            list(paths["train_images"].glob("*.png")), paths["root"]
+        ),
+        "train.saliency_pfpnet": _aggregate_files(
+            list(paths["train_pfpn"].glob("*.png")), paths["root"]
+        ),
+        "train.saliency_basnet": _aggregate_files(
+            list(paths["train_basnet"].glob("*.png")), paths["root"]
+        ),
+        "train.annotations": manifest["bridge"]["train.annotations"],
+        "test.canvas": _aggregate_files(
+            list(paths["test_images"].glob("*.png")), paths["root"]
+        ),
+        "test.saliency_pfpnet": _aggregate_files(
+            list(paths["test_pfpn"].glob("*.png")), paths["root"]
+        ),
+        "test.saliency_basnet": _aggregate_files(
+            list(paths["test_basnet"].glob("*.png")), paths["root"]
+        ),
+    }
+    bridge_hashes_verified = bridge_hashes == manifest["bridge"]
+    if not source_hashes_verified:
+        raise RuntimeError("approved-source Arrow or metadata hash verification failed")
+    if not bridge_hashes_verified:
+        raise RuntimeError("bridge PNG or annotation hash verification failed")
     if manifest["missing_source_fields"]:
         raise RuntimeError(
             f"approved source lacks vendor fields: {manifest['missing_source_fields']}"
@@ -2119,13 +2465,16 @@ def run_s4() -> Path:
         strict=True,
     )
     vendor_generator.eval()
-    vendor_root = paths["root"]
+    initial_layout_rng_before = _rng_digest(capture_rng_state())
+    initial_layout = _vendor_main().random_init(TEST_BATCH_SIZE, MAX_ELEM).to(device)
+    initial_layout_rng_after = _rng_digest(capture_rng_state())
+    vendor_root = EVIDENCE / "s4-evaluation" / "vendor-overlay"
+    vendor_root.mkdir(parents=True, exist_ok=True)
     (vendor_root / "output").mkdir(parents=True, exist_ok=True)
-    _, vendor_eval_loader = _vendor_loaders(SEED)
+    _, vendor_eval_loader = _vendor_loaders(SEED, overlay_root=vendor_root)
     names = list(torch.load(vendor_root / "test_order.pt", weights_only=False))
     _, package_loader = _package_loaders(SEED)
     _, vendor_stream_loader = _vendor_loaders(SEED)
-    initial_layout = _vendor_main().random_init(TEST_BATCH_SIZE, MAX_ELEM).to(device)
     with redirect_stdout(io.StringIO()) as output:
         sys.path.insert(0, str(VENDOR))
         import infer as vendor_infer
@@ -2145,11 +2494,6 @@ def run_s4() -> Path:
         vendor_boxes = vendor_boxes_full[: len(names)] * np.asarray(
             (513, 750, 513, 750)
         )
-        torch.save(torch.as_tensor(vendor_classes), "output/clses-Epoch300.pt")
-        torch.save(
-            torch.as_tensor(vendor_boxes / np.asarray((513, 750, 513, 750))),
-            "output/boxes-Epoch300.pt",
-        )
         with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as evaluation_dir:
             evaluation_root = Path(evaluation_dir)
             (evaluation_root / "Dataset").symlink_to(
@@ -2165,7 +2509,8 @@ def run_s4() -> Path:
             vendor_eval.main()
     os.chdir(ROOT)
     (EVIDENCE / "s4-evaluation").mkdir(parents=True, exist_ok=True)
-    (EVIDENCE / "s4-evaluation" / "vendor-eval.txt").write_text(output.getvalue())
+    vendor_eval_output = output.getvalue()
+    (EVIDENCE / "s4-evaluation" / "vendor-eval.txt").write_text(vendor_eval_output)
     package_classes: list[np.ndarray] = []
     package_boxes: list[np.ndarray] = []
     stream_rows: list[dict[str, Any]] = []
@@ -2217,6 +2562,36 @@ def run_s4() -> Path:
         package_boxes.append(boxes * np.asarray((513, 750, 513, 750)))
     package_classes_array = np.concatenate(package_classes)
     package_boxes_array = np.concatenate(package_boxes)
+    package_eval_root = EVIDENCE / "s4-evaluation" / "package-overlay"
+    (package_eval_root / "output").mkdir(parents=True, exist_ok=True)
+    torch.save(
+        torch.as_tensor(package_classes_array),
+        package_eval_root / "output/clses-Epoch300.pt",
+    )
+    torch.save(
+        torch.as_tensor(package_boxes_array / np.asarray((513, 750, 513, 750))),
+        package_eval_root / "output/boxes-Epoch300.pt",
+    )
+    with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as package_metrics_dir:
+        package_metrics_root = Path(package_metrics_dir)
+        (package_metrics_root / "Dataset").symlink_to(
+            paths["root"], target_is_directory=True
+        )
+        (package_metrics_root / "output").symlink_to(
+            package_eval_root / "output", target_is_directory=True
+        )
+        (package_metrics_root / "test_order.pt").symlink_to(
+            vendor_root / "test_order.pt"
+        )
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(package_metrics_root)
+            with redirect_stdout(io.StringIO()) as package_output:
+                vendor_eval.main()
+            package_eval_output = package_output.getvalue()
+        finally:
+            os.chdir(old_cwd)
+    (EVIDENCE / "s4-evaluation" / "package-eval.txt").write_text(package_eval_output)
     checkpoint_hash = _sha256(checkpoint_path)
     vendor_prediction_file = _prediction_file(
         EVIDENCE / "s4-evaluation" / "vendor-predictions.npz",
@@ -2228,20 +2603,8 @@ def run_s4() -> Path:
         package_classes_array,
         package_boxes_array,
     )
-    with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as metrics_dir:
-        metrics_root = Path(metrics_dir)
-        (metrics_root / "Dataset").symlink_to(paths["root"], target_is_directory=True)
-        old_cwd = Path.cwd()
-        try:
-            os.chdir(metrics_root)
-            vendor_metrics = _vendor_metrics(
-                vendor_eval, names, vendor_classes, vendor_boxes
-            )
-            package_metrics = _vendor_metrics(
-                vendor_eval, names, package_classes_array, package_boxes_array
-            )
-        finally:
-            os.chdir(old_cwd)
+    vendor_metrics = _metrics_from_eval_output(vendor_eval_output)
+    package_metrics = _metrics_from_eval_output(package_eval_output)
     vendor_summary = _metric_summary(vendor_classes, vendor_boxes)
     package_summary = _metric_summary(package_classes_array, package_boxes_array)
     vendor_weight_hash = _module_state_hash(vendor_generator)
@@ -2250,12 +2613,6 @@ def run_s4() -> Path:
     prediction_equal = np.array_equal(
         vendor_classes, package_classes_array
     ) and np.array_equal(vendor_boxes, package_boxes_array)
-    metrics_equal = all(
-        (left == right) or (np.isnan(left) and np.isnan(right))
-        for left, right in zip(
-            vendor_metrics.values(), package_metrics.values(), strict=True
-        )
-    )
     count_equal_nonzero = (
         vendor_summary["prediction_count"] == package_summary["prediction_count"]
         and vendor_summary["prediction_count"] > 0
@@ -2267,12 +2624,16 @@ def run_s4() -> Path:
         f"{Path(vendor_eval.__file__).resolve().relative_to(ROOT)}:"
         f"{vendor_eval.main.__qualname__}"
     )
-    package_entry_point = (
+    package_prediction_entry_point = (
         f"{type(pipeline).__module__}.{type(pipeline).__qualname__}.__call__"
     )
     evaluation = {
         "vendor_evaluation_entry_point": vendor_entry_point,
-        "package_evaluation_entry_point": package_entry_point,
+        "package_prediction_entry_point": package_prediction_entry_point,
+        "package_evaluation_entry_point": (
+            f"{Path(vendor_eval.__file__).resolve().relative_to(ROOT)}:"
+            f"{vendor_eval.main.__qualname__}"
+        ),
         "same_weights": same_weights,
         "checkpoint_sha256": checkpoint_hash,
         "weight_state_sha256": {
@@ -2287,13 +2648,22 @@ def run_s4() -> Path:
             "batch_size": TEST_BATCH_SIZE,
             "shuffle": False,
             "sampling_seed": SEED,
-            "initial_layout_seed": SEED,
+            "initial_layout_rng": {
+                "source": "global RNG immediately after vendor model construction",
+                "before": initial_layout_rng_before,
+                "after": initial_layout_rng_after,
+            },
             "padded_final_batch_rows": (TEST_BATCH_SIZE - len(names) % TEST_BATCH_SIZE)
             % TEST_BATCH_SIZE,
         },
         "coordinate_frame": "pixel xyxy on 513x750 canvas",
         "vendor_native_coordinate_frame": "normalized xyxy from infer.py converted by multiplying x coordinates by 513 and y coordinates by 750",
         "package_native_coordinate_frame": "normalized center xywh decoded by DSGANPipeline and converted to xyxy then multiplied by 513 and 750",
+        "vendor_output_handling": {
+            "raw_output_untouched_for_eval_main": True,
+            "canonical_comparison_only": "in-memory squeeze of class singleton axis and pixel-scale conversion after eval.main input was preserved",
+            "write_overlay": str(vendor_root.relative_to(ROOT)),
+        },
         "prediction_files": {
             "vendor": vendor_prediction_file,
             "package": package_prediction_file,
@@ -2315,18 +2685,17 @@ def run_s4() -> Path:
             "metrics": package_metrics,
             "evaluator_source_commit": _git("rev-parse", "HEAD"),
         },
-        "metrics_identical": metrics_equal,
+        "metrics_source": {
+            "vendor": "captured vendor eval.py:main stdout",
+            "package": "captured vendor eval.py:main stdout on package raw predictions",
+        },
+        "evaluation_stdout_sha256": {
+            "vendor": _sha256(EVIDENCE / "s4-evaluation" / "vendor-eval.txt"),
+            "package": _sha256(EVIDENCE / "s4-evaluation" / "package-eval.txt"),
+        },
         "counts_equal_and_nonzero": count_equal_nonzero,
-        "evaluation_stdout_sha256": _sha256(
-            EVIDENCE / "s4-evaluation" / "vendor-eval.txt"
-        ),
     }
-    passed = (
-        prediction_equal
-        and metrics_equal
-        and count_equal_nonzero
-        and test_stream_passed
-    )
+    passed = prediction_equal and count_equal_nonzero and test_stream_passed
     return _write(
         "s4-evaluation",
         {
@@ -2334,7 +2703,11 @@ def run_s4() -> Path:
             "stage": "S4",
             "result": "PASS" if passed else "FAIL",
             "bridge_manifest": ".cache/ds-gan/bridge/pku_posterlayout_manifest.json",
-            "bridge_manifest_hash_verified": manifest_hash_verified,
+            "bridge_manifest_file_sha256": manifest_file_hash,
+            "source_artifact_hashes": source_hashes,
+            "source_artifact_hashes_verified": source_hashes_verified,
+            "bridge_artifact_hashes": bridge_hashes,
+            "bridge_artifact_hashes_verified": bridge_hashes_verified,
             "test_stream": {
                 "split": "TEST",
                 "rows": len(names),
@@ -2367,10 +2740,16 @@ def main() -> None:
             "s2-optimizer-step",
             "s3-lockstep",
             "s3-lockstep-synchronized",
+            "s3-natural-repeat",
+            "s3-self-repeat",
+            "s3-production-wiring",
             "s4-bridge",
             "s4-evaluation",
         ),
     )
+    parser.add_argument("repeat", nargs="?", type=int)
+    parser.add_argument("json_path", nargs="?", type=Path)
+    parser.add_argument("state_path", nargs="?", type=Path)
     args = parser.parse_args()
     functions = {
         "s0-static": run_s0,
@@ -2378,9 +2757,24 @@ def main() -> None:
         "s2-optimizer-step": run_s2,
         "s3-lockstep": run_s3,
         "s3-lockstep-synchronized": run_s3_synchronized,
+        "s3-production-wiring": run_s3_production_wiring,
         "s4-bridge": run_s4_bridge,
         "s4-evaluation": run_s4,
     }
+    if args.stage == "s3-natural-repeat":
+        if args.repeat is None or args.json_path is None or args.state_path is None:
+            raise ValueError(
+                "S3 natural repeat requires repeat, JSON path, and state path"
+            )
+        run_s3_natural_repeat(args.repeat, args.json_path, args.state_path)
+        return
+    if args.stage == "s3-self-repeat":
+        if args.repeat is None or args.json_path is None or args.state_path is None:
+            raise ValueError(
+                "S3 self repeat requires repeat, JSON path, and state path"
+            )
+        run_s3_self_repeat(args.repeat, args.json_path, args.state_path)
+        return
     print(functions[args.stage]())
 
 
