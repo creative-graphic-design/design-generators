@@ -858,7 +858,7 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         original_assign_levels = pooler_module.RADMProposalHead._assign_pooler_levels
 
         def trace_assign_levels(boxes: torch.Tensor) -> torch.Tensor:
-            levels = original_assign_levels(boxes)
+            levels = cast(Any, original_assign_levels)(boxes)
             captured["scatter"].append(
                 {
                     "levels": levels.detach().cpu().clone(),
@@ -877,7 +877,7 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         original_assign_levels = pooler_module.assign_boxes_to_levels
 
         def trace_assign_levels(*args: Any, **kwargs: Any) -> torch.Tensor:
-            levels = original_assign_levels(*args, **kwargs)
+            levels = cast(Any, original_assign_levels)(*args, **kwargs)
             captured["scatter"].append(
                 {
                     "levels": levels.detach().cpu().clone(),
@@ -1830,6 +1830,107 @@ def _optimizer_state_errors(
     return max_abs, max_rel, first_name
 
 
+def _tensor_state_comparison(
+    source_value: torch.Tensor,
+    package_value: torch.Tensor,
+) -> dict[str, Any]:
+    source_cpu = source_value.detach().to(device="cpu", copy=True)
+    package_cpu = package_value.detach().to(device="cpu", copy=True)
+    if source_cpu.shape != package_cpu.shape:
+        return {
+            "bitwise": False,
+            "source_shape": list(source_cpu.shape),
+            "package_shape": list(package_cpu.shape),
+            "max_abs": math.inf,
+            "max_rel": math.inf,
+        }
+    difference = (source_cpu - package_cpu).abs()
+    source_max = float(source_cpu.abs().max()) if source_cpu.numel() else 0.0
+    package_max = float(package_cpu.abs().max()) if package_cpu.numel() else 0.0
+    return {
+        "bitwise": torch.equal(source_cpu, package_cpu),
+        "shape": list(source_cpu.shape),
+        "source_dtype": str(source_cpu.dtype),
+        "package_dtype": str(package_cpu.dtype),
+        "max_abs": float(difference.max()) if difference.numel() else 0.0,
+        "max_rel": _max_relative_error(source_max, package_max),
+        "source_sha256": tensor_sha256(source_cpu),
+        "package_sha256": tensor_sha256(package_cpu),
+    }
+
+
+def _mapped_tensor_state_comparisons(
+    source: Mapping[str, torch.Tensor],
+    package: Mapping[str, torch.Tensor],
+    key_map: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for package_name, source_name in sorted(key_map.items()):
+        if source_name not in source or package_name not in package:
+            rows.append(
+                {
+                    "source_name": source_name,
+                    "package_name": package_name,
+                    "bitwise": False,
+                    "missing": True,
+                    "source_present": source_name in source,
+                    "package_present": package_name in package,
+                    "max_abs": math.inf,
+                    "max_rel": math.inf,
+                }
+            )
+            continue
+        rows.append(
+            {
+                "source_name": source_name,
+                "package_name": package_name,
+                **_tensor_state_comparison(source[source_name], package[package_name]),
+            }
+        )
+    return rows
+
+
+def _mapped_optimizer_state_comparisons(
+    source: Mapping[str, Mapping[str, Any]],
+    package: Mapping[str, Mapping[str, Any]],
+    key_map: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for parameter_row in _mapped_tensor_state_comparisons(
+        {name: torch.empty(0) for name in source},
+        {name: torch.empty(0) for name in package},
+        key_map,
+    ):
+        source_name = str(parameter_row["source_name"])
+        package_name = str(parameter_row["package_name"])
+        source_values = source.get(source_name, {})
+        package_values = package.get(package_name, {})
+        for state_name in sorted(set(source_values) | set(package_values)):
+            source_value = source_values.get(state_name)
+            package_value = package_values.get(state_name)
+            row: dict[str, Any] = {
+                "source_name": source_name,
+                "package_name": package_name,
+                "state_name": state_name,
+            }
+            if isinstance(source_value, torch.Tensor) and isinstance(
+                package_value, torch.Tensor
+            ):
+                row.update(_tensor_state_comparison(source_value, package_value))
+            else:
+                row.update(
+                    {
+                        "bitwise": source_value == package_value,
+                        "source": source_value,
+                        "package": package_value,
+                        "max_abs": 0.0 if source_value == package_value else math.inf,
+                        "max_rel": 0.0 if source_value == package_value else math.inf,
+                    }
+                )
+            rows.append(row)
+    return rows
+
+
 def _state_digest(
     source_model: torch.nn.Module,
     package_model: torch.nn.Module,
@@ -2479,6 +2580,23 @@ def _run_lockstep(
         raise FileExistsError(
             f"refusing to overwrite backward probe evidence: {backward_probe_path}"
         )
+    post_step1_state_path = (
+        Path(os.environ["RADM_300_LOCKSTEP_POST_STEP1_STATE_PATH"])
+        if "RADM_300_LOCKSTEP_POST_STEP1_STATE_PATH" in os.environ
+        else None
+    )
+    if post_step1_state_path is not None and post_step1_state_path.exists():
+        raise FileExistsError(
+            f"refusing to overwrite post-step-1 state evidence: {post_step1_state_path}"
+        )
+    try:
+        capture_step = int(os.environ.get("RADM_300_LOCKSTEP_CAPTURE_STEP", "1"))
+    except ValueError as exc:
+        raise ValueError("RADM_300_LOCKSTEP_CAPTURE_STEP must be an integer") from exc
+    if capture_step < 1 or capture_step > steps:
+        raise ValueError(
+            "RADM_300_LOCKSTEP_CAPTURE_STEP must be between 1 and the configured steps"
+        )
     record_initial_state = _capture_record_model_state(state.model)
     record_initial_state_sha256 = _state_mapping_digest(record_initial_state)
     source_compare_initial_state_sha256: str | None = None
@@ -2493,6 +2611,7 @@ def _run_lockstep(
     step1_backward_probe: dict[str, Any] | None = None
     step1_backward_probe_sha256: str | None = None
     step1_backward_probe_file_sha256: str | None = None
+    post_step1_state_sha256: str | None = None
     snapshot_dir.mkdir(parents=True)
     # The reference graph is deliberately constructed on the configured
     # device, then released to CPU before the package graph is allocated.  The
@@ -2540,14 +2659,14 @@ def _run_lockstep(
         package_handles: list[Any] = []
         package_roi_capture: dict[str, Any] = {}
         package_roi_handles: list[Any] = []
-        if step == 1 and sidecar_path is not None:
+        if step == capture_step and sidecar_path is not None:
             package_capture, package_handles = _install_trace_hooks(package)
             package_roi_capture, package_roi_handles = _install_roi_plumbing_hooks(
                 package=True
             )
         package_backward_capture: dict[str, Any] = {}
         package_backward_handles: list[Any] = []
-        if step == 1 and backward_probe_path is not None:
+        if step == capture_step and backward_probe_path is not None:
             package_backward_capture, package_backward_handles = (
                 _install_backward_probe(package, package_optimizer)
             )
@@ -2571,7 +2690,7 @@ def _run_lockstep(
         finally:
             for handle in package_backward_handles:
                 handle.remove()
-        if step == 1 and sidecar_path is not None:
+        if step == capture_step and sidecar_path is not None:
             step1_package_roi_capture = package_roi_capture
         package_gradients = _snapshot_gradients(package, package_optimizer)
         package_preclip_norm = _gradient_norm(package_gradients)
@@ -2612,10 +2731,10 @@ def _run_lockstep(
                 for name, values in package_optimizer_state.items()
             },
         }
-        if step == 1 and backward_probe_path is not None:
+        if step == capture_step and backward_probe_path is not None:
             package_step["_backward_probe"] = _cpu_tree(package_backward_capture)
         package_batch_cpu: Any = None
-        if step == 1 and sidecar_path is not None:
+        if step == capture_step and sidecar_path is not None:
             package_batch_cpu = _cpu_tree(package_batch)
             package_capture["head_inputs"]["roi_scale"] = (
                 package_batch["forward_image_scales"]
@@ -2674,7 +2793,7 @@ def _run_lockstep(
         record_handle.flush()
         torch.save(package_step, snapshot_dir / f"step-{step:04d}.pt")
         module.latest_step_trace = {}
-        if step == 1 and sidecar_path is not None:
+        if step == capture_step and sidecar_path is not None:
             package_batch_cpu = None
         del (
             package_batch,
@@ -2767,7 +2886,7 @@ def _run_lockstep(
             source_backward_handles: list[Any] = []
             capture_preprocess_image: Any = None
             capture_prepare_targets: Any = None
-            if step == 1 and sidecar_path is not None:
+            if step == capture_step and sidecar_path is not None:
                 source_capture, source_handles = _install_trace_hooks(source_model)
                 source_roi_capture, source_roi_handles = _install_roi_plumbing_hooks(
                     package=False
@@ -2800,7 +2919,7 @@ def _run_lockstep(
                     return prepared
 
             rng_before = capture_rng_state()
-            if step == 1 and sidecar_path is not None:
+            if step == capture_step and sidecar_path is not None:
                 with (
                     patch.object(
                         source_model, "preprocess_image", new=capture_preprocess_image
@@ -2820,12 +2939,12 @@ def _run_lockstep(
                 handle.remove()
             for handle in source_roi_handles:
                 handle.stop()
-            if step == 1 and sidecar_path is not None:
+            if step == capture_step and sidecar_path is not None:
                 source_head_inputs = cast(
                     dict[str, Any], source_capture.setdefault("head_inputs", {})
                 )
                 source_head_inputs["roi_scale"] = source_capture_extra["image_scales"]
-            if step == 1 and backward_probe_path is not None:
+            if step == capture_step and backward_probe_path is not None:
                 source_backward_capture, source_backward_handles = (
                     _install_backward_probe(source_state.model, source_state.optimizer)
                 )
@@ -2854,7 +2973,7 @@ def _run_lockstep(
             }
             source_loss_values["total"] = float(source_total.detach())
             package_loss_values = cast(dict[str, float], package_step["loss"])
-            if step == 1 and backward_probe_path is not None:
+            if step == capture_step and backward_probe_path is not None:
                 package_backward_capture = cast(
                     dict[str, Any], package_step.get("_backward_probe", {})
                 )
@@ -2865,7 +2984,7 @@ def _run_lockstep(
                     cast(dict[str, torch.Tensor | None], package_step["_gradients"]),
                     key_map,
                 )
-            if step == 1 and sidecar_path is not None:
+            if step == capture_step and sidecar_path is not None:
                 if step1_package_sidecar is None:
                     raise AssertionError("package step-1 sidecar capture is missing")
                 source_targets = source_capture_extra["targets"]
@@ -3081,7 +3200,7 @@ def _run_lockstep(
                 }
                 for name in source_loss_values
             }
-            if step == 1 and backward_probe_path is not None:
+            if step == capture_step and backward_probe_path is not None:
                 if step1_backward_probe is None:
                     raise AssertionError("backward probe comparison is missing")
                 step1_backward_probe_sha256 = _write_json_evidence(
@@ -3122,6 +3241,46 @@ def _run_lockstep(
             optimizer_abs, optimizer_rel, optimizer_name = _optimizer_state_errors(
                 source_optimizer_state, package_step["_optimizer_state"], key_map
             )
+            if step == 1 and post_step1_state_path is not None:
+                post_step1_state_sha256 = _write_json_evidence(
+                    post_step1_state_path,
+                    {
+                        "schema": "radm.lockstep.post-step1-state.v1",
+                        "step": 1,
+                        "batch_image_ids": batch_ids,
+                        "parameters": _mapped_tensor_state_comparisons(
+                            source_parameters,
+                            package_step["_parameters"],
+                            key_map,
+                        ),
+                        "optimizer_state": _mapped_optimizer_state_comparisons(
+                            source_optimizer_state,
+                            package_step["_optimizer_state"],
+                            key_map,
+                        ),
+                        "scheduler": {
+                            "source_last_epoch": source_state.scheduler.last_epoch,
+                            "package_last_epoch": package_step["scheduler"][
+                                "last_epoch"
+                            ],
+                            "source_lr": [
+                                float(value)
+                                for value in source_state.scheduler.get_last_lr()
+                            ],
+                            "package_lr": package_step["scheduler"]["lr"],
+                        },
+                        "aggregate": {
+                            "parameter_max_abs": parameter_abs,
+                            "parameter_max_rel": parameter_rel,
+                            "parameter_first_name": parameter_name,
+                            "optimizer_state_max_abs": optimizer_abs,
+                            "optimizer_state_max_rel": optimizer_rel,
+                            "optimizer_state_first_name": optimizer_name,
+                            "postclip_gradient_max_abs": postclip_abs,
+                            "postclip_gradient_max_rel": postclip_rel,
+                        },
+                    },
+                )
             rng_equal = package_step["rng_before"] == _rng_digest(
                 rng_before
             ) and package_step["rng_after_forward"] == _rng_digest(rng_after_forward)
@@ -3269,6 +3428,12 @@ def _run_lockstep(
         "step1_backward_probe_sha256": step1_backward_probe_sha256,
         "step1_backward_probe_file_sha256": step1_backward_probe_file_sha256,
         "step1_backward_probe": step1_backward_probe,
+        "post_step1_state_path": (
+            post_step1_state_path.as_posix()
+            if post_step1_state_path is not None
+            else None
+        ),
+        "post_step1_state_sha256": post_step1_state_sha256,
     }
     output_path.write_text(
         json.dumps({"header": header}, ensure_ascii=False, sort_keys=True)

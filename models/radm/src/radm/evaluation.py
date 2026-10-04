@@ -5,8 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -149,7 +148,7 @@ def evaluate_cgl_predictions(
         }
         categories = coco.loadCats(coco.getCatIds())
         per_category: dict[str, float] = {}
-        precisions = evaluator.eval["precision"]
+        precisions = getattr(evaluator, "eval")["precision"]
         for category_index, category in enumerate(categories):
             precision = precisions[:, :, category_index, 0, -1]
             precision = precision[precision > -1]
