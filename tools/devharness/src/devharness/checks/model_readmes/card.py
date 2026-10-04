@@ -121,29 +121,26 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
     ]
 
 
-_DATASET_PRESENTATIONS: dict[str, tuple[tuple[str, ...], str]] = {
-    "rico13": (("creative-graphic-design/rico", "rico13"), "RICO13"),
-    "rico25": (("creative-graphic-design/rico", "rico25"), "RICO25"),
-    "publaynet": (("creative-graphic-design/publaynet", "publaynet"), "PubLayNet"),
-    "magazine": (("creative-graphic-design/magazine", "magazine"), "Magazine"),
-    "pku_posterlayout": (
-        ("creative-graphic-design/pku-posterlayout", "pku_posterlayout", "pku"),
-        "PKU",
-    ),
-    "cgl": (("creative-graphic-design/cgl-dataset", "cgl"), "CGL"),
-    "posterlayout": (("posterlayout",), "PosterLayout"),
-    "ad_banner": (("ad banner", "ad_banner"), "Ad Banner"),
-    "crello": (("cyberagent/crello", "crello"), "Crello"),
-    "coco-grounded": (("coco-grounded",), "COCO-grounded"),
-    "vg-msdn": (("vg-msdn",), "VG-MSDN"),
-    "smarttext-demo": (("smarttext demo", "smarttext-demo"), "SmartText demo"),
-    "grit": (("grit",), "GRIT"),
-    "nsr-1k": (("nsr-1k",), "NSR-1K"),
-    "web": (("web",), "Web"),
-    "info ppt": (("infoppt", "info ppt"), "InfoPPT"),
-    "coco": (("coco",), "COCO"),
+_DATASET_PRESENTATIONS: dict[str, tuple[str, str]] = {
+    "rico13": ("creative-graphic-design/rico", "RICO13"),
+    "rico25": ("creative-graphic-design/rico", "RICO25"),
+    "publaynet": ("creative-graphic-design/publaynet", "PubLayNet"),
+    "magazine": ("creative-graphic-design/magazine", "Magazine"),
+    "pku_posterlayout": ("creative-graphic-design/pku-posterlayout", "PKU"),
+    "cgl": ("creative-graphic-design/cgl-dataset", "CGL"),
+    "posterlayout": ("posterlayout", "PosterLayout"),
+    "ad_banner": ("ad banner", "Ad Banner"),
+    "crello": ("cyberagent/crello", "Crello"),
+    "coco-grounded": ("coco-grounded", "COCO-grounded"),
+    "vg-msdn": ("vg-msdn", "VG-MSDN"),
+    "smarttext-demo": ("smarttext demo", "SmartText demo"),
+    "grit": ("grit", "GRIT"),
+    "nsr-1k": ("nsr-1k", "NSR-1K"),
+    "web": ("web", "Web"),
+    "info ppt": ("infoppt", "InfoPPT"),
+    "coco": ("coco", "COCO"),
     "housegan-floorplan-vectorized": (
-        ("housegan-floorplan-vectorized",),
+        "housegan-floorplan-vectorized",
         "housegan-floorplan-vectorized",
     ),
 }
@@ -179,8 +176,9 @@ def _declared_dataset_displays(slug: str) -> dict[str, str]:
         if presentation is None:
             continue
 
-        sources, display = presentation
-        displays.update({_dataset_key(source): display for source in sources})
+        source, display = presentation
+        displays[_dataset_key(dataset)] = display
+        displays[_dataset_key(source)] = display
 
     return displays
 
