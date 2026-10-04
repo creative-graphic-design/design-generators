@@ -1975,6 +1975,9 @@ def _package_evaluation(
         random_order=False,
     )
     loader = DataLoader(package_dataset, batch_size=512, shuffle=False, num_workers=0)
+    if str(scratch) not in sys.path:
+        sys.path.insert(0, str(scratch))
+
     package_dirs: dict[str, Path] = {}
     package_inputs: dict[str, list[torch.Tensor]] = {}
     for condition, vendor_path in vendor_pkl_paths.items():
