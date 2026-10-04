@@ -1277,7 +1277,7 @@ def _inside_self_distributions(
     cross: dict[str, Any], vendor: dict[str, Any], package: dict[str, Any]
 ) -> bool:
     return all(
-        cross[metric] <= vendor[metric] and cross[metric] <= package[metric]
+        cross[metric] <= max(vendor[metric], package[metric])
         for metric in (
             "max_abs_difference",
             "median_abs_difference",
@@ -1285,6 +1285,87 @@ def _inside_self_distributions(
             "median_relative_difference",
         )
     )
+
+
+def _elementwise_envelope(
+    vendor_states: list[dict[str, dict[str, torch.Tensor]]],
+    package_states: list[dict[str, dict[str, torch.Tensor]]],
+    field: str,
+) -> dict[str, Any]:
+    outside: list[dict[str, Any]] = []
+    maximum: dict[str, Any] | None = None
+    maximum_cross_abs = -1.0
+    for name in vendor_states[0][field]:
+        vendor_values = torch.stack(
+            [state[field][name].float() for state in vendor_states]
+        )
+        package_values = torch.stack(
+            [state[field][name].float() for state in package_states]
+        )
+        vendor_envelope = vendor_values.amax(dim=0) - vendor_values.amin(dim=0)
+        package_envelope = package_values.amax(dim=0) - package_values.amin(dim=0)
+        envelope = torch.maximum(vendor_envelope, package_envelope)
+        cross = torch.stack(
+            [
+                (vendor[field][name].float() - package[field][name].float()).abs()
+                for vendor, package in zip(vendor_states, package_states, strict=True)
+            ]
+        ).amax(dim=0)
+        maximum_index = tuple(
+            int(value) for value in torch.unravel_index(cross.argmax(), cross.shape)
+        )
+        maximum_candidate = {
+            "name": name,
+            "index": maximum_index,
+            "cross_max_abs": float(cross[maximum_index].item()),
+            "vendor_self_max_abs": float(vendor_envelope[maximum_index].item()),
+            "package_self_max_abs": float(package_envelope[maximum_index].item()),
+        }
+        if field == "parameters":
+            maximum_candidate["vendor_gradient_values"] = [
+                float(state["gradients"][name][maximum_index].item())
+                for state in vendor_states
+            ]
+            maximum_candidate["package_gradient_values"] = [
+                float(state["gradients"][name][maximum_index].item())
+                for state in package_states
+            ]
+        candidate_cross_abs = float(maximum_candidate["cross_max_abs"])
+        if candidate_cross_abs > maximum_cross_abs:
+            maximum = maximum_candidate
+            maximum_cross_abs = candidate_cross_abs
+        outside_mask = cross > envelope
+        for index in zip(*torch.where(outside_mask)):
+            index_tuple = tuple(int(value) for value in index)
+            outside.append(
+                {
+                    "name": name,
+                    "index": index_tuple,
+                    "cross_max_abs": float(cross[index_tuple].item()),
+                    "vendor_self_max_abs": float(vendor_envelope[index_tuple].item()),
+                    "package_self_max_abs": float(package_envelope[index_tuple].item()),
+                }
+            )
+            if field == "parameters":
+                outside[-1]["vendor_gradient_values"] = [
+                    float(state["gradients"][name][index_tuple].item())
+                    for state in vendor_states
+                ]
+                outside[-1]["package_gradient_values"] = [
+                    float(state["gradients"][name][index_tuple].item())
+                    for state in package_states
+                ]
+
+    if maximum is None:
+        raise RuntimeError(f"empty elementwise envelope for {field}")
+
+    return {
+        "field": field,
+        "element_count_outside_self_envelope": len(outside),
+        "outside_self_envelope": outside,
+        "maximum_cross_element": maximum,
+        "cross_inside_combined_self_envelope": not outside,
+    }
 
 
 class _NaturalParityCallback(Callback):
@@ -1894,6 +1975,12 @@ def run_s2() -> Path:
         )
         for field in cross_distributions
     }
+    elementwise_envelopes = {
+        field: _elementwise_envelope(
+            self_states["vendor"], self_states["package"], field
+        )
+        for field in ("gradients", "parameters")
+    }
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
         "loss": trace_comparison,
@@ -1973,6 +2060,7 @@ def run_s2() -> Path:
             "pair_count": S2_SELF_REPEATS,
             "distributions": cross_distributions,
             "inside_self_distributions": inside_self_distributions,
+            "elementwise_envelopes": elementwise_envelopes,
             "initial_layout_is_paired": cross_layout_is_paired,
         },
         "package_vendor_single_pair": {
@@ -1980,7 +2068,14 @@ def run_s2() -> Path:
         },
         "self_repeats_valid": self_repeats_valid,
     }
-    cause_passed = all(inside_self_distributions.values()) and self_repeats_valid
+    cause_passed = (
+        all(inside_self_distributions.values())
+        and all(
+            envelope["cross_inside_combined_self_envelope"]
+            for envelope in elementwise_envelopes.values()
+        )
+        and self_repeats_valid
+    )
     passed = scheduler_comparison["passed"] and cause_passed
     return _write(
         "s2-optimizer-step",
