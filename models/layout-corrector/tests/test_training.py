@@ -436,3 +436,45 @@ def test_frozen_reference_loads_and_runs_all_paths(
             checkpoint_path=checkpoint,
             cluster_centers_path=tmp_path / "clusters.pkl",
         )
+
+
+def test_reconstruct_previous_softmaxes_over_vocab_before_sampling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = object.__new__(FrozenLayoutDMReference)
+    reference.config = SimpleNamespace(mask_token_id=2)
+    log_previous = torch.tensor(
+        [[[0.0, -0.2], [-0.7, -0.4], [-1.1, -0.9]]], dtype=torch.float32
+    )
+
+    class Scheduler:
+        def q_posterior(
+            self,
+            log_x0: torch.Tensor,
+            log_xt: torch.Tensor,
+            timesteps: torch.Tensor,
+        ) -> torch.Tensor:
+            del log_x0, log_xt, timesteps
+            return log_previous.clone()
+
+    reference.scheduler = Scheduler()
+    captured: dict[str, torch.Tensor] = {}
+
+    def capture_multinomial(
+        probabilities: torch.Tensor,
+        num_samples: int,
+        *,
+        replacement: bool,
+        device: torch.device,
+    ) -> torch.Tensor:
+        del num_samples, replacement
+        captured["probabilities"] = probabilities
+        return torch.zeros((probabilities.shape[0], 1), dtype=torch.long, device=device)
+
+    monkeypatch.setattr(reference_module, "multinomial", capture_multinomial)
+    reference.reconstruct_previous(log_previous, log_previous, torch.tensor([1]))
+
+    expected = log_previous.clone()
+    expected[:, reference.config.mask_token_id, :] = -70.0
+    expected = expected.softmax(dim=1).movedim(1, -1).reshape(-1, 3)
+    assert torch.equal(captured["probabilities"], expected)

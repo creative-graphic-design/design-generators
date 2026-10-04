@@ -214,7 +214,7 @@ class FrozenLayoutDMReference:
         """Sample the reference x_t-1 reconstruction, excluding MASK."""
         log_previous = self.scheduler.q_posterior(log_x0, log_xt, timesteps)
         log_previous[:, self.config.mask_token_id, :] = -70.0
-        probabilities = log_previous.exp().movedim(1, -1)
+        probabilities = log_previous.softmax(dim=1).movedim(1, -1)
         sampled = multinomial(
             probabilities.reshape(-1, probabilities.shape[-1]),
             1,
