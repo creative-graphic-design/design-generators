@@ -9,6 +9,7 @@ from types import ModuleType
 import pytest
 
 from devharness.baselines import read_entry_baseline, write_entry_baseline
+from devharness.checks.jaxtyping_annotations.constants import baseline_paths
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,17 +26,13 @@ def load_checker(name: str) -> ModuleType:
     return module
 
 
-check_jaxtyping_annotations = load_checker("check_jaxtyping_annotations")
 check_module_naming = load_checker("check_module_naming")
 check_training_doc_template = load_checker("check_training_doc_template")
 check_training_stage_evidence = load_checker("check_training_stage_evidence")
 
 
 SHARED_WRITER_BASELINES = (
-    check_jaxtyping_annotations.BASELINE_PATH,
-    check_jaxtyping_annotations.ALIAS_BASELINE_PATH,
-    check_jaxtyping_annotations.OBJECT_BASELINE_PATH,
-    check_jaxtyping_annotations.WEAK_CAST_BASELINE_PATH,
+    *baseline_paths(ROOT),
     check_module_naming.BASELINE_PATH,
     check_training_doc_template.BASELINE_PATH,
     check_training_stage_evidence.BASELINE_PATH,
