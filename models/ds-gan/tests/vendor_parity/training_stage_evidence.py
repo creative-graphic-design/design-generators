@@ -7,6 +7,7 @@ from dataclasses import asdict
 import copy
 from contextlib import contextmanager, redirect_stdout
 import csv
+import gc
 from importlib.metadata import distribution
 import io
 import json
@@ -1632,6 +1633,31 @@ def run_s2() -> Path:
             config["frequency"] for config in package_scheduler_configs
         ],
     }
+    del (
+        vendor_generator,
+        vendor_discriminator,
+        package_generator,
+        package_discriminator,
+        package_module,
+        vendor_optimizers,
+        package_optimizers,
+        package_schedulers,
+        vendor_schedulers,
+        vendor_batch,
+        package_batch,
+        initial_layout,
+        vendor_trace,
+        package_trace,
+        vendor_parameters,
+        package_parameters,
+        vendor_gradients,
+        package_gradients,
+        vendor_optimizer_state,
+        package_optimizer_state,
+    )
+    gc.collect()
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
     vendor_self_runs = [
         _run_s2_vendor_self_repeat_process(repeat)
         for repeat in range(1, S2_VENDOR_SELF_REPEATS + 1)
