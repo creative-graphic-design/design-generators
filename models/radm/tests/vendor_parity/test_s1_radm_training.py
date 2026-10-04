@@ -325,7 +325,6 @@ def _build_parity_case(
     package.to(next(state.model.parameters()).device)
     state_before = _mapped_state_digest(state.model, package, key_map)
     module = RADMTrainingModule(
-        config=package.radm_config,
         model=package,
         effective=state.effective,
     )
@@ -460,7 +459,6 @@ def test_s1_radm_real_batch16_backbone_bitwise_parity() -> None:
 
     package_batch = _package_batch(batch, state.model, state.effective)
     module = RADMTrainingModule(
-        config=package.radm_config,
         model=package,
         effective=state.effective,
     )

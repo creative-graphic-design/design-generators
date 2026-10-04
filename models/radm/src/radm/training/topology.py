@@ -10,7 +10,7 @@ import torch
 from jaxtyping import Shaped
 from torch import nn
 
-from ..configuration_radm import RADMConfig, RADM_DIFFUSION_STATE_KEYS
+from ..configuration_radm import RADM_DIFFUSION_STATE_KEYS
 from ..modeling_radm import RADMDenoiser, RADMDenoiserOutput
 from .config import RADMEffectiveConfig
 from .dataset import (
@@ -133,8 +133,7 @@ def assert_radm_package_topology(
     effective: RADMEffectiveConfig,
 ) -> None:
     """Check package-side static configuration before reference comparison."""
-    config = model.radm_config
-    assert isinstance(config, RADMConfig), "model must carry RADMConfig"
+    config = model.config
     assert config.original_id2label == effective.class_id_to_label, (
         "class mapping mismatch: package config does not preserve the captured "
         "five-label vocabulary"
@@ -314,7 +313,7 @@ def assert_effective_runtime_state(
 ) -> None:
     """Check runtime branches, diffusion buffers, and package static values."""
     effective = state.effective
-    config = package_model.radm_config
+    config = package_model.config
     assert config.num_train_timesteps == effective.num_train_timesteps
     assert config.snr_scale == effective.snr_scale
     assert config.sample_step == effective.sample_step

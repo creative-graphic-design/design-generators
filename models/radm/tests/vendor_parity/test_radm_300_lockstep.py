@@ -2166,7 +2166,6 @@ def _run_lockstep_streaming(
     key_map = build_reviewed_state_key_map(state.model, package)
     copy_reviewed_state_dict(state.model, package, key_map, allowlist=allowlist)
     module = RADMTrainingModule(
-        config=package.radm_config,
         model=package,
         effective=effective,
     ).to(device)
@@ -2624,7 +2623,6 @@ def _run_lockstep(
     key_map = build_reviewed_state_key_map(state.model, package)
     copy_reviewed_state_dict(state.model, package, key_map, allowlist=allowlist)
     module = RADMTrainingModule(
-        config=package.radm_config,
         model=package,
         effective=effective,
     ).to(package_device)

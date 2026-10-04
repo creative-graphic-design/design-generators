@@ -53,7 +53,6 @@ class RADMPipeline(DiffusionPipeline):
         """
         super().__init__()
         self.register_modules(denoiser=denoiser, scheduler=scheduler)
-        self.radm_config = config
         self.processor = processor or RADMProcessor(config=config)
         self.denoiser.eval()
 
@@ -191,7 +190,7 @@ class RADMPipeline(DiffusionPipeline):
         batch_size = int(encoded["pixel_values"].shape[0])
         sample = self.scheduler.sample_initial_proposals(
             batch_size=batch_size,
-            num_proposals=self.radm_config.num_proposals,
+            num_proposals=self.denoiser.config.num_proposals,
             generator=generator,
             device=self.device,
             dtype=next(self.denoiser.parameters()).dtype,
@@ -202,7 +201,9 @@ class RADMPipeline(DiffusionPipeline):
         trajectory = [] if return_intermediates else None
         final_boxes = self.scheduler.latent_to_normalized_boxes(sample)
         logits = sample.new_zeros(
-            batch_size, self.radm_config.num_proposals, self.radm_config.num_classes
+            batch_size,
+            self.denoiser.config.num_proposals,
+            self.denoiser.config.num_classes,
         )
         for timestep in self.scheduler.timesteps:
             normalized_sample = self.scheduler.latent_to_normalized_boxes(sample)
@@ -246,10 +247,10 @@ class RADMPipeline(DiffusionPipeline):
             logits=logits,
             class_threshold=class_threshold
             if class_threshold is not None
-            else self.radm_config.class_threshold,
+            else self.processor.config.class_threshold,
             nms_threshold=nms_threshold
             if nms_threshold is not None
-            else self.radm_config.nms_threshold,
+            else self.processor.config.nms_threshold,
             output_type=output_type,
             return_intermediates=return_intermediates or return_raw_predictions,
             extra_intermediates=intermediates,
@@ -268,9 +269,9 @@ class RADMPipeline(DiffusionPipeline):
             save_directory: Output directory.
         """
         super().save_pretrained(save_directory)
-        self.radm_config.save_config(save_directory)
+        self.processor.config.save_config(save_directory)
         self.processor.save_pretrained(
-            Path(save_directory) / self.radm_config.processor_subfolder
+            Path(save_directory) / self.processor.config.processor_subfolder
         )
 
     @classmethod
@@ -289,7 +290,6 @@ class RADMPipeline(DiffusionPipeline):
         )
         config = cast(RADMConfig, RADMConfig.from_config(config_dict))
         pipe = super().from_pretrained(pretrained_model_name_or_path, config=config)
-        pipe.radm_config = config
         pipe.processor = RADMProcessor.from_pretrained(
             pretrained_model_name_or_path,
             subfolder=config.processor_subfolder,

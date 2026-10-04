@@ -49,16 +49,20 @@ class RADMTrainingModule(LightningModule):
     def __init__(
         self,
         *,
-        config: RADMConfig,
+        config: RADMConfig | None = None,
         model: RADMDenoiser | None = None,
         effective: RADMEffectiveConfig,
     ) -> None:
         """Initialize the package model and checked effective training state."""
         super().__init__()
         self.effective = effective
-        self.model = model or RADMDenoiser(config=config)
-        if self.model.radm_config is not config:
-            raise ValueError("RADMTrainingModule model must use the supplied config")
+        if model is None:
+            if config is None:
+                raise ValueError("RADMTrainingModule requires a model or config")
+
+            model = RADMDenoiser(config=config)
+
+        self.model = model
 
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self.ema_enabled = effective.ema_enabled

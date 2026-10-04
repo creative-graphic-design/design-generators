@@ -867,9 +867,11 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
 
             config = RADMConfig(**values)  # type: ignore[arg-type]
 
-        self.radm_config = config
         self.register_to_config(
             **{
+                "dataset_name": config.dataset_name,
+                "id2label": config.id2label,
+                "original_id2label": config.original_id2label,
                 "num_classes": config.num_classes,
                 "num_proposals": config.num_proposals,
                 "hidden_dim": config.hidden_dim,
@@ -982,7 +984,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         device = boxes_cxcywh.device
         timestep = randint(
             0,
-            self.radm_config.num_train_timesteps,
+            self.config.num_train_timesteps,
             (1,),
             generator=generator,
             device=device,
@@ -1016,12 +1018,10 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         else:
             clean = boxes_cxcywh
 
-        clean = (clean * 2.0 - 1.0) * self.radm_config.snr_scale
+        clean = (clean * 2.0 - 1.0) * self.config.snr_scale
         diffused = self.q_sample(clean, timestep, noise=noise)
-        diffused = diffused.clamp(
-            -self.radm_config.snr_scale, self.radm_config.snr_scale
-        )
-        diffused = (diffused / self.radm_config.snr_scale + 1.0) / 2.0
+        diffused = diffused.clamp(-self.config.snr_scale, self.config.snr_scale)
+        diffused = (diffused / self.config.snr_scale + 1.0) / 2.0
         return _cxcywh_to_xyxy(diffused), noise, timestep
 
     def forward(

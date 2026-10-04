@@ -12,7 +12,7 @@ from radm.modeling_radm import RADMDenoiser
 
 def test_build_pipeline_from_config() -> None:
     pipe = build_pipeline(RADMConfig(num_proposals=2, hidden_dim=8, text_feature_dim=4))
-    assert pipe.radm_config.num_proposals == 2
+    assert pipe.denoiser.config.num_proposals == 2
 
 
 def test_convert_original_state_dict_supported_prefixes() -> None:

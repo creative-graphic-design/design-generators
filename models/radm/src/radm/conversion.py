@@ -37,7 +37,7 @@ def build_pipeline(config: RADMConfig) -> RADMPipeline:
     Examples:
         >>> config = RADMConfig(num_proposals=2, hidden_dim=8, text_feature_dim=4, backbone_depth=18)
         >>> pipe = build_pipeline(config)
-        >>> pipe.radm_config.num_proposals
+        >>> pipe.denoiser.config.num_proposals
         2
     """
     denoiser = RADMDenoiser(
