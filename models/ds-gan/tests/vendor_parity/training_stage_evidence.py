@@ -85,6 +85,12 @@ def _runtime_distribution(name: str) -> dict[str, Any]:
 def _runtime() -> dict[str, Any]:
     freeze_path = EVIDENCE / "runtime" / "pip-freeze.txt"
     freeze_path.parent.mkdir(parents=True, exist_ok=True)
+    venv_path = Path(sys.prefix)
+    try:
+        venv_path_text = str(venv_path.relative_to(ROOT))
+    except ValueError:
+        venv_path_text = str(venv_path)
+
     freeze_path.write_text(
         subprocess.check_output(
             [sys.executable, "-m", "pip", "freeze", "--all"], text=True
@@ -97,7 +103,9 @@ def _runtime() -> dict[str, Any]:
         "torch_distribution": _runtime_distribution("torch"),
         "torchvision": distribution("torchvision").version,
         "torchvision_distribution": _runtime_distribution("torchvision"),
-        "venv_creation_command": "UV_FROZEN=1 uv venv --python 3.11 <DSGAN_AUDIT_VENV>",
+        "venv_creation_command": (
+            f"UV_FROZEN=1 uv venv --python 3.11 {venv_path_text}"
+        ),
         "environment_basis": "lockfile environment for all CPU-only checks and tests; audited runtime only for CUDA evidence",
         "pip_freeze_path": str(freeze_path.relative_to(ROOT)),
         "pip_freeze_sha256": _sha256(freeze_path),
