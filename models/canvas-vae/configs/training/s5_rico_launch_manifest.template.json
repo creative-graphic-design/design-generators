@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "dataset": "rico",
+  "queue_status": "blocked_pending_evaluation_path_parity_and_b1_completion",
+  "source_commit": null,
+  "config": "models/canvas-vae/configs/training/canvas_vae_rico.yaml",
+  "config_sha256": null,
+  "evaluator_command": [
+    "uv",
+    "run",
+    "--package",
+    "canvas-vae",
+    "models/canvas-vae/scripts/evaluate.py",
+    "--checkpoint",
+    "<converted-checkpoint>",
+    "--data-dir",
+    ".cache/canvas-vae/data/rico",
+    "--seeds",
+    "0",
+    "1",
+    "2"
+  ],
+  "checkpoint_rule": "final epoch-500 weights: original final.ckpt; package last.ckpt",
+  "artifacts": {
+    "<repository-relative-artifact-path>": "<sha256>"
+  },
+  "evaluation_path_parity": {
+    "path": "<repository-relative-parity-artifact-path>",
+    "sha256": "<64-character-sha256>"
+  },
+  "launched_at": null,
+  "runner_command": null,
+  "runtime_plan": {
+    "gpu": "A100",
+    "one_named_session_per_run": true,
+    "wrapper_script": "${S5_WRAPPER_PATH}",
+    "wrapper_ttl": "2h",
+    "minimum_verified_runtime_lifetime": "greater than 2h before allocation",
+    "sync_interval": "15m",
+    "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}",
+    "sync_paths": [
+      "${S5_RUNTIME_ROOT}/out/checkpoints",
+      "${S5_RUNTIME_ROOT}/out/logs",
+      "${S5_RUNTIME_ROOT}/out/results"
+    ],
+    "resume_policy": {
+      "explicit_download_required": true,
+      "downloaded_checkpoint_path": "${S5_RUNTIME_ROOT}/resume/checkpoint.ckpt",
+      "package_resume_flag": "--ckpt_path=${S5_RUNTIME_ROOT}/resume/checkpoint.ckpt",
+      "implicit_latest_checkpoint_resume": false
+    },
+    "self_release": true
+  },
+  "environment": {
+    "precision": "fp32",
+    "package_pytorch_matmul_precision": "highest",
+    "package_cuda_matmul_allow_tf32": false,
+    "original": {
+      "NVIDIA_TF32_OVERRIDE": "0",
+      "TF_ENABLE_ONEDNN_OPTS": "0",
+      "unset": ["MPLBACKEND"]
+    },
+    "tensorflow_one_dnn_note": {
+      "upstream_issue": "https://github.com/tensorflow/tensorflow/issues/62607",
+      "observed_error": "NotFoundError: No registered '_MklLayerNorm' OpKernel for 'GPU' devices compatible with node {{node custom_model/layer_normalization/add}}",
+      "s0_s4_reference_setting": "CPU runtime with oneDNN at its default",
+      "gpu_numerics": "The original GPU smoke succeeded with TF_ENABLE_ONEDNN_OPTS=0; the default-setting GPU run failed before training. No paired GPU numerical comparison was made, so numerical equality between settings on GPU is not claimed."
+    }
+  },
+  "runs": [
+    {
+      "run_id": "rico-original-seed0",
+      "system": "original",
+      "seed": 0,
+      "session_name": "cvae-s5-rico-original-seed0",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0"
+    },
+    {
+      "run_id": "rico-original-seed1",
+      "system": "original",
+      "seed": 1,
+      "session_name": "cvae-s5-rico-original-seed1",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1"
+    },
+    {
+      "run_id": "rico-original-seed2",
+      "system": "original",
+      "seed": 2,
+      "session_name": "cvae-s5-rico-original-seed2",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2"
+    },
+    {
+      "run_id": "rico-package-seed0",
+      "system": "package",
+      "seed": 0,
+      "session_name": "cvae-s5-rico-package-seed0",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0"
+    },
+    {
+      "run_id": "rico-package-seed1",
+      "system": "package",
+      "seed": 1,
+      "session_name": "cvae-s5-rico-package-seed1",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1"
+    },
+    {
+      "run_id": "rico-package-seed2",
+      "system": "package",
+      "seed": 2,
+      "session_name": "cvae-s5-rico-package-seed2",
+      "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2"
+    }
+  ]
+}

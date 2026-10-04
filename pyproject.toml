@@ -95,6 +95,31 @@ conflicts = [
         { package = "postero" },
         { package = "flex-dm", extra = "convert" },
     ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai members require protobuf>=5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layout-gpt" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layoutprompter" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "postero" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # The convert and vendor extras install different TensorFlow distributions; keep the environments separate.
+    [
+        { package = "canvas-vae", extra = "convert" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
     # housegan[vendor] pins networkx==2.4; smarttext[vendor] -> scikit-image>=0.21 -> networkx>=2.8.
     [
         { package = "housegan", extra = "vendor" },

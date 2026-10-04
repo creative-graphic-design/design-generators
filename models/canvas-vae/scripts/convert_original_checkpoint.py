@@ -1,9 +1,10 @@
 """Convert a CanvasVAE checkpoint into a ``save_pretrained`` pipeline directory.
 
 Accepts a TensorFlow checkpoint prefix written by the original trainer (for
-example ``<job-dir>/checkpoints/final.ckpt``, which needs the ``vendor`` extra)
-or a Lightning ``.ckpt`` file written by ``traingen fit``. The lookup tables
-come from the ``vocabulary.json`` of the data the checkpoint was trained on.
+example ``<job-dir>/checkpoints/final.ckpt``, which needs the ``convert`` extra)
+or a Lightning ``.ckpt`` file written by ``traingen fit``, which needs no
+TensorFlow extra. The lookup tables come from the ``vocabulary.json`` of the
+data the checkpoint was trained on.
 """
 
 from __future__ import annotations
