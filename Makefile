@@ -1,3 +1,3 @@
 setup:
-	uv sync
+	uv sync --all-packages --group docs
 	pre-commit install

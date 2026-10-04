@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from devharness import baselines
+
 
 def load_check_training_doc_template() -> ModuleType:
     module_path = (
@@ -15,8 +17,6 @@ def load_check_training_doc_template() -> ModuleType:
         / "scripts"
         / "check_training_doc_template.py"
     )
-    module_dir = str(module_path.parent)
-    sys.path.insert(0, module_dir)
     spec = importlib.util.spec_from_file_location(
         "check_training_doc_template", module_path
     )
@@ -24,10 +24,7 @@ def load_check_training_doc_template() -> ModuleType:
     assert isinstance(spec.loader, SourceFileLoader)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.path.remove(module_dir)
+    spec.loader.exec_module(module)
     return module
 
 
@@ -103,6 +100,13 @@ RICO25 and PubLayNet use training-seed n=3.
 | RICO25 | package | `s5-practical-reproduction` | training-seed n=3 | FID 1.0 | loss matched | `.cache/pkg/rico25` |
 | PubLayNet | package | `not-yet-run (#253)` | training-seed n=3 | pending | pending | `.cache/pkg/publaynet` |
 
+### Comparison Scope
+
+| Dataset | System | Evaluator | Test split | Checkpoint-selection rule | Sample count |
+| --- | --- | --- | --- | --- | --- |
+| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |
+| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |
+
 ## Regeneration Metadata
 
 Evidence lives under the package cache.
@@ -127,6 +131,206 @@ def test_valid_training_doc_passes(tmp_path: Path) -> None:
         "example",
         readme_with_supported_checkpoints(),
         valid_training_doc(),
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == set()
+
+
+def test_missing_comparison_scope_table_fails(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "### Comparison Scope\n\n"
+        "| Dataset | System | Evaluator | Test split | Checkpoint-selection rule | Sample count |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n"
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n\n",
+        "",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tmissing Comparison Scope subsection"
+    }
+
+
+def test_comparison_scope_heading_without_table_fails(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "| Dataset | System | Evaluator | Test split | Checkpoint-selection rule | Sample count |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n"
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n",
+        "",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tmissing Comparison Scope table"
+    }
+
+
+def test_comparison_scope_legend_table_fails_closed(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "### Comparison Scope\n\n",
+        "### Comparison Scope\n\n"
+        "| Field | Meaning |\n"
+        "| --- | --- |\n"
+        "| Scope field | Definition. |\n\n",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Checkpoint-selection rule' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Dataset' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Evaluator' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Sample count' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'System' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Test split' column",
+    }
+
+
+def test_comparison_scope_heading_outside_reproduction_results_fails(
+    tmp_path: Path,
+) -> None:
+    scope = (
+        "### Comparison Scope\n\n"
+        "| Dataset | System | Evaluator | Test split | Checkpoint-selection rule | Sample count |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n"
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n\n"
+    )
+    training_text = valid_training_doc().replace(scope, "")
+    training_text = training_text.replace(
+        "RICO25 and PubLayNet use training-seed n=3.\n\n",
+        "RICO25 and PubLayNet use training-seed n=3.\n\n" + scope,
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tmissing Comparison Scope subsection"
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "reason"),
+    [
+        ("evaluator", "Comparison Scope evaluator is missing"),
+        ("test", "Comparison Scope test split is missing"),
+        (
+            "best validation loss",
+            "Comparison Scope checkpoint-selection rule is missing",
+        ),
+        (
+            "100 layouts per evaluation seed",
+            "Comparison Scope sample-count denominator is missing",
+        ),
+    ],
+)
+def test_comparison_scope_reports_each_missing_field(
+    tmp_path: Path, value: str, reason: str
+) -> None:
+    scope_row = (
+        "| RICO25 | both | evaluator | test | best validation loss | "
+        "100 layouts per evaluation seed |"
+    )
+    training_text = valid_training_doc().replace(
+        scope_row, scope_row.replace(value, "", 1)
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        f"models/example/TRAINING.md\tRICO25\t{reason}"
+    }
+
+
+def test_comparison_scope_row_count_mismatch_fails(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n",
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n"
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\trico25\tComparison Scope row count mismatch for dataset"
+    }
+
+
+@pytest.mark.parametrize("system", ["package", "original"])
+def test_comparison_scope_rejects_lone_split_system(
+    tmp_path: Path, system: str
+) -> None:
+    training_text = valid_training_doc().replace(
+        "| RICO25 | both |", f"| RICO25 | {system} |", 1
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\trico25\tComparison Scope row count mismatch for dataset"
+    }
+
+
+def test_comparison_scope_rejects_unknown_system_value(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "| RICO25 | both |", "| RICO25 | shared |", 1
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tRICO25\tComparison Scope System must be one of: both, original, package",
+        "models/example/TRAINING.md\trico25\tComparison Scope row count mismatch for dataset",
+    }
+
+
+def test_comparison_scope_accepts_package_and_original_rows(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n",
+        "| RICO25 | package | evaluator | test | package checkpoint | 100 layouts per evaluation seed |\n"
+        "| RICO25 | original | evaluator | test | original checkpoint | 100 layouts per evaluation seed |\n",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
     )
 
     assert check_training_doc_template.current_entries(tmp_path) == set()
@@ -160,7 +364,8 @@ def test_readme_supported_checkpoint_dataset_requires_result_row(
     )
 
     assert check_training_doc_template.current_entries(tmp_path) == {
-        "models/example/TRAINING.md\tpublaynet\tREADME Supported Checkpoints dataset missing from Reproduction Results"
+        "models/example/TRAINING.md\tpublaynet\tComparison Scope dataset is not listed in Reproduction Results",
+        "models/example/TRAINING.md\tpublaynet\tREADME Supported Checkpoints dataset missing from Reproduction Results",
     }
 
 
@@ -388,6 +593,42 @@ def test_allowed_status_enum_values_pass(tmp_path: Path, status: str) -> None:
     assert check_training_doc_template.current_entries(tmp_path) == set()
 
 
+def test_protocol_example_results_table_has_no_status_violation(
+    tmp_path: Path,
+) -> None:
+    protocol_text = (
+        Path(__file__).resolve().parents[1] / "docs" / "training-reproduction.md"
+    ).read_text(encoding="utf-8")
+    table_start = protocol_text.index(
+        "| Dataset", protocol_text.index("Use this table shape")
+    )
+    table_end = protocol_text.index("\n\n### Comparison Scope", table_start)
+    protocol_table = protocol_text[table_start:table_end]
+    training_text = valid_training_doc()
+    table_start = training_text.index("| Dataset | System | Status")
+    table_end = training_text.index("\n\n### Comparison Scope", table_start)
+    training_text = (
+        training_text[:table_start] + protocol_table + training_text[table_end:]
+    )
+    training_path = write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    violations = check_training_doc_template.violations_for_training_doc(
+        training_path, tmp_path
+    )
+
+    assert [
+        violation
+        for violation in violations
+        if violation.reason
+        == "Reproduction Results status is not an allowed enum value"
+    ] == []
+
+
 def test_copied_training_template_placeholders_fail(tmp_path: Path) -> None:
     template_text = (
         Path(__file__).resolve().parents[1]
@@ -442,7 +683,7 @@ def test_check_passes_when_baseline_matches(tmp_path: Path) -> None:
         valid_training_doc().replace("## Training Commands\n", "## Commands\n"),
     )
     baseline = tmp_path / "baseline.txt"
-    check_training_doc_template.write_baseline(
+    baselines.write_entry_baseline(
         baseline, check_training_doc_template.current_entries(tmp_path)
     )
 

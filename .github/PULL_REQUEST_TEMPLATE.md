@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed and why. Include `Closes #N` or `Refs #N` for the implementation issue. Issue #60 alone does not satisfy the PR metadata check. -->
+<!-- What changed and why. Include `Closes #N` or `Refs #N` for the implementation issue. The implementation checklist alone does not satisfy the PR metadata check. -->
 
 - TODO
 
@@ -16,16 +16,16 @@
 
 ## Verification
 
-<!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. -->
+<!-- Record executed commands and results. Include coverage and parity numbers when applicable, distinguishing passes from skips. For docs/skills, report the affected rules and the existing checks; do not claim model parity from documentation checks. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
 
 - TODO
 
 ## Checklist
 
-Full checklist: see [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) (source of truth).
+Full checklist: see [docs/implementation-checklist.md](https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md) (source of truth).
 
-- [ ] Confirmed the applicable issue #60 checklist items.
-- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.
+- [ ] Confirmed the applicable implementation checklist items.
+- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.
 - [ ] Confirmed the implementation issue has a milestone and native Priority field set.
 - [ ] Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.
 - [ ] Read the model plan and amendment comments, if this is a model PR.
@@ -39,8 +39,8 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 
 <!-- Draft PRs may leave these pending. Ready-for-review PRs must either satisfy each item, or keep an actionable blocker/reason in the item text. -->
 
-- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.
-- [ ] Training S5 reproduction complete, or N/A: <reason>.
+- [ ] Vendor parity verified, or gated-pending: <independent rerun, cases, criterion, and artifact scope; or state why parity is not applicable; otherwise name the blocker>.
+- [ ] Training S5 reproduction complete, or N/A: <claimed datasets and training/evaluation seed scope, with S0-S4 evidence cited before S5; or N/A with reason>. Infrastructure-only work must state that full-run reproduction is not claimed.
 - [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
 
 <!-- Optional for complete PRs that must remain draft:

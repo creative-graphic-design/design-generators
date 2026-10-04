@@ -7,7 +7,7 @@ tags:
 
 # Getting Started
 
-Install workspace members from the repository root with `uv`. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so extras and dependency source mappings resolve correctly.
+Install workspace members from the repository root with `uv`. The root project coordinates repository tooling and applies workspace-wide `transformers` and `diffusers` version floors; it installs no runtime dependencies by default. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so runtime dependencies, extras, and dependency source mappings resolve correctly.
 
 ## Install
 
@@ -16,6 +16,8 @@ git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --all-packages
 ```
+
+This full-checkout command installs every workspace member explicitly. `make setup` additionally installs the docs group and pre-commit hooks.
 
 For a narrower environment, install only the package you want to run.
 
@@ -26,15 +28,17 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ## Run A Converted Checkpoint
 
-Most weight-backed packages use locally converted checkpoint directories until planned Hub repos are published. Each model package has a `REPRODUCING.md` file with the download, reference generation, parity, conversion, and smoke-test commands that create the local path.
+Most weight-backed packages use locally converted checkpoint directories until planned Hub repos are published. Each model package has a `REPRODUCING.md` file with the download, reference generation, agreement-check, conversion, and smoke-test commands that create the local path.
 
-For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for vendor reference generation, parity tests, and smoke tests.
+For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for original-implementation reference generation, agreement checks, and smoke tests.
+
+Use [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) to load the converted directory. Prompt-only packages use [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) for reusable configuration and exemplars.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+uv run --package layout-dm models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original
 
-uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25
@@ -69,7 +73,7 @@ Text
 
 ## GPU Selection
 
-Vendor parity and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
+Agreement checks against the original implementation (the repository's `vendor_parity` test suite) and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity

@@ -9,7 +9,7 @@ import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Protocol
 
 import numpy as np
@@ -25,7 +25,6 @@ FlexDmScriptValue = (
     | list["FlexDmScriptValue"]
     | dict[str, "FlexDmScriptValue"]
 )
-FlexDmLookupKwarg = str | int | float | bool | None | Sequence[str]
 FlexDmVendorColumn = Mapping[str, str | bool | int]
 
 
@@ -82,48 +81,6 @@ def parse_args() -> argparse.Namespace:
         help="Disable TensorFlow TF32 execution for fp32 parity references.",
     )
     return parser.parse_args()
-
-
-def install_tf_compat_shim() -> None:
-    """Install TF 2.15 compatibility shims for TF 2.8 vendor imports."""
-    import tensorflow as tf
-
-    experimental = ModuleType("tensorflow.keras.layers.experimental")
-    preprocessing = ModuleType("tensorflow.keras.layers.experimental.preprocessing")
-
-    class StringLookup(tf.keras.layers.StringLookup):  # type: ignore[misc]
-        def __init__(
-            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
-        ) -> None:
-            super().__init__(*args, **_normalize_lookup_kwargs(kwargs))
-
-        def vocab_size(self) -> int:
-            return int(self.vocabulary_size())
-
-    class IntegerLookup(tf.keras.layers.IntegerLookup):  # type: ignore[misc]
-        def __init__(
-            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
-        ) -> None:
-            super().__init__(*args, **_normalize_lookup_kwargs(kwargs))
-
-        def vocab_size(self) -> int:
-            return int(self.vocabulary_size())
-
-    preprocessing.StringLookup = StringLookup
-    preprocessing.IntegerLookup = IntegerLookup
-    preprocessing.Discretization = tf.keras.layers.Discretization
-    experimental.preprocessing = preprocessing
-    sys.modules["tensorflow.keras.layers.experimental"] = experimental
-    sys.modules["tensorflow.keras.layers.experimental.preprocessing"] = preprocessing
-
-
-def _normalize_lookup_kwargs(
-    kwargs: dict[str, FlexDmLookupKwarg],
-) -> dict[str, FlexDmLookupKwarg]:
-    normalized = dict(kwargs)
-    if "mask_value" in normalized:
-        normalized["mask_token"] = normalized.pop("mask_value")
-    return normalized
 
 
 def resolve_variant_root(asset_dir: Path, dataset: str, variant: str) -> Path:
@@ -412,9 +369,11 @@ def _write_forward_case(
 
 def main() -> None:
     """Run the vendor TensorFlow evaluator for a bounded reference fixture."""
+    from traingen_parity.tensorflow_compat import install_keras_preprocessing_compat
+
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    install_tf_compat_shim()
+    install_keras_preprocessing_compat()
     repo_root = Path(__file__).resolve().parents[3]
     vendor_root = repo_root / "vendor" / "flex-dm"
     sys.path.insert(0, str(vendor_root))

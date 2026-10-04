@@ -1,4 +1,4 @@
-"""Run fail-closed RALF S0-S4 training reproduction probes."""
+"""Run fail-closed RALF training-reproduction probes."""
 
 from __future__ import annotations
 
@@ -222,7 +222,7 @@ class _StorageIndependence(TypedDict):
 
 
 class _S3Status(TypedDict):
-    """Machine-readable S3 verdict covering both evidence layers."""
+    """Machine-readable repeated-step verdict covering both evidence layers."""
 
     natural: Literal["PASS", "LEFT_CONTRACT"]
     synchronized: Literal["PASS", "FAIL", "NOT_RUN"]
@@ -990,7 +990,7 @@ def _compare_scheduler_outputs(
 def _s3_trace_status(
     evidence_mode: str, first_divergence: object | None
 ) -> Literal["PASS", "LEFT_CONTRACT", "FAIL"]:
-    """Return the machine-readable status for one S3 evidence layer."""
+    """Return the machine-readable status for one repeated-step evidence layer."""
     if first_divergence is None:
         return "PASS"
     if evidence_mode == "natural":
@@ -1137,7 +1137,7 @@ def _s3_status(
     natural_runs: Sequence[Mapping[str, object]],
     synchronized_run: Mapping[str, object] | None,
 ) -> _S3Status:
-    """Summarize natural and synchronized S3 evidence in one verdict."""
+    """Summarize natural and synchronized repeated-step evidence in one verdict."""
     if not natural_runs:
         raise RuntimeError("S3 status requires at least one natural run")
 
@@ -2228,7 +2228,7 @@ class RalfS3TraceCallback(Callback):
 
 
 class RalfS3ModelCheckpoint(ModelCheckpoint):
-    """ModelCheckpoint configured only through S3 environment metadata."""
+    """ModelCheckpoint configured only through repeated-step environment metadata."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -2242,7 +2242,7 @@ class RalfS3ModelCheckpoint(ModelCheckpoint):
 
 
 class RalfS3CSVLogger(CSVLogger):
-    """Construct the production CSV logger from the S3 run environment."""
+    """Construct the production CSV logger from the repeated-step environment."""
 
     def __init__(self) -> None:
         super().__init__(

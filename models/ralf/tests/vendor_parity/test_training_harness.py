@@ -1,4 +1,4 @@
-"""Unit tests for the fail-closed S2 evidence comparisons."""
+"""Unit tests for the fail-closed evidence comparisons."""
 
 from __future__ import annotations
 

@@ -29,6 +29,8 @@ def test_check_readme_links_accepts_repo_root_relative_docs_link(
     tmp_path: Path,
 ) -> None:
     check_readme_links = load_check_readme_links()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "training-reproduction.md").write_text("# Protocol\n")
     (tmp_path / "README.md").write_text(
         "See the [training reproduction protocol](docs/training-reproduction.md).\n",
         encoding="utf-8",
@@ -39,12 +41,71 @@ def test_check_readme_links_accepts_repo_root_relative_docs_link(
 
 def test_check_readme_links_accepts_package_training_link(tmp_path: Path) -> None:
     check_readme_links = load_check_readme_links()
+    (tmp_path / "models" / "layout-dm").mkdir(parents=True)
+    (tmp_path / "models" / "layout-dm" / "TRAINING.md").write_text("# Training\n")
     (tmp_path / "README.md").write_text(
         "See [LayoutDM training](models/layout-dm/TRAINING.md).\n",
         encoding="utf-8",
     )
 
     assert check_readme_links.check_readme_links(tmp_path) == 0
+
+
+def test_check_readme_links_rejects_dead_root_readme_link(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    (tmp_path / "README.md").write_text(
+        "See [the missing page](docs/missing.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert "existing path" in violations[0].reason
+
+
+def test_check_readme_links_accepts_absolute_package_link(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    readme = tmp_path / "models" / "example" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        f"See [training]({check_readme_links.REPO_BLOB_URL}models/example/TRAINING.md).\n",
+        encoding="utf-8",
+    )
+
+    assert check_readme_links.check_readme_links(tmp_path) == 0
+
+
+def test_check_readme_links_rejects_repo_root_relative_package_link(
+    tmp_path: Path,
+) -> None:
+    check_readme_links = load_check_readme_links()
+    readme = tmp_path / "models" / "example" / "README.md"
+    readme.parent.mkdir(parents=True)
+    (readme.parent / "TRAINING.md").write_text("# Training\n", encoding="utf-8")
+    readme.write_text(
+        "See [training](models/example/TRAINING.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert "absolute" in violations[0].reason
+
+
+def test_check_readme_links_checks_reproducing_files(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    reproducing = tmp_path / "models" / "example" / "REPRODUCING.md"
+    reproducing.parent.mkdir(parents=True)
+    reproducing.write_text("See [the README](README.md).\n", encoding="utf-8")
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert violations[0].path == reproducing
 
 
 def test_check_readme_links_rejects_parent_relative_docs_link(tmp_path: Path) -> None:
@@ -61,7 +122,24 @@ def test_check_readme_links_rejects_parent_relative_docs_link(tmp_path: Path) ->
     assert check_readme_links.check_readme_links(tmp_path) == 1
     assert len(violations) == 1
     assert violations[0].link == "../../docs/training-reproduction.md"
-    assert "../ relative escapes" in violations[0].reason
+    assert "absolute" in violations[0].reason
+
+
+def test_check_readme_links_checks_training_files(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    training = tmp_path / "models" / "example" / "TRAINING.md"
+    training.parent.mkdir(parents=True)
+    training.write_text(
+        "See the [training reproduction protocol](../../docs/training-reproduction.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert violations[0].path == training
+    assert violations[0].link == "../../docs/training-reproduction.md"
 
 
 def test_check_readme_links_rejects_pages_markdown_url(tmp_path: Path) -> None:
@@ -83,3 +161,65 @@ def test_check_readme_links_accepts_current_first_party_readmes() -> None:
     check_readme_links = load_check_readme_links()
 
     assert check_readme_links.check_readme_links(REPO_ROOT) == 0
+
+
+def test_check_readme_links_accepts_existing_skill_root_relative_link(
+    tmp_path: Path,
+) -> None:
+    check_readme_links = load_check_readme_links()
+    skill = tmp_path / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "implementation-checklist.md").write_text(
+        "# Checklist\n",
+        encoding="utf-8",
+    )
+    skill.write_text(
+        "See [the checklist](docs/implementation-checklist.md).\n",
+        encoding="utf-8",
+    )
+
+    assert check_readme_links.check_readme_links(tmp_path) == 0
+
+
+def test_check_readme_links_rejects_parent_relative_skill_link(
+    tmp_path: Path,
+) -> None:
+    check_readme_links = load_check_readme_links()
+    skill = tmp_path / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "implementation-checklist.md").write_text(
+        "# Checklist\n",
+        encoding="utf-8",
+    )
+    skill.write_text(
+        "See [the checklist](../../../docs/implementation-checklist.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert violations[0].link == "../../../docs/implementation-checklist.md"
+    assert "repo-root-relative" in violations[0].reason
+
+
+def test_check_readme_links_rejects_dead_skill_root_relative_link(
+    tmp_path: Path,
+) -> None:
+    check_readme_links = load_check_readme_links()
+    skill = tmp_path / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text(
+        "See [the missing page](docs/missing.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert violations[0].link == "docs/missing.md"
+    assert "existing path" in violations[0].reason

@@ -66,6 +66,7 @@ COMPOUND_STATEMENT_TYPES = (
 SCAN_GLOBS = (
     "models/*/src/**/*.py",
     "lib/*/src/**/*.py",
+    "tools/*/src/**/*.py",
     "scripts/**/*.py",
 )
 

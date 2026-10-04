@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+import http.client
 from pathlib import Path
 import re
 import socket
@@ -181,7 +182,13 @@ def check_url(
             if error.code >= TRANSIENT_STATUS_MIN and attempt < retries:
                 continue
             return UrlCheckResult(url=url, outcome="warning", status=error.code)
-        except (TimeoutError, socket.timeout, URLError) as error:
+        except (
+            ConnectionError,
+            http.client.HTTPException,
+            TimeoutError,
+            socket.timeout,
+            URLError,
+        ) as error:
             last_error = str(error)
             if attempt < retries:
                 continue

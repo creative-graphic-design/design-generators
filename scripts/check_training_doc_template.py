@@ -8,14 +8,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from check_training_stage_evidence import (
-    baseline_entries,
+from devharness.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from devharness.markdown import (
     iter_heading_sections,
+    iter_heading_sections_with_level,
     iter_unfenced_lines,
     is_table_delimiter,
-    print_entries,
     split_markdown_row,
-    write_baseline,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +28,7 @@ TRAINING_GLOB = "models/*/TRAINING.md"
 README_NAME = "README.md"
 SUPPORTED_CHECKPOINTS_HEADING = "Supported Checkpoints"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
+COMPARISON_SCOPE_HEADING = "Comparison Scope"
 REQUIRED_SECTIONS = (
     "Scheduler and Recipe Notes",
     "Seed Policy",
@@ -41,6 +46,30 @@ NON_TERMINAL_STATUS_RE = re.compile(r"^(not-yet-run|blocked)\s+\((.+)\)$")
 PLACEHOLDER_RE = re.compile(r"^<.*>$|^(?:tbd|todo|pending|n/a|na|-)$", re.I)
 DATASET_COLUMN_NAMES = ("dataset", "checkpoint")
 MISSING_README_TARGET = "README Supported Checkpoints"
+COMPARISON_SCOPE_COLUMNS = (
+    "dataset",
+    "system",
+    "evaluator",
+    "testsplit",
+    "checkpointselectionrule",
+    "samplecount",
+)
+COMPARISON_SCOPE_FIELD_LABELS = {
+    "system": "system",
+    "evaluator": "evaluator",
+    "testsplit": "test split",
+    "checkpointselectionrule": "checkpoint-selection rule",
+    "samplecount": "sample-count denominator",
+}
+COMPARISON_SCOPE_HEADER_LABELS = {
+    "dataset": "Dataset",
+    "system": "System",
+    "evaluator": "Evaluator",
+    "testsplit": "Test split",
+    "checkpointselectionrule": "Checkpoint-selection rule",
+    "samplecount": "Sample count",
+}
+COMPARISON_SCOPE_SYSTEMS = {"both", "package", "original"}
 
 
 @dataclass(frozen=True)
@@ -181,6 +210,24 @@ def reproduction_result_rows(text: str) -> tuple[list[str], list[list[str]]]:
     return first_table(section_lines(text, REPRODUCTION_RESULTS_HEADING))
 
 
+def comparison_scope_section(text: str) -> tuple[int, list[str]] | None:
+    """Return the Comparison Scope heading level and section lines."""
+    reproduction_section = heading_sections(text).get(
+        REPRODUCTION_RESULTS_HEADING.lower()
+    )
+    if reproduction_section is None:
+        return None
+
+    _, reproduction_lines = reproduction_section
+    for level, heading, lines in iter_heading_sections_with_level(
+        "\n".join(reproduction_lines)
+    ):
+        if heading.lower() == COMPARISON_SCOPE_HEADING.lower():
+            return level, lines
+
+    return None
+
+
 def is_valid_status(value: str) -> bool:
     """Return whether a Reproduction Results status uses the allowed enum."""
     raw_status = value.strip().strip("`").strip()
@@ -212,6 +259,152 @@ def is_placeholder_detail(value: str) -> bool:
     return PLACEHOLDER_RE.fullmatch(detail) is not None or bool(
         re.search(r"<[^>]+>", detail)
     )
+
+
+def comparison_scope_value(row: list[str], index: int) -> str:
+    """Return a normalized Comparison Scope cell or an empty value."""
+    if len(row) <= index:
+        return ""
+
+    return normalize_cell(row[index])
+
+
+def is_missing_comparison_scope_value(value: str) -> bool:
+    """Return whether a Comparison Scope cell is empty or a placeholder."""
+    return not value or is_placeholder_detail(value)
+
+
+def comparison_scope_violations(
+    text: str,
+    relative_path: str,
+    result_datasets: set[str],
+) -> list[TrainingDocViolation]:
+    """Return Comparison Scope table and row violations."""
+    section = comparison_scope_section(text)
+    if section is None:
+        return [
+            TrainingDocViolation(
+                relative_path,
+                COMPARISON_SCOPE_HEADING,
+                "missing Comparison Scope subsection",
+            )
+        ]
+
+    level, scope_lines = section
+    headers, rows = first_table(scope_lines)
+    if level != 3:
+        return [
+            TrainingDocViolation(
+                relative_path,
+                COMPARISON_SCOPE_HEADING,
+                "Comparison Scope subsection must use level-3 heading",
+            )
+        ]
+
+    if not headers:
+        return [
+            TrainingDocViolation(
+                relative_path,
+                COMPARISON_SCOPE_HEADING,
+                "missing Comparison Scope table",
+            )
+        ]
+
+    violations: list[TrainingDocViolation] = []
+    missing_columns = sorted(set(COMPARISON_SCOPE_COLUMNS).difference(headers))
+    for column in missing_columns:
+        violations.append(
+            TrainingDocViolation(
+                relative_path,
+                COMPARISON_SCOPE_HEADING,
+                "Comparison Scope table missing "
+                f"{COMPARISON_SCOPE_HEADER_LABELS[column]!r} column",
+            )
+        )
+
+    if missing_columns:
+        return violations
+
+    column_indexes = {
+        column: headers.index(column) for column in COMPARISON_SCOPE_COLUMNS
+    }
+    scope_rows_by_dataset: dict[str, list[list[str]]] = {}
+    for row_number, row in enumerate(rows, start=1):
+        dataset = normalize_dataset(
+            comparison_scope_value(row, column_indexes["dataset"])
+        )
+        row_target = (
+            comparison_scope_value(row, column_indexes["dataset"])
+            or f"row {row_number}"
+        )
+        if not dataset:
+            violations.append(
+                TrainingDocViolation(
+                    relative_path,
+                    row_target,
+                    "Comparison Scope dataset is missing",
+                )
+            )
+        else:
+            scope_rows_by_dataset.setdefault(dataset, []).append(row)
+
+        for column in COMPARISON_SCOPE_COLUMNS[1:]:
+            value = comparison_scope_value(row, column_indexes[column])
+            if is_missing_comparison_scope_value(value):
+                violations.append(
+                    TrainingDocViolation(
+                        relative_path,
+                        row_target,
+                        f"Comparison Scope {COMPARISON_SCOPE_FIELD_LABELS[column]} is missing",
+                    )
+                )
+
+        system = comparison_scope_value(row, column_indexes["system"]).lower()
+        if system and system not in COMPARISON_SCOPE_SYSTEMS:
+            violations.append(
+                TrainingDocViolation(
+                    relative_path,
+                    row_target,
+                    "Comparison Scope System must be one of: both, original, package",
+                )
+            )
+
+    for dataset in sorted(result_datasets.difference(scope_rows_by_dataset)):
+        violations.append(
+            TrainingDocViolation(
+                relative_path,
+                dataset,
+                "Comparison Scope dataset missing from table",
+            )
+        )
+
+    for dataset in sorted(set(scope_rows_by_dataset).difference(result_datasets)):
+        violations.append(
+            TrainingDocViolation(
+                relative_path,
+                dataset,
+                "Comparison Scope dataset is not listed in Reproduction Results",
+            )
+        )
+
+    for dataset, dataset_rows in scope_rows_by_dataset.items():
+        systems = {
+            comparison_scope_value(row, column_indexes["system"]).lower()
+            for row in dataset_rows
+        }
+        valid_row_count = (len(dataset_rows) == 1 and systems == {"both"}) or (
+            len(dataset_rows) == 2 and systems == {"original", "package"}
+        )
+        if not valid_row_count:
+            violations.append(
+                TrainingDocViolation(
+                    relative_path,
+                    dataset,
+                    "Comparison Scope row count mismatch for dataset",
+                )
+            )
+
+    return violations
 
 
 def violations_for_training_doc(path: Path, root: Path) -> list[TrainingDocViolation]:
@@ -282,6 +475,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[TrainingDocViola
         for row in rows
         if len(row) > dataset_index and normalize_dataset(row[dataset_index])
     }
+    violations.extend(comparison_scope_violations(text, relative_path, result_datasets))
     for row_number, row in enumerate(rows, start=1):
         if len(row) <= status_index or not is_valid_status(row[status_index]):
             row_dataset = (
@@ -337,9 +531,8 @@ def current_entries(root: Path) -> set[str]:
 def check_training_doc_template(root: Path, baseline_path: Path) -> int:
     """Check current TRAINING.md template violations against the baseline."""
     current_snapshot = current_entries(root)
-    baseline_snapshot = baseline_entries(baseline_path)
-    unexpected = sorted(current_snapshot.difference(baseline_snapshot))
-    stale = sorted(baseline_snapshot.difference(current_snapshot))
+    baseline_snapshot = read_entry_baseline(baseline_path)
+    unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
     if not unexpected and not stale:
         return 0
     print_entries("New TRAINING.md template violations:", "+", unexpected)
@@ -355,7 +548,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-baseline", action="store_true")
     namespace = parser.parse_args(argv)
     if bool(namespace.write_baseline):
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
         return 0
     return check_training_doc_template(ROOT, BASELINE_PATH)
 

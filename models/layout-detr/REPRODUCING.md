@@ -7,7 +7,7 @@ Workflow order: download assets, generate references, convert checkpoints, run p
 ## Download Original Assets
 
 ```bash
-uv run --package layout-detr --extra download python models/layout-detr/scripts/download_original_assets.py \
+uv run --package layout-detr --extra download models/layout-detr/scripts/download_original_assets.py \
   --output-dir .cache/layout-detr/original \
   --include model
 ```
@@ -15,7 +15,7 @@ uv run --package layout-detr --extra download python models/layout-detr/scripts/
 To include the Up-DETR preinit weights and the vendor Ad Banner dataset, use:
 
 ```bash
-uv run --package layout-detr --extra download python models/layout-detr/scripts/download_original_assets.py \
+uv run --package layout-detr --extra download models/layout-detr/scripts/download_original_assets.py \
   --output-dir .cache/layout-detr/original \
   --include model \
   --include up-detr
@@ -28,7 +28,7 @@ Use `--include all` only when the full Ad Banner dataset is needed locally.
 Reference tensors are written outside git under `.cache/layout-detr/reference`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models/layout-detr/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor models/layout-detr/scripts/generate_reference_outputs.py \
   --vendor-root vendor/layout-detr \
   --checkpoint .cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
   --background "vendor/layout-detr/examples/Lumber 2 [header]EVERYTHING 10% OFF[body text]Friends & Family Savings Event[button]SHOP NOW[disclaimer]CODE FRIEND10.jpg" \
@@ -45,7 +45,7 @@ This strict conversion writes
 with 852 source keys, 852 target keys, and 852 loaded keys.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models/layout-detr/scripts/convert_original_checkpoint.py \
+CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor models/layout-detr/scripts/convert_original_checkpoint.py \
   --vendor-root vendor/layout-detr \
   --checkpoint .cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
   --output-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
@@ -69,7 +69,7 @@ Use `--allow-partial` only for debugging schema and `from_pretrained` smoke path
 it is not the parity conversion.
 
 ```bash
-uv run --package layout-detr --extra convert python models/layout-detr/scripts/convert_original_checkpoint.py \
+uv run --package layout-detr --extra convert models/layout-detr/scripts/convert_original_checkpoint.py \
   --vendor-root vendor/layout-detr \
   --checkpoint .cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
   --output-dir .cache/layout-detr/converted/layout-detr-ad-banner \
@@ -79,6 +79,6 @@ uv run --package layout-detr --extra convert python models/layout-detr/scripts/c
 ## Run From-Pretrained Smoke
 
 ```bash
-uv run --package layout-detr python models/layout-detr/scripts/smoke_from_pretrained.py \
+uv run --package layout-detr models/layout-detr/scripts/smoke_from_pretrained.py \
   --model-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
 ```

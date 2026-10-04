@@ -22,8 +22,8 @@ dependencies = [
 training = [
     "datasets>=3",
     "lightning>=2.4,<3",
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
+    "traingen",
+    "traingen-parity",
 ]
 download = [
     "gdown>=6.1",

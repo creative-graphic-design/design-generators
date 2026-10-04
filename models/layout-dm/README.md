@@ -27,6 +27,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.08137&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.08137)
@@ -48,7 +50,7 @@ LayoutDM is a discrete diffusion layout generator for controllable UI and docume
 
 - **Developed by:** Naoto Inoue et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 
@@ -61,27 +63,27 @@ LayoutDM is a discrete diffusion layout generator for controllable UI and docume
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layoutdm-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layoutdm-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                            | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layoutdm-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layoutdm-publaynet) | not-published |
 
 ## Uses
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 LayoutDM supports controllable discrete diffusion over layout tokens. The converted checkpoints follow the original release for RICO25 mobile UI layouts and PubLayNet document page layouts, both with at most 25 elements.
 
-| `condition_type` | Required inputs | Effect |
-| --- | --- | --- |
-| `unconditional` | none | samples labels and geometry |
-| `label` | `labels`, `bbox`, `mask` | keeps labels fixed and samples geometry |
-| `label_size` | `labels`, `bbox`, `mask` | keeps labels and element sizes fixed |
-| `completion` | `labels`, `bbox`, `mask` | preserves provided elements and fills the remainder |
-| `refinement` | `labels`, `bbox`, `mask` | refines an existing layout |
-| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+| `condition_type`                                                 | Required inputs          | Effect                                              |
+| ---------------------------------------------------------------- | ------------------------ | --------------------------------------------------- |
+| `unconditional`                                                  | none                     | samples labels and geometry                         |
+| `label`                                                          | `labels`, `bbox`, `mask` | keeps labels fixed and samples geometry             |
+| `label_size`                                                     | `labels`, `bbox`, `mask` | keeps labels and element sizes fixed                |
+| `completion`                                                     | `labels`, `bbox`, `mask` | preserves provided elements and fills the remainder |
+| `refinement`                                                     | `labels`, `bbox`, `mask` | refines an existing layout                          |
+| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable           | raises `NotImplementedError`                        |
 
 ### Downstream Use
 
@@ -97,7 +99,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -109,7 +111,7 @@ pip install \
   "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
-Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](models/layout-dm/REPRODUCING.md). Those steps create `.cache/layout-dm/converted/layoutdm-rico25`.
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md). Those steps create `.cache/layout-dm/converted/layoutdm-rico25`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -144,18 +146,18 @@ print(out.bbox.shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 ### Training Procedure
 
-Package-local training reproduction is tracked in [TRAINING.md](models/layout-dm/TRAINING.md). S0-S2 exact numeric parity currently covers a fixed PubLayNet-style synthetic batch, S4 covers tokenizer, loader row encoding, and preprocessed stream reader parity for local fixtures, and S5 full-run statistical comparison is pending.
+Package-local training reproduction is tracked in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md). Exact step-level numeric agreement currently covers a fixed PubLayNet-style synthetic batch; deterministic loader checks cover tokenizer, loader row encoding, and preprocessed stream reader agreement for local fixtures; the full-run statistical comparison is pending.
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -171,29 +173,28 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
-| Dataset | Tokenizer exact | Deterministic exact | Denoiser logits assertion |
-| --- | ---: | ---: | --- |
-| RICO25 | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Dataset   |                                             Tokenizer exact |                                         Deterministic exact | Denoiser logits assertion              |
+| --------- | ----------------------------------------------------------: | ----------------------------------------------------------: | -------------------------------------- |
+| RICO25    | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 | PubLayNet | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 
 The deterministic sequence check uses the non-default argmax sampling mode (`sampling="deterministic"`), not the pipeline's stochastic default.
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
-
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
 
 ## Environmental Impact
 
@@ -203,15 +204,15 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-LayoutDM represents each layout as discrete category, position, and size tokens and denoises those tokens through a discrete diffusion process. The processor normalizes vendor aliases such as `gen_t`, `gen_ts`, `partial`, and `refine` into public condition modes before decoding generated tokens into normalized boxes and labels.
+LayoutDM represents each layout as discrete category, position, and size tokens and denoises those tokens through a discrete diffusion process. The processor normalizes aliases from the original implementation, such as `gen_t`, `gen_ts`, `partial`, and `refine`, into public condition modes before decoding generated tokens into normalized boxes and labels.
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 
@@ -232,3 +233,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
   pages = {10167-10176}
 }
 ```
+
+<!-- --8<-- [end:card] -->

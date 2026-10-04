@@ -1,4 +1,4 @@
-"""LayoutDM-specific S0-S2 training-parity helpers."""
+"""LayoutDM-specific initial-state and single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ TRACE_POINTS: tuple[str, ...] = (
 
 
 def trace_layout_dm_step(
-    module: TrainingStepModule,
+    module: TrainingStepModule[dict[str, Shaped[torch.Tensor, "..."]]],
     batch: dict[str, Shaped[torch.Tensor, "..."]],
     rng_state: RNGState | None = None,
 ) -> StepTrace:
@@ -43,7 +43,7 @@ def compare_layout_dm_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> StepReport:
-    """Compare S1 LayoutDM pre-optimizer traces."""
+    """Perform a single-step pre-optimizer trace comparison for LayoutDM."""
     names = set(reference.tensors) & set(target.tensors)
     tolerances = {name: tolerance or TensorTolerance() for name in names}
     return compare_step_trace(reference, target, tolerances)
@@ -55,7 +55,7 @@ def compare_layout_dm_optimizer_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:
-    """Compare S0/S2 LayoutDM parameter state dictionaries."""
+    """Compare initial and post-optimizer LayoutDM parameter state dictionaries."""
     names = set(reference_state) & set(target_state)
     tolerances = {name: tolerance or TensorTolerance() for name in names}
     return compare_optimizer_step(reference_state, target_state, tolerances)

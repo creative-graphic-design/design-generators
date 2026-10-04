@@ -29,6 +29,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LT-Net
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2021&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html)
@@ -50,7 +52,7 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 - **Developed by:** Cheng-Fu Yang, Wan-Cyuan Fan, Fu-En Yang, and Yu-Chiang Frank Wang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 
@@ -62,16 +64,16 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| COCO full LT-Net | [`creative-graphic-design/ltnet-coco`](https://huggingface.co/creative-graphic-design/ltnet-coco) | not-published |
+| Checkpoint          | Hub ID                                                                                                  | Status        |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ------------- |
+| COCO full LT-Net    | [`creative-graphic-design/ltnet-coco`](https://huggingface.co/creative-graphic-design/ltnet-coco)       | not-published |
 | VG-MSDN full LT-Net | [`creative-graphic-design/ltnet-vg-msdn`](https://huggingface.co/creative-graphic-design/ltnet-vg-msdn) | not-published |
 
 ## Uses
 
 ### Direct Use
 
-Use this package for research inference, checkpoint conversion checks, and vendor-parity validation of relation-conditioned layout generation.
+Use this package for research inference, checkpoint conversion checks, and agreement checks against the original implementation for relation-conditioned layout generation.
 
 LT-Net accepts scene graph objects and relations, serializes them through the package tokenizer and processor, and returns common `laygen` layout outputs.
 
@@ -89,7 +91,7 @@ The package follows released checkpoint behavior and the dataset vocabularies us
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints, changing tokenizer metadata, or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints, changing tokenizer metadata, or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -137,12 +139,12 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| COCO | unknown | original LT-Net COCO scene-graph preprocessing |
-| VG-MSDN | unknown | original Visual Genome MSDN split and vocabulary |
+| Dataset | Dataset ID | Notes                                            |
+| ------- | ---------- | ------------------------------------------------ |
+| COCO    | unknown    | original LT-Net COCO scene-graph preprocessing   |
+| VG-MSDN | unknown    | original Visual Genome MSDN split and vocabulary |
 
-COCO and VG-MSDN are not yet available in the `creative-graphic-design` Hugging Face org in LT-Net-ready scene-graph form. Parity and conversion scripts therefore follow the original repository's dataset and vocabulary paths.
+COCO and VG-MSDN are not yet available in the `creative-graphic-design` Hugging Face org in LT-Net-ready scene-graph form. Agreement and conversion scripts therefore follow the original repository's dataset and vocabulary paths.
 
 ### Training Procedure
 
@@ -166,30 +168,30 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by checkpoint, dataset, sample index, and seed where the package has recorded evidence.
+Agreement results are reported separately by checkpoint, dataset, sample index, and seed where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
-| Dataset | Cases | Compared tensors | Max abs |
-| --- | ---: | --- | ---: |
-| COCO | 1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` | 0 |
-| VG-MSDN | 1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` | 0 |
+| Dataset | Cases | Compared tensors                                                                 | Max abs |
+| ------- | ----: | -------------------------------------------------------------------------------- | ------: |
+| COCO    |     1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` |       0 |
+| VG-MSDN |     1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` |       0 |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) for the commands that download vendor assets, prepare dataset metadata, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) for the commands that download original-implementation assets, prepare dataset metadata, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -199,11 +201,11 @@ LT-Net encodes scene-graph token sequences with object, relation, segment, and t
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU because the original path uses CUDA for checkpoint execution.
+Agreement-check commands are intended for one explicitly selected GPU because the original implementation uses CUDA for checkpoint execution.
 
 #### Hardware
 
-CPU is sufficient for import, serialization, and most unit tests. CUDA is required for heavyweight vendor parity against the original implementation.
+CPU is sufficient for import, serialization, and most unit tests. CUDA is required for heavyweight agreement checks against the original implementation.
 
 #### Software
 
@@ -223,3 +225,5 @@ Repository wrapper code is Apache-2.0. The original implementation has no top-le
   year = {2021}
 }
 ```
+
+<!-- --8<-- [end:card] -->

@@ -25,8 +25,8 @@ def load_check_pr_issue_reference() -> ModuleType:
 
 check_pr_issue_reference = load_check_pr_issue_reference()
 REQUIRED_CHECKLIST_ITEMS = [
-    "Confirmed the applicable issue #60 checklist items.",
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    "Confirmed the applicable implementation checklist items.",
+    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
     "Confirmed the implementation issue has a milestone and native Priority field set.",
     "Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.",
     "Read the model plan and amendment comments, if this is a model PR.",
@@ -76,7 +76,7 @@ def test_valid_issue_references_accepts_refs_and_closes() -> None:
 
 
 def test_valid_issue_references_ignores_standing_policy_issues() -> None:
-    body = "Full checklist: see issue #60.\n\nRefs #60 and Refs #2.\n"
+    body = "Full checklist: see docs/implementation-checklist.md.\n\nRefs #60 and Refs #2.\n"
 
     assert check_pr_issue_reference.valid_issue_references(body) == set()
 
@@ -149,7 +149,7 @@ def test_checklist_errors_require_template_item_text() -> None:
 
     errors = check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS)
 
-    assert "Confirmed the applicable issue #60 checklist items." in errors[0]
+    assert "Confirmed the applicable implementation checklist items." in errors[0]
 
 
 def test_checklist_errors_reject_unchecked_template_items() -> None:
@@ -170,6 +170,35 @@ def test_checklist_errors_accept_filled_template() -> None:
         )
         == []
     )
+
+
+def test_checklist_errors_accept_deprecated_template_wording() -> None:
+    body = filled_body()
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[0],
+        "Confirmed the applicable issue #60 checklist items.",
+    )
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[1],
+        "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    )
+
+    assert (
+        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
+    )
+
+
+def test_checklist_errors_reject_missing_current_and_deprecated_wording() -> None:
+    body = filled_body()
+    body = body.replace(REQUIRED_CHECKLIST_ITEMS[0], "A different checklist item.")
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[1], "Another different checklist item."
+    )
+
+    errors = check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS)
+
+    assert REQUIRED_CHECKLIST_ITEMS[0] in errors[0]
+    assert REQUIRED_CHECKLIST_ITEMS[1] in errors[0]
 
 
 def test_completion_gate_allows_draft_incomplete() -> None:
@@ -261,14 +290,14 @@ def test_guarded_cross_cutting_paths_include_lib_src_docs_and_agent_skills() -> 
     changed_files = [
         "lib/laygen/src/laygen/common/vendor.py",
         "docs/getting-started.md",
-        ".agents/skills/model-conversion/SKILL.md",
+        ".agents/skills/design-generators-model-conversion/SKILL.md",
         "models/ltnet/README.md",
     ]
 
     assert check_pr_issue_reference.guarded_cross_cutting_paths(changed_files) == [
         "lib/laygen/src/laygen/common/vendor.py",
         "docs/getting-started.md",
-        ".agents/skills/model-conversion/SKILL.md",
+        ".agents/skills/design-generators-model-conversion/SKILL.md",
     ]
 
 
@@ -287,13 +316,15 @@ def test_shared_library_change_errors_require_reason_for_docs_changes() -> None:
 def test_shared_library_change_errors_require_reason_for_agent_skill_changes() -> None:
     errors = check_pr_issue_reference.shared_library_change_errors(
         filled_body() + "\n## Shared Library Changes\n\n- N/A\n",
-        [".agents/skills/model-conversion/references/model-readme-template.md"],
+        [
+            ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
+        ],
     )
 
     assert errors == [
         "PRs changing cross-cutting paths must explain the rationale in "
         "`## Shared Library Changes`: "
-        ".agents/skills/model-conversion/references/model-readme-template.md"
+        ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
     ]
 
 
@@ -303,7 +334,9 @@ def test_shared_library_change_errors_accept_actionable_reason() -> None:
             filled_body_with_shared_library_changes(
                 "Shared template wording changed to keep model READMEs consistent."
             ),
-            [".agents/skills/model-conversion/references/model-readme-template.md"],
+            [
+                ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
+            ],
         )
         == []
     )

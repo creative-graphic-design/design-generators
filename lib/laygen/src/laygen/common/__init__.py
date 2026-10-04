@@ -2,7 +2,6 @@
 
 from .bbox import BoxFormat, normalize_box_format
 from .conditions import ConditionAlias, ConditionType, normalize_condition_type
-from .discrete import SamplingMode, normalize_sampling_mode
 from .enums import normalize_enum_value
 from .labels import (
     RICO25_INTERACTION_LABEL_NAMES,
@@ -35,7 +34,6 @@ __all__ = [
     "ConditionType",
     "DatasetName",
     "ParityMetric",
-    "SamplingMode",
     "WhitespaceTokenizerMixin",
     "build_layout_model_card",
     "build_token_maps",
@@ -48,7 +46,6 @@ __all__ = [
     "normalize_condition_type",
     "normalize_dataset_name",
     "normalize_enum_value",
-    "normalize_sampling_mode",
     "sanitize_for_yaml",
     "save_json_vocabulary",
     "split_whitespace_tokens",

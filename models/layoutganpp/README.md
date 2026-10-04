@@ -28,6 +28,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutGAN++
 
 [![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)](https://doi.org/10.1145/3474085.3475497)
@@ -46,11 +48,11 @@ This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [
 
 ### Model Description
 
-LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping vendor-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: label.
 - **Language(s) (NLP):** not applicable.
 - **License:** agpl-3.0.
 
@@ -61,17 +63,17 @@ LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico) | not-published |
-| PubLayNet | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
-| Magazine | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine) | not-published |
+| Checkpoint | Hub ID                                                                                                                  | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico)           | not-published |
+| PubLayNet  | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
+| Magazine   | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine)   | not-published |
 
 ## Uses
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 Conditional generation accepts label prompts for the converted generator:
 
@@ -115,7 +117,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -153,11 +155,11 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
-| Magazine | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine) | polygon-based train-only source |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
+| Magazine  | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine)   | polygon-based train-only source                          |
 
 The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...), not the 25-class RICO25 mapping used by most other layout packages in this repository. The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
 
@@ -167,7 +169,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -183,32 +185,31 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
-| Dataset | Compared artifact | Cases | Match criterion | Result |
-| --- | --- | ---: | --- | --- |
-| Rico | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
-| PubLayNet | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
-| Magazine | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 33, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
+| Dataset   | Compared artifact                                                       | Cases | Match criterion                                                       | Result |
+| --------- | ----------------------------------------------------------------------- | ----: | --------------------------------------------------------------------- | ------ |
+| Rico      | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)`  | passed |
+| PubLayNet | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)`  | passed |
+| Magazine  | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 33, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
-
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -218,11 +219,11 @@ LayoutGAN++ loads the released Const-layout generator checkpoints and predicts e
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 
@@ -245,3 +246,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
     doi = {10.1145/3474085.3475497}
 }
 ```
+
+<!-- --8<-- [end:card] -->

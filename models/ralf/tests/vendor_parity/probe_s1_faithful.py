@@ -1,4 +1,4 @@
-"""Run the faithful, fixed-batch CGL conditional S1 lockstep diagnostic."""
+"""Run the faithful, fixed-batch CGL conditional lockstep diagnostic."""
 
 from __future__ import annotations
 

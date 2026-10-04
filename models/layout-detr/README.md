@@ -27,6 +27,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDETR
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2212.09877&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2212.09877)
@@ -47,9 +49,9 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 
 - **Developed by:** Ning Yu, Chia-Chih Chen, Zeyuan Chen, Rui Meng, Gang Wu, Paul Josel, Juan Carlos Niebles, Caiming Xiong, and Ran Xu.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-image layout generation.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** English ad-banner text strings.
-- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the vendor-acknowledged [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama) components.
+- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the components acknowledged by that repository, including [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama).
 
 ### Model Sources
 
@@ -58,8 +60,8 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint                          | Hub ID                                          | Status        |
+| ----------------------------------- | ----------------------------------------------- | ------------- |
 | LayoutDETR Ad Banner `G_ema` pickle | `creative-graphic-design/layout-detr-ad-banner` | not-published |
 
 ## Uses
@@ -93,9 +95,9 @@ The package is not intended for text-only layout generation, document layout syn
 
 ## Bias, Risks, and Limitations
 
-The Ad Banner data remains on the vendor Google Drive distribution until an org-hosted dataset exists. Ordinary tests use synthetic images and local fixtures, so they do not measure model quality.
+The Ad Banner data remains on the original Google Drive distribution until an org-hosted dataset exists. Ordinary tests use synthetic images and local fixtures, so they do not measure model quality.
 
-The converted runtime avoids StyleGAN CUDA custom ops. Extracting `G_ema` from the original pickle is a conversion-time vendor operation and records whether `torch_utils.ops` was imported while unpickling.
+The converted runtime avoids StyleGAN CUDA custom ops. Extracting `G_ema` from the original pickle is a conversion-time operation against the original implementation and records whether `torch_utils.ops` was imported while unpickling.
 
 ### Recommendations
 
@@ -135,23 +137,23 @@ pipe = LayoutDetrPipeline.from_pretrained(
 
 ### Training Data
 
-The released checkpoint was trained on the original Ad Banner vendor distribution, which contains 7,672 samples according to the vendor README. The data path is isolated behind the package processor and dataset adapter, with a TODO to switch to an org dataset when available.
+The released checkpoint was trained on the original Ad Banner distribution, which contains 7,672 samples according to the original README. The data path is isolated behind the package processor and dataset adapter, with a TODO to switch to an org dataset when available.
 
 ### Training Procedure
 
-Training follows the original LayoutDETR GAN/DETR objective and vendor environment. This package focuses on conversion and inference; training code is not added.
+Training follows the original LayoutDETR GAN/DETR objective and environment. This package focuses on conversion and inference; training code is not added.
 
 ## Evaluation
 
 ### Parity Results
 
-| Compared target | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
-| Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys |
-| Vendor `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated vendor tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
-| Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
-| Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
+| Compared target                                   |                           Cases | Criterion                                                                                                 | Result                                                                                                                                                                                                                                                         |
+| ------------------------------------------------- | ------------------------------: | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Released Ad Banner pickle unpickle                |                    1 checkpoint | extract `G_ema` and record conversion report                                                              | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported                                                                                                                                                            |
+| Strict converted state load                       |                    1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration`                                | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys                                                                                                                                                               |
+| Original-implementation `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated original-implementation tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
+| Converted `from_pretrained` smoke                 |                1 synthetic case | schema and local load                                                                                     | passes in ordinary tests                                                                                                                                                                                                                                       |
+| Custom-op boundary                                |                               0 | converted runtime imports no `torch_utils.ops`                                                            | documented by parity test hook                                                                                                                                                                                                                                 |
 
 ## Reproducibility
 
@@ -159,7 +161,7 @@ Reproduce the original-implementation agreement checks by following [REPRODUCING
 
 ## License
 
-The original LayoutDETR code is Apache-2.0. The vendor README acknowledges StyleGAN3, DETR, Up-DETR, BLIP, LayoutGAN++, Pitt Image Ads, and LaMa components; keep those notices with any redistributed converted checkpoint.
+The original LayoutDETR code is Apache-2.0. The original README acknowledges StyleGAN3, DETR, Up-DETR, BLIP, LayoutGAN++, Pitt Image Ads, and LaMa components; keep those notices with any redistributed converted checkpoint.
 
 ## Citation
 
@@ -171,3 +173,5 @@ The original LayoutDETR code is Apache-2.0. The vendor README acknowledges Style
   year={2024}
 }
 ```
+
+<!-- --8<-- [end:card] -->

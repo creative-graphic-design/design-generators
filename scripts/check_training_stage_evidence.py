@@ -1,17 +1,27 @@
-"""Gate S5 training claims on machine-readable S0-S4 evidence.
+"""Validate training claims against recorded stage-evidence rows.
 
 The checker validates claim/document shape only. It does not inspect artifact
-contents and it does not scan README or model-card S5 claims.
+contents and it does not scan README or model-card full training run claims.
 """
 
 from __future__ import annotations
 
 import argparse
 import re
-import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+from devharness.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from devharness.markdown import (
+    is_table_delimiter,
+    iter_heading_sections,
+    split_markdown_row,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
@@ -28,6 +38,7 @@ PENDING_VALUES = {
     "pending",
     "tbd",
     "todo",
+    "<repo/cache-relative path or project issue/pr url>",
 }
 COMMAND_STARTERS = (
     "./",
@@ -51,8 +62,8 @@ ARTIFACT_PREFIXES = (
     "vendor/",
 )
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
+EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
-FENCE_START_RE = re.compile(r"^\s*(```|~~~)")
 CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
@@ -91,9 +102,15 @@ class StageEvidence:
     @property
     def is_complete(self) -> bool:
         """Return whether the row carries non-placeholder evidence."""
+        artifact_is_complete = is_artifact_path(self.artifact)
+        if self.stage == "S5":
+            artifact_is_complete = s5_artifact_paths_are_valid(
+                *parse_s5_artifact_paths(self.artifact)
+            )
+
         return (
             is_rerunnable_command(self.command)
-            and is_artifact_path(self.artifact)
+            and artifact_is_complete
             and normalize_value(self.result) not in PENDING_VALUES
         )
 
@@ -148,88 +165,34 @@ def is_artifact_path(value: str) -> bool:
     )
 
 
-def split_markdown_row(line: str) -> list[str]:
-    """Split a simple Markdown table row into stripped cells."""
-    cells: list[str] = []
-    current: list[str] = []
-    escaped = False
-    for char in line.strip().strip("|"):
-        if escaped:
-            current.append(char)
-            escaped = False
-        elif char == "\\":
-            escaped = True
-        elif char == "|":
-            cells.append("".join(current).strip())
-            current = []
-        else:
-            current.append(char)
-    if escaped:
-        current.append("\\")
-    cells.append("".join(current).strip())
-    return cells
-
-
-def is_table_delimiter(line: str) -> bool:
-    """Return whether a Markdown table row is a delimiter row."""
-    cells = split_markdown_row(line)
-    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
-
-
-def iter_unfenced_lines(text: str) -> Iterable[str]:
-    """Yield Markdown lines outside fenced code blocks."""
-    in_fence = False
-    fence_marker = ""
-
-    for line in text.splitlines():
-        match = FENCE_START_RE.match(line)
-
-        if match:
-            marker = match.group(1)
-
-            if not in_fence:
-                in_fence = True
-                fence_marker = marker
-            elif marker == fence_marker:
-                in_fence = False
-                fence_marker = ""
+def parse_s5_artifact_paths(value: str) -> tuple[str | None, str | None]:
+    """Return the manifest path and evaluation-path parity path from an S5 cell."""
+    manifest: str | None = None
+    parity_path: str | None = None
+    for part in value.strip().split(";"):
+        cleaned = part.strip().strip("`").strip()
+        marker, _separator, path = cleaned.partition(":")
+        if marker.strip().lower() == EVALUATION_PATH_PARITY_MARKER:
+            parity_path = path.strip().strip("`").strip() or None
             continue
 
-        if not in_fence:
-            yield line
+        if cleaned:
+            manifest = cleaned
+
+    return manifest, parity_path
 
 
-def iter_heading_sections_with_level(
-    text: str,
-) -> Iterable[tuple[int, str, list[str]]]:
-    """Yield Markdown heading level, text, and section lines outside fences."""
-    current_heading: str | None = None
-    current_level: int | None = None
-    current_lines: list[str] = []
-
-    for line in iter_unfenced_lines(text):
-        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
-        if match:
-            if current_heading is not None:
-                assert current_level is not None
-                yield current_level, current_heading, current_lines
-                current_lines = []
-
-            current_level = len(match.group(1))
-            current_heading = match.group(2).strip()
-            continue
-        if current_heading is not None:
-            current_lines.append(line)
-
-    if current_heading is not None:
-        assert current_level is not None
-        yield current_level, current_heading, current_lines
-
-
-def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
-    """Yield Markdown heading text with the lines inside that heading."""
-    for _, current_heading, current_lines in iter_heading_sections_with_level(text):
-        yield current_heading, current_lines
+def s5_artifact_paths_are_valid(manifest: str | None, parity_path: str | None) -> bool:
+    """Return whether parsed S5 artifact paths satisfy the artifact contract."""
+    return (
+        manifest is not None
+        and parity_path is not None
+        and is_artifact_path(manifest)
+        and manifest.startswith(ARTIFACT_PREFIXES)
+        and Path(manifest).name == "manifest.json"
+        and is_artifact_path(parity_path)
+        and parity_path != manifest
+    )
 
 
 def section_named(text: str, heading_name: str) -> str:
@@ -264,7 +227,7 @@ def clause_around_match(text: str, start: int, end: int) -> str:
 
 
 def has_s5_claim(text: str) -> bool:
-    """Return whether the document claims S5/full-run training results."""
+    """Return whether the document claims full training run results."""
     normalized = claim_text(text)
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
@@ -333,7 +296,11 @@ def training_docs(root: Path) -> list[Path]:
 
 
 def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceViolation]:
-    """Return evidence violations for one TRAINING.md."""
+    """Return evidence violations for one TRAINING.md.
+
+    S5 artifact diagnostics run before row-completeness diagnostics without
+    suppressing a completeness diagnostic for an otherwise valid S5 artifact.
+    """
     text = path.read_text(encoding="utf-8")
     if not has_s5_claim(text):
         return []
@@ -375,6 +342,32 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                     "S5 result claim requires a complete evidence row for this stage",
                 )
             )
+        elif stage == "S5" and normalize_value(row.artifact) not in PENDING_VALUES:
+            manifest, parity_path = parse_s5_artifact_paths(row.artifact)
+            if parity_path is None:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 artifact must include an evaluation-path parity artifact reference",
+                    )
+                )
+            elif not s5_artifact_paths_are_valid(manifest, parity_path):
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
+                    )
+                )
+            elif not row.is_complete:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "stage evidence row has a placeholder command, artifact, or result",
+                    )
+                )
         elif not row.is_complete:
             violations.append(
                 StageEvidenceViolation(
@@ -388,46 +381,19 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
 
 def current_entries(root: Path) -> set[str]:
     """Return current violation entries."""
-    return {
-        violation.as_baseline_entry()
-        for path in training_docs(root)
-        for violation in violations_for_training_doc(path, root)
-    }
-
-
-def baseline_entries(path: Path) -> set[str]:
-    """Return committed shrink-only baseline entries."""
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
     entries: set[str] = set()
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        if raw_line and not raw_line.startswith("#"):
-            entries.add(raw_line)
+    for path in training_docs(root):
+        violations = violations_for_training_doc(path, root)
+        entries.update(violation.as_baseline_entry() for violation in violations)
+
     return entries
-
-
-def write_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted baseline entries."""
-    lines = sorted(entries)
-    path.write_text("\n".join([*lines, ""]) if lines else "", encoding="utf-8")
-
-
-def print_entries(header: str, marker: str, entries: list[str]) -> None:
-    """Print formatted violation entries to stderr."""
-    if not entries:
-        return
-    print(header, file=sys.stderr)
-    for entry in entries:
-        print(f"  {marker} {entry}", file=sys.stderr)
 
 
 def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
     """Check current training evidence violations against the baseline."""
     current_snapshot = current_entries(root)
-    baseline_snapshot = baseline_entries(baseline_path)
-    unexpected = sorted(current_snapshot.difference(baseline_snapshot))
-    stale = sorted(baseline_snapshot.difference(current_snapshot))
+    baseline_snapshot = read_entry_baseline(baseline_path)
+    unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
     if not unexpected and not stale:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
@@ -444,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
     namespace = parser.parse_args(argv)
     should_update_baseline = bool(namespace.write_baseline)
     if should_update_baseline:
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
         return 0
     exit_status = check_training_stage_evidence(ROOT, BASELINE_PATH)
     return exit_status

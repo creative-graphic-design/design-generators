@@ -145,7 +145,7 @@ class MyPipeline(LayoutGenerationPipeline):
         return {"model": self.model, "config": self.config}
 ```
 
-Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use `diffusers` under the hood while preserving vendor aliases such as `quad`.
+Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use `diffusers` under the hood while preserving aliases used by original implementations, such as `quad`.
 
 ```python
 from laygen.schedulers.continuous import get_beta_schedule, get_ddim_timesteps
@@ -183,7 +183,7 @@ print(id2label_for_dataset("publaynet"))
 print(label2id_for_dataset("rico25")["Text"])
 ```
 
-Normalize public and vendor condition names through the shared condition enum.
+Normalize public condition names and condition names from original implementations through the shared condition enum.
 
 ```bash
 uv run --package laygen python
@@ -227,7 +227,7 @@ Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutpu
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - `laygen.pipelines.LayoutGenerationPipeline` owns the shared `transformers`-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
-- `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
+- `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, model-card, and generator-resolution helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - `diffusers`-backed helpers stay behind the `diffusion` extra unless they specifically target `diffusers` pipeline outputs.
 
 ## Pointers

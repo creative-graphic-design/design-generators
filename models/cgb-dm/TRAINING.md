@@ -1,15 +1,6 @@
 # Training CGB-DM
 
-CGB-DM training is reproducible enough to support CGL practical parity with the
-package implementation under the reference architecture, reference dataset
-encoding, and raw-internal S5 evaluation protocol. PKU PosterLayout is not a
-practical-parity claim: the seed-variance matrix shows no-underlay collapse in
-both the original implementation and the package, so the failure is not
-package-exclusive. The observed collapse rates are 3/4 original runs and 4/5
-package runs; that sample is enough to reject a package-only explanation but
-too small to support a stable frequency comparison. This matches the
-trajectory-sensitivity risk tracked in
-[issue #148](https://github.com/creative-graphic-design/design-generators/issues/148).
+CGB-DM training is reproducible enough to support CGL practical parity with the package implementation under the reference architecture, reference dataset encoding, and the S5 full-run evaluation stage defined in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md), using the original metric formulas on raw generated classes and boxes. PKU PosterLayout is not a practical-parity claim: the seed-variance matrix shows no-underlay collapse in both the original implementation and the package, so the failure is not package-exclusive. The observed collapse rates are 3/4 original runs and 4/5 package runs; that sample is enough to reject a package-only explanation but too small to support a stable frequency comparison. This matches the trajectory-sensitivity risk tracked in [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148).
 
 Run commands from the repository root. Generated checkpoints, sample tensors,
 metric summaries, converted local pipelines, and downloaded assets stay outside
@@ -105,8 +96,8 @@ sample tensors, and full-run metric summaries stay outside git under `.cache/`.
 | S1 | `PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz pytest models/cgb-dm/tests/vendor_parity/test_cgb_dm_training_parity.py -m vendor_parity -k s1 -rs` | `.cache/cgb-dm/reference/metadata.json` | Fixed-batch forward and training trace checks pass locally. |
 | S2 | `PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz pytest models/cgb-dm/tests/vendor_parity/test_cgb_dm_training_parity.py -m vendor_parity -k s2 -rs` | `.cache/cgb-dm/reference/metadata.json` | One optimizer step matches gradients, Adam state, and post-step parameters within documented tolerances. |
 | S3 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra training --with tensorboard --with jsonargparse[signatures]>=4.27.7 python -m traingen.lightning.cli fit --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml --seed_everything 1 --trainer.accelerator gpu --trainer.devices 1 --trainer.default_root_dir .cache/cgb-dm/full-run/ours-pku/pku_full_ours_20260724_013039` | `.cache/cgb-dm/full-run/ours-pku/pku_full_ours_20260724_013039/run_metadata.json` | Full LightningCLI launch metadata records the package training command, GPU, config, and startup verification; the recorded full run additionally carried explicit `--model.init_args.optimizer.*` overrides for the Adam settings summarized above. |
-| S4 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py --dataset pku_posterlayout --data-root .cache/cgb-dm/datasets/pku/split --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | `.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | Regenerated PKU source-order metadata is available for deterministic loader/order replay. |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz python models/cgb-dm/scripts/evaluate_full_run.py --backend ours --repo-root "$PWD" --data-root .cache/cgb-dm/datasets/pku/split --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed --gpu 0 --seeds 1 2 3` | `.cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed/summary.json` | PKU S5 verdict is no-underlay collapse that is not package-exclusive; CGL S5 practical parity is recorded separately in `.cache/cgb-dm/full-run/s5-eval-cgl-comparison.json`. |
+| S4 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm models/cgb-dm/scripts/generate_reference_outputs.py --dataset pku_posterlayout --data-root .cache/cgb-dm/datasets/pku/split --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | `.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | Regenerated PKU source-order metadata is available for deterministic loader/order replay. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz models/cgb-dm/scripts/evaluate_full_run.py --backend ours --repo-root "$PWD" --data-root .cache/cgb-dm/datasets/pku/split --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed --gpu 0 --seeds 1 2 3` | `.cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed/summary.json` | PKU S5 verdict is no-underlay collapse that is not package-exclusive; CGL S5 practical parity is recorded separately in `.cache/cgb-dm/full-run/s5-eval-cgl-comparison.json`. |
 
 ## Reproduction Results
 
@@ -192,21 +183,20 @@ of the S5 `evaluate_full_run.py` command in the Stage Evidence table.
 Download the original assets.
 
 ```bash
-uv run --package cgb-dm python models/cgb-dm/scripts/download_original_assets.py
+uv run --package cgb-dm models/cgb-dm/scripts/download_original_assets.py
 ```
 
 Generate the PKU source-order manifest before starting a full training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm \
-  python models/cgb-dm/scripts/generate_reference_outputs.py \
+  models/cgb-dm/scripts/generate_reference_outputs.py \
   --dataset pku_posterlayout \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
 ```
 
-Run the staged vendor parity checks after the submodule and local assets are
-available.
+Run the staged agreement checks against the original implementation after the submodule and local assets are available.
 
 ```bash
 PARITY_REQUIRE=1 \
@@ -230,7 +220,7 @@ Re-run the package PKU checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --backend ours \
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
@@ -244,7 +234,7 @@ Re-run the reference PKU checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --backend reference \
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
@@ -258,7 +248,7 @@ Re-run the package CGL checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --dataset cgl \
   --backend ours \
   --repo-root "$PWD" \
@@ -273,7 +263,7 @@ Re-run the reference CGL checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --dataset cgl \
   --backend reference \
   --repo-root "$PWD" \
@@ -287,9 +277,9 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
 Convert and smoke-test a local checkpoint directory.
 
 ```bash
-uv run --package cgb-dm python models/cgb-dm/scripts/convert_training_checkpoint.py \
+uv run --package cgb-dm models/cgb-dm/scripts/convert_training_checkpoint.py \
   --checkpoint .cache/cgb-dm/checkpoints/example.ckpt \
   --output-dir .cache/cgb-dm/converted/pku
-uv run --package cgb-dm python models/cgb-dm/scripts/smoke_from_pretrained.py \
+uv run --package cgb-dm models/cgb-dm/scripts/smoke_from_pretrained.py \
   --path .cache/cgb-dm/converted/pku
 ```

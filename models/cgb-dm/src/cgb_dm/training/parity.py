@@ -1,4 +1,4 @@
-"""S0-S2 parity adapters for CGB-DM."""
+"""Initial-state and single-step package-versus-original-implementation parity adapters for CGB-DM."""
 
 from __future__ import annotations
 

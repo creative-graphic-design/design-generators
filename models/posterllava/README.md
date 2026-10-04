@@ -30,6 +30,8 @@ model-index:
             name: Vendor parity
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for PosterLLaVA
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2406.02884&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2406.02884)
@@ -51,6 +53,8 @@ This package contains a PosterLLaVA processor and inference pipeline for parsing
 
 PosterLLaVA is a LLaVA-style multimodal recipe for generating poster layout JSON from a background image and layout instructions. The public output uses the shared layout schema with normalized center `xywh` boxes.
 
+- **Model type:** content-aware; task: single-task; conditioning: none.
+
 ### Model Sources
 
 - Paper: [PosterLLaVA](https://arxiv.org/abs/2406.02884)
@@ -59,10 +63,10 @@ PosterLLaVA is a LLaVA-style multimodal recipe for generating poster layout JSON
 
 ## Supported Checkpoints
 
-| Checkpoint | Status | Notes |
-| --- | --- | --- |
-| `posterllava/posterllava_v0` | local loading supported | Upstream LLaVA-style checkpoint. |
-| `creative-graphic-design/posterllava-v0` | blocked | Org redistribution is blocked pending license review. |
+| Checkpoint                               | Status                  | Notes                                                 |
+| ---------------------------------------- | ----------------------- | ----------------------------------------------------- |
+| `posterllava/posterllava_v0`             | local loading supported | Upstream LLaVA-style checkpoint.                      |
+| `creative-graphic-design/posterllava-v0` | blocked                 | Org redistribution is blocked pending license review. |
 
 ## Uses
 
@@ -130,17 +134,17 @@ The package does not train or fine-tune PosterLLaVA. It provides local processor
 
 ### Parity Results
 
-| Check | Cases | Match Criterion | Result |
-| --- | ---: | --- | --- |
-| Prompt bytes | 2 | Exact match against original `conv_templates` output, including `<image>` placement | Pass in vendor-parity CPU comparison |
-| Prompt token ids | 1 | Exact `IMAGE_TOKEN_INDEX=-200` insertion against original `tokenizer_image_token` | Pass in vendor-parity CPU comparison |
-| JSON parser | 3 | Exact parsed objects against original `cli_multi.py` JSON-slice behavior on supported outputs | Pass in vendor-parity CPU comparison |
-| Image preprocessing | 1 | Exact tensor match against original square-pad CLIP preprocessing | Pass in vendor-parity CPU comparison |
-| Full 13B generation | 513 | Deterministic original-code run on QB-Poster validation with `seed=0`, TF32 disabled, and greedy decoding; 492 layouts parsed and 21 samples matched the original parser's empty-output behavior | Pass in gated vendor-parity validation |
+| Check               | Cases | Match Criterion                                                                                                                                                                                  | Result                                                                                |
+| ------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Prompt bytes        |     2 | Exact match against original `conv_templates` output, including `<image>` placement                                                                                                              | Pass in vendor-parity CPU comparison against the original implementation              |
+| Prompt token ids    |     1 | Exact `IMAGE_TOKEN_INDEX=-200` insertion against original `tokenizer_image_token`                                                                                                                | Pass in CPU agreement check against the original implementation                       |
+| JSON parser         |     3 | Exact parsed objects against original `cli_multi.py` JSON-slice behavior on supported outputs                                                                                                    | Pass in CPU agreement check against the original implementation                       |
+| Image preprocessing |     1 | Exact tensor match against original square-pad CLIP preprocessing                                                                                                                                | Pass in CPU agreement check against the original implementation                       |
+| Full 13B generation |   513 | Deterministic original-code run on QB-Poster validation with `seed=0`, TF32 disabled, and greedy decoding; 492 layouts parsed and 21 samples matched the original parser's empty-output behavior | Pass in validation against the original implementation with the required local assets |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-preprocessing, gated full-generation parity, and local smoke checks.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-preprocessing, full-generation agreement with the original implementation and required local assets, and local smoke checks.
 
 ## Citation
 
@@ -155,3 +159,5 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
   url = "https://arxiv.org/abs/2406.02884"
 }
 ```
+
+<!-- --8<-- [end:card] -->

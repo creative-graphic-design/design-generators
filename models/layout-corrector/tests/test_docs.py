@@ -14,7 +14,8 @@ def test_readme_includes_reproducible_vendor_parity_commands():
     assert "## Reproducibility" in text
     assert (
         "Layout-Corrector refines candidate layouts by running a training-free "
-        "correction stage on top of [LayoutDM](models/layout-dm/README.md)" in text
+        "correction stage on top of [LayoutDM](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/README.md)"
+        in text
     )
     assert (
         "pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)"
@@ -42,7 +43,7 @@ def test_readme_includes_reproducible_vendor_parity_commands():
         in reproducing
     )
     assert (
-        "uv run --package layout-corrector python "
+        "uv run --package layout-corrector "
         "models/layout-corrector/scripts/smoke_from_pretrained.py" in reproducing
     )
 

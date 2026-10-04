@@ -27,6 +27,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutFormer++
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2208.08037&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2208.08037)
@@ -44,11 +46,11 @@ This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autor
 
 ### Model Description
 
-LayoutFormer++ is a `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the vendor discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFormer++ is a `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the original-implementation discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, label_size, completion, refinement, relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -59,28 +61,28 @@ LayoutFormer++ is a `transformers` layout generator that models layout sequences
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 label | [`creative-graphic-design/layoutformerpp-rico25-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label) | not-published |
-| RICO25 label-size | [`creative-graphic-design/layoutformerpp-rico25-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label-size) | not-published |
-| RICO25 relation | [`creative-graphic-design/layoutformerpp-rico25-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-relation) | not-published |
-| RICO25 refinement | [`creative-graphic-design/layoutformerpp-rico25-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-refinement) | not-published |
-| RICO25 completion | [`creative-graphic-design/layoutformerpp-rico25-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-completion) | not-published |
-| RICO25 unconditional | [`creative-graphic-design/layoutformerpp-rico25-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-unconditional) | not-published |
-| PubLayNet label | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label) | not-published |
-| PubLayNet label-size | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size) | not-published |
-| PubLayNet relation | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation) | not-published |
-| PubLayNet refinement | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement) | not-published |
-| PubLayNet completion | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion) | not-published |
+| Checkpoint              | Hub ID                                                                                                                                                    | Status        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25 label            | [`creative-graphic-design/layoutformerpp-rico25-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label)                       | not-published |
+| RICO25 label-size       | [`creative-graphic-design/layoutformerpp-rico25-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label-size)             | not-published |
+| RICO25 relation         | [`creative-graphic-design/layoutformerpp-rico25-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-relation)                 | not-published |
+| RICO25 refinement       | [`creative-graphic-design/layoutformerpp-rico25-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-refinement)             | not-published |
+| RICO25 completion       | [`creative-graphic-design/layoutformerpp-rico25-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-completion)             | not-published |
+| RICO25 unconditional    | [`creative-graphic-design/layoutformerpp-rico25-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-unconditional)       | not-published |
+| PubLayNet label         | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label)                 | not-published |
+| PubLayNet label-size    | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size)       | not-published |
+| PubLayNet relation      | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation)           | not-published |
+| PubLayNet refinement    | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement)       | not-published |
+| PubLayNet completion    | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion)       | not-published |
 | PubLayNet unconditional | [`creative-graphic-design/layoutformerpp-publaynet-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-unconditional) | not-published |
 
 ## Uses
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
-Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to vendor tasks as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
+Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to tasks in the original implementation as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
 
 Task inputs follow the public condition shape for the selected checkpoint:
 `label` takes `labels=[["Text", "Image"]]`; `label_size` adds matching normalized center `xywh` boxes; `relation` takes five-integer relation tuples such as `(0, 1, 2, 3, 1)` for `(subject_index, relation_id, object_index, constraint_id, value)`; `completion` and `refinement` take partial `labels`, `bbox`, and `mask`; `unconditional` needs no layout condition. If `normalized=False`, pass `canvas_size=(width, height)` so pixel boxes can be converted to the internal discrete `ltwh` grid.
@@ -99,7 +101,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -137,10 +139,10 @@ print(out.id2label)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 RICO25 public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens. PubLayNet COCO-style document boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
@@ -150,7 +152,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -166,43 +168,42 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
-| Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
-| --- | --- | --- | ---: | ---: | ---: | --- |
-| `rico_gen_t` | present | `ckpts/rico_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-constrained loop |
-| `rico_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
-| `rico_gen_r` | present | `ckpts/rico_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop with relation input |
-| `rico_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop |
-| `rico_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
-| `rico_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
-| `publaynet_gen_t` | present | `ckpts/publaynet_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-constrained loop |
-| `publaynet_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
-| `publaynet_gen_r` | present | `ckpts/publaynet_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop with relation input |
-| `publaynet_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop |
-| `publaynet_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
-| `publaynet_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
+| Checkpoint             | Public checkpoint | Vocab source                                            | Tokenizer | Logits max abs | Logits max rel | Generation                                                                   |
+| ---------------------- | ----------------- | ------------------------------------------------------- | --------: | -------------: | -------------: | ---------------------------------------------------------------------------- |
+| `rico_gen_t`           | present           | `ckpts/rico_gen_t/vocab.json`                           |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-constrained loop      |
+| `rico_gen_ts`          | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
+| `rico_gen_r`           | present           | `ckpts/rico_gen_r/vocab.json`                           |     exact |            0.0 |            0.0 | exact original-implementation top-k loop with relation input                 |
+| `rico_refinement`      | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop                                    |
+| `rico_completion`      | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `rico_ugen`            | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `publaynet_gen_t`      | present           | `ckpts/publaynet_gen_t/vocab.json`                      |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-constrained loop      |
+| `publaynet_gen_ts`     | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
+| `publaynet_gen_r`      | present           | `ckpts/publaynet_gen_r/vocab.json`                      |     exact |            0.0 |            0.0 | exact original-implementation top-k loop with relation input                 |
+| `publaynet_refinement` | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop                                    |
+| `publaynet_completion` | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `publaynet_ugen`       | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
 
-The substantive vendor-parity sweep covers 28 checkpoint/check combinations: 12 checkpoint-logit checks, 12 checkpoint-generation checks, and 4 label-constrained generation checks. The separate `FileNotFoundError` loader test is not counted as a parity case.
+The substantive agreement-check sweep covers 28 checkpoint/check combinations: 12 checkpoint-logit checks, 12 checkpoint-generation checks, and 4 label-constrained generation checks. The separate `FileNotFoundError` loader test is not counted as an agreement case.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
-
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -212,11 +213,11 @@ LayoutFormer++ uses an encoder-decoder Transformer with task-specific token voca
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks against the original implementation.
 
 #### Software
 
@@ -236,3 +237,5 @@ Repository wrapper code is Apache-2.0. The original implementation is MIT licens
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

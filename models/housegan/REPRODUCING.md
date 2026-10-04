@@ -8,7 +8,7 @@ Workflow order: download assets, generate references, run parity checks, convert
 
 ```bash
 uv run --package housegan --extra download \
-  python models/housegan/scripts/download_original_assets.py \
+  models/housegan/scripts/download_original_assets.py \
     --assets-dir .cache/housegan/original \
     --output-dir .cache/housegan/original
 ```
@@ -17,7 +17,7 @@ uv run --package housegan --extra download \
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package housegan \
-  python models/housegan/scripts/generate_reference_outputs.py \
+  models/housegan/scripts/generate_reference_outputs.py \
     --vendor-dir ./vendor/housegan \
     --assets-dir .cache/housegan/original \
     --checkpoint .cache/housegan/original/exp_demo_D_500000.pth \
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --package housegan \
 
 ```bash
 uv run --package housegan \
-  python models/housegan/scripts/convert_original_checkpoint.py \
+  models/housegan/scripts/convert_original_checkpoint.py \
     --checkpoint .cache/housegan/original/exp_demo_D_500000.pth \
     --target-set D \
     --checkpoint-step 500000 \
@@ -49,6 +49,6 @@ uv run --package housegan \
 
 ```bash
 uv run --package housegan \
-  python models/housegan/scripts/smoke_from_pretrained.py \
+  models/housegan/scripts/smoke_from_pretrained.py \
     --checkpoint-dir .cache/housegan/converted/housegan-floorplan-d
 ```

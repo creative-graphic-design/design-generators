@@ -25,6 +25,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for PosterLlama
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2404.00995&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2404.00995)
@@ -52,7 +54,7 @@ while the pipeline owns local runtime generation after conversion.
 - **Developed by:** PosterLlama authors.
 - **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation recipe.
+- **Model type:** content-aware; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** English prompt metadata.
 - **License:** source and converted-weight redistribution are unverified.
 
@@ -64,10 +66,10 @@ while the pipeline owns local runtime generation after conversion.
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| Raw PosterLlama state dict | `poong/PosterLlama` | public source checkpoint |
-| CGL recipe artifact | `creative-graphic-design/posterllama-cgl` | not published; redistribution blocked |
+| Checkpoint                 | Hub ID                                    | Status                                |
+| -------------------------- | ----------------------------------------- | ------------------------------------- |
+| Raw PosterLlama state dict | `poong/PosterLlama`                       | public source checkpoint              |
+| CGL recipe artifact        | `creative-graphic-design/posterllama-cgl` | not published; redistribution blocked |
 
 The raw checkpoint is a `pytorch_model.bin` state dict. Local conversion also
 requires explicit CodeLLaMA or Llama-2-family backbone access and the selected
@@ -141,7 +143,7 @@ Clone this repository and run the local smoke script after conversion:
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package posterllama
-uv run --package posterllama python models/posterllama/scripts/smoke_from_pretrained.py \
+uv run --package posterllama models/posterllama/scripts/smoke_from_pretrained.py \
   .cache/posterllama/converted
 ```
 
@@ -149,9 +151,9 @@ uv run --package posterllama python models/posterllama/scripts/smoke_from_pretra
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| CGL | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster element labels used by the recipe interface |
+| Dataset | Dataset ID                                                                                                   | Notes                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| CGL     | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster element labels used by the recipe interface |
 
 The package records CGL labels through `posgen.common`. PKU-PosterLayout remains
 metadata-only for this initial package until checkpoint evidence confirms a
@@ -173,10 +175,7 @@ backbone weights and should be run with an explicitly selected GPU.
 
 #### Testing Data
 
-Unit tests use synthetic prompts and representative generated HTML/SVG snippets.
-Gated prompt/parser parity imports the original source templates and
-`html_to_ui.get_bbox()` from a local source checkout. Generated text, tensors,
-images, checkpoints, and large references are not committed.
+Unit tests use synthetic prompts and representative generated HTML/SVG snippets. Prompt/parser parity requires the original source templates and `html_to_ui.get_bbox()` from a local source checkout. Generated text, tensors, images, checkpoints, and large references are not committed.
 
 #### Factors
 
@@ -191,11 +190,11 @@ box values, schema output fields, and local `save_pretrained` to
 
 ### Parity Results
 
-| Check | Cases | Match criterion | Result |
-| --- | ---: | --- | --- |
-| Prompt construction | 5 condition aliases | Byte-exact against original source templates | passed in gated prompt/parser parity |
-| HTML/SVG parser | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in gated prompt/parser parity and unit tests |
-| Original GPU generation | 0 committed cases | Gated original `generate.py` run with fixed local assets | blocked until local 7B assets and GPU window are available |
+| Check                   |                                   Cases | Match criterion                                                                   | Result                                                     |
+| ----------------------- | --------------------------------------: | --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Prompt construction     |                     5 condition aliases | Byte-exact against original source templates                                      | passed in prompt/parser parity                             |
+| HTML/SVG parser         | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in prompt/parser parity and unit tests              |
+| Original GPU generation |                       0 committed cases | Original `generate.py` run with fixed local assets                                | blocked until local 7B assets and GPU window are available |
 
 ## Reproducibility
 
@@ -243,3 +242,5 @@ dependencies such as PEFT, Deepspeed, DINO/EVA helpers, and parity-only pins.
   year = {2024}
 }
 ```
+
+<!-- --8<-- [end:card] -->

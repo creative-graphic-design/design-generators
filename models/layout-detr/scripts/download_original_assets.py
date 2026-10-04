@@ -38,7 +38,11 @@ def main() -> None:
     try:
         import gdown
     except ModuleNotFoundError as exc:
-        raise SystemExit("Install with --extra download to use gdown") from exc
+        raise SystemExit(
+            "Run uv run --package layout-detr --extra download "
+            "models/layout-detr/scripts/download_original_assets.py "
+            "--output-dir .cache/layout-detr/original to use gdown"
+        ) from exc
     for key in sorted(includes):
         spec = ASSETS[key]
         destination = args.output_dir / spec["filename"]

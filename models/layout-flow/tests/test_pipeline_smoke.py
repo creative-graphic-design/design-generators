@@ -55,6 +55,33 @@ def test_pipeline_unconditional_smoke_and_seed_reproducibility() -> None:
     assert torch.allclose(out1.bbox, out2.bbox)
 
 
+def test_pipeline_explicit_generator_wins_over_seed() -> None:
+    pipe = tiny_pipeline()
+    out1 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            num_elements=2,
+            seed=1,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=3,
+        ),
+    )
+    out2 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            num_elements=2,
+            seed=999,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=3,
+        ),
+    )
+
+    assert torch.equal(out1.labels, out2.labels)
+    assert torch.allclose(out1.bbox, out2.bbox)
+
+
 def test_pipeline_label_conditioning_and_dict_output() -> None:
     pipe = tiny_pipeline()
     out = cast(

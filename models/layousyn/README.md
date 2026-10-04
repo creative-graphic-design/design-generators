@@ -27,6 +27,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayouSyn
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2505.04718&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2505.04718)
@@ -47,7 +49,7 @@ LayouSyn generates natural-scene object layouts from caption and concept embeddi
 
 - **Developed by:** Dhruv Srivastava et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: text.
 - **Language(s) (NLP):** not applicable.
 - **License:** cc-by-nc-4.0.
 
@@ -58,24 +60,24 @@ LayouSyn generates natural-scene object layouts from caption and concept embeddi
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| GRIT | [`creative-graphic-design/layousyn-grit`](https://huggingface.co/creative-graphic-design/layousyn-grit) | not-published |
-| COCO grounded | [`creative-graphic-design/layousyn-coco-grounded`](https://huggingface.co/creative-graphic-design/layousyn-coco-grounded) | not-published |
+| Checkpoint                       | Hub ID                                                                                                                                    | Status        |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| GRIT                             | [`creative-graphic-design/layousyn-grit`](https://huggingface.co/creative-graphic-design/layousyn-grit)                                   | not-published |
+| COCO grounded                    | [`creative-graphic-design/layousyn-coco-grounded`](https://huggingface.co/creative-graphic-design/layousyn-coco-grounded)                 | not-published |
 | GRIT fine-tuned on COCO grounded | [`creative-graphic-design/layousyn-grit-ft-coco-grounded`](https://huggingface.co/creative-graphic-design/layousyn-grit-ft-coco-grounded) | not-published |
 
 ## Uses
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 The public pipeline supports `condition_type="text"` with a caption, concept labels, and caption/concept embeddings. Other canonical condition names raise `NotImplementedError`.
 
-| `condition_type` | Required inputs | Support |
-| --- | --- | --- |
-| `text` | `prompt`, `labels`, caption embeddings, concept embeddings | supported |
-| `unconditional`, `label`, `label_size`, `completion`, `refinement`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+| `condition_type`                                                                                                             | Required inputs                                            | Support                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------- |
+| `text`                                                                                                                       | `prompt`, `labels`, caption embeddings, concept embeddings | supported                    |
+| `unconditional`, `label`, `label_size`, `completion`, `refinement`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable                                             | raises `NotImplementedError` |
 
 ### Downstream Use
 
@@ -91,7 +93,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -177,12 +179,12 @@ print(out.bbox.shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| GRIT | unknown | grounded captions |
-| COCO grounded | unknown | grounded objects |
+| Dataset       | Dataset ID | Notes             |
+| ------------- | ---------- | ----------------- |
+| GRIT          | unknown    | grounded captions |
+| COCO grounded | unknown    | grounded objects  |
 
-COCO-17, COCO-Caption-Grounded, GriT, and NSR-1K are not yet available in the `creative-graphic-design` Hugging Face org. Until those imports exist, parity and conversion scripts follow the original repository's dataset/download path.
+COCO-17, COCO-Caption-Grounded, GriT, and NSR-1K are not yet available in the `creative-graphic-design` Hugging Face org. Until those imports exist, agreement and conversion scripts follow the original repository's dataset/download path.
 
 ### Training Procedure
 
@@ -190,7 +192,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -206,31 +208,30 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Alpha-scale beta respacing | 1 | `timestep_map`, helper betas, and scheduler betas exact | pass; max abs 0 |
-| Denoiser logits | 1 | exact tensor match | pass; max abs 0 |
-| First DDIM scheduler step | 1 | exact `pred_xstart` and `prev_sample` tensor match | pass; max abs 0 / 0 |
-| Full 40-step sample public bbox | 1 | exact normalized public `xywh` tensor match | pass; max abs 0 |
+| Check                           | Cases | Criterion                                               | Result              |
+| ------------------------------- | ----: | ------------------------------------------------------- | ------------------- |
+| Alpha-scale beta respacing      |     1 | `timestep_map`, helper betas, and scheduler betas exact | pass; max abs 0     |
+| Denoiser logits                 |     1 | exact tensor match                                      | pass; max abs 0     |
+| First DDIM scheduler step       |     1 | exact `pred_xstart` and `prev_sample` tensor match      | pass; max abs 0 / 0 |
+| Full 40-step sample public bbox |     1 | exact normalized public `xywh` tensor match             | pass; max abs 0     |
 
-Parity requires TF32 enabled, the vendor `nn.MultiheadAttention` `need_weights=True` code path, and the vendor CPU-to-device timestep-frequency embedding order; the tests configure these settings.
+Agreement checks require TF32 enabled, the original `nn.MultiheadAttention` `need_weights=True` code path, and the original CPU-to-device timestep-frequency embedding order; the tests configure these settings.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
-
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
@@ -244,11 +245,11 @@ LayouSyn uses a diffusion transformer over object-layout tokens conditioned on c
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 
@@ -268,3 +269,5 @@ Repository wrapper code is Apache-2.0. The original Lay-Your-Scene implementatio
   year = {2025}
 }
 ```
+
+<!-- --8<-- [end:card] -->

@@ -63,6 +63,35 @@ def test_pipeline_contract_and_seed_reproducible():
     )
 
 
+def test_pipeline_explicit_generator_wins_over_seed():
+    pipe = make_pipeline()
+    out1 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            seed=1,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=1,
+            sampling="deterministic",
+        ),
+    )
+    out2 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            seed=999,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=1,
+            sampling="deterministic",
+        ),
+    )
+
+    assert torch.equal(out1.labels, out2.labels)
+    assert torch.equal(
+        cast(torch.Tensor, out1.sequences), cast(torch.Tensor, out2.sequences)
+    )
+
+
 def test_pipeline_conditional_dict_and_intermediates():
     pipe = make_pipeline()
     out = pipe(

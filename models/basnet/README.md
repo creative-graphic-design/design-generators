@@ -26,9 +26,11 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for BASNet
 
-[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=1907.10719&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/1907.10719)
+[![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2019&color=blue&style=flat-square)](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html)
 ![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2019&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
@@ -46,19 +48,19 @@ BASNet predicts foreground saliency maps from RGB images. The package exposes `B
 
 - **Developed by:** Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan, Osmar R. Zaiane, and Martin Jagersand.
 - **Shared by:** creative-graphic-design.
-- **Model type:** salient object detection.
+- **Model type:** content-aware; task: saliency; conditioning: saliency.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for repository code; checkpoint redistribution depends on the checkpoint source license.
 
 ### Model Sources
 
 - **Repository:** [BASNet repository](https://github.com/xuebinqin/BASNet)
-- **Paper:** [BASNet: Boundary-Aware Salient Object Detection](https://arxiv.org/abs/1907.10719)
+- **Paper:** [BASNet: Boundary-Aware Salient Object Detection](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html)
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint | Hub ID                               | Status        |
+| ---------- | ------------------------------------ | ------------- |
 | GDI BASNet | `creative-graphic-design/basnet-gdi` | not-published |
 
 ## Uses
@@ -142,9 +144,9 @@ Training is not implemented in this workspace member. The package focuses on arc
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| BASNet saliency maps | 3 SmartText demo images / 196608 values | Bit-exact, `max_abs_diff=0.0`, `pearson_corr=1.0`, `rtol=0`, `atol=0`, same-device comparison | Passed |
+| Check                   |                                   Cases | Criterion                                                                                                 | Result |
+| ----------------------- | --------------------------------------: | --------------------------------------------------------------------------------------------------------- | ------ |
+| BASNet saliency maps    | 3 SmartText demo images / 196608 values | Bit-exact, `max_abs_diff=0.0`, `pearson_corr=1.0`, `rtol=0`, `atol=0`, same-device comparison             | Passed |
 | SmartText consumer path | 3 SmartText demo images / 43 candidates | Bit-exact saliency, scorer inputs, scores, selected boxes, and text color after GPU1 reference generation | Passed |
 
 ## Reproducibility
@@ -165,3 +167,5 @@ This package code is Apache-2.0. Checkpoint redistribution depends on the checkp
   year={2019}
 }
 ```
+
+<!-- --8<-- [end:card] -->

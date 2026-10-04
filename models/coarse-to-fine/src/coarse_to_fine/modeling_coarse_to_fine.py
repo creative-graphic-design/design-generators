@@ -9,6 +9,8 @@ import torch.nn as nn
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedModel
 
+from laygen.common.randomness import randn
+
 from .configuration_coarse_to_fine import CoarseToFineConfig
 
 
@@ -513,14 +515,13 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         generator: torch.Generator | None,
         device: torch.device,
     ) -> Float[torch.Tensor, "1 batch latent"]:
-        sample_device = generator.device if generator is not None else device
         return cast(
             torch.FloatTensor,
-            torch.randn(
+            randn(
                 (1, batch_size, self.config.d_z),
                 generator=generator,
-                device=sample_device,
-            ).to(device),
+                device=device,
+            ),
         )
 
     def forward(

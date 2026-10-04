@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from devharness import baselines
+
 
 def load_check_training_stage_evidence() -> ModuleType:
     module_path = (
@@ -47,7 +49,7 @@ def complete_stage_evidence_table() -> str:
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | One optimizer step parity passed. |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3/metrics.csv` | Multi-batch deterministic run passed. |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed. |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | training-seed n=3 accepted. |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | training-seed n=3 accepted. |
 """
 
 
@@ -60,6 +62,243 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
     assert sorted(rows) == ["S0", "S1", "S2", "S3", "S4", "S5"]
     assert rows["S0"].is_complete
     assert duplicates == set()
+
+
+def test_s5_manifest_artifact_passes(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table()}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == set()
+
+
+def test_s5_valid_artifact_still_checks_placeholder_cells(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "`uv run train full`", "`<command>`"
+    )
+    table = table.replace("training-seed n=3 accepted.", "<result>")
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
+def test_s5_claim_without_evaluation_path_parity_artifact_fails(
+    tmp_path: Path,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace("; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json", "")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must include an evaluation-path parity artifact reference"
+    }
+
+
+def test_s5_marker_without_path_fails_as_missing_reference(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        "evaluation-path-parity:",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must include an evaluation-path parity artifact reference"
+    }
+
+
+def test_s5_reversed_artifact_order_and_part_quotes_pass() -> None:
+    assert check_training_stage_evidence.parse_s5_artifact_paths(
+        "`evaluation-path-parity: x.json`; `manifest.json`"
+    ) == ("manifest.json", "x.json")
+
+
+def test_s5_parity_reference_in_s4_does_not_satisfy_s5(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table()
+    table = table.replace(
+        "Loader stream parity passed.",
+        "Loader stream parity passed; evaluation-path-parity: .cache/pkg/s4/parity.json",
+    )
+    table = table.replace(
+        "; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        "",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must include an evaluation-path parity artifact reference"
+    }
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        ".cache/pkg/full-run/summary.csv",
+        ".cache/pkg/full-run/notmanifest.json",
+        "/tmp/full-run/manifest.json",
+        "../outside/manifest.json",
+        ".cache/pkg/../manifest.json",
+        "https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-1",
+    ],
+)
+def test_s5_artifact_requires_relative_manifest_path(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json", f"{artifact}; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact"
+    }
+
+
+def test_s5_artifact_rejects_same_manifest_and_parity_path() -> None:
+    artifact = (
+        ".cache/pkg/full-run/manifest.json; "
+        "evaluation-path-parity: .cache/pkg/full-run/manifest.json"
+    )
+
+    assert not check_training_stage_evidence.s5_artifact_paths_are_valid(
+        *check_training_stage_evidence.parse_s5_artifact_paths(artifact)
+    )
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ["pending", "<repo/cache-relative path or project issue/PR URL>"],
+)
+def test_s5_placeholder_artifact_uses_placeholder_violation(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json", artifact)}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
+def test_s5_row_missing_uses_complete_row_violation(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | training-seed n=3 accepted. |\n",
+        "",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 result claim requires a complete evidence row for this stage"
+    }
+
+
+def test_non_s5_artifact_rules_are_unchanged(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/s4/stream.jsonl", "https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-1")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == set()
 
 
 def test_parse_stage_evidence_ignores_fenced_heading_and_table() -> None:
@@ -139,7 +378,7 @@ S5 verdict: full-run statistical comparison is accepted at training-seed n=3.
 
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | PASS |
 """,
     )
 
@@ -175,7 +414,7 @@ training-seed n=3 is accepted.
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | PASS |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3.json` | PASS |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | PASS |
 """,
     )
 
@@ -283,7 +522,7 @@ training-seed n=3 is accepted.
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | PASS |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3.json` | PASS |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | PASS |
 """,
     )
 
@@ -356,11 +595,36 @@ training-seed n=3 is accepted.
 | S0 | `uv run pytest s0` | `.cache/pkg/trace.json` | PASS |
 | S1 | `uv run pytest s1` | `.cache/pkg/trace.json` | PASS |
 | S2 | `uv run pytest s2` | `.cache/pkg/trace.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | PASS |
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_training_stage_evidence.write_baseline(
+    baselines.write_entry_baseline(
+        baseline, check_training_stage_evidence.current_entries(tmp_path)
+    )
+
+    assert (
+        check_training_stage_evidence.check_training_stage_evidence(tmp_path, baseline)
+        == 0
+    )
+
+
+def test_pre_rule_s5_artifact_gap_can_be_baselined(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-flow",
+        f"""
+# Training
+
+## Reproduction Results
+
+training-seed n=3 is accepted.
+
+{complete_stage_evidence_table().replace("; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json", "")}
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    baselines.write_entry_baseline(
         baseline, check_training_stage_evidence.current_entries(tmp_path)
     )
 
