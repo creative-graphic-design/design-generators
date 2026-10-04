@@ -15,6 +15,7 @@ pytest.importorskip("lightning")
 import layout_corrector.training.dataset as dataset_module
 import layout_corrector.training.reference as reference_module
 import layout_corrector.training.lightning_module as lightning_module
+import layout_corrector.training.parity as parity_module
 from layout_corrector import LayoutCorrectorConfig, LayoutCorrectorModel
 from layout_corrector.training import (
     FROZEN_LAYOUT_DM_SHA256,
@@ -167,6 +168,24 @@ def test_initialization_device_is_cpu_without_cuda(
 ) -> None:
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     assert lightning_module._initialization_device() == torch.device("cpu")
+
+
+def test_training_parity_digests_capture_runtime_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    values = {
+        "weight": torch.tensor([1.0, 2.0]),
+        "bias": torch.tensor([3.0]),
+    }
+    assert parity_module._tensor_digest(values["weight"])
+    assert parity_module._parameter_state_digest(values)
+
+    parameter = nn.Parameter(torch.tensor(1.0))
+    optimizer = torch.optim.AdamW([parameter], lr=1.0e-3)
+    assert parity_module._optimizer_state_digest(optimizer)
+    assert parity_module._rng_digest(parity_module.capture_rng_state())
+    assert parity_module._scheduler_state_digest({"last_epoch": 1, "best": 0.5})
 
 
 class _FakeProcessedDataset(Dataset[dict[str, object]]):

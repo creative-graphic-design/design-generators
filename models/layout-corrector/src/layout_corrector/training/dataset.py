@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import torch
 from jaxtyping import Shaped
+from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 
 from layout_dm.configuration_layout_dm import LayoutDMConfig
@@ -16,7 +17,7 @@ from .config import (
 )
 
 
-class LayoutCorrectorDataModule:
+class LayoutCorrectorDataModule(LightningDataModule):
     """Construct train, validation, and test loaders from processed LayoutDM data."""
 
     def __init__(
@@ -32,6 +33,7 @@ class LayoutCorrectorDataModule:
         pin_memory: bool = True,
     ) -> None:
         """Initialize a processed LayoutDM data-module configuration."""
+        super().__init__()
         self.dataset_name = dataset_name
         self.config = config
         self.processed_data_dir = Path(processed_data_dir)
