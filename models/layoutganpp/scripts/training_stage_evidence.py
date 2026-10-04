@@ -230,7 +230,8 @@ def _state_values_equal(
     right: Mapping[str, Shaped[torch.Tensor, "..."]],
 ) -> bool:
     return list(left) == list(right) and all(
-        torch.equal(left[name], right[name]) for name in left
+        torch.equal(left[name].detach().cpu(), right[name].detach().cpu())
+        for name in left
     )
 
 
