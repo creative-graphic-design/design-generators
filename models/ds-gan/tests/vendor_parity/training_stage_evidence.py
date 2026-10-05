@@ -2278,6 +2278,13 @@ def run_s2() -> Path:
         )
     else:
         parameter_update_mechanism["sign_straddling_probe"] = None
+    sign_straddling_probe = parameter_update_mechanism["sign_straddling_probe"]
+    parameter_update_mechanism["sign_straddling_probe_passed"] = bool(
+        sign_straddling_probe is not None
+        and sign_straddling_probe["both_signs_occur"]
+        and sign_straddling_probe["gradient_inside_like_for_like_envelope"]
+        and sign_straddling_probe["adam_prediction_bitwise"]
+    )
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
         "loss": trace_comparison,
@@ -2374,6 +2381,7 @@ def run_s2() -> Path:
         all(inside_self_distributions.values())
         and elementwise_envelopes["gradients"]["cross_inside_combined_self_envelope"]
         and parameter_update_mechanism["passed"]
+        and parameter_update_mechanism["sign_straddling_probe_passed"]
         and self_repeats_valid
     )
     passed = scheduler_comparison["passed"] and cause_passed
