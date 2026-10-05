@@ -3641,7 +3641,7 @@ def run_s3_synchronized() -> Path:
                 scheduler.step()
     trace_path = _write_jsonl("s3-lockstep-synchronized", "trace.jsonl", rows)
     synchronized_envelope: dict[str, Any] = {}
-    for field in ("gradients", "optimizer_state", "parameters"):
+    for field in ("trace", "gradients", "optimizer_state", "parameters"):
         cross_values = [
             value
             for row in rows
