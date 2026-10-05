@@ -2937,7 +2937,7 @@ def _scheduler_static(
     }
 
 
-def _synchronized_step(
+def _synchronized_step_once(
     vendor_generator: nn.Module,
     vendor_discriminator: nn.Module,
     package_module: Any,
@@ -3082,6 +3082,296 @@ def _synchronized_step(
     }
 
 
+def _synchronized_state_snapshot(
+    vendor_generator: nn.Module,
+    vendor_discriminator: nn.Module,
+    package_module: Any,
+    vendor_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    package_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+) -> dict[str, dict[str, dict[str, torch.Tensor]]]:
+    return {
+        "vendor": {
+            "gradients": {
+                **_named_gradients(vendor_generator, "generator"),
+                **_named_gradients(vendor_discriminator, "discriminator"),
+            },
+            "parameters": {
+                **_named_parameters(vendor_generator, "generator"),
+                **_named_parameters(vendor_discriminator, "discriminator"),
+            },
+            "optimizer_state": {
+                **_named_optimizer_state(
+                    vendor_optimizers[0], vendor_generator, "generator"
+                ),
+                **_named_optimizer_state(
+                    vendor_optimizers[1], vendor_discriminator, "discriminator"
+                ),
+            },
+        },
+        "package": {
+            "gradients": {
+                **_named_gradients(package_module.generator, "generator"),
+                **_named_gradients(package_module.discriminator, "discriminator"),
+            },
+            "parameters": {
+                **_named_parameters(package_module.generator, "generator"),
+                **_named_parameters(package_module.discriminator, "discriminator"),
+            },
+            "optimizer_state": {
+                **_named_optimizer_state(
+                    package_optimizers[0], package_module.generator, "generator"
+                ),
+                **_named_optimizer_state(
+                    package_optimizers[1], package_module.discriminator, "discriminator"
+                ),
+            },
+        },
+    }
+
+
+def _distribution_summary(values: list[float]) -> dict[str, Any]:
+    if not values:
+        raise ValueError("cannot summarize an empty distribution")
+    return {
+        "count": len(values),
+        "values": values,
+        "max_abs_difference": max(values),
+        "median_abs_difference": median(values),
+    }
+
+
+def _synchronized_step(
+    vendor_generator: nn.Module,
+    vendor_discriminator: nn.Module,
+    package_module: Any,
+    vendor_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    package_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    vendor_schedulers: tuple[
+        torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR
+    ],
+    package_schedulers: tuple[
+        torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR
+    ],
+    vendor_batch: dict[str, torch.Tensor],
+    package_batch: dict[str, torch.Tensor],
+    device: torch.device,
+    step: int,
+    epoch: int,
+) -> dict[str, Any]:
+    pre_model_state = {
+        "generator": copy.deepcopy(vendor_generator.state_dict()),
+        "discriminator": copy.deepcopy(vendor_discriminator.state_dict()),
+    }
+    pre_vendor_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in vendor_optimizers
+    )
+    pre_package_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in package_optimizers
+    )
+    pre_vendor_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in vendor_schedulers
+    )
+    pre_package_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in package_schedulers
+    )
+    pre_rng = copy.deepcopy(capture_rng_state())
+
+    first = _synchronized_step_once(
+        vendor_generator,
+        vendor_discriminator,
+        package_module,
+        vendor_optimizers,
+        package_optimizers,
+        vendor_schedulers,
+        package_schedulers,
+        vendor_batch,
+        package_batch,
+        device,
+        step,
+        epoch,
+    )
+    first_rng = copy.deepcopy(capture_rng_state())
+    first_state = _synchronized_state_snapshot(
+        vendor_generator,
+        vendor_discriminator,
+        package_module,
+        vendor_optimizers,
+        package_optimizers,
+    )
+    first_model_state = {
+        "vendor_generator": copy.deepcopy(vendor_generator.state_dict()),
+        "vendor_discriminator": copy.deepcopy(vendor_discriminator.state_dict()),
+        "package_generator": copy.deepcopy(package_module.generator.state_dict()),
+        "package_discriminator": copy.deepcopy(
+            package_module.discriminator.state_dict()
+        ),
+    }
+    first_vendor_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in vendor_optimizers
+    )
+    first_package_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in package_optimizers
+    )
+    first_vendor_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in vendor_schedulers
+    )
+    first_package_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in package_schedulers
+    )
+
+    def restore_pre_step() -> None:
+        vendor_generator.load_state_dict(copy.deepcopy(pre_model_state["generator"]))
+        vendor_discriminator.load_state_dict(
+            copy.deepcopy(pre_model_state["discriminator"])
+        )
+        package_module.generator.load_state_dict(
+            copy.deepcopy(pre_model_state["generator"])
+        )
+        package_module.discriminator.load_state_dict(
+            copy.deepcopy(pre_model_state["discriminator"])
+        )
+        for optimizer, state in zip(
+            vendor_optimizers, pre_vendor_optimizer_state, strict=True
+        ):
+            optimizer.load_state_dict(copy.deepcopy(state))
+        for optimizer, state in zip(
+            package_optimizers, pre_package_optimizer_state, strict=True
+        ):
+            optimizer.load_state_dict(copy.deepcopy(state))
+        for scheduler, state in zip(
+            vendor_schedulers, pre_vendor_scheduler_state, strict=True
+        ):
+            scheduler.load_state_dict(copy.deepcopy(state))
+        for scheduler, state in zip(
+            package_schedulers, pre_package_scheduler_state, strict=True
+        ):
+            scheduler.load_state_dict(copy.deepcopy(state))
+
+    restore_pre_step()
+    restore_rng_state(pre_rng)
+    second = _synchronized_step_once(
+        vendor_generator,
+        vendor_discriminator,
+        package_module,
+        vendor_optimizers,
+        package_optimizers,
+        vendor_schedulers,
+        package_schedulers,
+        vendor_batch,
+        package_batch,
+        device,
+        step,
+        epoch,
+    )
+    second_state = _synchronized_state_snapshot(
+        vendor_generator,
+        vendor_discriminator,
+        package_module,
+        vendor_optimizers,
+        package_optimizers,
+    )
+
+    vendor_gradient_self = _state_compare(
+        first_state["vendor"]["gradients"], second_state["vendor"]["gradients"]
+    )
+    package_gradient_self = _state_compare(
+        first_state["package"]["gradients"], second_state["package"]["gradients"]
+    )
+    vendor_optimizer_self = _state_compare(
+        first_state["vendor"]["optimizer_state"],
+        second_state["vendor"]["optimizer_state"],
+    )
+    package_optimizer_self = _state_compare(
+        first_state["package"]["optimizer_state"],
+        second_state["package"]["optimizer_state"],
+    )
+    vendor_parameter_self = _state_compare(
+        first_state["vendor"]["parameters"], second_state["vendor"]["parameters"]
+    )
+    package_parameter_self = _state_compare(
+        first_state["package"]["parameters"],
+        second_state["package"]["parameters"],
+    )
+    self_comparisons = {
+        "gradients": {
+            "vendor": vendor_gradient_self,
+            "package": package_gradient_self,
+        },
+        "optimizer_state": {
+            "vendor": vendor_optimizer_self,
+            "package": package_optimizer_self,
+        },
+        "parameters": {
+            "vendor": vendor_parameter_self,
+            "package": package_parameter_self,
+        },
+    }
+    repeat_envelope: dict[str, Any] = {}
+    for field in ("gradients", "optimizer_state", "parameters"):
+        cross_values = [
+            first[field]["max_abs_difference"],
+            second[field]["max_abs_difference"],
+        ]
+        vendor_self = self_comparisons[field]["vendor"]
+        package_self = self_comparisons[field]["package"]
+        cross = _distribution_summary(cross_values)
+        vendor_distribution = _distribution_summary([vendor_self["max_abs_difference"]])
+        package_distribution = _distribution_summary(
+            [package_self["max_abs_difference"]]
+        )
+        repeat_envelope[field] = {
+            "cross_system": cross,
+            "vendor_self": vendor_distribution,
+            "package_self": package_distribution,
+            "cross_inside_vendor_self_envelope": (
+                cross["max_abs_difference"] <= vendor_distribution["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= vendor_distribution["median_abs_difference"]
+            ),
+            "cross_inside_package_self_envelope": (
+                cross["max_abs_difference"]
+                <= package_distribution["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= package_distribution["median_abs_difference"]
+            ),
+        }
+
+    vendor_generator.load_state_dict(first_model_state["vendor_generator"])
+    vendor_discriminator.load_state_dict(first_model_state["vendor_discriminator"])
+    package_module.generator.load_state_dict(first_model_state["package_generator"])
+    package_module.discriminator.load_state_dict(
+        first_model_state["package_discriminator"]
+    )
+    for optimizer, state in zip(
+        vendor_optimizers, first_vendor_optimizer_state, strict=True
+    ):
+        optimizer.load_state_dict(state)
+    for optimizer, state in zip(
+        package_optimizers, first_package_optimizer_state, strict=True
+    ):
+        optimizer.load_state_dict(state)
+    for scheduler, state in zip(
+        vendor_schedulers, first_vendor_scheduler_state, strict=True
+    ):
+        scheduler.load_state_dict(state)
+    for scheduler, state in zip(
+        package_schedulers, first_package_scheduler_state, strict=True
+    ):
+        scheduler.load_state_dict(state)
+    restore_rng_state(first_rng)
+
+    return {
+        **first,
+        "repeat_trace": second["trace"],
+        "repeat_scheduler": second["scheduler"],
+        "repeat_rng_equal_after_operation": second["rng_equal_after_operation"],
+        "repeat_rng_equal_after_resynchronization": second[
+            "rng_equal_after_resynchronization"
+        ],
+        "repeat_run_envelope": repeat_envelope,
+    }
+
+
 def run_s3_synchronized() -> Path:
     _set_determinism(SEED)
     _vendor_main()
@@ -3155,23 +3445,70 @@ def run_s3_synchronized() -> Path:
             for scheduler in (*vendor_schedulers, *package_schedulers):
                 scheduler.step()
     trace_path = _write_jsonl("s3-lockstep-synchronized", "trace.jsonl", rows)
-    passed = all(
-        row["trace"]["passed"]
-        and row["gradients"]["passed"]
-        and row["parameters"]["passed"]
-        and row["optimizer_state"]["passed"]
-        and row["rng_equal_after_resynchronization"]
+    synchronized_envelope: dict[str, Any] = {}
+    for field in ("gradients", "optimizer_state", "parameters"):
+        cross_values = [
+            value
+            for row in rows
+            for value in row["repeat_run_envelope"][field]["cross_system"]["values"]
+        ]
+        vendor_values = [
+            row["repeat_run_envelope"][field]["vendor_self"]["max_abs_difference"]
+            for row in rows
+        ]
+        package_values = [
+            row["repeat_run_envelope"][field]["package_self"]["max_abs_difference"]
+            for row in rows
+        ]
+        cross = _distribution_summary(cross_values)
+        vendor_self = _distribution_summary(vendor_values)
+        package_self = _distribution_summary(package_values)
+        synchronized_envelope[field] = {
+            "cross_system": cross,
+            "vendor_self": vendor_self,
+            "package_self": package_self,
+            "cross_inside_vendor_self_envelope": (
+                cross["max_abs_difference"] <= vendor_self["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= vendor_self["median_abs_difference"]
+            ),
+            "cross_inside_package_self_envelope": (
+                cross["max_abs_difference"] <= package_self["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= package_self["median_abs_difference"]
+            ),
+        }
+    trace_pass = all(
+        row["trace"]["passed"] and row["repeat_trace"]["passed"] for row in rows
+    )
+    rng_pass = all(
+        row["rng_equal_after_resynchronization"]
+        and row["repeat_rng_equal_after_resynchronization"]
         for row in rows
     )
+    scheduler_pass = all(
+        row["scheduler"]["vendor"] == row["scheduler"]["package"]
+        and row["repeat_scheduler"]["vendor"] == row["repeat_scheduler"]["package"]
+        for row in rows
+    )
+    numeric_envelope_pass = all(
+        field_summary["cross_inside_vendor_self_envelope"]
+        and field_summary["cross_inside_package_self_envelope"]
+        for field_summary in synchronized_envelope.values()
+    )
+    passed = trace_pass and rng_pass and scheduler_pass and numeric_envelope_pass
     first_divergence = next(
         (
             row
             for row in rows
             if not (
                 row["trace"]["passed"]
-                and row["gradients"]["passed"]
-                and row["parameters"]["passed"]
-                and row["optimizer_state"]["passed"]
+                and row["repeat_trace"]["passed"]
+                and row["rng_equal_after_resynchronization"]
+                and row["repeat_rng_equal_after_resynchronization"]
+                and row["scheduler"]["vendor"] == row["scheduler"]["package"]
+                and row["repeat_scheduler"]["vendor"]
+                == row["repeat_scheduler"]["package"]
             )
         ),
         None,
@@ -3186,6 +3523,20 @@ def run_s3_synchronized() -> Path:
             "steps": len(rows),
             "first_divergence": first_divergence,
             "trace": str(trace_path.relative_to(ROOT)),
+            "per_step_equivalence": {
+                "trace_bitwise": trace_pass,
+                "rng_bitwise": rng_pass,
+                "scheduler_bitwise": scheduler_pass,
+                "numeric_state_gate": "cross distributions inside both self envelopes",
+                "numeric_state_pass": numeric_envelope_pass,
+            },
+            "repeat_run_envelope": synchronized_envelope,
+            "cause": {
+                "operation": "CUDA nll_loss2d",
+                "systems": "vendor and package",
+                "mode": "envelope",
+                "strict_determinism_probe": "raises because nll_loss2d has no deterministic CUDA implementation",
+            },
             "natural_record": ".cache/ds-gan/stage-evidence/s3-lockstep/run.json",
             "pre_synchronization_loader_mismatch_steps": pre_synchronization_mismatches,
             "synchronized_batch_policy": (
