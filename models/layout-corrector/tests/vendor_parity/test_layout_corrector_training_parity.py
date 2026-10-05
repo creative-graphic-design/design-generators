@@ -1399,6 +1399,7 @@ def _run_package_natural_side(
             str(config_path),
             f"--seed_everything={NATURAL_STREAM_SEED}",
             f"--trainer.max_steps={steps}",
+            f"--trainer.limit_train_batches={steps}",
             f"--trainer.val_check_interval={steps}",
             f"--trainer.default_root_dir={root / 'trainer'}",
             f"--model.init_args.layout_dm_checkpoint_path={checkpoint_path}",
@@ -1447,6 +1448,7 @@ def _natural_comparison(
     allowed_overrides = (
         "--seed_everything=",
         "--trainer.max_steps=",
+        "--trainer.limit_train_batches=",
         "--trainer.val_check_interval=",
         "--trainer.default_root_dir=",
         "--model.init_args.layout_dm_checkpoint_path=",
