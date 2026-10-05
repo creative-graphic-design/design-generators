@@ -30,7 +30,7 @@
     "--output",
     "{evaluation_output}"
   ],
-  "checkpoint_rule": "final epoch-500 weights: original final.ckpt; package last.ckpt",
+  "checkpoint_rule": "Train through epoch 500 on the named A100 session; preserve package last.ckpt or original final.ckpt as epoch-500.ckpt; on a separate named CPU runtime download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
   "artifacts": {
     "<repository-relative-artifact-path>": "<sha256>"
   },
@@ -45,18 +45,71 @@
   ],
   "runtime_plan": {
     "gpu": "A100",
-    "one_named_session_per_run": true,
+    "one_named_a100_session_per_run": true,
+    "one_named_cpu_session_per_run": true,
     "one_training_run_at_a_time": true,
+    "session_order": "For each run, the A100 training session self-releases after syncing checkpoints and logs; then a separately named CPU session downloads the explicit epoch-500 checkpoint, converts it, evaluates it, uploads converted weights/results/logs, and self-releases. The queue advances only after both sessions exit successfully.",
     "source_branch": "feat/canvas-vae",
     "wrapper_script": "${S5_WRAPPER_PATH}",
-    "wrapper_ttl": "2h",
-    "minimum_verified_runtime_lifetime": "greater than 2h before allocation",
+    "a100_wrapper_ttl_by_system": {
+      "package": "45m",
+      "original": "41m"
+    },
+    "cpu_wrapper_ttl": "38m",
+    "ttl_margin_seconds": 300,
+    "ttl_formula": "A100 TTL = ceil to whole minutes of measured full-epoch p90 × 22,500 optimizer steps + 150 validation batches × the same p90 + measured A100 allocation-to-training-start + measured final-sync reserve + 300-second margin. CPU TTL = 30-minute unmeasured conversion/evaluation allowance + the same measured setup/sync reserves + 300-second margin, rounded up to whole minutes.",
+    "a100_setup_reserve_seconds": 108,
+    "a100_final_sync_reserve_seconds": 64,
+    "session_termination_after_wrapper_reserve_seconds": 30,
+    "cpu_setup_and_sync_reserve_seconds": "Reuse the measured A100 setup and final-sync intervals as a conservative time allowance for CPU sessions; CPU session billing uses 0.08 CU/hour.",
+    "setup_measurement_source": {
+      "method": "Colab CLI history session_created to first package optimizer-step start; reserve is the largest observed interval rounded up to the next second.",
+      "observations": [
+        {
+          "session_name": "cvae-s5-b1-gpubound-r2-20261005-s5b",
+          "session_created_utc": "2026-10-04T17:26:43.750786+00:00",
+          "first_package_training_start_utc": "2026-10-04T17:28:31.593020+00:00",
+          "elapsed_seconds": 107.842234
+        },
+        {
+          "session_name": "cvae-s5-concurrency-20261005-s5b",
+          "session_created_utc": "2026-10-04T19:30:30.118533+00:00",
+          "first_package_training_start_utc": "2026-10-04T19:32:16.643954+00:00",
+          "elapsed_seconds": 106.525421
+        }
+      ]
+    },
+    "final_sync_measurement_source": {
+      "session_name": "cvae-s5-concurrency-20261005-s5b",
+      "wrapper_log": ".cache/canvas-vae/s5/concurrency-20261005/a100-colab-exec.log",
+      "wrapper_log_evidence": "After job exit the wrapper reported the final log/output uploads, “results uploaded”, then “releasing the VM”. It does not timestamp upload start.",
+      "last_optimizer_step_end_utc": "2026-10-04T19:37:12.600434+00:00",
+      "final_hub_commit_times_utc": [
+        "2026-10-04T19:38:08+00:00",
+        "2026-10-04T19:38:13+00:00"
+      ],
+      "final_hub_commit_ids": [
+        "14b71ec1e165ae816e11828b8e367cf946af74d2",
+        "ce4ac98c97d7466abe8d2ba6e371a96c17746d58"
+      ],
+      "last_training_step_to_wrapper_completion_seconds": 63.054367,
+      "last_training_step_to_last_commit_seconds": 60.399566,
+      "final_commit_to_execution_completion_seconds": 2.654801,
+      "wrapper_completion_utc": "2026-10-04T19:38:15.654801+00:00",
+      "session_terminated_utc": "2026-10-04T19:38:45.458005+00:00",
+      "session_termination_after_wrapper_seconds": 29.803204,
+      "reserve_method": "Use 64 seconds rounded up from last optimizer-step end through wrapper completion as the conservative final-sync reserve. It includes finalization before the last upload; a pure upload-start timestamp was not recorded. Account for the separately measured 30-second wrapper-to-session-termination tail in session billing."
+    },
     "sync_interval": "15m",
-    "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}/{segment_id}",
-    "sync_paths": [
+    "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}/{train-or-postprocess}/{segment_id}",
+    "a100_sync_paths": [
       "${S5_RUNTIME_ROOT}/out/checkpoints",
-      "${S5_RUNTIME_ROOT}/out/logs",
-      "${S5_RUNTIME_ROOT}/out/results"
+      "${S5_RUNTIME_ROOT}/out/logs"
+    ],
+    "cpu_sync_paths": [
+      "${S5_RUNTIME_ROOT}/out/converted",
+      "${S5_RUNTIME_ROOT}/out/results",
+      "${S5_RUNTIME_ROOT}/out/logs"
     ],
     "resume_policy": {
       "explicit_download_required": true,
@@ -119,7 +172,40 @@
         "500",
         "--validation-freq",
         "20"
-      ]
+      ],
+      "cpu_session_name": "cvae-s5-rico-original-seed0-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-original-seed0/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-original-seed0/train/{segment_id}/checkpoints/rico-original-seed0/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-original-seed0/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-original-seed0/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-original-seed0/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "41m",
+      "cpu_wrapper_ttl": "38m"
     },
     {
       "run_id": "rico-original-seed1",
@@ -143,7 +229,40 @@
         "500",
         "--validation-freq",
         "20"
-      ]
+      ],
+      "cpu_session_name": "cvae-s5-rico-original-seed1-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-original-seed1/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-original-seed1/train/{segment_id}/checkpoints/rico-original-seed1/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-original-seed1/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-original-seed1/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-original-seed1/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "41m",
+      "cpu_wrapper_ttl": "38m"
     },
     {
       "run_id": "rico-original-seed2",
@@ -167,7 +286,40 @@
         "500",
         "--validation-freq",
         "20"
-      ]
+      ],
+      "cpu_session_name": "cvae-s5-rico-original-seed2-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-original-seed2/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-original-seed2/train/{segment_id}/checkpoints/rico-original-seed2/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-original-seed2/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-original-seed2/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-original-seed2/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "41m",
+      "cpu_wrapper_ttl": "38m"
     },
     {
       "run_id": "rico-package-seed0",
@@ -176,7 +328,40 @@
       "session_name": "cvae-s5-rico-package-seed0",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0",
       "runtime_output_root": "/content/out/checkpoints/rico-package-seed0/{segment_id}",
-      "evaluation_output": "/content/out/results/rico-package-seed0/{segment_id}/evaluation.json"
+      "evaluation_output": "/content/out/results/rico-package-seed0/{segment_id}/evaluation.json",
+      "cpu_session_name": "cvae-s5-rico-package-seed0-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-package-seed0/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-package-seed0/train/{segment_id}/checkpoints/rico-package-seed0/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-package-seed0/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-package-seed0/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-package-seed0/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "45m",
+      "cpu_wrapper_ttl": "38m"
     },
     {
       "run_id": "rico-package-seed1",
@@ -185,7 +370,40 @@
       "session_name": "cvae-s5-rico-package-seed1",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1",
       "runtime_output_root": "/content/out/checkpoints/rico-package-seed1/{segment_id}",
-      "evaluation_output": "/content/out/results/rico-package-seed1/{segment_id}/evaluation.json"
+      "evaluation_output": "/content/out/results/rico-package-seed1/{segment_id}/evaluation.json",
+      "cpu_session_name": "cvae-s5-rico-package-seed1-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-package-seed1/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-package-seed1/train/{segment_id}/checkpoints/rico-package-seed1/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-package-seed1/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-package-seed1/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-package-seed1/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "45m",
+      "cpu_wrapper_ttl": "38m"
     },
     {
       "run_id": "rico-package-seed2",
@@ -194,7 +412,40 @@
       "session_name": "cvae-s5-rico-package-seed2",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2",
       "runtime_output_root": "/content/out/checkpoints/rico-package-seed2/{segment_id}",
-      "evaluation_output": "/content/out/results/rico-package-seed2/{segment_id}/evaluation.json"
+      "evaluation_output": "/content/out/results/rico-package-seed2/{segment_id}/evaluation.json",
+      "cpu_session_name": "cvae-s5-rico-package-seed2-cpu",
+      "training_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2/train/{segment_id}",
+      "postprocess_artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2/postprocess/{segment_id}",
+      "epoch_500_checkpoint": "/content/out/checkpoints/rico-package-seed2/{segment_id}/epoch-500.ckpt",
+      "epoch_500_checkpoint_hub_path": "design-generators/canvas-vae/s5/rico-package-seed2/train/{segment_id}/checkpoints/rico-package-seed2/{segment_id}/epoch-500.ckpt",
+      "converted_output_root": "/content/out/converted/rico-package-seed2/{segment_id}",
+      "evaluator_command": [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "models/canvas-vae/scripts/evaluate.py",
+        "--checkpoint",
+        "/content/out/converted/rico-package-seed2/{segment_id}",
+        "--data-dir",
+        "/content/repo/.cache/canvas-vae/data/rico",
+        "--seeds",
+        "0",
+        "1",
+        "2",
+        "--batch-size",
+        "1024",
+        "--device",
+        "cpu",
+        "--output",
+        "/content/out/results/rico-package-seed2/{segment_id}/evaluation.json"
+      ],
+      "a100_wrapper_ttl": "45m",
+      "cpu_wrapper_ttl": "38m"
     }
   ],
   "input_data": {

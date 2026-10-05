@@ -37,9 +37,17 @@ class QueueRun(TypedDict):
     system: str
     seed: int
     session_name: str
+    cpu_session_name: str
+    a100_wrapper_ttl: str
+    cpu_wrapper_ttl: str
     artifact_prefix: str
     runtime_output_root: str
+    epoch_500_checkpoint: str
+    epoch_500_checkpoint_hub_path: str
+    converted_output_root: str
     evaluation_output: str
+    training_artifact_prefix: str
+    postprocess_artifact_prefix: str
 
 
 class ParityArtifact(TypedDict):
@@ -172,22 +180,38 @@ def load_manifest(path: Path) -> QueueManifest:
         system = raw_run.get("system")
         seed = raw_run.get("seed")
         session_name = raw_run.get("session_name")
+        cpu_session_name = raw_run.get("cpu_session_name")
+        a100_wrapper_ttl = raw_run.get("a100_wrapper_ttl")
+        cpu_wrapper_ttl = raw_run.get("cpu_wrapper_ttl")
         artifact_prefix = raw_run.get("artifact_prefix")
         runtime_output_root = raw_run.get("runtime_output_root")
+        epoch_500_checkpoint = raw_run.get("epoch_500_checkpoint")
+        epoch_500_checkpoint_hub_path = raw_run.get("epoch_500_checkpoint_hub_path")
+        converted_output_root = raw_run.get("converted_output_root")
         evaluation_output = raw_run.get("evaluation_output")
+        training_artifact_prefix = raw_run.get("training_artifact_prefix")
+        postprocess_artifact_prefix = raw_run.get("postprocess_artifact_prefix")
         if not all(
             isinstance(value, str) and value
             for value in (
                 run_id,
                 system,
                 session_name,
+                cpu_session_name,
+                a100_wrapper_ttl,
+                cpu_wrapper_ttl,
                 artifact_prefix,
                 runtime_output_root,
+                epoch_500_checkpoint,
+                epoch_500_checkpoint_hub_path,
+                converted_output_root,
                 evaluation_output,
+                training_artifact_prefix,
+                postprocess_artifact_prefix,
             )
         ) or not isinstance(seed, int):
             raise QueueError(
-                "each run needs identifiers, unique output templates, and an integer seed"
+                "each run needs named A100/CPU runtimes, unique output templates, and an integer seed"
             )
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", run_id):
             raise QueueError(f"invalid run_id {run_id!r}")
@@ -198,35 +222,81 @@ def load_manifest(path: Path) -> QueueManifest:
                 f"run {run_id} has a non-unique checkpoint output template"
             )
         if (
+            epoch_500_checkpoint
+            != f"/content/out/checkpoints/{run_id}/{{segment_id}}/epoch-500.ckpt"
+        ):
+            raise QueueError(
+                f"run {run_id} has a non-unique epoch-500 checkpoint template"
+            )
+        if epoch_500_checkpoint_hub_path != (
+            f"{artifact_prefix}/train/{{segment_id}}/checkpoints/"
+            f"{run_id}/{{segment_id}}/epoch-500.ckpt"
+        ):
+            raise QueueError(
+                f"run {run_id} has an invalid epoch-500 checkpoint Hub path"
+            )
+        if converted_output_root != f"/content/out/converted/{run_id}/{{segment_id}}":
+            raise QueueError(
+                f"run {run_id} has a non-unique converted checkpoint template"
+            )
+        if (
             evaluation_output
             != f"/content/out/results/{run_id}/{{segment_id}}/evaluation.json"
         ):
             raise QueueError(
                 f"run {run_id} has a non-unique evaluation output template"
             )
+        if training_artifact_prefix != f"{artifact_prefix}/train/{{segment_id}}":
+            raise QueueError(f"run {run_id} has an invalid training Hub prefix")
+        if (
+            postprocess_artifact_prefix
+            != f"{artifact_prefix}/postprocess/{{segment_id}}"
+        ):
+            raise QueueError(f"run {run_id} has an invalid postprocess Hub prefix")
         runs.append(
             {
                 "run_id": run_id,
                 "system": system,
                 "seed": seed,
                 "session_name": session_name,
+                "cpu_session_name": cpu_session_name,
+                "a100_wrapper_ttl": a100_wrapper_ttl,
+                "cpu_wrapper_ttl": cpu_wrapper_ttl,
                 "artifact_prefix": artifact_prefix,
                 "runtime_output_root": runtime_output_root,
+                "epoch_500_checkpoint": epoch_500_checkpoint,
+                "epoch_500_checkpoint_hub_path": epoch_500_checkpoint_hub_path,
+                "converted_output_root": converted_output_root,
                 "evaluation_output": evaluation_output,
+                "training_artifact_prefix": training_artifact_prefix,
+                "postprocess_artifact_prefix": postprocess_artifact_prefix,
             }
         )
 
     unique_fields = (
         "run_id",
         "session_name",
+        "cpu_session_name",
         "artifact_prefix",
         "runtime_output_root",
+        "epoch_500_checkpoint",
+        "epoch_500_checkpoint_hub_path",
+        "converted_output_root",
         "evaluation_output",
+        "training_artifact_prefix",
+        "postprocess_artifact_prefix",
     )
     for field in unique_fields:
         values = [run[field] for run in runs]
         if len(values) != len(set(values)):
             raise QueueError(f"manifest runs must have unique {field} values")
+    session_names = [
+        session_name
+        for run in runs
+        for session_name in (run["session_name"], run["cpu_session_name"])
+    ]
+    if len(session_names) != len(set(session_names)):
+        raise QueueError("manifest A100 and CPU session names must be globally unique")
 
     return {
         "dataset": dataset,
@@ -294,19 +364,47 @@ def launch_preconditions(
             BLOCKED_EXIT,
         )
     runtime_plan = manifest["runtime_plan"]
+    a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
     if (
-        runtime_plan.get("gpu") != "A100"
-        or runtime_plan.get("one_named_session_per_run") is not True
+        runtime_plan.get("source_commit") != pinned_commit
+        or runtime_plan.get("gpu") != "A100"
+        or runtime_plan.get("one_named_a100_session_per_run") is not True
+        or runtime_plan.get("one_named_cpu_session_per_run") is not True
         or runtime_plan.get("one_training_run_at_a_time") is not True
+        or runtime_plan.get("queue_supervisor_sequential") is not True
         or runtime_plan.get("self_release") is not True
         or runtime_plan.get("sync_interval") != "15m"
-        or runtime_plan.get("wrapper_ttl") != "2h"
+        or not isinstance(a100_ttls, dict)
+        or not all(
+            isinstance(a100_ttls.get(system), str)
+            and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system])
+            for system in ("package", "original")
+        )
+        or runtime_plan.get("cpu_wrapper_ttl") != "38m"
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
+        or runtime_plan.get("a100_sync_paths")
+        != ["${S5_RUNTIME_ROOT}/out/checkpoints", "${S5_RUNTIME_ROOT}/out/logs"]
+        or runtime_plan.get("cpu_sync_paths")
+        != [
+            "${S5_RUNTIME_ROOT}/out/converted",
+            "${S5_RUNTIME_ROOT}/out/results",
+            "${S5_RUNTIME_ROOT}/out/logs",
+        ]
+        or runtime_plan.get("source_gate_before_artifact_sync") is not True
     ):
         raise QueueError(
             "launch refused: manifest runtime plan is not sequential and fail-closed",
             BLOCKED_EXIT,
         )
+    for run in manifest["runs"]:
+        expected_a100_ttl = a100_ttls.get(run["system"])
+        if run["a100_wrapper_ttl"] != expected_a100_ttl or run[
+            "cpu_wrapper_ttl"
+        ] != runtime_plan.get("cpu_wrapper_ttl"):
+            raise QueueError(
+                f"launch refused: run {run['run_id']} TTLs differ from the runtime plan",
+                BLOCKED_EXIT,
+            )
 
     try:
         manifest_path.relative_to(REPOSITORY_ROOT)
@@ -352,6 +450,7 @@ def run_queue(
                 "CANVAS_VAE_S5_SYSTEM": run["system"],
                 "CANVAS_VAE_S5_SEED": str(run["seed"]),
                 "CANVAS_VAE_S5_SESSION": run["session_name"],
+                "CANVAS_VAE_S5_CPU_SESSION": run["cpu_session_name"],
                 "CANVAS_VAE_S5_ARTIFACT_PREFIX": run["artifact_prefix"],
                 "CANVAS_VAE_S5_SOURCE_COMMIT": pinned_commit,
             }
