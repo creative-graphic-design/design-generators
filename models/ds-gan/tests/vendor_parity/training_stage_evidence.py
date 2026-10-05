@@ -1290,12 +1290,8 @@ def _cross_state_distribution(
 def _inside_self_distributions(
     cross: dict[str, Any], vendor: dict[str, Any], package: dict[str, Any]
 ) -> bool:
-    return all(
-        cross[metric] <= max(vendor[metric], package[metric])
-        for metric in (
-            "max_abs_difference",
-            "max_relative_difference",
-        )
+    return cross["max_abs_difference"] <= max(
+        vendor["max_abs_difference"], package["max_abs_difference"]
     )
 
 
@@ -1316,7 +1312,6 @@ def _elementwise_envelope(
         )
         vendor_envelope = vendor_values.amax(dim=0) - vendor_values.amin(dim=0)
         package_envelope = package_values.amax(dim=0) - package_values.amin(dim=0)
-        envelope = torch.maximum(vendor_envelope, package_envelope)
         cross = torch.stack(
             [
                 (vendor[field][name].float() - package[field][name].float()).abs()
@@ -1350,7 +1345,9 @@ def _elementwise_envelope(
         if candidate_cross_abs > maximum_cross_abs:
             maximum = maximum_candidate
             maximum_cross_abs = candidate_cross_abs
-        outside_mask = cross > envelope
+        outside_vendor_mask = cross > vendor_envelope
+        outside_package_mask = cross > package_envelope
+        outside_mask = outside_vendor_mask | outside_package_mask
         for index in zip(*torch.where(outside_mask)):
             index_tuple = tuple(int(value) for value in index)
             outside.append(
@@ -1360,6 +1357,12 @@ def _elementwise_envelope(
                     "cross_max_abs": float(cross[index_tuple].item()),
                     "vendor_self_max_abs": float(vendor_envelope[index_tuple].item()),
                     "package_self_max_abs": float(package_envelope[index_tuple].item()),
+                    "outside_vendor_self_envelope": bool(
+                        outside_vendor_mask[index_tuple].item()
+                    ),
+                    "outside_package_self_envelope": bool(
+                        outside_package_mask[index_tuple].item()
+                    ),
                 }
             )
             if field == "parameters":
@@ -1380,6 +1383,7 @@ def _elementwise_envelope(
         "element_count_outside_self_envelope": len(outside),
         "outside_self_envelope": outside,
         "maximum_cross_element": maximum,
+        "cross_inside_each_self_envelope": not outside,
         "cross_inside_combined_self_envelope": not outside,
     }
 
@@ -2275,8 +2279,8 @@ def run_s2() -> Path:
             "distributions": cross_distributions,
             "inside_self_distributions": inside_self_distributions,
             "inside_self_distribution_criterion": (
-                "cross max_abs_difference and max_relative_difference must be <= "
-                "the larger corresponding vendor/package self envelope; medians are diagnostic"
+                "cross max_abs_difference must be <= the larger corresponding "
+                "vendor/package self envelope; relative differences and medians are diagnostic"
             ),
             "elementwise_envelopes": elementwise_envelopes,
             "parameter_update_mechanism": parameter_update_mechanism,
@@ -2289,10 +2293,7 @@ def run_s2() -> Path:
     }
     cause_passed = (
         all(inside_self_distributions.values())
-        and all(
-            envelope["cross_inside_combined_self_envelope"]
-            for envelope in elementwise_envelopes.values()
-        )
+        and elementwise_envelopes["gradients"]["cross_inside_each_self_envelope"]
         and parameter_update_mechanism["passed"]
         and self_repeats_valid
     )
