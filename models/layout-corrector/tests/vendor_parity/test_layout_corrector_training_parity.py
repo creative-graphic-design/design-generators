@@ -1116,8 +1116,14 @@ def _natural_training_batches(
     dataset: LayoutCorrectorTrainingDatasetName,
     tokenizer: Any,
     steps: int,
-) -> tuple[list[dict[str, torch.Tensor]], list[dict[str, Any]], dict[str, str]]:
-    """Materialize paired production loader streams for one natural run."""
+) -> tuple[
+    list[dict[str, torch.Tensor]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    dict[str, str],
+]:
+    """Materialize paired production train and validation loader streams."""
     from trainer.data.util import compose_transform, sparse_to_dense
 
     workers = _loader_worker_count()
@@ -1186,12 +1192,83 @@ def _natural_training_batches(
         "package_pre_loader_rng_digest": package_pre_loader_rng_digest,
     }
     assert vendor_pre_loader_rng_digest == package_pre_loader_rng_digest
-    return vendor_batches, package_batches, loader_record
+
+    vendor_validation_dataset = _vendor_dataset(
+        dataset, "val", transform=compose_transform(["RandomOrder"])
+    )
+    package_validation_module = LayoutCorrectorDataModule(
+        dataset_name=dataset,
+        config=_package_layout_dm_config(dataset),
+        processed_data_dir=_layout_dm_cache() / "datasets",
+        batch_size=64,
+        num_workers=workers,
+        random_order=True,
+        pin_memory=True,
+    )
+    package_validation_module.setup("fit")
+    vendor_validation_loader = GeometricDataLoader(
+        vendor_validation_dataset,
+        batch_size=64,
+        shuffle=False,
+        num_workers=workers,
+    )
+    package_validation_loader = package_validation_module.val_dataloader()
+    torch.manual_seed(seed)
+    vendor_validation_batches: list[dict[str, Any]] = []
+    for batch in vendor_validation_loader:
+        bbox, labels, _, mask = sparse_to_dense(batch)
+        encoded = tokenizer.encode({"bbox": bbox, "label": labels, "mask": mask})
+        vendor_validation_batches.append(
+            {
+                "input_ids": encoded["seq"],
+                "attention_mask": encoded["mask"],
+                "id": [str(value) for value in batch.attr["name"]],
+            }
+        )
+    torch.manual_seed(seed)
+    package_validation_batches: list[dict[str, Any]] = [
+        {
+            "input_ids": cast(torch.Tensor, batch["input_ids"]),
+            "attention_mask": cast(torch.Tensor, batch["attention_mask"]),
+            "id": [str(value) for value in batch.get("id", [])],
+        }
+        for batch in package_validation_loader
+    ]
+    validation_stream_report = compare_batch_stream(
+        vendor_validation_batches,
+        package_validation_batches,
+        steps=len(vendor_validation_batches),
+    )
+    assert validation_stream_report.passed, validation_stream_report
+    assert len(vendor_validation_batches) == len(package_validation_batches)
+    assert [batch["id"] for batch in vendor_validation_batches] == [
+        batch["id"] for batch in package_validation_batches
+    ]
+    loader_record["validation_batch_stream_digest"] = _state_digest(
+        {
+            "vendor": [
+                _tensor_digest(batch["input_ids"])
+                for batch in vendor_validation_batches
+            ],
+            "package": [
+                _tensor_digest(batch["input_ids"])
+                for batch in package_validation_batches
+            ],
+        }
+    )
+    return (
+        vendor_batches,
+        package_batches,
+        vendor_validation_batches,
+        package_validation_batches,
+        loader_record,
+    )
 
 
 def _run_natural_side(
     fixture: Fixture,
     batches: list[dict[str, Any]],
+    validation_batches: list[dict[str, Any]],
     *,
     side: str,
     initial_state: dict[str, torch.Tensor],
@@ -1206,7 +1283,11 @@ def _run_natural_side(
         )
     else:
         return _run_package_natural_side(
-            fixture, batches, initial_state=initial_state, steps=steps
+            fixture,
+            batches,
+            validation_batches,
+            initial_state=initial_state,
+            steps=steps,
         )
 
     model.load_state_dict(initial_state, strict=True)
@@ -1245,18 +1326,14 @@ def _run_natural_side(
                 "model_training": model.training,
             }
         )
-    from trainer.data.util import compose_transform
-
-    validation_loader = GeometricDataLoader(
-        _vendor_dataset(
-            fixture.dataset,
-            "val",
-            transform=compose_transform(["RandomOrder"]),
-        ),
-        batch_size=64,
-        shuffle=False,
-        num_workers=_loader_worker_count(),
-    )
+    model.eval()
+    with torch.no_grad():
+        validation_losses = [
+            float(_vendor_trace(fixture, batch)["train_loss"].cpu().item())
+            for batch in validation_batches
+        ]
+    validation_loss = sum(validation_losses) / len(validation_losses)
+    scheduler.step(validation_loss)
     return (
         rows,
         deepcopy(model.state_dict()),
@@ -1266,9 +1343,9 @@ def _run_natural_side(
             "scheduler_state_digest": _scheduler_state_digest(
                 cast("DigestValue", scheduler.state_dict())
             ),
-            "validation_batches": len(validation_loader),
-            "validation_executed": False,
-            "validation_loss": None,
+            "validation_batches": len(validation_batches),
+            "validation_executed": True,
+            "validation_loss": validation_loss,
             "pre_model_rng_digest": fixture.vendor_pre_model_rng_digest,
         },
     )
@@ -1277,11 +1354,12 @@ def _run_natural_side(
 def _run_package_natural_side(
     fixture: Fixture,
     batches: list[dict[str, Any]],
+    validation_batches: list[dict[str, Any]],
     *,
     initial_state: dict[str, torch.Tensor],
     steps: int,
 ) -> tuple[list[dict[str, Any]], dict[str, torch.Tensor], dict[str, Any]]:
-    del batches
+    del batches, validation_batches
     with tempfile.TemporaryDirectory(prefix="layout-corrector-natural-") as root_text:
         root = Path(root_text)
         initial_state_path = root / "initial-state.pt"
@@ -1306,6 +1384,7 @@ def _run_package_natural_side(
             str(config_path),
             f"--seed_everything={NATURAL_STREAM_SEED}",
             f"--trainer.max_steps={steps}",
+            f"--trainer.val_check_interval={steps}",
             f"--trainer.default_root_dir={root / 'trainer'}",
             f"--model.init_args.layout_dm_checkpoint_path={checkpoint_path}",
             f"--model.init_args.cluster_centers_path={cluster_path}",
@@ -1353,6 +1432,7 @@ def _natural_comparison(
     allowed_overrides = (
         "--seed_everything=",
         "--trainer.max_steps=",
+        "--trainer.val_check_interval=",
         "--trainer.default_root_dir=",
         "--model.init_args.layout_dm_checkpoint_path=",
         "--model.init_args.cluster_centers_path=",
@@ -1372,10 +1452,9 @@ def _natural_comparison(
     assert isinstance(vendor_record["scheduler_state_digest"], str)
     assert vendor_record["scheduler_state_digest"]
     assert package_record["validation_batches"] == vendor_record["validation_batches"]
-    assert package_record["validation_executed"] is False
-    assert vendor_record["validation_executed"] is False
-    assert package_record["validation_loss"] is None
-    assert vendor_record["validation_loss"] is None
+    assert package_record["validation_executed"] is True
+    assert vendor_record["validation_executed"] is True
+    assert package_record["validation_loss"] == vendor_record["validation_loss"]
     assert package_record["scheduler_state"] == vendor_record["scheduler_state"]
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
@@ -1560,13 +1639,18 @@ def test_s3_natural_lockstep_matches_vendor(
     steps = _s3_steps()
     _apply_s3_determinism()
     fixture = _fixture(dataset, device, seed=NATURAL_STREAM_SEED)
-    vendor_batches, package_batches, loader_record = _natural_training_batches(
-        dataset, fixture.vendor_tokenizer, steps
-    )
+    (
+        vendor_batches,
+        package_batches,
+        vendor_validation_batches,
+        package_validation_batches,
+        loader_record,
+    ) = _natural_training_batches(dataset, fixture.vendor_tokenizer, steps)
     initial_state = deepcopy(fixture.vendor.model.module.state_dict())
     vendor_rows, vendor_state, vendor_record = _run_natural_side(
         fixture,
         vendor_batches,
+        vendor_validation_batches,
         side="vendor",
         initial_state=initial_state,
         steps=steps,
@@ -1574,6 +1658,7 @@ def test_s3_natural_lockstep_matches_vendor(
     vendor_repeat_rows, _, vendor_repeat_record = _run_natural_side(
         fixture,
         vendor_batches,
+        vendor_validation_batches,
         side="vendor",
         initial_state=initial_state,
         steps=steps,
@@ -1581,6 +1666,7 @@ def test_s3_natural_lockstep_matches_vendor(
     package_rows, package_state, package_record = _run_natural_side(
         fixture,
         package_batches,
+        package_validation_batches,
         side="package",
         initial_state=initial_state,
         steps=steps,
@@ -1588,6 +1674,7 @@ def test_s3_natural_lockstep_matches_vendor(
     package_repeat_rows, _, package_repeat_record = _run_natural_side(
         fixture,
         package_batches,
+        package_validation_batches,
         side="package",
         initial_state=initial_state,
         steps=steps,
