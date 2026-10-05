@@ -3082,6 +3082,123 @@ def _synchronized_step_once(
     }
 
 
+def _synchronized_repeat_envelope(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    first_state: dict[str, dict[str, dict[str, torch.Tensor]]],
+    second_state: dict[str, dict[str, dict[str, torch.Tensor]]],
+) -> dict[str, Any]:
+    self_comparisons = {
+        "gradients": {
+            "vendor": _state_compare(
+                first_state["vendor"]["gradients"], second_state["vendor"]["gradients"]
+            ),
+            "package": _state_compare(
+                first_state["package"]["gradients"],
+                second_state["package"]["gradients"],
+            ),
+        },
+        "optimizer_state": {
+            "vendor": _state_compare(
+                first_state["vendor"]["optimizer_state"],
+                second_state["vendor"]["optimizer_state"],
+            ),
+            "package": _state_compare(
+                first_state["package"]["optimizer_state"],
+                second_state["package"]["optimizer_state"],
+            ),
+        },
+        "parameters": {
+            "vendor": _state_compare(
+                first_state["vendor"]["parameters"],
+                second_state["vendor"]["parameters"],
+            ),
+            "package": _state_compare(
+                first_state["package"]["parameters"],
+                second_state["package"]["parameters"],
+            ),
+        },
+    }
+    envelope: dict[str, Any] = {}
+    for field in ("gradients", "optimizer_state", "parameters"):
+        cross = _distribution_summary(
+            [first[field]["max_abs_difference"], second[field]["max_abs_difference"]]
+        )
+        vendor_self = _distribution_summary(
+            [self_comparisons[field]["vendor"]["max_abs_difference"]]
+        )
+        package_self = _distribution_summary(
+            [self_comparisons[field]["package"]["max_abs_difference"]]
+        )
+        envelope[field] = {
+            "cross_system": cross,
+            "vendor_self": vendor_self,
+            "package_self": package_self,
+            "cross_inside_vendor_self_envelope": (
+                cross["max_abs_difference"] <= vendor_self["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= vendor_self["median_abs_difference"]
+            ),
+            "cross_inside_package_self_envelope": (
+                cross["max_abs_difference"] <= package_self["max_abs_difference"]
+                and cross["median_abs_difference"]
+                <= package_self["median_abs_difference"]
+            ),
+        }
+    return envelope
+
+
+def _synchronized_repeat_step(
+    first_args: tuple[Any, ...],
+    second_pair: dict[str, Any],
+) -> dict[str, Any]:
+    pre_rng = copy.deepcopy(capture_rng_state())
+    first = _synchronized_step_once(*first_args)
+    first_rng = copy.deepcopy(capture_rng_state())
+    first_state = _synchronized_state_snapshot(
+        first_args[0],
+        first_args[1],
+        first_args[2],
+        first_args[3],
+        first_args[4],
+    )
+    restore_rng_state(pre_rng)
+    second = _synchronized_step_once(
+        second_pair["vendor_generator"],
+        second_pair["vendor_discriminator"],
+        second_pair["package_module"],
+        second_pair["vendor_optimizers"],
+        second_pair["package_optimizers"],
+        second_pair["vendor_schedulers"],
+        second_pair["package_schedulers"],
+        first_args[7],
+        first_args[8],
+        first_args[9],
+        first_args[10],
+        first_args[11],
+    )
+    second_state = _synchronized_state_snapshot(
+        second_pair["vendor_generator"],
+        second_pair["vendor_discriminator"],
+        second_pair["package_module"],
+        second_pair["vendor_optimizers"],
+        second_pair["package_optimizers"],
+    )
+    restore_rng_state(first_rng)
+    return {
+        **first,
+        "repeat_trace": second["trace"],
+        "repeat_scheduler": second["scheduler"],
+        "repeat_rng_equal_after_operation": second["rng_equal_after_operation"],
+        "repeat_rng_equal_after_resynchronization": second[
+            "rng_equal_after_resynchronization"
+        ],
+        "repeat_run_envelope": _synchronized_repeat_envelope(
+            first, second, first_state, second_state
+        ),
+    }
+
+
 def _synchronized_state_snapshot(
     vendor_generator: nn.Module,
     vendor_discriminator: nn.Module,
@@ -3157,7 +3274,27 @@ def _synchronized_step(
     device: torch.device,
     step: int,
     epoch: int,
+    repeat_pair: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if repeat_pair is not None:
+        return _synchronized_repeat_step(
+            (
+                vendor_generator,
+                vendor_discriminator,
+                package_module,
+                vendor_optimizers,
+                package_optimizers,
+                vendor_schedulers,
+                package_schedulers,
+                vendor_batch,
+                package_batch,
+                device,
+                step,
+                epoch,
+            ),
+            repeat_pair,
+        )
+
     pre_model_state = {
         "generator": copy.deepcopy(vendor_generator.state_dict()),
         "discriminator": copy.deepcopy(vendor_discriminator.state_dict()),
@@ -3392,11 +3529,41 @@ def run_s3_synchronized() -> Path:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
+    (
+        repeat_vendor_generator,
+        repeat_vendor_discriminator,
+        repeat_package_generator,
+        repeat_package_discriminator,
+        repeat_generator_config,
+        repeat_discriminator_config,
+    ) = _models(device)
+    repeat_package_module = DSGANTrainingModule(
+        config=repeat_generator_config,
+        discriminator_config=repeat_discriminator_config,
+        generator=repeat_package_generator,
+        discriminator=repeat_package_discriminator,
+    ).to(device)
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
     package_optimizers, package_schedulers, _ = _package_optimizers_and_schedulers(
         package_module
     )
     vendor_schedulers = _schedulers(vendor_optimizers)
+    repeat_vendor_optimizers = _optimizers(
+        repeat_vendor_generator, repeat_vendor_discriminator
+    )
+    repeat_package_optimizers, repeat_package_schedulers, _ = (
+        _package_optimizers_and_schedulers(repeat_package_module)
+    )
+    repeat_vendor_schedulers = _schedulers(repeat_vendor_optimizers)
+    repeat_pair = {
+        "vendor_generator": repeat_vendor_generator,
+        "vendor_discriminator": repeat_vendor_discriminator,
+        "package_module": repeat_package_module,
+        "vendor_optimizers": repeat_vendor_optimizers,
+        "package_optimizers": repeat_package_optimizers,
+        "vendor_schedulers": repeat_vendor_schedulers,
+        "package_schedulers": repeat_package_schedulers,
+    }
     _set_determinism(SEED)
     vendor_loader, _ = _vendor_loaders(SEED)
     _set_determinism(SEED)
@@ -3431,6 +3598,7 @@ def run_s3_synchronized() -> Path:
             device,
             step,
             epoch,
+            repeat_pair,
         )
         row["batch_stream"] = {
             "passed_before_synchronization": batch_report.passed,
@@ -3443,6 +3611,8 @@ def run_s3_synchronized() -> Path:
         rows.append(row)
         if step % TRAIN_BATCHES_PER_EPOCH == 0:
             for scheduler in (*vendor_schedulers, *package_schedulers):
+                scheduler.step()
+            for scheduler in (*repeat_vendor_schedulers, *repeat_package_schedulers):
                 scheduler.step()
     trace_path = _write_jsonl("s3-lockstep-synchronized", "trace.jsonl", rows)
     synchronized_envelope: dict[str, Any] = {}
