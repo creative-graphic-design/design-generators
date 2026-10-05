@@ -21,13 +21,11 @@ model:
   class_path: ds_gan.training.DSGANTrainingModule
   init_args:
     config:
-      class_path: ds_gan.DSGANConfig
-      init_args:
-        dataset_name: pku_posterlayout
-        backbone: resnet50
-        max_elem: 32
-        image_size: [350, 240]
-        backbone_feature_size: 330
+      dataset_name: pku_posterlayout
+      backbone: resnet50
+      max_elem: 32
+      image_size: [350, 240]
+      backbone_feature_size: 330
     generator_backbone_weights: .cache/ds-gan/backbones/resnet50_a1_0-14fe96d1.pth
     discriminator_backbone_weights: .cache/ds-gan/backbones/resnet18-5c106cde.pth
     generator_learning_rate: 0.0001

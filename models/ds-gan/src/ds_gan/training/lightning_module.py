@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
 import numpy as np
 import torch
@@ -11,6 +11,7 @@ from jaxtyping import Float, Shaped
 from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 from torch import nn
+from typing_extensions import TypedDict
 
 from ..configuration_ds_gan import DSGANConfig
 from ..modeling_ds_gan import DSGANModel, DSGANModelOutput
@@ -19,14 +20,71 @@ from .losses import DSGANSetCriterion
 from .rng import NumpyChoiceSource, vendor_random_initial_layout
 
 
+DSGANConfigValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list[int]
+    | tuple[int, ...]
+    | list[str]
+    | tuple[str, ...]
+    | dict[int | str, str]
+    | dict[str, int]
+)
+
+
+class DSGANConfigArguments(TypedDict, total=False, closed=True):
+    """JSON-compatible constructor arguments accepted by ``DSGANConfig``."""
+
+    dataset_name: str
+    backbone: str
+    max_elem: int
+    in_channels: int
+    out_channels: int
+    hidden_size: int | None
+    num_layers: int
+    output_size: int
+    image_size: tuple[int, int] | list[int]
+    reference_canvas_size: tuple[int, int] | list[int]
+    backbone_feature_size: int
+    model_num_classes: int
+    id2label: dict[int | str, str] | None
+    label2id: dict[str, int] | None
+    model_subfolder: str
+    processor_subfolder: str
+    condition_types: list[str] | tuple[str, ...] | None
+    architectures: list[str] | None
+    model_type: str | None
+    transformers_version: str | None
+    torch_dtype: str | None
+    dtype: str | None
+    name_or_path: str
+    _commit_hash: str | None
+
+
+if TYPE_CHECKING:
+    TrainingConfigInput = Mapping[str, DSGANConfigValue] | DSGANConfig
+else:
+    TrainingConfigInput = Mapping[str, DSGANConfigValue]
+
+
+def _resolve_config(config: TrainingConfigInput) -> DSGANConfig:
+    if isinstance(config, DSGANConfig):
+        return config
+
+    return DSGANConfig(**cast(DSGANConfigArguments, dict(config)))
+
+
 class DSGANTrainingModule(LightningModule):
     """Train generator and discriminator with the reference update ordering."""
 
     def __init__(
         self,
         *,
-        config: DSGANConfig,
-        discriminator_config: DSGANConfig | None = None,
+        config: TrainingConfigInput,
+        discriminator_config: TrainingConfigInput | None = None,
         generator: DSGANModel | None = None,
         discriminator: DSGANDiscriminator | None = None,
         generator_backbone_weights: str | None = None,
@@ -56,6 +114,12 @@ class DSGANTrainingModule(LightningModule):
     ) -> None:
         """Initialize the two-network DS-GAN training state."""
         super().__init__()
+        resolved_config = _resolve_config(config)
+        resolved_discriminator_config = (
+            _resolve_config(discriminator_config)
+            if discriminator_config is not None
+            else None
+        )
         self.save_hyperparameters(
             ignore=(
                 "generator",
@@ -64,29 +128,27 @@ class DSGANTrainingModule(LightningModule):
                 "discriminator_backbone_weights",
             )
         )
-        self.ds_gan_config = config
+        self.ds_gan_config = resolved_config
 
-        if discriminator_config is None:
+        if resolved_discriminator_config is None:
             resolved_discriminator_config = DSGANConfig(
-                dataset_name=config.dataset_name,
+                dataset_name=resolved_config.dataset_name,
                 backbone="resnet18",
-                max_elem=config.max_elem,
-                in_channels=config.in_channels,
-                out_channels=config.out_channels,
-                hidden_size=config.hidden_size,
+                max_elem=resolved_config.max_elem,
+                in_channels=resolved_config.in_channels,
+                out_channels=resolved_config.out_channels,
+                hidden_size=resolved_config.hidden_size,
                 num_layers=2,
-                output_size=config.output_size,
-                image_size=cast(tuple[int, int], config.image_size),
+                output_size=resolved_config.output_size,
+                image_size=cast(tuple[int, int], resolved_config.image_size),
                 reference_canvas_size=cast(
-                    tuple[int, int], config.reference_canvas_size
+                    tuple[int, int], resolved_config.reference_canvas_size
                 ),
-                backbone_feature_size=config.backbone_feature_size,
+                backbone_feature_size=resolved_config.backbone_feature_size,
             )
-        else:
-            resolved_discriminator_config = discriminator_config
 
         self.generator = generator or DSGANModel(
-            config, backbone_weights=generator_backbone_weights
+            resolved_config, backbone_weights=generator_backbone_weights
         )
         self.discriminator = discriminator or DSGANDiscriminator(
             resolved_discriminator_config,
