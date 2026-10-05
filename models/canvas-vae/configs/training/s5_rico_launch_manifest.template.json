@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "dataset": "rico",
-  "queue_status": "blocked_pending_user_b2_check",
+  "queue_status": "blocked_pending_independent_review_accept",
   "source_commit": null,
   "config": "models/canvas-vae/configs/training/canvas_vae_rico.yaml",
   "config_sha256": null,
