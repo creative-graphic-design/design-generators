@@ -306,11 +306,15 @@ def test_training_module_runs_sampler_loss_and_scheduler(
         layout_dm_checkpoint_path="checkpoint.pt",
         cluster_centers_path="clusters.pkl",
     )
-    monkeypatch.setattr(
-        LayoutCorrectorTrainingModule,
-        "log",
-        lambda self, *args, **kwargs: None,
-    )
+    logged: dict[str, dict[str, object]] = {}
+
+    def capture_log(
+        self: LayoutCorrectorTrainingModule, name: str, *args: object, **kwargs: object
+    ) -> None:
+        del self, args
+        logged[name] = kwargs
+
+    monkeypatch.setattr(LayoutCorrectorTrainingModule, "log", capture_log)
     assert module.layout_dm_checkpoint_sha256 == "checkpoint-hash"
     assert module._reference_value() is reference
     assert module._reference_model_value() is reference.model
@@ -343,6 +347,7 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert loss.ndim == 0
     assert "train_loss" in module.latest_step_trace
     assert module.validation_step(batch, 0).ndim == 0
+    assert logged["val_loss"]["batch_size"] == 1
 
     loss.backward()
     module.configure_gradient_clipping(

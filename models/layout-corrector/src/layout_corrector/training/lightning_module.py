@@ -389,11 +389,10 @@ class LayoutCorrectorTrainingModule(LightningModule):
         del batch_idx
         prepared = self.preprocess(batch)
         loss, _ = self._corrector_loss(prepared)
-        batch_size = int(cast(torch.Tensor, batch["input_ids"]).shape[0])
         self.log(
             "val_loss",
             loss,
-            batch_size=batch_size,
+            batch_size=1,
             prog_bar=True,
             sync_dist=True,
         )
