@@ -3446,12 +3446,16 @@ def run_s4() -> Path:
     package_boxes_array = np.concatenate(package_boxes)
     package_eval_root = EVIDENCE / "s4-evaluation" / "package-overlay"
     (package_eval_root / "output").mkdir(parents=True, exist_ok=True)
+    package_boxes_for_eval = np.asarray(
+        package_boxes_array / np.asarray((513, 750, 513, 750)),
+        dtype=vendor_boxes_full.dtype,
+    )
     torch.save(
         torch.as_tensor(package_classes_array),
         package_eval_root / "output/clses-Epoch300.pt",
     )
     torch.save(
-        torch.as_tensor(package_boxes_array / np.asarray((513, 750, 513, 750))),
+        torch.as_tensor(package_boxes_for_eval),
         package_eval_root / "output/boxes-Epoch300.pt",
     )
     with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as package_metrics_dir:
