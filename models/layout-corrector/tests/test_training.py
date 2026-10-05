@@ -316,6 +316,14 @@ def test_training_module_runs_sampler_loss_and_scheduler(
         logged[name] = kwargs
 
     monkeypatch.setattr(LayoutCorrectorTrainingModule, "log", capture_log)
+    assert module.configure_callbacks() == []
+    monkeypatch.setenv("LAYOUT_CORRECTOR_TRACE_PATH", "trace.jsonl")
+    with pytest.raises(RuntimeError, match="requires all trace paths"):
+        module.configure_callbacks()
+    monkeypatch.setenv("LAYOUT_CORRECTOR_INITIAL_STATE_PATH", "initial.pt")
+    monkeypatch.setenv("LAYOUT_CORRECTOR_FINAL_STATE_PATH", "final.pt")
+    monkeypatch.setenv("LAYOUT_CORRECTOR_TRACE_SEED", "42975")
+    assert len(module.configure_callbacks()) == 1
     assert module.layout_dm_checkpoint_sha256 == "checkpoint-hash"
     assert module._reference_value() is reference
     assert module._reference_model_value() is reference.model
@@ -358,6 +366,16 @@ def test_training_module_runs_sampler_loss_and_scheduler(
         gradient_clip_algorithm="norm",
     )
     assert module.latest_gradient_norm is not None
+    with pytest.raises(ValueError, match="norm gradient clipping only"):
+        module.configure_gradient_clipping(
+            torch.optim.AdamW(module.model.parameters(), lr=1.0e-3),
+            gradient_clip_algorithm="value",
+        )
+    module.configure_gradient_clipping(
+        torch.optim.AdamW(module.model.parameters(), lr=1.0e-3),
+        gradient_clip_val=0.0,
+    )
+    assert module.latest_gradient_norm is None
 
     reference.lt_count.fill_(11)
     reference.lt_history.copy_(torch.arange(4, dtype=torch.float32))
