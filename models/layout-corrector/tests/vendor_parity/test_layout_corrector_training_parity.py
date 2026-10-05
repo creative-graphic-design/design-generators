@@ -1333,14 +1333,20 @@ def _run_natural_side(
         )
     model.eval()
     with torch.no_grad():
-        validation_loss_sum = 0.0
+        validation_loss_sum = torch.zeros(
+            (),
+            device=next(fixture.vendor.parameters()).device,
+            dtype=torch.float32,
+        )
         validation_sample_count = 0
         for batch in validation_batches:
-            loss = float(_vendor_trace(fixture, batch)["train_loss"].cpu().item())
+            loss = _vendor_trace(fixture, batch)["train_loss"]
             batch_size = int(cast(torch.Tensor, batch["input_ids"]).shape[0])
             validation_loss_sum += loss * batch_size
             validation_sample_count += batch_size
-    validation_loss = validation_loss_sum / validation_sample_count
+    validation_loss = float(
+        (validation_loss_sum / validation_sample_count).cpu().item()
+    )
     scheduler.step(validation_loss)
     return (
         rows,
