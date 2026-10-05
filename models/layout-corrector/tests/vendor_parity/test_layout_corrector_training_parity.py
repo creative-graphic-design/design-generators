@@ -23,6 +23,7 @@ from typing import (
     Protocol,
     cast,
 )  # noqa: TID251 - vendor APIs are dynamic.
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -210,6 +211,13 @@ def _state_digest(value: object) -> str:
     else:
         digest.update(repr(value).encode())
     return digest.hexdigest()
+
+
+def _canonical_device(device: str | torch.device) -> str:
+    value = torch.device(device)
+    if value.type == "cuda" and value.index is None:
+        value = torch.device("cuda", torch.cuda.current_device())
+    return str(value)
 
 
 def _source_commit(path: Path) -> str:
@@ -436,8 +444,10 @@ class Fixture:
     vendor_diffusion: torch.nn.Module
     package_reference: FrozenLayoutDMReference
     vendor_tokenizer: Any
-    vendor_construction_device: str
+    vendor_model_construction_device: str
+    vendor_initialization_device: str
     package_construction_device: str
+    package_initialization_device: str
     vendor_pre_model_rng_digest: str
     package_pre_model_rng_digest: str
 
@@ -457,20 +467,33 @@ def _fixture(
     vendor_diffusion, vendor_tokenizer = _vendor_reference(
         dataset, tokenizer_cls, layout_dm_cls, backbone
     )
-    vendor_corrector = cast(
-        VendorCorrector,
-        corrector_cls(
-            backbone_cfg=backbone,
-            tokenizer=vendor_tokenizer,
-            shrink_ratio=27 / 32,
-            pos_emb="none",
-            use_padding_as_vocab=True,
-            num_timesteps=100,
-            target="recon_acc",
-            recon_type="x_t-1",
-            transformer_type="aggregated",
-        ),
-    )
+    construction_devices: list[str] = []
+    data_parallel_init = torch.nn.DataParallel.__init__
+
+    def capture_data_parallel_init(
+        data_parallel: torch.nn.DataParallel[torch.nn.Module],
+        module: torch.nn.Module,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        construction_devices.append(_canonical_device(next(module.parameters()).device))
+        data_parallel_init(data_parallel, module, *args, **kwargs)
+
+    with patch.object(torch.nn.DataParallel, "__init__", capture_data_parallel_init):
+        vendor_corrector = cast(
+            VendorCorrector,
+            corrector_cls(
+                backbone_cfg=backbone,
+                tokenizer=vendor_tokenizer,
+                shrink_ratio=27 / 32,
+                pos_emb="none",
+                use_padding_as_vocab=True,
+                num_timesteps=100,
+                target="recon_acc",
+                recon_type="x_t-1",
+                transformer_type="aggregated",
+            ),
+        )
     torch.manual_seed(seed)
     package_pre_model_rng_digest = _state_digest(capture_rng_state())
     package = LayoutCorrectorTrainingModule(
@@ -484,8 +507,16 @@ def _fixture(
     )
     package_reference = package._reference_value()
     assert package.pre_model_rng_digest == package_pre_model_rng_digest
-    vendor_construction_device = str(next(vendor_corrector.parameters()).device)
+    if len(construction_devices) != 1:
+        raise AssertionError(
+            f"expected one vendor DataParallel construction, got {construction_devices}"
+        )
+    vendor_model_construction_device = construction_devices[0]
+    vendor_initialization_device = _canonical_device(
+        next(vendor_corrector.parameters()).device
+    )
     package_construction_device = package.model_construction_device
+    package_initialization_device = _canonical_device(package.initialization_device)
     if align_corrector_weights:
         package.model.model.load_state_dict(
             vendor_corrector.model.module.state_dict(), strict=True
@@ -503,8 +534,10 @@ def _fixture(
         vendor_diffusion=vendor_diffusion,
         package_reference=package_reference,
         vendor_tokenizer=vendor_tokenizer,
-        vendor_construction_device=vendor_construction_device,
+        vendor_model_construction_device=vendor_model_construction_device,
+        vendor_initialization_device=vendor_initialization_device,
         package_construction_device=package_construction_device,
+        package_initialization_device=package_initialization_device,
         vendor_pre_model_rng_digest=vendor_pre_model_rng_digest,
         package_pre_model_rng_digest=package_pre_model_rng_digest,
     )
@@ -929,8 +962,10 @@ def test_s0_training_static_state_matches_vendor(
     assert count_diff == 0.0
     assert not dataset_first, dataset_input_diffs
     assert not corrector_first, corrector_diffs
-    assert fixture.vendor_construction_device == "cpu"
-    assert fixture.package_construction_device == fixture.vendor_construction_device
+    assert (
+        fixture.vendor_model_construction_device == fixture.package_construction_device
+    )
+    assert fixture.vendor_initialization_device == fixture.package_initialization_device
     assert not set(vendor_state) - set(package_state_corrector)
     assert not set(package_state_corrector) - set(vendor_state)
     assert sum(value.numel() for value in vendor_state.values()) == sum(
@@ -977,10 +1012,14 @@ def test_s0_training_static_state_matches_vendor(
             ),
             "native_initialization_max_abs_diff": max(corrector_diffs.values()),
             "native_initialization_first_difference": corrector_first,
-            "vendor_construction_device": fixture.vendor_construction_device,
+            "vendor_model_construction_device": fixture.vendor_model_construction_device,
+            "vendor_initialization_device": fixture.vendor_initialization_device,
             "package_construction_device": fixture.package_construction_device,
-            "construction_device_equal": fixture.vendor_construction_device
+            "package_initialization_device": fixture.package_initialization_device,
+            "construction_device_equal": fixture.vendor_model_construction_device
             == fixture.package_construction_device,
+            "initialization_device_equal": fixture.vendor_initialization_device
+            == fixture.package_initialization_device,
             "parameter_registration_order_equal": [
                 name for name, _ in fixture.vendor.model.module.named_parameters()
             ]
