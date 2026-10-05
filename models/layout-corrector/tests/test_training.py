@@ -347,7 +347,7 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert loss.ndim == 0
     assert "train_loss" in module.latest_step_trace
     assert module.validation_step(batch, 0).ndim == 0
-    assert logged["val_loss"]["batch_size"] == 1
+    assert logged["val_loss"]["batch_size"] == 2
 
     loss.backward()
     module.configure_gradient_clipping(

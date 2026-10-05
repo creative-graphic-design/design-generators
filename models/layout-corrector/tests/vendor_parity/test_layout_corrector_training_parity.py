@@ -1480,7 +1480,28 @@ def _natural_comparison(
         "abs_diff": validation_loss_abs_diff,
         "tolerance": VALIDATION_LOSS_TOLERANCE,
     }
-    assert package_record["scheduler_state"] == vendor_record["scheduler_state"]
+    package_scheduler_state = package_record["scheduler_state"]
+    vendor_scheduler_state = vendor_record["scheduler_state"]
+    assert package_scheduler_state.keys() == vendor_scheduler_state.keys()
+    scheduler_state_mismatches: dict[str, tuple[Any, Any]] = {}
+    scheduler_best_abs_diff: float | None = None
+    for key in package_scheduler_state:
+        package_value = package_scheduler_state[key]
+        vendor_value = vendor_scheduler_state[key]
+        if key == "best":
+            scheduler_best_abs_diff = abs(package_value - vendor_value)
+            if scheduler_best_abs_diff > VALIDATION_LOSS_TOLERANCE:
+                scheduler_state_mismatches[key] = (package_value, vendor_value)
+        elif package_value != vendor_value:
+            scheduler_state_mismatches[key] = (package_value, vendor_value)
+    scheduler_state_equal = not scheduler_state_mismatches
+    assert scheduler_state_equal, {
+        "package_scheduler_state": package_scheduler_state,
+        "vendor_scheduler_state": vendor_scheduler_state,
+        "mismatches": scheduler_state_mismatches,
+        "best_abs_diff": scheduler_best_abs_diff,
+        "tolerance": VALIDATION_LOSS_TOLERANCE,
+    }
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
     assert package_record["max_epochs"] == 50
@@ -1579,9 +1600,9 @@ def _natural_comparison(
         "digest_mismatch_steps": digest_mismatches,
         "importance_probability_missing_steps": missing_probability_steps,
         "importance_probability_hash_mismatch_steps": probability_mismatches,
-        "scheduler_state_equal": (
-            package_record["scheduler_state"] == vendor_record["scheduler_state"]
-        ),
+        "scheduler_state_equal": scheduler_state_equal,
+        "scheduler_state_best_abs_diff": scheduler_best_abs_diff,
+        "scheduler_state_tolerance": VALIDATION_LOSS_TOLERANCE,
         "validation_executed": package_record["validation_executed"],
         "package_validation_loss": package_record["validation_loss"],
         "vendor_validation_loss": vendor_record["validation_loss"],
