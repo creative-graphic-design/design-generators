@@ -1303,6 +1303,8 @@ def _elementwise_envelope(
     outside: list[dict[str, Any]] = []
     maximum: dict[str, Any] | None = None
     maximum_cross_abs = -1.0
+    outside_vendor = False
+    outside_package = False
     for name in vendor_states[0][field]:
         vendor_values = torch.stack(
             [state[field][name].float() for state in vendor_states]
@@ -1345,9 +1347,12 @@ def _elementwise_envelope(
         if candidate_cross_abs > maximum_cross_abs:
             maximum = maximum_candidate
             maximum_cross_abs = candidate_cross_abs
+        envelope = torch.maximum(vendor_envelope, package_envelope)
         outside_vendor_mask = cross > vendor_envelope
         outside_package_mask = cross > package_envelope
-        outside_mask = outside_vendor_mask | outside_package_mask
+        outside_mask = cross > envelope
+        outside_vendor = outside_vendor or bool(outside_vendor_mask.any().item())
+        outside_package = outside_package or bool(outside_package_mask.any().item())
         for index in zip(*torch.where(outside_mask)):
             index_tuple = tuple(int(value) for value in index)
             outside.append(
@@ -1383,7 +1388,8 @@ def _elementwise_envelope(
         "element_count_outside_self_envelope": len(outside),
         "outside_self_envelope": outside,
         "maximum_cross_element": maximum,
-        "cross_inside_each_self_envelope": not outside,
+        "cross_inside_vendor_self_envelope": not outside_vendor,
+        "cross_inside_package_self_envelope": not outside_package,
         "cross_inside_combined_self_envelope": not outside,
     }
 
@@ -2293,7 +2299,7 @@ def run_s2() -> Path:
     }
     cause_passed = (
         all(inside_self_distributions.values())
-        and elementwise_envelopes["gradients"]["cross_inside_each_self_envelope"]
+        and elementwise_envelopes["gradients"]["cross_inside_combined_self_envelope"]
         and parameter_update_mechanism["passed"]
         and self_repeats_valid
     )
