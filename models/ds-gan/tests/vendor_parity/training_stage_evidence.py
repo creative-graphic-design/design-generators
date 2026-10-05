@@ -3457,11 +3457,11 @@ def run_s4() -> Path:
         dtype=vendor_boxes_full.dtype,
     )
     torch.save(
-        torch.as_tensor(package_classes_raw_array[..., np.newaxis]),
+        package_classes_raw_array[..., np.newaxis],
         package_eval_root / "output/clses-Epoch300.pt",
     )
     torch.save(
-        torch.as_tensor(package_boxes_for_eval),
+        package_boxes_for_eval,
         package_eval_root / "output/boxes-Epoch300.pt",
     )
     with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as package_metrics_dir:
