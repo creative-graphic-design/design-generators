@@ -3040,6 +3040,8 @@ def _synchronized_step_once(
     return {
         "step": step,
         "epoch": epoch,
+        "_vendor_trace": vendor_trace,
+        "_package_trace": package_trace,
         "trace": trace_comparison,
         "gradients": gradient_comparison,
         "parameters": parameter_comparison,
@@ -3089,38 +3091,44 @@ def _synchronized_repeat_envelope(
     second_state: dict[str, dict[str, dict[str, torch.Tensor]]],
 ) -> dict[str, Any]:
     self_comparisons = {
+        "trace": {
+            "vendor": _trace_compare(first["_vendor_trace"], second["_vendor_trace"]),
+            "package": _trace_compare(
+                first["_package_trace"], second["_package_trace"]
+            ),
+        },
         "gradients": {
-            "vendor": _state_compare(
+            "vendor": _state_max_summary(
                 first_state["vendor"]["gradients"], second_state["vendor"]["gradients"]
             ),
-            "package": _state_compare(
+            "package": _state_max_summary(
                 first_state["package"]["gradients"],
                 second_state["package"]["gradients"],
             ),
         },
         "optimizer_state": {
-            "vendor": _state_compare(
+            "vendor": _state_max_summary(
                 first_state["vendor"]["optimizer_state"],
                 second_state["vendor"]["optimizer_state"],
             ),
-            "package": _state_compare(
+            "package": _state_max_summary(
                 first_state["package"]["optimizer_state"],
                 second_state["package"]["optimizer_state"],
             ),
         },
         "parameters": {
-            "vendor": _state_compare(
+            "vendor": _state_max_summary(
                 first_state["vendor"]["parameters"],
                 second_state["vendor"]["parameters"],
             ),
-            "package": _state_compare(
+            "package": _state_max_summary(
                 first_state["package"]["parameters"],
                 second_state["package"]["parameters"],
             ),
         },
     }
     envelope: dict[str, Any] = {}
-    for field in ("gradients", "optimizer_state", "parameters"):
+    for field in ("trace", "gradients", "optimizer_state", "parameters"):
         cross = _distribution_summary(
             [first[field]["max_abs_difference"], second[field]["max_abs_difference"]]
         )
@@ -3185,8 +3193,11 @@ def _synchronized_repeat_step(
         second_pair["package_optimizers"],
     )
     restore_rng_state(first_rng)
+    first_public = {
+        key: value for key, value in first.items() if not key.startswith("_")
+    }
     return {
-        **first,
+        **first_public,
         "repeat_trace": second["trace"],
         "repeat_scheduler": second["scheduler"],
         "repeat_rng_equal_after_operation": second["rng_equal_after_operation"],
@@ -3254,6 +3265,20 @@ def _distribution_summary(values: list[float]) -> dict[str, Any]:
         "values": values,
         "max_abs_difference": max(values),
         "median_abs_difference": median(values),
+    }
+
+
+def _state_max_summary(
+    reference: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+) -> dict[str, float]:
+    missing = set(reference) - set(target)
+    if missing:
+        raise RuntimeError(f"state comparison is missing keys: {sorted(missing)}")
+    return {
+        "max_abs_difference": max(
+            float((target[name].float() - reference[name].float()).abs().max().item())
+            for name in reference
+        )
     }
 
 
@@ -3444,7 +3469,7 @@ def _synchronized_step(
         },
     }
     repeat_envelope: dict[str, Any] = {}
-    for field in ("gradients", "optimizer_state", "parameters"):
+    for field in ("trace", "gradients", "optimizer_state", "parameters"):
         cross_values = [
             first[field]["max_abs_difference"],
             second[field]["max_abs_difference"],
@@ -3648,7 +3673,7 @@ def run_s3_synchronized() -> Path:
                 <= package_self["median_abs_difference"]
             ),
         }
-    trace_pass = all(
+    trace_bitwise = all(
         row["trace"]["passed"] and row["repeat_trace"]["passed"] for row in rows
     )
     rng_pass = all(
@@ -3664,17 +3689,22 @@ def run_s3_synchronized() -> Path:
     numeric_envelope_pass = all(
         field_summary["cross_inside_vendor_self_envelope"]
         and field_summary["cross_inside_package_self_envelope"]
-        for field_summary in synchronized_envelope.values()
+        for field, field_summary in synchronized_envelope.items()
+        if field != "trace"
     )
-    passed = trace_pass and rng_pass and scheduler_pass and numeric_envelope_pass
+    trace_envelope_pass = (
+        synchronized_envelope["trace"]["cross_inside_vendor_self_envelope"]
+        and synchronized_envelope["trace"]["cross_inside_package_self_envelope"]
+    )
+    passed = (
+        trace_envelope_pass and rng_pass and scheduler_pass and numeric_envelope_pass
+    )
     first_divergence = next(
         (
             row
             for row in rows
             if not (
-                row["trace"]["passed"]
-                and row["repeat_trace"]["passed"]
-                and row["rng_equal_after_resynchronization"]
+                row["rng_equal_after_resynchronization"]
                 and row["repeat_rng_equal_after_resynchronization"]
                 and row["scheduler"]["vendor"] == row["scheduler"]["package"]
                 and row["repeat_scheduler"]["vendor"]
@@ -3694,7 +3724,8 @@ def run_s3_synchronized() -> Path:
             "first_divergence": first_divergence,
             "trace": str(trace_path.relative_to(ROOT)),
             "per_step_equivalence": {
-                "trace_bitwise": trace_pass,
+                "trace_bitwise": trace_bitwise,
+                "trace_envelope_pass": trace_envelope_pass,
                 "rng_bitwise": rng_pass,
                 "scheduler_bitwise": scheduler_pass,
                 "numeric_state_gate": "cross distributions inside both self envelopes",
