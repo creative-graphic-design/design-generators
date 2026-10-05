@@ -450,6 +450,7 @@ def temporary_files(
     pinned_commit: str,
     download_inputs: bool,
     checkpoint_download: JsonObject | None = None,
+    phase: str = "training",
 ) -> tuple[Path, Path, Path]:
     input_data = manifest.get("input_data")
     if not isinstance(input_data, dict):
@@ -477,11 +478,15 @@ def temporary_files(
         "hub_prefix": input_data.get("prefix"),
         "checkpoint_download": checkpoint_download,
     }
-    preflight_path = temporary_directory / "preflight.json"
+    preflight_path = temporary_directory / f"{phase}-preflight.json"
     preflight_path.write_text(json.dumps(preflight_config, indent=2) + "\n")
-    preflight_script = temporary_directory / "preflight.py"
+    preflight_script = temporary_directory / f"{phase}-preflight.py"
     preflight_script.write_text(remote_preflight_source(), encoding="utf-8")
-    return preflight_path, preflight_script, temporary_directory / "run-job.sh"
+    return (
+        preflight_path,
+        preflight_script,
+        temporary_directory / f"{phase}-run-job.sh",
+    )
 
 
 def build_run_job(
@@ -934,8 +939,7 @@ def run_named_session(
             "subprocess.run(['chmod', '700', '/content/colab-job.sh', "
             "'/content/run-job.sh'], check=True)\n"
             "Path('/content/out/resume').mkdir(parents=True, exist_ok=True)\n"
-            "exec(compile(Path('/content/s5-preflight.py').read_text(), "
-            "'/content/s5-preflight.py', 'exec'))\n"
+            "subprocess.run(['python', '/content/s5-preflight.py'], check=True)\n"
         )
         cell_path = preflight_path.with_name("preflight-cell.py")
         cell_path.write_text(remote_preflight_cell, encoding="utf-8")
@@ -1232,7 +1236,12 @@ def execute_run(
             ):
                 raise ExecutorError("CPU original smoke must train for one epoch")
         preflight_path, preflight_script, run_path = temporary_files(
-            temporary_directory, manifest, run, pinned, download_inputs=True
+            temporary_directory,
+            manifest,
+            run,
+            pinned,
+            download_inputs=True,
+            phase="training",
         )
         run_path.write_text(
             build_run_job(
@@ -1319,6 +1328,7 @@ def execute_run(
             pinned,
             download_inputs=True,
             checkpoint_download=checkpoint_download,
+            phase="postprocess",
         )
         cpu_run_path.write_text(
             build_postprocess_job(
