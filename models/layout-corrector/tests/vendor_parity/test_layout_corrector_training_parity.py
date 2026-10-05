@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import gc
 import os
 import pickle
 import shutil
@@ -1187,6 +1188,8 @@ def _natural_training_batches(
     assert stream_report.passed, stream_report
     assert len(vendor_batches) == len(package_batches) == steps
     assert vendor_ids == package_ids
+    del vendor_iterator, package_iterator
+    gc.collect()
     loader_record = {
         "vendor_pre_loader_rng_digest": vendor_pre_loader_rng_digest,
         "package_pre_loader_rng_digest": package_pre_loader_rng_digest,
@@ -1234,6 +1237,8 @@ def _natural_training_batches(
         }
         for batch in package_validation_loader
     ]
+    del vendor_validation_loader, package_validation_loader
+    gc.collect()
     validation_stream_report = compare_batch_stream(
         vendor_validation_batches,
         package_validation_batches,
@@ -1328,11 +1333,14 @@ def _run_natural_side(
         )
     model.eval()
     with torch.no_grad():
-        validation_losses = [
-            float(_vendor_trace(fixture, batch)["train_loss"].cpu().item())
-            for batch in validation_batches
-        ]
-    validation_loss = sum(validation_losses) / len(validation_losses)
+        validation_loss_sum = 0.0
+        validation_sample_count = 0
+        for batch in validation_batches:
+            loss = float(_vendor_trace(fixture, batch)["train_loss"].cpu().item())
+            batch_size = int(cast(torch.Tensor, batch["input_ids"]).shape[0])
+            validation_loss_sum += loss * batch_size
+            validation_sample_count += batch_size
+    validation_loss = validation_loss_sum / validation_sample_count
     scheduler.step(validation_loss)
     return (
         rows,
