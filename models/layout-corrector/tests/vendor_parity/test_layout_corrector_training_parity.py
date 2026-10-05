@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import gc
@@ -435,8 +436,8 @@ class Fixture:
     vendor_diffusion: torch.nn.Module
     package_reference: FrozenLayoutDMReference
     vendor_tokenizer: Any
-    vendor_initialization_device: str
-    package_initialization_device: str
+    vendor_construction_device: str
+    package_construction_device: str
     vendor_pre_model_rng_digest: str
     package_pre_model_rng_digest: str
 
@@ -483,8 +484,8 @@ def _fixture(
     )
     package_reference = package._reference_value()
     assert package.pre_model_rng_digest == package_pre_model_rng_digest
-    vendor_initialization_device = str(next(vendor_corrector.parameters()).device)
-    package_initialization_device = str(next(package.model.parameters()).device)
+    vendor_construction_device = str(next(vendor_corrector.parameters()).device)
+    package_construction_device = package.model_construction_device
     if align_corrector_weights:
         package.model.model.load_state_dict(
             vendor_corrector.model.module.state_dict(), strict=True
@@ -502,8 +503,8 @@ def _fixture(
         vendor_diffusion=vendor_diffusion,
         package_reference=package_reference,
         vendor_tokenizer=vendor_tokenizer,
-        vendor_initialization_device=vendor_initialization_device,
-        package_initialization_device=package_initialization_device,
+        vendor_construction_device=vendor_construction_device,
+        package_construction_device=package_construction_device,
         vendor_pre_model_rng_digest=vendor_pre_model_rng_digest,
         package_pre_model_rng_digest=package_pre_model_rng_digest,
     )
@@ -928,9 +929,8 @@ def test_s0_training_static_state_matches_vendor(
     assert count_diff == 0.0
     assert not dataset_first, dataset_input_diffs
     assert not corrector_first, corrector_diffs
-    expected_initialization_device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    assert fixture.vendor_initialization_device == expected_initialization_device
-    assert fixture.package_initialization_device == expected_initialization_device
+    assert fixture.vendor_construction_device == "cpu"
+    assert fixture.package_construction_device == fixture.vendor_construction_device
     assert not set(vendor_state) - set(package_state_corrector)
     assert not set(package_state_corrector) - set(vendor_state)
     assert sum(value.numel() for value in vendor_state.values()) == sum(
@@ -977,10 +977,10 @@ def test_s0_training_static_state_matches_vendor(
             ),
             "native_initialization_max_abs_diff": max(corrector_diffs.values()),
             "native_initialization_first_difference": corrector_first,
-            "vendor_initialization_device": fixture.vendor_initialization_device,
-            "package_initialization_device": fixture.package_initialization_device,
-            "initialization_device_equal": fixture.vendor_initialization_device
-            == fixture.package_initialization_device,
+            "vendor_construction_device": fixture.vendor_construction_device,
+            "package_construction_device": fixture.package_construction_device,
+            "construction_device_equal": fixture.vendor_construction_device
+            == fixture.package_construction_device,
             "parameter_registration_order_equal": [
                 name for name, _ in fixture.vendor.model.module.named_parameters()
             ]
@@ -1612,7 +1612,6 @@ def _natural_comparison(
         "learning_rate_mismatch_steps": learning_rate_mismatches,
         "first_divergence": first,
         "relative_loss_criterion_passed": first is None,
-        "production_path_assertions_passed": True,
     }
     assert not digest_mismatches, digest_mismatches
     assert not missing_probability_steps, missing_probability_steps
@@ -2129,6 +2128,32 @@ def _vendor_command(dataset: str, job_dir: Path) -> list[str]:
     ]
 
 
+def _vendor_unconditional_sample_count() -> int:
+    """Read the unconditional count from the original evaluator entry point."""
+    path = ROOT / "vendor" / "layout-corrector" / "bin" / "corrector_test_eval.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add_argument":
+            continue
+        option_names = {
+            argument.value
+            for argument in node.args
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+        }
+        if "--num_uncond_samples" not in option_names:
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "default":
+                continue
+            if isinstance(keyword.value, ast.Constant) and isinstance(
+                keyword.value.value, int
+            ):
+                return keyword.value.value
+    raise AssertionError("original evaluator has no integer unconditional count")
+
+
 def _vendor_result_paths(dataset: str, scratch: Path) -> dict[str, Path]:
     result_root = scratch / "results" / dataset / "layout_corrector"
     result_dirs = {
@@ -2337,6 +2362,7 @@ def _package_evaluation(
         for condition in vendor_pkl_paths
     }
     package_inputs: dict[str, list[dict[str, Any]]] = {}
+    expected_unconditional_count = _vendor_unconditional_sample_count()
     if package_reused:
         for condition, package_dir in package_dirs.items():
             package_path = package_dir / "seed_0.pkl"
@@ -2375,7 +2401,13 @@ def _package_evaluation(
         inputs: list[dict[str, Any]] = []
         started = time.perf_counter()
         if condition == "unconditional":
-            total_layouts = int(vendor_meta["N_total"])
+            vendor_total_layouts = int(vendor_meta["N_total"])
+            assert vendor_total_layouts == expected_unconditional_count, {
+                "dataset": dataset,
+                "vendor_total_layouts": vendor_total_layouts,
+                "expected_unconditional_count": expected_unconditional_count,
+            }
+            total_layouts = expected_unconditional_count
             for start in range(0, total_layouts, EVALUATION_BATCH_SIZE):
                 output = cast(
                     LayoutGenerationOutput,
@@ -2554,6 +2586,7 @@ def test_s4_test_evaluation_path_matches_vendor(
 ) -> None:
     if not torch.cuda.is_available():
         pytest.fail("S4 evaluation-path parity requires the selected GPU")
+    expected_unconditional_count = _vendor_unconditional_sample_count()
     scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint, vendor_reused = (
         _run_vendor_evaluation(dataset)
     )
@@ -2615,6 +2648,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         "vendor_source_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
         "vendor_evaluator_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
         "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
+        "evaluator_unconditional_sample_count": expected_unconditional_count,
         "source_commit": _source_commit(ROOT),
         "runtime": _runtime_record(),
     }
@@ -2679,6 +2713,9 @@ def test_s4_test_evaluation_path_matches_vendor(
         assert _out_of_bounds_count(vendor_records) == _out_of_bounds_count(
             package_records
         )
+        if condition == "unconditional":
+            assert int(vendor_meta["N_total"]) == expected_unconditional_count
+            assert int(package_meta["N_total"]) == expected_unconditional_count
         assert vendor_meta["N_total"] == package_meta["N_total"] == len(vendor_records)
         assert weight_identity["same_key_set"] is True
         assert weight_identity["same_tensors"] is True
@@ -2703,6 +2740,11 @@ def test_s4_test_evaluation_path_matches_vendor(
             ),
             "vendor_predictions_sha256": _sha256(vendor_prediction_path),
             "package_predictions_sha256": _sha256(package_prediction_path),
+            "expected_layout_count": (
+                expected_unconditional_count
+                if condition == "unconditional"
+                else len(vendor_records)
+            ),
             "num_layouts": len(vendor_records),
             "vendor_prediction_count_elements": sum(vendor_counts),
             "package_prediction_count_elements": sum(package_counts),

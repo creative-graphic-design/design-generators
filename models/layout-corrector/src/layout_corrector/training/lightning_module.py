@@ -88,6 +88,7 @@ class LayoutCorrectorTrainingModule(LightningModule):
         with torch.device("cpu"):
             self.model = LayoutCorrectorModel(**dict(config.config))
 
+        self.model_construction_device = str(next(self.model.parameters()).device)
         torch.nn.Module.to(self.model, initialization_device)
         self.model.initialize_weights()
         self.initialization_device = str(initialization_device)

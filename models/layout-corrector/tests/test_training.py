@@ -319,6 +319,7 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert module.layout_dm_checkpoint_sha256 == "checkpoint-hash"
     assert module._reference_value() is reference
     assert module._reference_model_value() is reference.model
+    assert module.model_construction_device == "cpu"
     assert module.initialization_device == "cpu"
     assert len(module.optim_groups()) == 2
     module._reference_model_value().train()
