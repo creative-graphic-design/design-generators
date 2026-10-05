@@ -1394,6 +1394,65 @@ def _elementwise_envelope(
     }
 
 
+def _sign_straddling_parameter_probe(
+    vendor_states: list[dict[str, Any]],
+    package_states: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    maximum: dict[str, Any] | None = None
+    maximum_cross_abs = -1.0
+    for name in vendor_states[0]["parameters"]:
+        vendor_gradients = torch.stack(
+            [state["gradients"][name].float() for state in vendor_states]
+        )
+        package_gradients = torch.stack(
+            [state["gradients"][name].float() for state in package_states]
+        )
+        vendor_parameters = torch.stack(
+            [state["parameters"][name].float() for state in vendor_states]
+        )
+        package_parameters = torch.stack(
+            [state["parameters"][name].float() for state in package_states]
+        )
+        all_gradients = torch.cat((vendor_gradients, package_gradients))
+        sign_straddles = (all_gradients > 0).any(dim=0) & (all_gradients < 0).any(dim=0)
+        for index in zip(*torch.where(sign_straddles)):
+            index_tuple = tuple(int(value) for value in index)
+            cross = torch.stack(
+                [
+                    (
+                        vendor_parameters[repeat][index_tuple]
+                        - package_parameters[repeat][index_tuple]
+                    ).abs()
+                    for repeat in range(len(vendor_states))
+                ]
+            ).max()
+            cross_abs = float(cross.item())
+            if cross_abs <= maximum_cross_abs:
+                continue
+
+            vendor_envelope = (
+                vendor_parameters[:, index_tuple].amax()
+                - vendor_parameters[:, index_tuple].amin()
+            )
+            package_envelope = (
+                package_parameters[:, index_tuple].amax()
+                - package_parameters[:, index_tuple].amin()
+            )
+            maximum = {
+                "name": name,
+                "index": index_tuple,
+                "cross_max_abs": cross_abs,
+                "vendor_self_max_abs": float(vendor_envelope.item()),
+                "package_self_max_abs": float(package_envelope.item()),
+            }
+            maximum_cross_abs = cross_abs
+
+    if maximum is None:
+        return None
+
+    return maximum
+
+
 def _parameter_update_mechanism(
     vendor_states: list[dict[str, Any]],
     package_states: list[dict[str, Any]],
@@ -2205,6 +2264,20 @@ def run_s2() -> Path:
         self_states["package"],
         elementwise_envelopes["parameters"],
     )
+    sign_straddling_probe = _sign_straddling_parameter_probe(
+        self_states["vendor"], self_states["package"]
+    )
+    if sign_straddling_probe is not None:
+        parameter_update_mechanism["sign_straddling_probe"] = (
+            _parameter_update_mechanism(
+                self_states["vendor"],
+                self_states["package"],
+                {"outside_self_envelope": [sign_straddling_probe]},
+                include_maximum_probe=False,
+            )["candidates"][0]
+        )
+    else:
+        parameter_update_mechanism["sign_straddling_probe"] = None
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
         "loss": trace_comparison,
