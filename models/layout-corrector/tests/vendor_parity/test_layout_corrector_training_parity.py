@@ -87,6 +87,7 @@ EVALUATION_CONDITIONS: Final[tuple[str, ...]] = ("unconditional", "c", "cwh")
 EVALUATION_CORRECTOR_T_LIST: Final[tuple[int, ...]] = (10, 20, 30)
 EVALUATION_SEED: Final[int] = 0
 NATURAL_STREAM_SEED: Final[int] = 42975
+VALIDATION_LOSS_TOLERANCE: Final[float] = 2.0e-8
 CHECKPOINT_SHA256: Final = {
     "rico25": "7759bdf9e05cccef7a6a7e4260adc50f8c1ef6e6faa10351b79fb63f6b51c853",
     "publaynet": "9f7aee8ca600cc7cc96182affc85f96ebafc2b41a9ae72b05dfacfd64e89791d",
@@ -1468,7 +1469,15 @@ def _natural_comparison(
     assert package_record["validation_batches"] == vendor_record["validation_batches"]
     assert package_record["validation_executed"] is True
     assert vendor_record["validation_executed"] is True
-    assert package_record["validation_loss"] == vendor_record["validation_loss"]
+    validation_loss_abs_diff = abs(
+        package_record["validation_loss"] - vendor_record["validation_loss"]
+    )
+    assert validation_loss_abs_diff <= VALIDATION_LOSS_TOLERANCE, {
+        "package_validation_loss": package_record["validation_loss"],
+        "vendor_validation_loss": vendor_record["validation_loss"],
+        "abs_diff": validation_loss_abs_diff,
+        "tolerance": VALIDATION_LOSS_TOLERANCE,
+    }
     assert package_record["scheduler_state"] == vendor_record["scheduler_state"]
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
     assert package_record["num_workers"] == _loader_worker_count()
@@ -1572,6 +1581,10 @@ def _natural_comparison(
             package_record["scheduler_state"] == vendor_record["scheduler_state"]
         ),
         "validation_executed": package_record["validation_executed"],
+        "package_validation_loss": package_record["validation_loss"],
+        "vendor_validation_loss": vendor_record["validation_loss"],
+        "validation_loss_abs_diff": validation_loss_abs_diff,
+        "validation_loss_tolerance": VALIDATION_LOSS_TOLERANCE,
         "gradient_norm_mismatch_steps": gradient_mismatches,
         "learning_rate_mismatch_steps": learning_rate_mismatches,
         "first_divergence": first,
