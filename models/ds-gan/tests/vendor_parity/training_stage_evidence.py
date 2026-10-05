@@ -3431,21 +3431,21 @@ def run_s4() -> Path:
         intermediates = cast(dict[str, object], output.intermediates)
         class_probs = cast(torch.Tensor, intermediates["class_probs"])
         boxes_tensor = cast(torch.Tensor, output.bbox)
-        classes = class_probs.argmax(dim=-1).cpu().numpy()[:valid]
-        boxes = boxes_tensor.cpu().numpy()[:valid]
-        boxes = np.stack(
+        classes_full = class_probs.argmax(dim=-1).cpu().numpy()
+        boxes_full = boxes_tensor.cpu().numpy()
+        boxes_full = np.stack(
             (
-                boxes[..., 0] - boxes[..., 2] / 2,
-                boxes[..., 1] - boxes[..., 3] / 2,
-                boxes[..., 0] + boxes[..., 2] / 2,
-                boxes[..., 1] + boxes[..., 3] / 2,
+                boxes_full[..., 0] - boxes_full[..., 2] / 2,
+                boxes_full[..., 1] - boxes_full[..., 3] / 2,
+                boxes_full[..., 0] + boxes_full[..., 2] / 2,
+                boxes_full[..., 1] + boxes_full[..., 3] / 2,
             ),
             axis=-1,
         )
-        package_classes_raw.append(class_probs.argmax(dim=-1).cpu().numpy())
-        package_boxes_raw.append(boxes)
-        package_classes.append(classes)
-        package_boxes.append(boxes * np.asarray((513, 750, 513, 750)))
+        package_classes_raw.append(classes_full)
+        package_boxes_raw.append(boxes_full)
+        package_classes.append(classes_full[:valid])
+        package_boxes.append(boxes_full[:valid] * np.asarray((513, 750, 513, 750)))
     package_classes_array = np.concatenate(package_classes)
     package_boxes_array = np.concatenate(package_boxes)
     package_classes_raw_array = np.concatenate(package_classes_raw)
