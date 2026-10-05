@@ -9,13 +9,14 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
+
+pytest.importorskip("lightning")
+pytest.importorskip("traingen")
+
 import torch
 from lightning.pytorch import LightningModule, Trainer
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
-
-pytest.importorskip("lightning")
-pytest.importorskip("traingen")
 
 import layout_corrector.training.dataset as dataset_module
 import layout_corrector.training.reference as reference_module
