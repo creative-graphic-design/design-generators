@@ -365,9 +365,12 @@ def launch_preconditions(
         )
     runtime_plan = manifest["runtime_plan"]
     a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
+    cpu_ttl = runtime_plan.get("cpu_wrapper_ttl")
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
     if (
         runtime_plan.get("source_commit") != pinned_commit
-        or runtime_plan.get("gpu") != "A100"
+        or runtime_plan.get("gpu") != expected_gpu
         or runtime_plan.get("one_named_a100_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
         or runtime_plan.get("one_training_run_at_a_time") is not True
@@ -380,7 +383,8 @@ def launch_preconditions(
             and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system])
             for system in ("package", "original")
         )
-        or runtime_plan.get("cpu_wrapper_ttl") != "38m"
+        or not isinstance(cpu_ttl, str)
+        or not re.fullmatch(r"[1-9][0-9]*m", cpu_ttl)
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
         or runtime_plan.get("a100_sync_paths")
         != ["${S5_RUNTIME_ROOT}/out/checkpoints", "${S5_RUNTIME_ROOT}/out/logs"]
@@ -391,9 +395,21 @@ def launch_preconditions(
             "${S5_RUNTIME_ROOT}/out/logs",
         ]
         or runtime_plan.get("source_gate_before_artifact_sync") is not True
+        or runtime_plan.get("require_hub_wrapper_exit_code_after_each_session")
+        is not True
+        or runtime_plan.get("hub_wrapper_exit_code_path") != "logs/<job>/exit_code"
+        or runtime_plan.get("checkpoint_presence_gate_before_cpu_dispatch") is not True
+        or runtime_plan.get("branch_must_remain_frozen_while_b2_running") is not True
     ):
         raise QueueError(
             "launch refused: manifest runtime plan is not sequential and fail-closed",
+            BLOCKED_EXIT,
+        )
+    if cpu_runtime_smoke and not all(
+        run["run_id"].startswith("cpu-smoke-") for run in manifest["runs"]
+    ):
+        raise QueueError(
+            "launch refused: CPU runtime smoke accepts only cpu-smoke run IDs",
             BLOCKED_EXIT,
         )
     for run in manifest["runs"]:

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import hashlib
 import os
 import re
 import shlex
@@ -17,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from typing import TypeAlias
 
@@ -89,7 +89,6 @@ def require_token_file() -> Path:
 def colab(
     *args: str,
     capture: bool = False,
-    allow_nonzero: bool = False,
     output_path: Path | None = None,
     timeout: float = 120.0,
 ) -> str:
@@ -114,12 +113,209 @@ def colab(
                 text=True,
                 timeout=timeout,
             )
-    if result.returncode != 0 and not allow_nonzero:
+    if result.returncode != 0:
         raise ExecutorError(
             f"Colab command {args[0]} failed with exit code {result.returncode}"
         )
 
     return result.stdout.strip() if capture else ""
+
+
+def hub_python(
+    token_path: Path,
+    source: str,
+    temporary_directory: Path,
+    extra_environment: dict[str, str] | None = None,
+) -> str:
+    environment = os.environ.copy()
+    if extra_environment is not None:
+        environment.update(extra_environment)
+    environment["S5_HF_TOKEN_FILE"] = str(token_path)
+    environment["S5_HF_TEMP_DIR"] = str(temporary_directory)
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--no-project",
+            "--with",
+            "huggingface_hub",
+            "--",
+            "python",
+            "-c",
+            source,
+        ],
+        cwd=REPOSITORY_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    if result.returncode != 0:
+        raise ExecutorError("private Hub verification failed: " + result.stderr.strip())
+
+    return result.stdout.strip()
+
+
+def verify_checkpoint_on_hub(
+    token_path: Path,
+    checkpoint_hub_path: str,
+    system: str,
+) -> None:
+    source = "\n".join(
+        [
+            "import json, os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "files = HfApi(token=token).list_repo_files('shunk031/colab-jobs', repo_type='model')",
+            "prefix = os.environ['S5_CHECKPOINT_HUB_PATH']",
+            "print(json.dumps([path for path in files if path == prefix or path.startswith(prefix + '.')]))",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-checkpoint-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {"S5_CHECKPOINT_HUB_PATH": checkpoint_hub_path},
+        )
+    try:
+        files = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise ExecutorError(
+            "private Hub checkpoint listing was not valid JSON"
+        ) from error
+
+    if not isinstance(files, list) or not all(isinstance(path, str) for path in files):
+        raise ExecutorError("private Hub checkpoint listing returned invalid paths")
+    if system == "package":
+        present = checkpoint_hub_path in files
+    else:
+        present = checkpoint_hub_path + ".index" in files and any(
+            path.startswith(checkpoint_hub_path + ".data-") for path in files
+        )
+    if not present:
+        raise ExecutorError(
+            f"epoch-500 {system} checkpoint is missing from the private Hub: {checkpoint_hub_path}"
+        )
+
+
+def verify_hub_paths(
+    token_path: Path,
+    expected_paths: list[str],
+    description: str,
+) -> None:
+    source = "\n".join(
+        [
+            "import json, os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "files = HfApi(token=token).list_repo_files('shunk031/colab-jobs', repo_type='model')",
+            "expected = json.loads(os.environ['S5_EXPECTED_HUB_PATHS'])",
+            "print(json.dumps([path for path in expected if path in files]))",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-artifacts-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {"S5_EXPECTED_HUB_PATHS": json.dumps(expected_paths)},
+        )
+    try:
+        present_paths = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise ExecutorError(
+            f"private Hub {description} listing was not valid JSON"
+        ) from error
+    if present_paths != expected_paths:
+        missing = sorted(set(expected_paths) - set(present_paths))
+        raise ExecutorError(f"private Hub {description} is missing: {missing}")
+
+
+def upload_smoke_result(token_path: Path, result_path: Path, hub_path: str) -> None:
+    source = "\n".join(
+        [
+            "import os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "HfApi(token=token).upload_file(path_or_fileobj=os.environ['S5_SMOKE_RESULT_PATH'], path_in_repo=os.environ['S5_SMOKE_HUB_PATH'], repo_id='shunk031/colab-jobs', repo_type='model', commit_message='Record CanvasVAE S5 executor CPU smoke')",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-smoke-result-") as temporary:
+        hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_SMOKE_RESULT_PATH": str(result_path),
+                "S5_SMOKE_HUB_PATH": hub_path,
+            },
+        )
+
+    verify_hub_paths(token_path, [hub_path], "CPU smoke result")
+
+
+def read_hub_exit_code(token_path: Path, hub_path: str) -> int:
+    source = "\n".join(
+        [
+            "import os",
+            "from pathlib import Path",
+            "from huggingface_hub import hf_hub_download",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "artifact = hf_hub_download(repo_id='shunk031/colab-jobs', filename=os.environ['S5_EXIT_CODE_HUB_PATH'], repo_type='model', revision='main', token=token, local_dir=os.environ['S5_HF_TEMP_DIR'])",
+            "print(Path(artifact).read_text().strip())",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-exit-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {"S5_EXIT_CODE_HUB_PATH": hub_path},
+        )
+    try:
+        exit_code = int(output)
+    except ValueError as error:
+        raise ExecutorError(
+            f"Hub wrapper exit code is not an integer: {hub_path}"
+        ) from error
+    if not 0 <= exit_code <= 255:
+        raise ExecutorError(f"Hub wrapper exit code is out of range: {hub_path}")
+
+    return exit_code
+
+
+def record_smoke_exit_code(
+    run_id: str,
+    session_type: str,
+    session_name: str,
+    job_name: str,
+    hub_prefix: str,
+    exit_code: int,
+) -> None:
+    result_path_value = os.environ.get("CANVAS_VAE_S5_SMOKE_RESULT_PATH")
+    if result_path_value is None:
+        return
+    result_path = Path(result_path_value).resolve()
+    try:
+        result_path.relative_to(REPOSITORY_ROOT / ".cache/canvas-vae/s5")
+    except ValueError as error:
+        raise ExecutorError("smoke result path must stay under the S5 cache") from error
+    result = load_json(result_path)
+    session_exit_codes = result.get("session_exit_codes")
+    if not isinstance(session_exit_codes, dict):
+        raise ExecutorError("smoke result is missing its session_exit_codes object")
+    session_exit_codes[f"{run_id}:{session_type}"] = {
+        "run_id": run_id,
+        "session_name": session_name,
+        "job_name": job_name,
+        "hub_exit_code_path": f"{hub_prefix}/logs/{job_name}/exit_code",
+        "exit_code": exit_code,
+    }
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
 
 def assert_session_is_free(session_name: str) -> None:
@@ -247,71 +443,6 @@ if config["initialize_vendor_submodule"]:
 """
 
 
-def remote_failure_injection_source(source_commit: str) -> str:
-    return """#!/usr/bin/env python3
-from __future__ import annotations
-
-import importlib.util
-import json
-import sys
-from pathlib import Path
-
-module_path = Path("/content/repo/models/canvas-vae/scripts/s5_rico_seed_queue.py")
-module_path.write_bytes(Path("/content/s5_rico_seed_queue.py").read_bytes())
-spec = importlib.util.spec_from_file_location("s5_rico_seed_queue", module_path)
-if spec is None or spec.loader is None:
-    raise SystemExit("could not import the queue supervisor")
-queue = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(queue)
-calls_path = Path("/content/out/results/injected-failure-calls.json")
-runner_path = Path("/content/injected-failure.py")
-runner_path.write_text(
-    "import json, sys\\nfrom pathlib import Path\\n"
-    "p=Path('/content/out/results/injected-failure-calls.json')\\n"
-    "calls=json.loads(p.read_text()) if p.exists() else []\\n"
-    "calls.append(sys.argv[-1])\\n"
-    "p.write_text(json.dumps(calls))\\nraise SystemExit(37)\\n",
-    encoding="utf-8",
-)
-queue.source_gate = lambda run, pinned_commit, require_clean: None
-runs = [
-    {"run_id": "first", "system": "package", "seed": 0,
-     "session_name": "cpu-smoke-a100", "cpu_session_name": "cpu-smoke-cpu",
-     "artifact_prefix": "first"},
-    {"run_id": "second", "system": "package", "seed": 1,
-     "session_name": "cpu-smoke-a100-2", "cpu_session_name": "cpu-smoke-cpu-2",
-     "artifact_prefix": "second"},
-]
-try:
-    queue.run_queue({"dataset": "rico", "runs": runs}, "a" * 40,
-                    [sys.executable, str(runner_path)], dry_run=False)
-except queue.QueueError as error:
-    if error.exit_code != 37:
-        raise SystemExit(f"child failure propagated as {error.exit_code}")
-else:
-    raise SystemExit("injected child failure did not stop the queue")
-if json.loads(calls_path.read_text()) != ["first"]:
-    raise SystemExit("queue dispatched another run after the injected failure")
-result = {
-    "tiny_training_entrypoint": "traingen fit --config /content/s5-smoke.yaml",
-    "tiny_training_exit_code": 0,
-    "tiny_conversion_entrypoint": "convert_original_checkpoint.py --checkpoint /content/s5-training-checkpoint/epoch-500.ckpt",
-    "tiny_conversion_exit_code": 0,
-    "tiny_evaluation_entrypoint": "evaluate.py --checkpoint /content/out/converted/cpu-smoke-package/smoke-001 --output /content/out/results/cpu-smoke-package/smoke-001/evaluation.json",
-    "tiny_evaluation_exit_code": 0,
-    "per_run_evaluation_output": "/content/out/results/cpu-smoke-package/smoke-001/evaluation.json",
-    "injected_child_exit_code": 37,
-    "queue_exit_code": 37,
-    "queue_stopped_before_second_run": True,
-    "source_commit": "__SOURCE_COMMIT__",
-}
-Path("/content/out/results/cpu-executor-smoke.json").write_text(
-    json.dumps(result, indent=2, sort_keys=True) + "\\n"
-)
-print("queue_failure_gate_passed exit_code=37")
-""".replace("__SOURCE_COMMIT__", source_commit)
-
-
 def temporary_files(
     temporary_directory: Path,
     manifest: JsonObject,
@@ -359,6 +490,7 @@ def build_run_job(
     pinned_commit: str,
     segment_id: str,
     resume_checkpoint: Path | None,
+    failure_exit_code: int | None = None,
 ) -> str:
     run_id = run.get("run_id")
     system = run.get("system")
@@ -481,7 +613,7 @@ def build_run_job(
             + '${suffix}"; done',
             f"test -s {shlex.quote(epoch_500_checkpoint + '.index')}",
         ]
-    if run.get("cpu_smoke") is True:
+    if run.get("cpu_smoke") is True and system == "package":
         training_args.append("--trainer.enable_checkpointing=true")
     training_overrides = run.get("training_overrides", [])
     if not isinstance(training_overrides, list) or not all(
@@ -490,12 +622,59 @@ def build_run_job(
         raise ExecutorError("training_overrides must be a list of strings")
     training_args.extend(training_overrides)
 
+    smoke_data_prep = []
+    if run.get("cpu_smoke") is True and system == "original":
+        smoke_data_dir = run.get("smoke_original_data_dir")
+        smoke_record_limit = run.get("smoke_original_record_limit")
+        if (
+            not isinstance(smoke_data_dir, str)
+            or not smoke_data_dir.startswith("/content/repo/.cache/canvas-vae/")
+            or not isinstance(smoke_record_limit, int)
+            or smoke_record_limit < 1
+        ):
+            raise ExecutorError(
+                "original CPU smoke needs a bounded local TFRecord subset"
+            )
+        smoke_data_prep = [
+            "python - <<'PY'\n"
+            "import json, shutil\n"
+            "from pathlib import Path\n"
+            "import tensorflow as tf\n"
+            "source = Path('/content/repo/.cache/canvas-vae/original/data/rico')\n"
+            f"target = Path({smoke_data_dir!r})\n"
+            f"limit = {smoke_record_limit}\n"
+            "target.mkdir(parents=True, exist_ok=False)\n"
+            "counts = {}\n"
+            "for split in ('train', 'val', 'test'):\n"
+            "    files = sorted(source.glob(split + '-*.tfrecord'))\n"
+            "    if not files:\n"
+            "        raise SystemExit(f'missing downloaded {split} TFRecords')\n"
+            "    output = target / f'{split}-00000-of-00001.tfrecord'\n"
+            "    count = 0\n"
+            "    with tf.io.TFRecordWriter(str(output)) as writer:\n"
+            "        for record in tf.data.TFRecordDataset([str(path) for path in files]).take(limit):\n"
+            "            writer.write(record.numpy())\n"
+            "            count += 1\n"
+            "    if count != limit:\n"
+            "        raise SystemExit(f'expected {limit} {split} records, got {count}')\n"
+            "    counts[split] = count\n"
+            "for name in ('vocabulary.json',):\n"
+            "    shutil.copy2(source / name, target / name)\n"
+            "(target / 'count.json').write_text(json.dumps(counts), encoding='utf-8')\n"
+            "print(f'tiny_original_input_subset_passed counts={counts}')\n"
+            "PY",
+        ]
+
     command_lines = [
         *env_lines,
         uv_sync,
+        *smoke_data_prep,
         f"{shlex.join(training_args)} > {log_root}/train.log 2>&1",
         *post_train_lines,
     ]
+    if failure_exit_code is not None:
+        command_lines.append(f"exit {failure_exit_code}")
+
     return "\n".join(line for line in command_lines if line) + "\n"
 
 
@@ -503,6 +682,7 @@ def build_postprocess_job(
     manifest: JsonObject,
     run: JsonObject,
     segment_id: str,
+    failure_exit_code: int | None = None,
 ) -> str:
     run_id = run.get("run_id")
     system = run.get("system")
@@ -610,6 +790,11 @@ def build_postprocess_job(
                 f"for output_path in {shlex.quote(converted_root)} {shlex.quote(result_root)} {shlex.quote(log_root)}; do test ! -e \"$output_path\" || {{ echo 'postprocess output exists; refusing overwrite' >&2; exit 78; }}; done",
                 f"mkdir -p {shlex.quote(converted_root)} {shlex.quote(result_root)} {shlex.quote(log_root)}",
                 f"test -s {shlex.quote(checkpoint_for_hash)}",
+                *(
+                    [f"exit {failure_exit_code}"]
+                    if failure_exit_code is not None
+                    else []
+                ),
                 uv_setup.rstrip(),
                 f"{shlex.join(converter_args)} 2>&1 | tee {shlex.quote(log_root + '/convert.log')}",
                 "unset UV_PROJECT_ENVIRONMENT",
@@ -619,6 +804,49 @@ def build_postprocess_job(
             ]
         )
         + "\n"
+    )
+
+
+def cpu_smoke_training_config(run_id: str, segment_id: str) -> str:
+    training_root = f"/content/out/checkpoints/{run_id}/{segment_id}/training"
+    return (
+        "seed_everything: 0\n"
+        "trainer:\n"
+        "  accelerator: cpu\n"
+        "  devices: 1\n"
+        "  precision: 32-true\n"
+        "  max_epochs: 1\n"
+        "  limit_train_batches: 2\n"
+        "  limit_val_batches: 1\n"
+        "  check_val_every_n_epoch: 1\n"
+        "  num_sanity_val_steps: 0\n"
+        "  logger: false\n"
+        "  enable_checkpointing: true\n"
+        f"  default_root_dir: {training_root}\n"
+        "  callbacks:\n"
+        "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
+        "      init_args:\n"
+        f"        dirpath: {training_root}/checkpoints\n"
+        "        save_top_k: 0\n"
+        "        save_last: true\n"
+        "model:\n"
+        "  class_path: canvas_vae.training.CanvasVAETrainingModule\n"
+        "  init_args:\n"
+        "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
+        "    latent_dim: 256\n"
+        "    num_blocks: 1\n"
+        "    num_heads: 8\n"
+        "    dropout: 0.1\n"
+        "    kl_weight: 16.0\n"
+        "    l2_weight: 1.0e-6\n"
+        "    learning_rate: 0.001\n"
+        "    clip_norm: 1.0\n"
+        "data:\n"
+        "  class_path: canvas_vae.training.CanvasVAEDataModule\n"
+        "  init_args:\n"
+        "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
+        "    batch_size: 2\n"
+        "    num_workers: 0\n"
     )
 
 
@@ -651,7 +879,9 @@ def make_wrapper_cell(
         *shlex.split(run_command),
     ]
 
-    return "!" + shlex.join(command) + "\n"
+    return (
+        "import subprocess\nsubprocess.run(" + json.dumps(command) + ", check=True)\n"
+    )
 
 
 def run_named_session(
@@ -672,8 +902,7 @@ def run_named_session(
     resume_checkpoint: Path | None = None,
     download_inputs: bool = True,
     additional_uploads: tuple[tuple[Path, str], ...] = (),
-    allow_nonzero_job: bool = False,
-) -> None:
+) -> int:
     assert_session_is_free(session_name)
     create_args = ["new", "--session", session_name]
     if gpu is not None:
@@ -736,18 +965,22 @@ def run_named_session(
             encoding="utf-8",
         )
         wrapper_started = True
-        colab(
-            "exec",
-            "--session",
-            session_name,
-            "--timeout",
-            "7800",
-            "-f",
-            str(launch_cell.resolve()),
-            output_path=output_capture,
-            timeout=7920,
-            allow_nonzero=allow_nonzero_job,
-        )
+        wrapper_cli_error: ExecutorError | None = None
+        try:
+            colab(
+                "exec",
+                "--session",
+                session_name,
+                "--timeout",
+                "7800",
+                "-f",
+                str(launch_cell.resolve()),
+                output_path=output_capture,
+                timeout=7920,
+            )
+        except ExecutorError as error:
+            # A nonzero wrapper exit is read from its authoritative Hub artifact below.
+            wrapper_cli_error = error
     except (ExecutorError, OSError, subprocess.SubprocessError):
         if not wrapper_started:
             colab("stop", "--session", session_name, timeout=300)
@@ -755,11 +988,20 @@ def run_named_session(
         # A retained endpoint may still be the only result copy after a failed final upload.
         raise
 
+    exit_code = read_hub_exit_code(
+        token_path, f"{hub_prefix}/logs/{job_name}/exit_code"
+    )
     sessions = colab("sessions", capture=True)
     if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
         raise ExecutorError(
-            f"wrapper did not release task-owned session {session_name!r}"
+            f"wrapper exit code {exit_code} is on the Hub but session {session_name!r} was not released"
         )
+    if wrapper_cli_error is not None and exit_code == 0:
+        raise ExecutorError(
+            f"Colab reported a wrapper error although Hub recorded exit code 0: {wrapper_cli_error}"
+        )
+
+    return exit_code
 
 
 def execute_run(
@@ -856,12 +1098,16 @@ def execute_run(
         raise ExecutorError(
             "runtime_plan source_commit must match the manifest source_commit"
         )
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
     if (
-        runtime_plan.get("gpu") != "A100"
+        runtime_plan.get("gpu") != expected_gpu
         or runtime_plan.get("one_named_a100_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
     ):
         raise ExecutorError("runtime must name one A100 and one CPU session per run")
+    if cpu_runtime_smoke and not run_id.startswith("cpu-smoke-"):
+        raise ExecutorError("CPU runtime smoke accepts only cpu-smoke run IDs")
     if runtime_plan.get("one_training_run_at_a_time") is not True:
         raise ExecutorError("runtime must execute only one training run at a time")
     if runtime_plan.get("queue_supervisor_sequential") is not True:
@@ -879,7 +1125,8 @@ def execute_run(
             and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system_name])
             for system_name in ("package", "original")
         )
-        or runtime_plan.get("cpu_wrapper_ttl") != "38m"
+        or not isinstance(runtime_plan.get("cpu_wrapper_ttl"), str)
+        or not re.fullmatch(r"[1-9][0-9]*m", runtime_plan["cpu_wrapper_ttl"])
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
     ):
         raise ExecutorError(
@@ -900,6 +1147,15 @@ def execute_run(
         )
     if runtime_plan.get("source_gate_before_artifact_sync") is not True:
         raise ExecutorError("source gate must pass before artifact synchronization")
+    if (
+        runtime_plan.get("require_hub_wrapper_exit_code_after_each_session") is not True
+        or runtime_plan.get("hub_wrapper_exit_code_path") != "logs/<job>/exit_code"
+        or runtime_plan.get("checkpoint_presence_gate_before_cpu_dispatch") is not True
+        or runtime_plan.get("branch_must_remain_frozen_while_b2_running") is not True
+    ):
+        raise ExecutorError(
+            "runtime must verify Hub completion/checkpoint artifacts and freeze the source branch"
+        )
     expected_a100_sync_paths = [
         "${S5_RUNTIME_ROOT}/out/checkpoints",
         "${S5_RUNTIME_ROOT}/out/logs",
@@ -938,14 +1194,55 @@ def execute_run(
         raise ExecutorError(
             "runtime session names must use lowercase letters, digits, and hyphens"
         )
+    failure_stage = run.get("smoke_failure_stage")
+    failure_exit_code = run.get("smoke_failure_exit_code")
+    if failure_stage is not None and (
+        not cpu_runtime_smoke
+        or failure_stage not in {"training", "postprocess"}
+        or not isinstance(failure_exit_code, int)
+        or not 1 <= failure_exit_code <= 125
+    ):
+        raise ExecutorError("smoke failure injection must be a bounded nonzero status")
+    if cpu_runtime_smoke and failure_stage is None and failure_exit_code is not None:
+        raise ExecutorError("smoke failure code requires an injected stage")
 
     with tempfile.TemporaryDirectory(prefix="cvae-s5-run-") as temporary:
         temporary_directory = Path(temporary)
+        additional_training_uploads: tuple[tuple[Path, str], ...] = ()
+        training_config_override = run.get("training_config_override")
+        if cpu_runtime_smoke and system == "package":
+            if training_config_override != "/content/s5-smoke.yaml":
+                raise ExecutorError("CPU package smoke must use its tiny config")
+            smoke_config_path = temporary_directory / "s5-smoke.yaml"
+            smoke_config_path.write_text(
+                cpu_smoke_training_config(run_id, segment_id), encoding="utf-8"
+            )
+            additional_training_uploads = (
+                (smoke_config_path, "/content/s5-smoke.yaml"),
+            )
+        if cpu_runtime_smoke and system == "original":
+            original_arguments = run.get("train_original_arguments")
+            if not isinstance(original_arguments, list):
+                raise ExecutorError(
+                    "CPU original smoke needs explicit trainer arguments"
+                )
+            if (
+                "--num-epochs" not in original_arguments
+                or "1" not in original_arguments
+            ):
+                raise ExecutorError("CPU original smoke must train for one epoch")
         preflight_path, preflight_script, run_path = temporary_files(
             temporary_directory, manifest, run, pinned, download_inputs=True
         )
         run_path.write_text(
-            build_run_job(manifest, run, pinned, segment_id, resume_checkpoint),
+            build_run_job(
+                manifest,
+                run,
+                pinned,
+                segment_id,
+                resume_checkpoint,
+                failure_exit_code if failure_stage == "training" else None,
+            ),
             encoding="utf-8",
         )
         run_env = temporary_directory / "run.env"
@@ -1024,7 +1321,13 @@ def execute_run(
             checkpoint_download=checkpoint_download,
         )
         cpu_run_path.write_text(
-            build_postprocess_job(manifest, run, segment_id), encoding="utf-8"
+            build_postprocess_job(
+                manifest,
+                run,
+                segment_id,
+                failure_exit_code if failure_stage == "postprocess" else None,
+            ),
+            encoding="utf-8",
         )
         cpu_env = temporary_directory / "cpu-run.env"
         cpu_env.write_text(
@@ -1050,9 +1353,9 @@ def execute_run(
             raise ExecutorError(
                 "per-run wrapper TTLs must match the validated runtime plan"
             )
-        run_named_session(
+        training_exit_code = run_named_session(
             session_name,
-            "A100",
+            None if cpu_runtime_smoke else "A100",
             wrapper_path,
             token_path,
             preflight_path,
@@ -1069,8 +1372,23 @@ def execute_run(
             run_env,
             capture_path,
             resume_checkpoint,
+            additional_uploads=additional_training_uploads,
         )
-        run_named_session(
+        if cpu_runtime_smoke:
+            record_smoke_exit_code(
+                run_id,
+                "training_session",
+                session_name,
+                job_name,
+                training_prefix,
+                training_exit_code,
+            )
+        if training_exit_code != 0:
+            raise ExecutorError(
+                f"training wrapper failed with Hub exit code {training_exit_code}"
+            )
+        verify_checkpoint_on_hub(token_path, checkpoint_hub_path, system)
+        postprocess_exit_code = run_named_session(
             cpu_session_name,
             None,
             wrapper_path,
@@ -1090,21 +1408,35 @@ def execute_run(
             cpu_env,
             cpu_capture_path,
         )
+        if cpu_runtime_smoke:
+            record_smoke_exit_code(
+                run_id,
+                "cpu_postprocess_session",
+                cpu_session_name,
+                f"{job_name}-postprocess",
+                postprocess_prefix,
+                postprocess_exit_code,
+            )
+        if postprocess_exit_code != 0:
+            raise ExecutorError(
+                f"CPU postprocess wrapper failed with Hub exit code {postprocess_exit_code}"
+            )
+        verify_hub_paths(
+            token_path,
+            [
+                f"{postprocess_prefix}/results/{run_id}/{segment_id}/evaluation.json",
+                f"{postprocess_prefix}/results/{run_id}/{segment_id}/artifact-hashes.txt",
+            ],
+            "CPU evaluation artifacts",
+        )
 
 
 def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
-        raise ExecutorError("CPU smoke requires a valid named session")
+        raise ExecutorError("CPU smoke requires a valid smoke identifier")
     if not COMMIT_PATTERN.fullmatch(source_commit):
         raise ExecutorError("CPU smoke source must be a full commit SHA")
-    has_source = subprocess.run(
-        ["git", "cat-file", "-e", f"{source_commit}^{{commit}}"],
-        cwd=REPOSITORY_ROOT,
-        check=False,
-        capture_output=True,
-    )
-    if has_source.returncode != 0:
-        raise ExecutorError("CPU smoke source commit is not present locally")
+    verify_local_source(source_commit)
 
     wrapper_value = os.environ.get("S5_WRAPPER_PATH")
     if wrapper_value is None:
@@ -1112,236 +1444,329 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
     wrapper_path = Path(wrapper_value).expanduser()
     if not wrapper_path.is_file():
         raise ExecutorError("installed bundled wrapper was not found")
+    token_path = require_token_file()
+    base_manifest = load_json(DEFAULT_MANIFEST)
+    raw_runs = base_manifest.get("runs")
+    if not isinstance(raw_runs, list):
+        raise ExecutorError("B2 manifest does not define its source run templates")
+    package_template = next(
+        (
+            run
+            for run in raw_runs
+            if isinstance(run, dict) and run.get("system") == "package"
+        ),
+        None,
+    )
+    original_template = next(
+        (
+            run
+            for run in raw_runs
+            if isinstance(run, dict) and run.get("system") == "original"
+        ),
+        None,
+    )
+    if package_template is None or original_template is None:
+        raise ExecutorError(
+            "B2 manifest must define package and original run templates"
+        )
 
-    with tempfile.TemporaryDirectory(prefix="cvae-s5-cpu-smoke-") as temporary:
-        temporary_directory = Path(temporary)
-        config_path = "models/canvas-vae/configs/training/smoke.yaml"
-        config_result = subprocess.run(
-            ["git", "show", f"{source_commit}:{config_path}"],
-            cwd=REPOSITORY_ROOT,
-            check=True,
-            capture_output=True,
+    smoke_id = uuid.uuid4().hex[:8]
+    smoke_root = (
+        REPOSITORY_ROOT / ".cache/canvas-vae/s5" / f"cpu-e2e-{session_name}-{smoke_id}"
+    )
+    smoke_root.mkdir(parents=True, exist_ok=False)
+    hub_prefix = f"{HUB_REPOSITORY_PREFIX}/{session_name}-{smoke_id}"
+    result_path = smoke_root / "smoke-result.json"
+    result: JsonObject = {
+        "source_commit": source_commit,
+        "hub_prefix": hub_prefix,
+        "session_exit_codes": {},
+        "cases": {},
+    }
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+    raw_runtime_plan = base_manifest.get("runtime_plan")
+    if not isinstance(raw_runtime_plan, dict):
+        raise ExecutorError("B2 manifest runtime_plan must be an object")
+    runtime_plan = dict(raw_runtime_plan)
+    runtime_root = "${S5_RUNTIME_ROOT}"
+    runtime_plan.update(
+        {
+            "cpu_runtime_smoke": True,
+            "gpu": "CPU",
+            "source_commit": source_commit,
+            "one_named_a100_session_per_run": True,
+            "one_named_cpu_session_per_run": True,
+            "one_training_run_at_a_time": True,
+            "queue_supervisor_sequential": True,
+            "self_release": True,
+            "sync_interval": "15m",
+            "wrapper_script": "${S5_WRAPPER_PATH}",
+            "a100_wrapper_ttl_by_system": {"package": "30m", "original": "30m"},
+            "cpu_wrapper_ttl": "30m",
+            "a100_sync_paths": [
+                f"{runtime_root}/out/checkpoints",
+                f"{runtime_root}/out/logs",
+            ],
+            "cpu_sync_paths": [
+                f"{runtime_root}/out/converted",
+                f"{runtime_root}/out/results",
+                f"{runtime_root}/out/logs",
+            ],
+            "source_gate_before_artifact_sync": True,
+        }
+    )
+
+    def make_run(
+        template: JsonObject,
+        case_id: str,
+        system: str,
+        failure_stage: str | None = None,
+    ) -> JsonObject:
+        run_id = f"cpu-smoke-{smoke_id}-{case_id}"
+        artifact_prefix = f"{hub_prefix}/{run_id}"
+        training_prefix = f"{artifact_prefix}/train/{{segment_id}}"
+        postprocess_prefix = f"{artifact_prefix}/postprocess/{{segment_id}}"
+        run: JsonObject = dict(template)
+        run.update(
+            {
+                "run_id": run_id,
+                "system": system,
+                "seed": 0,
+                "session_name": f"cvae-s5-{smoke_id}-{case_id}-a",
+                "cpu_session_name": f"cvae-s5-{smoke_id}-{case_id}-c",
+                "artifact_prefix": artifact_prefix,
+                "runtime_output_root": f"/content/out/checkpoints/{run_id}/{{segment_id}}",
+                "epoch_500_checkpoint": f"/content/out/checkpoints/{run_id}/{{segment_id}}/epoch-500.ckpt",
+                "epoch_500_checkpoint_hub_path": (
+                    f"{training_prefix}/checkpoints/{run_id}/{{segment_id}}/epoch-500.ckpt"
+                ),
+                "converted_output_root": f"/content/out/converted/{run_id}/{{segment_id}}",
+                "evaluation_output": f"/content/out/results/{run_id}/{{segment_id}}/evaluation.json",
+                "training_artifact_prefix": training_prefix,
+                "postprocess_artifact_prefix": postprocess_prefix,
+                "a100_wrapper_ttl": "30m",
+                "cpu_wrapper_ttl": "30m",
+                "cpu_smoke": True,
+                "evaluator_command": [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "--no-sync",
+                    "--package",
+                    "canvas-vae",
+                    "--extra",
+                    "training",
+                    "models/canvas-vae/scripts/evaluate.py",
+                    "--checkpoint",
+                    "{converted_checkpoint}",
+                    "--data-dir",
+                    "/content/repo/.cache/canvas-vae/data/rico",
+                    "--seeds",
+                    "0",
+                    "--batch-size",
+                    "1024",
+                    "--device",
+                    "cpu",
+                    "--output",
+                    "{evaluation_output}",
+                ],
+            }
         )
-        smoke_manifest: JsonObject = {
-            "config": config_path,
-            "config_sha256": hashlib.sha256(config_result.stdout).hexdigest(),
-            "input_data": {},
-            "evaluator_command": [
-                "uv",
-                "run",
-                "--frozen",
-                "--no-sync",
-                "--package",
-                "canvas-vae",
-                "--extra",
-                "training",
-                "models/canvas-vae/scripts/evaluate.py",
-                "--checkpoint",
-                "{converted_checkpoint}",
+        if system == "original":
+            run["train_original_arguments"] = [
                 "--data-dir",
-                "/content/repo/.cache/canvas-vae/data/rico",
-                "--seeds",
+                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico",
+                "--job-dir",
+                "{output_root}/original-training",
+                "--seed",
                 "0",
+                "--",
                 "--batch-size",
-                "2",
-                "--device",
-                "cpu",
-                "--output",
-                "{evaluation_output}",
+                "1024",
+                "--num-epochs",
+                "1",
+                "--validation-freq",
+                "1",
+            ]
+            run["smoke_original_data_dir"] = (
+                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
+            )
+            run["smoke_original_record_limit"] = 4
+        else:
+            run["training_config_override"] = "/content/s5-smoke.yaml"
+            run["training_overrides"] = []
+        if failure_stage is not None:
+            run["smoke_failure_stage"] = failure_stage
+            run["smoke_failure_exit_code"] = 37
+
+        return run
+
+    def write_case_manifest(case_id: str, runs: list[JsonObject]) -> Path:
+        manifest = dict(base_manifest)
+        manifest.update(
+            {
+                "queue_status": "ready",
+                "source_commit": source_commit,
+                "runtime_plan": runtime_plan,
+                "runs": runs,
+            }
+        )
+        manifest_path = smoke_root / f"{case_id}.manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
+
+        return manifest_path
+
+    def run_case(
+        case_id: str,
+        runs: list[JsonObject],
+        expected_queue_success: bool,
+        expected_session_codes: dict[str, int],
+    ) -> None:
+        manifest_path = write_case_manifest(case_id, runs)
+        log_path = smoke_root / f"{case_id}.queue.log"
+        environment = os.environ.copy()
+        environment["CANVAS_VAE_S5_SMOKE_RESULT_PATH"] = str(result_path)
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    REPOSITORY_ROOT / "models/canvas-vae/scripts/s5_rico_seed_queue.py"
+                ),
+                "--manifest",
+                str(manifest_path),
+                "--launch",
             ],
-            "runtime_plan": {"source_branch": "feat/canvas-vae"},
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=21600,
+        )
+        combined_output = completed.stdout + completed.stderr
+        log_path.write_text(combined_output, encoding="utf-8")
+        queue_records = []
+        for line in completed.stdout.splitlines():
+            try:
+                decoded = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(decoded, dict):
+                queue_records.append(decoded)
+        event_names = [record.get("event") for record in queue_records]
+        dispatched_run_ids = [
+            record.get("run_id")
+            for record in queue_records
+            if record.get("event") == "run_dispatch"
+        ]
+        smoke_result = load_json(result_path)
+        all_session_codes = smoke_result.get("session_exit_codes")
+        if not isinstance(all_session_codes, dict):
+            raise ExecutorError(f"{case_id} did not record Hub exit codes")
+        run_id = runs[0]["run_id"]
+        actual_codes = {
+            key.split(":", 1)[1]: value.get("exit_code")
+            for key, value in all_session_codes.items()
+            if key.startswith(f"{run_id}:") and isinstance(value, dict)
         }
-        smoke_run: JsonObject = {
-            "run_id": "cpu-smoke-package",
-            "system": "package",
-            "seed": 0,
-            "runtime_output_root": "/content/out/checkpoints/cpu-smoke-package/{segment_id}",
-            "epoch_500_checkpoint": "/content/out/checkpoints/cpu-smoke-package/{segment_id}/epoch-500.ckpt",
-            "converted_output_root": "/content/out/converted/cpu-smoke-package/{segment_id}",
-            "evaluation_output": "/content/out/results/cpu-smoke-package/{segment_id}/evaluation.json",
-            "cpu_smoke": True,
-            "training_config_override": "/content/s5-smoke.yaml",
-            "training_overrides": [
-                "--model.init_args.data_dir=/content/repo/.cache/canvas-vae/data/rico",
-                "--data.init_args.data_dir=/content/repo/.cache/canvas-vae/data/rico",
-            ],
-        }
-        training_plan = build_run_job(
-            smoke_manifest, smoke_run, source_commit, "smoke-001", None
-        )
-        postprocess_plan = build_postprocess_job(smoke_manifest, smoke_run, "smoke-001")
-        if any(
-            token in training_plan
-            for token in (
-                "convert_original_checkpoint.py",
-                "evaluate.py",
-                "/out/results/",
-            )
-        ):
+        if actual_codes != expected_session_codes:
             raise ExecutorError(
-                "A100 training plan must not convert or evaluate checkpoints"
+                f"{case_id} Hub exit-code evidence differs from expectation: {actual_codes}"
             )
-        if "last.ckpt" not in training_plan or "epoch-500.ckpt" not in training_plan:
-            raise ExecutorError(
-                "training plan does not upload its explicit epoch-500 checkpoint"
-            )
-        if (
-            "convert_original_checkpoint.py" not in postprocess_plan
-            or "evaluate.py" not in postprocess_plan
-        ):
-            raise ExecutorError(
-                "CPU postprocess plan must convert and evaluate the checkpoint"
-            )
-        if "/content/s5-training-checkpoint/epoch-500.ckpt" not in postprocess_plan:
-            raise ExecutorError(
-                "CPU postprocess plan must use the downloaded explicit checkpoint path"
-            )
-        preflight_path, preflight_script, run_path = temporary_files(
-            temporary_directory,
-            smoke_manifest,
-            smoke_run,
-            source_commit,
-            download_inputs=False,
-        )
-        injected = temporary_directory / "injected-failure.py"
-        injected.write_text(
-            remote_failure_injection_source(source_commit), encoding="utf-8"
-        )
-        injected.chmod(0o700)
-        queue_script = temporary_directory / "s5_rico_seed_queue.py"
-        queue_script.write_bytes(
-            (
-                REPOSITORY_ROOT / "models/canvas-vae/scripts/s5_rico_seed_queue.py"
-            ).read_bytes()
-        )
-        training_path = temporary_directory / "training-job.sh"
-        training_path.write_text(training_plan, encoding="utf-8")
-        training_path.chmod(0o700)
-        postprocess_path = temporary_directory / "postprocess-job.sh"
-        postprocess_path.write_text(postprocess_plan, encoding="utf-8")
-        postprocess_path.chmod(0o700)
-        smoke_data = temporary_directory / "create-smoke-data.py"
-        smoke_data.write_text(
-            "from importlib.util import module_from_spec, spec_from_file_location\n"
-            "from pathlib import Path\n"
-            "from canvas_vae.processing_canvas_vae import prepare_rico_cache\n"
-            "path=Path('/content/repo/models/canvas-vae/tests/conftest.py')\n"
-            "spec=spec_from_file_location('canvas_vae_test_fixtures',path)\n"
-            "assert spec is not None and spec.loader is not None\n"
-            "fixtures=module_from_spec(spec)\n"
-            "spec.loader.exec_module(fixtures)\n"
-            "archive=fixtures.write_archive(Path('/content/s5-smoke-rico.zip'),fixtures.synthetic_screens())\n"
-            "prepare_rico_cache(archive,Path('/content/repo/.cache/canvas-vae/data/rico'))\n",
-            encoding="utf-8",
-        )
-        smoke_config = temporary_directory / "smoke.yaml"
-        smoke_config.write_text(
-            "seed_everything: 0\n"
-            "trainer:\n"
-            "  accelerator: cpu\n"
-            "  devices: 1\n"
-            "  precision: 32-true\n"
-            "  max_epochs: 1\n"
-            "  limit_train_batches: 2\n"
-            "  check_val_every_n_epoch: 1\n"
-            "  num_sanity_val_steps: 0\n"
-            "  enable_checkpointing: true\n"
-            "  default_root_dir: /content/out/checkpoints/cpu-smoke-package/smoke-001/training\n"
-            "  callbacks:\n"
-            "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
-            "      init_args:\n"
-            "        dirpath: /content/out/checkpoints/cpu-smoke-package/smoke-001/training/checkpoints\n"
-            "        save_top_k: 0\n"
-            "        save_last: true\n"
-            "model:\n"
-            "  class_path: canvas_vae.training.CanvasVAETrainingModule\n"
-            "  init_args:\n"
-            "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
-            "    latent_dim: 256\n"
-            "    num_heads: 8\n"
-            "data:\n"
-            "  class_path: canvas_vae.training.CanvasVAEDataModule\n"
-            "  init_args:\n"
-            "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
-            "    batch_size: 2\n"
-            "    num_workers: 0\n",
-            encoding="utf-8",
-        )
-        run_path.write_text(
-            "#!/usr/bin/env bash\nset -Eeuo pipefail\n"
-            "cd /content/repo\n"
-            f'test "$(git rev-parse HEAD)" = {shlex.quote(source_commit)}\n'
-            'test -z "$(git status --porcelain)"\n'
-            "unset MPLBACKEND\nexport NVIDIA_TF32_OVERRIDE=0\n"
-            "export TF_ENABLE_ONEDNN_OPTS=0\nexport CUDA_VISIBLE_DEVICES=''\n"
-            "echo cpu_smoke_stage=data_preparation_started\n"
-            "uv run --project /content/repo --frozen --package canvas-vae --extra training --with pytest /content/create-smoke-data.py\n"
-            "echo cpu_smoke_stage=training_started\n"
-            "bash /content/training-job.sh\n"
-            "echo cpu_smoke_stage=training_completed\n"
-            "mkdir -p /content/s5-training-checkpoint\n"
-            "cp -- /content/out/checkpoints/cpu-smoke-package/smoke-001/epoch-500.ckpt /content/s5-training-checkpoint/epoch-500.ckpt\n"
-            "test ! -e /content/smoke-a100-stage\n"
-            "mkdir -p /content/smoke-a100-stage\n"
-            "mv -- /content/out/logs/cpu-smoke-package/smoke-001 /content/smoke-a100-stage/logs\n"
-            "echo cpu_smoke_stage=postprocess_started\n"
-            "bash /content/postprocess-job.sh\n"
-            "echo cpu_smoke_stage=postprocess_completed\n"
-            "chmod 700 /content/injected-failure.py\n"
-            "echo cpu_smoke_stage=injected_failure_started\n"
-            "/content/injected-failure.py\n",
-            encoding="utf-8",
-        )
-        run_path.chmod(0o700)
-        run_env = temporary_directory / "run.env"
-        run_env.write_text(
-            f"CANVAS_VAE_S5_SOURCE_COMMIT={source_commit}\n", encoding="utf-8"
-        )
-        run_env.chmod(0o600)
-        capture_path = REPOSITORY_ROOT / ".cache/canvas-vae/s5" / f"{session_name}.log"
-        capture_path.parent.mkdir(parents=True, exist_ok=True)
-        run_named_session(
-            session_name=session_name,
-            gpu=None,
-            wrapper_path=wrapper_path,
-            token_path=require_token_file(),
-            preflight_path=preflight_path,
-            preflight_script=preflight_script,
-            run_script=run_path,
-            job_name=session_name,
-            hub_prefix=f"{HUB_REPOSITORY_PREFIX}/{session_name}",
-            ttl="30m",
-            run_command="bash /content/run-job.sh",
-            run_env=run_env,
-            output_capture=capture_path,
-            download_inputs=False,
-            additional_uploads=(
-                (injected, "/content/injected-failure.py"),
-                (training_path, "/content/training-job.sh"),
-                (postprocess_path, "/content/postprocess-job.sh"),
-                (smoke_data, "/content/create-smoke-data.py"),
-                (queue_script, "/content/s5_rico_seed_queue.py"),
-                (smoke_config, "/content/s5-smoke.yaml"),
-            ),
-            sync_paths=(
-                "/content/out/checkpoints",
-                "/content/out/converted",
-                "/content/out/results",
-                "/content/out/logs",
-                "/content/smoke-a100-stage",
-            ),
-        )
-        execution_log = capture_path.read_text(encoding="utf-8")
-        for required_log in (
-            "queue_failure_gate_passed exit_code=37",
-            "finished with exit code 0",
-            "results uploaded to shunk031/colab-jobs/",
-            "releasing the VM",
-        ):
-            if required_log not in execution_log:
+        if expected_queue_success:
+            if completed.returncode != 0 or "queue_complete" not in event_names:
+                raise ExecutorError(f"{case_id} queue did not complete successfully")
+            if dispatched_run_ids != [run_id]:
+                raise ExecutorError(f"{case_id} dispatched an unexpected run sequence")
+        else:
+            sentinel_id = runs[1]["run_id"]
+            if (
+                completed.returncode == 0
+                or "run_failed" not in event_names
+                or dispatched_run_ids != [run_id]
+                or sentinel_id in dispatched_run_ids
+            ):
                 raise ExecutorError(
-                    f"CPU smoke wrapper log is missing expected evidence: {required_log}"
+                    f"{case_id} did not stop the queue after its injected session failure"
                 )
+        cases = smoke_result.get("cases")
+        if not isinstance(cases, dict):
+            raise ExecutorError("smoke result is missing its cases object")
+        cases[case_id] = {
+            "system": runs[0]["system"],
+            "run_id": run_id,
+            "queue_return_code": completed.returncode,
+            "queue_events": event_names,
+            "dispatched_run_ids": dispatched_run_ids,
+            "session_exit_codes": actual_codes,
+            "hub_training_prefix": runs[0]["training_artifact_prefix"],
+            "hub_postprocess_prefix": runs[0]["postprocess_artifact_prefix"],
+            "queue_log": str(log_path.relative_to(REPOSITORY_ROOT)),
+        }
+        result_path.write_text(
+            json.dumps(smoke_result, indent=2) + "\n", encoding="utf-8"
+        )
+
+    cases = [
+        (
+            "package-success",
+            package_template,
+            "package",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        (
+            "original-success",
+            original_template,
+            "original",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        (
+            "training-failure",
+            package_template,
+            "package",
+            "training",
+            False,
+            {"training_session": 37},
+        ),
+        (
+            "postprocess-failure",
+            package_template,
+            "package",
+            "postprocess",
+            False,
+            {"training_session": 0, "cpu_postprocess_session": 37},
+        ),
+    ]
+    for case_id, template, system, failure_stage, success, expected_codes in cases:
+        target = make_run(template, case_id, system, failure_stage)
+        runs = [target]
+        if not success:
+            runs.append(make_run(package_template, f"{case_id}-sentinel", "package"))
+        run_case(case_id, runs, success, expected_codes)
+
+    result = load_json(result_path)
+    result["status"] = "passed"
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    hub_result_path = f"{hub_prefix}/smoke-result.json"
+    upload_smoke_result(token_path, result_path, hub_result_path)
+    print(
+        json.dumps(
+            {
+                "cpu_e2e_smoke": "passed",
+                "result": str(result_path),
+                "hub_prefix": hub_prefix,
+                "hub_result_path": hub_result_path,
+            },
+            sort_keys=True,
+        )
+    )
 
 
 def parse_args() -> argparse.Namespace:
