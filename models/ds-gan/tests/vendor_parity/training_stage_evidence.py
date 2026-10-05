@@ -3395,6 +3395,8 @@ def run_s4() -> Path:
     (EVIDENCE / "s4-evaluation" / "vendor-eval.txt").write_text(vendor_eval_output)
     package_classes: list[np.ndarray] = []
     package_boxes: list[np.ndarray] = []
+    package_classes_raw: list[np.ndarray] = []
+    package_boxes_raw: list[np.ndarray] = []
     stream_rows: list[dict[str, Any]] = []
     vendor_stream_iterator = iter(vendor_stream_loader)
     for index, batch in enumerate(package_loader):
@@ -3440,18 +3442,22 @@ def run_s4() -> Path:
             ),
             axis=-1,
         )
+        package_classes_raw.append(class_probs.argmax(dim=-1).cpu().numpy())
+        package_boxes_raw.append(boxes)
         package_classes.append(classes)
         package_boxes.append(boxes * np.asarray((513, 750, 513, 750)))
     package_classes_array = np.concatenate(package_classes)
     package_boxes_array = np.concatenate(package_boxes)
+    package_classes_raw_array = np.concatenate(package_classes_raw)
+    package_boxes_raw_array = np.concatenate(package_boxes_raw)
     package_eval_root = EVIDENCE / "s4-evaluation" / "package-overlay"
     (package_eval_root / "output").mkdir(parents=True, exist_ok=True)
     package_boxes_for_eval = np.asarray(
-        package_boxes_array / np.asarray((513, 750, 513, 750)),
+        package_boxes_raw_array,
         dtype=vendor_boxes_full.dtype,
     )
     torch.save(
-        torch.as_tensor(package_classes_array),
+        torch.as_tensor(package_classes_raw_array[..., np.newaxis]),
         package_eval_root / "output/clses-Epoch300.pt",
     )
     torch.save(
