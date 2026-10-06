@@ -30,7 +30,11 @@
     "--output",
     "{evaluation_output}"
   ],
-  "checkpoint_rule": "Train through epoch 500 on the named A100 session; preserve package last.ckpt or original final.ckpt as epoch-500.ckpt; on a separate named CPU runtime download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
+  "checkpoint_rule": "Train through epoch 500 on the named A100 session. For package runs, require Lightning last.ckpt at epoch 499 and global_step 22,500 before copying it to epoch-500.ckpt; for original runs, use final.ckpt. On a separate named CPU runtime, download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
+  "package_checkpoint_expectation": {
+    "max_epochs": 500,
+    "global_step": 22500
+  },
   "artifacts": {
     "<repository-relative-artifact-path>": "<sha256>"
   },

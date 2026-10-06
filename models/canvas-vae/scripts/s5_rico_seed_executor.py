@@ -524,6 +524,8 @@ def build_run_job(
     training_root = f"{output_root}/training"
     log_root = f"/content/out/logs/{run_id}/{segment_id}"
     epoch_500_checkpoint = f"{output_root}/epoch-500.ckpt"
+    checkpoint_max_epochs: int | None = None
+    checkpoint_global_step: int | None = None
     env_lines = (
         "set -Eeuo pipefail",
         "cd /content/repo",
@@ -562,7 +564,29 @@ def build_run_job(
         ]
         if resume_checkpoint is not None:
             training_args.append("--ckpt_path=/content/out/resume/checkpoint.ckpt")
-        checkpoint_path = None
+        checkpoint_path = f"{training_root}/checkpoints/last.ckpt"
+        if run.get("cpu_smoke") is True:
+            checkpoint_max_epochs = 1
+            checkpoint_global_step = 2
+        else:
+            checkpoint_expectation = manifest.get("package_checkpoint_expectation")
+            if not isinstance(checkpoint_expectation, dict):
+                raise ExecutorError(
+                    "manifest package_checkpoint_expectation is required"
+                )
+            max_epochs = checkpoint_expectation.get("max_epochs")
+            global_step = checkpoint_expectation.get("global_step")
+            if (
+                type(max_epochs) is not int
+                or type(global_step) is not int
+                or max_epochs < 1
+                or global_step < 0
+            ):
+                raise ExecutorError(
+                    "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
+                )
+            checkpoint_max_epochs = max_epochs
+            checkpoint_global_step = global_step
     elif system == "original":
         if resume_checkpoint is not None:
             raise ExecutorError(
@@ -603,10 +627,20 @@ def build_run_job(
         raise ExecutorError(f"unsupported CanvasVAE run system: {system}")
 
     if system == "package":
+        if checkpoint_max_epochs is None or checkpoint_global_step is None:
+            raise ExecutorError("package checkpoint gate was not configured")
+
+        checkpoint_gate = (
+            "uv run --frozen --no-sync --package canvas-vae --extra training "
+            'python -m canvas_vae.training.checkpoints "$last_checkpoints" '
+            f"--max-epochs {checkpoint_max_epochs} "
+            f"--expected-global-step {checkpoint_global_step}"
+        )
         post_train_lines = [
             f"last_checkpoints=\"$(find {shlex.quote(training_root)} -path '*/checkpoints/last.ckpt' -type f -print)\"",
             'test "$(printf \'%s\\n\' "$last_checkpoints" | wc -l)" -eq 1',
             'test -s "$last_checkpoints"',
+            checkpoint_gate,
             f'cp -- "$last_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
         ]
     else:
@@ -1785,6 +1819,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-id")
     parser.add_argument("--segment-id", default="segment-001")
     parser.add_argument("--resume-checkpoint", type=Path)
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--cpu-smoke", action="store_true")
     parser.add_argument("--session-name")
     parser.add_argument("--source-commit")
@@ -1794,7 +1829,110 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        if args.cpu_smoke:
+        if args.dry_run:
+            if args.cpu_smoke or args.resume_checkpoint is not None:
+                raise ExecutorError(
+                    "dry-run cannot be combined with --cpu-smoke or --resume-checkpoint"
+                )
+            if args.run_id is None:
+                raise ExecutorError("--run-id is required for a dry run")
+
+            manifest = load_json(args.manifest.resolve())
+            pinned_commit = args.source_commit or manifest.get("source_commit")
+            if not isinstance(pinned_commit, str):
+                raise ExecutorError("dry-run requires a full source_commit")
+            verify_local_source(pinned_commit)
+            raw_runs = manifest.get("runs")
+            if not isinstance(raw_runs, list):
+                raise ExecutorError("manifest must define a runs list")
+            run = next(
+                (
+                    candidate
+                    for candidate in raw_runs
+                    if isinstance(candidate, dict)
+                    and candidate.get("run_id") == args.run_id
+                ),
+                None,
+            )
+            if run is None:
+                raise ExecutorError(f"manifest has no run {args.run_id!r}")
+            if not RUN_ID_PATTERN.fullmatch(args.run_id):
+                raise ExecutorError(f"invalid run_id {args.run_id!r}")
+            if not RUN_ID_PATTERN.fullmatch(args.segment_id):
+                raise ExecutorError(f"invalid segment_id {args.segment_id!r}")
+            checkpoint_template = run.get("epoch_500_checkpoint")
+            checkpoint_hub_template = run.get("epoch_500_checkpoint_hub_path")
+            if not isinstance(checkpoint_template, str) or not isinstance(
+                checkpoint_hub_template, str
+            ):
+                raise ExecutorError("run is missing checkpoint output templates")
+            try:
+                checkpoint_path = checkpoint_template.format(
+                    run_id=args.run_id,
+                    segment_id=args.segment_id,
+                )
+                checkpoint_hub_path = checkpoint_hub_template.format(
+                    run_id=args.run_id,
+                    segment_id=args.segment_id,
+                )
+            except (KeyError, ValueError) as error:
+                raise ExecutorError(
+                    "run checkpoint output templates are invalid"
+                ) from error
+            expected_checkpoint_path = f"/content/out/checkpoints/{args.run_id}/{args.segment_id}/epoch-500.ckpt"
+            artifact_prefix = run.get("artifact_prefix")
+            expected_checkpoint_hub_path = (
+                f"{artifact_prefix}/train/{args.segment_id}/checkpoints/"
+                f"{args.run_id}/{args.segment_id}/epoch-500.ckpt"
+            )
+            if checkpoint_path != expected_checkpoint_path or (
+                checkpoint_hub_path != expected_checkpoint_hub_path
+            ):
+                raise ExecutorError(
+                    "run checkpoint paths do not match the selected run and segment"
+                )
+
+            run_job = build_run_job(
+                manifest,
+                run,
+                pinned_commit,
+                args.segment_id,
+                resume_checkpoint=None,
+            )
+            has_package_checkpoint_gate = "canvas_vae.training.checkpoints" in run_job
+            if run.get("system") == "package" and not has_package_checkpoint_gate:
+                raise ExecutorError(
+                    "package dry-run is missing the final-checkpoint gate"
+                )
+            result: JsonObject = {
+                "event": "executor_dry_run_passed",
+                "source_commit": pinned_commit,
+                "run_id": args.run_id,
+                "segment_id": args.segment_id,
+                "epoch_500_checkpoint": checkpoint_path,
+                "epoch_500_checkpoint_hub_path": checkpoint_hub_path,
+                "system": run.get("system"),
+                "seed": run.get("seed"),
+                "training_job_contains_final_checkpoint_gate": (
+                    has_package_checkpoint_gate
+                ),
+            }
+            if run.get("system") == "package":
+                expectation = manifest.get("package_checkpoint_expectation")
+                if not isinstance(expectation, dict):
+                    raise ExecutorError(
+                        "manifest package_checkpoint_expectation is required"
+                    )
+                max_epochs = expectation.get("max_epochs")
+                global_step = expectation.get("global_step")
+                if type(max_epochs) is not int or type(global_step) is not int:
+                    raise ExecutorError("package checkpoint expectation is invalid")
+                result["checkpoint_gate"] = {
+                    "expected_epoch": max_epochs - 1,
+                    "expected_global_step": global_step,
+                }
+            print(json.dumps(result, sort_keys=True))
+        elif args.cpu_smoke:
             if args.session_name is None or args.source_commit is None:
                 raise ExecutorError(
                     "CPU smoke requires --session-name and --source-commit"

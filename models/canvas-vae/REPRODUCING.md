@@ -6,7 +6,7 @@ Workflow order: download and prepare RICO, generate original-code references, ru
 
 CanvasVAE has no released weights, so agreement is checked on the training path. The stages S0-S4 are defined in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md); [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records their results.
 
-The `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code reference generation. The separate `convert` extra installs `tensorflow-cpu==2.15.1` for original TensorFlow checkpoint conversion without NVIDIA CUDA wheels. A Lightning `last.ckpt` converts without a TensorFlow extra. Use `vendor` and `convert` in separate environments. Original GPU training and evaluation set `NVIDIA_TF32_OVERRIDE=0` and `TF_ENABLE_ONEDNN_OPTS=0`; the currently verified parity setup uses a CPU-only runtime with `CUDA_VISIBLE_DEVICES=""`.
+The `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code reference generation. The separate `convert` extra installs `tensorflow-cpu==2.15.1` for original TensorFlow checkpoint conversion without NVIDIA CUDA wheels. A Lightning `last.ckpt` converts without a TensorFlow extra. Current training configs keep validation-best weights in `best.ckpt` and write the final weights to `last.ckpt`; the S5 executor verifies the configured final epoch and global step before copying or uploading that file. Use `vendor` and `convert` in separate environments. Original GPU training and evaluation set `NVIDIA_TF32_OVERRIDE=0` and `TF_ENABLE_ONEDNN_OPTS=0`; the currently verified parity setup uses a CPU-only runtime with `CUDA_VISIBLE_DEVICES=""`.
 
 ## Prepare data
 
@@ -40,7 +40,7 @@ PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra tra
 
 ## Convert a checkpoint and smoke-test loading
 
-An original TensorFlow checkpoint prefix such as `initial.ckpt` or `final.ckpt` needs the `convert` extra. A Lightning `last.ckpt` file uses PyTorch loading and needs no TensorFlow extra.
+An original TensorFlow checkpoint prefix such as `initial.ckpt` or `final.ckpt` needs the `convert` extra. A Lightning `last.ckpt` file uses PyTorch loading and needs no TensorFlow extra. For a full run, use only a `last.ckpt` that passes the executor's final-epoch and global-step check.
 
 ```bash
 uv run --package canvas-vae --extra convert models/canvas-vae/scripts/convert_original_checkpoint.py --checkpoint .cache/canvas-vae/reference/trace/initial/initial.ckpt --vocabulary .cache/canvas-vae/original/data/rico/vocabulary.json --output-dir .cache/canvas-vae/converted/initial

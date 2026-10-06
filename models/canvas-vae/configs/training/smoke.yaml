@@ -8,8 +8,12 @@ trainer:
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 0
   logger: false
-  enable_checkpointing: false
   default_root_dir: .cache/canvas-vae/training-runs/smoke
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 0
+        save_last: true
 model:
   class_path: canvas_vae.training.CanvasVAETrainingModule
   init_args:

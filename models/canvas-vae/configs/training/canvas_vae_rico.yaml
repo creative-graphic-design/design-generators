@@ -13,9 +13,13 @@ trainer:
         monitor: val/total_score
         mode: max
         save_top_k: 1
-        save_last: true
+        save_last: false
         filename: best
         auto_insert_metric_name: false
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 0
+        save_last: true
 model:
   class_path: canvas_vae.training.CanvasVAETrainingModule
   init_args:

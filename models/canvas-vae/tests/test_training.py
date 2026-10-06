@@ -106,6 +106,7 @@ def test_rico_scale_stream_constants():
 @pytest.mark.training
 def test_lightning_fit_smoke(rico_dir, tmp_path):
     from traingen.lightning.cli import main
+    from canvas_vae.training.checkpoints import validate_final_checkpoint
 
     main(
         [
@@ -117,6 +118,86 @@ def test_lightning_fit_smoke(rico_dir, tmp_path):
             f"--trainer.default_root_dir={tmp_path}",
         ]
     )
+
+    assert validate_final_checkpoint(
+        tmp_path / "checkpoints" / "last.ckpt",
+        max_epochs=1,
+        expected_global_step=2,
+    ) == (0, 2)
+
+
+@pytest.mark.training
+def test_final_checkpoint_is_saved_when_validation_worsens(tmp_path):
+    import torch
+    from lightning.pytorch import LightningModule, Trainer
+    from lightning.pytorch.callbacks import ModelCheckpoint
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from canvas_vae.training.checkpoints import validate_final_checkpoint
+
+    class WorseningValidationScore(LightningModule):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(()))
+
+        def training_step(
+            self, batch: tuple[torch.Tensor, ...], batch_idx: int
+        ) -> torch.Tensor:
+            return self.weight.square()
+
+        def validation_step(
+            self, batch: tuple[torch.Tensor, ...], batch_idx: int
+        ) -> None:
+            score = 1.0 - self.current_epoch
+            self.log("val/total_score", score)
+
+        def configure_optimizers(self) -> torch.optim.Optimizer:
+            return torch.optim.SGD(self.parameters(), lr=0.1)
+
+    loader = DataLoader(TensorDataset(torch.ones(1)), batch_size=1)
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=2,
+        limit_train_batches=1,
+        limit_val_batches=1,
+        num_sanity_val_steps=0,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[
+            ModelCheckpoint(
+                dirpath=tmp_path,
+                monitor="val/total_score",
+                mode="max",
+                save_top_k=1,
+                save_last=False,
+                filename="best",
+            ),
+            ModelCheckpoint(dirpath=tmp_path, save_top_k=0, save_last=True),
+        ],
+    )
+    module = WorseningValidationScore()
+    trainer.fit(module, train_dataloaders=loader, val_dataloaders=loader)
+
+    best_checkpoint = tmp_path / "best.ckpt"
+    final_checkpoint = tmp_path / "last.ckpt"
+    assert best_checkpoint.is_file()
+    assert validate_final_checkpoint(
+        final_checkpoint,
+        max_epochs=2,
+        expected_global_step=2,
+    ) == (1, 2)
+    final_state = torch.load(final_checkpoint, map_location="cpu", weights_only=False)
+    torch.testing.assert_close(
+        final_state["state_dict"]["weight"], module.weight.detach()
+    )
+    with pytest.raises(ValueError, match="found epoch=0, global_step=1"):
+        validate_final_checkpoint(
+            best_checkpoint,
+            max_epochs=2,
+            expected_global_step=2,
+        )
 
 
 @pytest.mark.training
