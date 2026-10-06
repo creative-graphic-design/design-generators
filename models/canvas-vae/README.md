@@ -19,10 +19,10 @@ model-index:
           type: "creative-graphic-design/Rico"
           name: "RICO"
           config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
-          split: "original training stream: first batch (S0-S2), first 50 batches (S3), 102 replayed train/validation/test batches and all records (S4)"
+          split: "S0-S4 staged training checks and full-run RICO comparison (S5)"
         metrics:
           - type: "training-parity"
-            value: "see Parity Results"
+            value: "S0-S4 staged checks; S5 RICO PASS; see Reproducibility"
             name: "Training agreement with the original implementation"
 ---
 
@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), the ICCV 2021 variational autoencoder for vector graphic documents, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package that trains on RICO mobile UI layouts with [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html). To assess whether its training reproduces the original TensorFlow trainer, configuration, fixed-batch forward outputs, one optimizer step, a short multi-step run, and the data stream are compared through stages [S0–S4](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md). For RICO only, on CPU in fp32, S0–S2 and S4 pass, and S3 is a bounded pass: the step-by-step check passes, while the uninterrupted run is reported without a pass/fail limit. In that uninterrupted run, the natural trajectory, each system trains 50 steps on its own weights; the per-step total-loss difference |package − original| / |original| first exceeds the S1 loss limit of 1e-6 (the relative limit S1 applies to every loss value) at step 3, peaks at 5.760138e-4 at step 23, and is 1.309086e-4 at step 50. The step-by-step check, the synchronized diagnostic, reloads the original's weights and optimizer state before each of 49 steps and passes every asserted limit; 388 of its 3,381 gradient comparisons (49 steps × 69 tensors) pass through a float64 arbitration limit of 2.7e-3 instead of the direct 1.8e-4 limit, as approved in a [plan amendment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-5976356123). The initial S5 campaign completed, but its comparison is not claimable because package seed 1's `epoch-500.ckpt` came from the best-validation epoch rather than the final weights. The three original `final.ckpt` runs remain valid, and all package seeds will be rerun with the final-checkpoint gate under `segment-002`. Floating-point values are rounded to the digits shown; raw JSON reports retain full precision.
+This package ports [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), a variational autoencoder for vector graphic documents, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for training and layout generation. Full-run training reproduction passes the predeclared rule (the absolute system-mean difference must be no greater than twice the pooled sample SD) for Sreconst, layout mIoU, and Sgen across three 500-epoch training seeds per system on the 5,623-layout RICO test split; each Sgen value averages three evaluation seeds. This is a RICO-only claim; Crello remains blocked and is not claimed. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) gives the per-run results, comparison rule, evaluation scope, and reproduction commands.
 
 ## Model Details
 
@@ -64,7 +64,7 @@ CanvasVAE encodes a layout, meaning a sequence of up to 50 UI elements, into a 2
 | ---------- | ----------------------------------------- | ------------- |
 | RICO       | `creative-graphic-design/canvas-vae-rico` | not-published |
 
-Trained-checkpoint reproduction is not yet claimed. The first six-run S5 campaign completed, but package seed 1's `last.ckpt` contains an earlier best-validation checkpoint at epoch 279 and global step 12,600, rather than the final epoch 499 and global step 22,500. The original runs use valid `final.ckpt` files; all three package seeds are prepared for rerun under `segment-002` with the final-checkpoint gate. No S5 metrics from the earlier package runs are used. Crello is not supported because it first needs a separately trained image encoder.
+Full-run reproduction is complete for RICO, with three training seeds per system and all three primary S5 metrics passing. The corrected package checkpoints pass the final-epoch gate at epoch 499 and global step 22,500; earlier package outputs from before that correction are excluded. The model weights are not published. Crello remains blocked and unclaimed because it requires a separately trained image encoder. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for the full evidence.
 
 ## Uses
 
@@ -188,11 +188,11 @@ Training agreement with the original TensorFlow trainer on RICO, measured on CPU
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for the commands that download RICO, generate original-code references, run agreement checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for package-local LightningCLI training.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for commands to prepare RICO, generate original-code references, run agreement checks, convert checkpoints, and smoke-test loading. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the completed RICO S5 comparison and package-local LightningCLI training; full-run reproduction is not claimed for Crello.
 
 ## Environmental Impact
 
-The staged agreement checks run on CPU in minutes. Full-run training cost will be recorded with the full-run comparison.
+The staged agreement checks run on CPU in minutes. Full-run GPU telemetry is report-only and does not affect the S5 decision.
 
 ## Technical Specifications
 
@@ -202,7 +202,7 @@ The encoder sums per-field embeddings with learned position embeddings, applies 
 
 ### Compute Infrastructure
 
-Agreement checks run on CPU. Full RICO training is intended for one GPU.
+Agreement checks run on CPU. Full RICO training used one A100 per training process, with training processes run sequentially per GPU.
 
 #### Hardware
 
@@ -210,7 +210,7 @@ CPU is sufficient for inference, unit tests, and the staged agreement checks.
 
 #### Software
 
-Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. Package training keeps validation-best weights in `best.ckpt`; a separate unmonitored callback with `save_top_k: 1` refreshes `last.ckpt` at configured checkpoint events. The S5 executor checks the final epoch and global step before upload.
+Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. Package training keeps validation-best weights in `best.ckpt`; a separate unmonitored callback with `save_top_k: 1` refreshes `last.ckpt` at configured checkpoint events. The final-checkpoint gate requires epoch 499 and global step 22,500 before evaluation.
 
 ## License
 
