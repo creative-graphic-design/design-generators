@@ -256,6 +256,21 @@ def _vendor_backbone_loader() -> Iterator[None]:
         _VENDOR_TORCH_LOAD = None
 
 
+@contextmanager
+def _vendor_eval_loader() -> Iterator[None]:
+    original_load = torch.load
+
+    def load_legacy(*args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("weights_only", False)
+        return original_load(*args, **kwargs)
+
+    torch.load = load_legacy  # ty: ignore[invalid-assignment]
+    try:
+        yield
+    finally:
+        torch.load = original_load
+
+
 def _fake_vendor_backbone(
     path: str, *args: Any, **kwargs: Any
 ) -> dict[str, torch.Tensor]:
@@ -3966,7 +3981,8 @@ def run_s4() -> Path:
                 vendor_root / "test_order.pt"
             )
             os.chdir(evaluation_root)
-            vendor_eval.main()
+            with _vendor_eval_loader():
+                vendor_eval.main()
     os.chdir(ROOT)
     (EVIDENCE / "s4-evaluation").mkdir(parents=True, exist_ok=True)
     vendor_eval_output = output.getvalue()
@@ -4057,7 +4073,8 @@ def run_s4() -> Path:
         try:
             os.chdir(package_metrics_root)
             with redirect_stdout(io.StringIO()) as package_output:
-                vendor_eval.main()
+                with _vendor_eval_loader():
+                    vendor_eval.main()
             package_eval_output = package_output.getvalue()
         finally:
             os.chdir(old_cwd)
