@@ -174,7 +174,7 @@ def test_final_checkpoint_is_saved_when_validation_worsens(tmp_path):
                 save_last=False,
                 filename="best",
             ),
-            ModelCheckpoint(dirpath=tmp_path, save_top_k=0, save_last=True),
+            ModelCheckpoint(dirpath=tmp_path, save_top_k=1, save_last=True),
         ],
     )
     module = WorseningValidationScore()

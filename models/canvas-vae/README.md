@@ -210,7 +210,7 @@ CPU is sufficient for inference, unit tests, and the staged agreement checks.
 
 #### Software
 
-Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. Package training keeps the validation-best checkpoint as `best.ckpt` and writes final weights separately to `last.ckpt`; the S5 executor checks the final epoch and global step before upload.
+Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. Package training keeps validation-best weights in `best.ckpt`; a separate unmonitored callback with `save_top_k: 1` refreshes `last.ckpt` at configured checkpoint events. The S5 executor checks the final epoch and global step before upload.
 
 ## License
 
