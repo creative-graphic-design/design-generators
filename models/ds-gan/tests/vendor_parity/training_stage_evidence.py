@@ -1291,8 +1291,9 @@ def _cross_state_distribution(
 def _inside_self_distributions(
     cross: dict[str, Any], vendor: dict[str, Any], package: dict[str, Any]
 ) -> bool:
-    return cross["max_abs_difference"] <= max(
-        vendor["max_abs_difference"], package["max_abs_difference"]
+    return (
+        cross["max_abs_difference"] <= vendor["max_abs_difference"]
+        and cross["max_abs_difference"] <= package["max_abs_difference"]
     )
 
 
@@ -1348,10 +1349,9 @@ def _elementwise_envelope(
         if candidate_cross_abs > maximum_cross_abs:
             maximum = maximum_candidate
             maximum_cross_abs = candidate_cross_abs
-        envelope = torch.maximum(vendor_envelope, package_envelope)
         outside_vendor_mask = cross > vendor_envelope
         outside_package_mask = cross > package_envelope
-        outside_mask = cross > envelope
+        outside_mask = outside_vendor_mask | outside_package_mask
         outside_vendor = outside_vendor or bool(outside_vendor_mask.any().item())
         outside_package = outside_package or bool(outside_package_mask.any().item())
         for index in zip(*torch.where(outside_mask)):
