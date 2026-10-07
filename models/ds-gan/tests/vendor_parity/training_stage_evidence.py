@@ -1799,7 +1799,7 @@ class _NaturalParityCallback(Callback):
         self.vendor_generator = vendor_generator
         self.vendor_discriminator = vendor_discriminator
         self.vendor_loader = vendor_loader
-        self.vendor_iterator = iter(vendor_loader)
+        self.vendor_iterator: Iterator[Any] | None = None
         self.vendor_optimizers = vendor_optimizers
         self.vendor_schedulers = vendor_schedulers
         self.device = device
@@ -1813,7 +1813,7 @@ class _NaturalParityCallback(Callback):
 
     def on_train_epoch_start(self, trainer: Any, pl_module: Any) -> None:
         del pl_module
-        if trainer.current_epoch:
+        if self.vendor_iterator is None or trainer.current_epoch:
             self.vendor_iterator = iter(self.vendor_loader)
 
     def on_train_batch_start(
@@ -1824,6 +1824,9 @@ class _NaturalParityCallback(Callback):
         batch_idx: int,
     ) -> None:
         del pl_module, batch_idx
+        if self.vendor_iterator is None:
+            raise RuntimeError("natural parity callback has no vendor iterator")
+
         vendor_batch = _vendor_batch(next(self.vendor_iterator), self.device)
         package_batch = _package_batch(batch, self.device)
         self._batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
@@ -2725,6 +2728,7 @@ def _reevaluate_s2_recorded_artifact() -> Path:
 
 
 def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
+    _vendor_main()
     _set_determinism(SEED)
     (
         vendor_generator,
