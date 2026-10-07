@@ -29,8 +29,8 @@ Create and populate that audited runtime with the documented commands below. Rep
 UV_FROZEN=1 uv venv --python 3.11 <DSGAN_AUDIT_VENV>
 UV_FROZEN=1 uv export --frozen --package ds-gan --extra training --extra vendor --format requirements-txt --output-file .cache/ds-gan/runtime/locked-requirements.txt
 UV_FROZEN=1 uv pip sync --python <DSGAN_AUDIT_VENV>/bin/python .cache/ds-gan/runtime/locked-requirements.txt
-UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps <torch-2.8.0+cu128-wheel>
-UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps <torchvision-0.23.0+cu128-wheel>
+UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python <torch-2.8.0+cu128-wheel>
+UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python <torchvision-0.23.0+cu128-wheel>
 UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps --editable models/ds-gan
 UV_FROZEN=1 uv pip freeze --python <DSGAN_AUDIT_VENV>/bin/python > .cache/ds-gan/stage-evidence/runtime/pip-freeze.txt
 CUDA_VISIBLE_DEVICES="" <DSGAN_AUDIT_VENV>/bin/python -m pytest models/ds-gan/tests -q
