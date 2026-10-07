@@ -571,7 +571,10 @@ def generate_package_predictions(
                     generator=generator,
                     query_ids=ids,
                     relations=relation,
-                    top_k=5,
+                    # The refinement campaign uses vendor deterministic
+                    # argmax sampling.  top_k=1 makes the package sampler
+                    # deterministic while preserving the same pipeline path.
+                    top_k=1 if args.condition == "refinement" else 5,
                 ),
             )
             results.extend(layout_output_to_vendor_samples(output, sample_ids=ids))
@@ -721,7 +724,8 @@ def evaluate(
             str(args.runtime_python),
             "-c",
             "import runpy, sys, torch; torch.backends.cudnn.enabled=False; "
-            "runpy.run_path(sys.argv[1], run_name='__main__')",
+            "script=sys.argv[1]; sys.argv=[script, *sys.argv[2:]]; "
+            "runpy.run_path(script, run_name='__main__')",
             str(eval_path),
             *evaluator_args,
         ]
@@ -987,7 +991,8 @@ def artifact(
         "settings": {
             "vendor_condition": CONDITIONS[args.condition],
             "test_split": "test",
-            "top_k": 5,
+            "top_k": 1 if args.condition == "refinement" else 5,
+            "sampling": "deterministic" if args.condition == "refinement" else "top_k",
             "temperature": 1.0,
             "relation_backtracking": args.condition == "relation",
             "inference_workers": 0,

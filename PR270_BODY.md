@@ -21,7 +21,7 @@ This PR references [issue #44](https://github.com/creative-graphic-design/design
 | PKU     | refinement    | `s5-practical-reproduction` |                     0.125 vs 0.125 |                      13/15 |
 | PKU     | relation      | `s5-practical-reproduction` |                     2.331 vs 2.225 |                      12/15 |
 
-FID values in this table are rounded to three decimal places; the authoritative tables and exploratory statistics retain the recorded precision. A non-significant exploratory p-value is not treated as equivalence, and the range counts are the prespecified descriptive verdict basis recorded per condition.
+FID values in this table are rounded to three decimal places; the authoritative tables and exploratory statistics retain the recorded precision. Exploratory p-values are reported, not used as support; they do not establish equivalence, and the range counts are the prespecified descriptive verdict basis recorded per condition.
 
 ## Changes
 
