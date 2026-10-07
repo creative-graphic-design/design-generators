@@ -54,7 +54,7 @@ The evidence stream is LACE's own `InMemoryDataset` processed stream because the
 | PubLayNet | train 315,757; val 16,619; test 11,142 | train 3,033,717; val 159,541; test 119,402 | `.cache/lace/data/publaynet-max25/processed/{train,val,test}.pt` |
 | RICO25    |   train 358,510; val 2,109; test 4,218 |   train 3,954,250; val 23,650; test 47,129 | `.cache/lace/data/rico25-max25/processed/{train,val,test}.pt`    |
 
-The S0 source records show identical record IDs and element tuples for PubLayNet and for RICO25 validation and TEST against the LayoutDM compatibility files; RICO25 training is intentionally the LACE tenfold repeated source stream. The direct-processed-path comparison produced identical file, dataset, and sample-ID hashes for all six splits, so the S0-S3 evidence remains valid under the rerun rule. The measured path-proof values are recorded in the regeneration metadata below.
+The S0 source records show identical record IDs and element tuples for PubLayNet and for RICO25 validation and TEST against the LayoutDM compatibility files; those cross-source serialized files have different file SHA-256 values by design. RICO25 training is intentionally the LACE tenfold repeated source stream. A separate legacy-root versus direct-processed-root check produced identical file, loaded-dataset, and sample-ID hashes for all six splits, so the S0-S3 evidence remains valid under the rerun rule.
 
 ## Configs
 
@@ -179,9 +179,9 @@ The authors' checkpoints came from [the LACE model archive](https://huggingface.
 
 FID provenance is measured from `.cache/lace/fidroot/provenance.json`: the evaluator is `fid/model.py`, source commit `873b5eebe4c61862e5c08a10859accf65a168dfd`, source URL [at the measured source path](https://github.com/CyberAgentAILab/layout-dm/blob/873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py), and measured file SHA-256 `5df4cf82a869167d8cb6ab19470e58ecf42a576c0b8ae134c424cbd8505fdced`. FIDNetV3 came from the recorded LayoutDM release command and archive SHA-256 `357a0b8cd305793164ae4e9da1033ac1b687bfd46a53716673b32c83280c443b`. The measured FIDNetV3 and feature-cache hashes are PubLayNet weights `ff7208304e5c5f673ddd7cd5d73f85a0982df97a70713016f1b034a9c972d6fd`, features `ae9f84bb3c87eb5a4d94c4d0b3a0a32a49a3360fcc1e99d30ac35815fc3b027d`; RICO25 weights `3e99f113bdea8f6e4623103bea88aff6217f322eef3deba5a787f3acd19e3296`, features `61fbdfc6e2255eb7a36441509e165858932931866f2193834cfa6a6e8741b975`. The harness records these values and the explicit evaluator substitutions in each evaluation JSON.
 
-The direct-path proof measured both loader roots against the same approved `processed/*.pt` files:
+The machine-written direct-path proof `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/dataset-path-identity.json` (SHA-256 `d6cf7b0f68ac34a47e142a427c2f227ed07ad32d4a0dc429292a8ae198fca2ba`) compares the legacy data-root form used at source commit `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` with the direct processed-root form introduced at source commit `532b2312f13dfd4d9821d623d311aef440b6676f`. It records `file_sha256_equal=true`, `loaded_dataset_equal=true`, and `sample_ids_equal=true` for every split; the hashes below are the loaded-dataset and sample-ID hashes from that proof:
 
-| Dataset   | Split | Layouts |  Elements | Dataset hash                                                       | Sample-ID hash                                                     |
+| Dataset   | Split | Layouts |  Elements | Loaded-dataset hash                                               | Sample-ID hash                                                     |
 | --------- | ----- | ------: | --------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | PubLayNet | train | 315,757 | 3,033,717 | `5b9912664b5b276c712a4561efdffd552b7131fe09f6ac289956f4380d9d0c73` | `fafc2cc2cccbcf5ed22a3ba06264b0277ef162f85d365782e9810b6351a3ad21` |
 | PubLayNet | val   |  16,619 |   159,541 | `d88cec15caa48602b7fcecc1a677df89034d5251c9d2a704d9cb3661be2bacb5` | `c7be3a18f32b04accd046b72999faa2b69e47119d338fab2082750e8b3b99700` |
@@ -190,7 +190,7 @@ The direct-path proof measured both loader roots against the same approved `proc
 | RICO25    | val   |   2,109 |    23,650 | `9807eb04353bcde676a9d6d80107a81a4b458663dbf2de46d878929058687a80` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
 | RICO25    | test  |   4,218 |    47,129 | `73eedb4859cdaa121596e952f06830eb7744d6286af889708457bc56ed556d16` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
 
-Each pair had `byte_identical=true`; the file SHA-256 is recorded by the measurement. Runtime freeze artifacts and wheel provenance are recorded in the stage JSON files.
+The direct-path proof records equal file, loaded-dataset, and sample-ID hashes for all six pairs. This is distinct from the S0 LACE/LayoutDM compatibility comparison, whose serialized files differ while its loaded element tuples and record IDs match. Runtime freeze artifacts and wheel provenance are recorded in the stage JSON files.
 
 ```text
 .cache/lace/data/

@@ -143,6 +143,13 @@ print(out.id2label[int(out.labels[out.mask][0])])
 print(out.mask.any().item())
 ```
 
+```text
+torch.Size([1, 25, 4])
+torch.Size([1, 25])
+text
+True
+```
+
 ```python
 out = pipe(
     condition_type="label_size",
@@ -214,7 +221,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-Package-local training support exists, but this PR did not perform S5 full-run model training. Conversion, agreement checks, and any future training costs depend on the selected checkpoint and local hardware.
+Package-local training support exists, but this PR did not perform full-run model training. Conversion, agreement checks, and any future training costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
