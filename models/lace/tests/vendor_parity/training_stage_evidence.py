@@ -1117,6 +1117,10 @@ def _named_gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
 def _processed_root(data_root: Path, dataset: str) -> Path:
     if data_root.name == "processed":
         return data_root
+
+    if data_root.name == f"{dataset}-max25":
+        return data_root / "processed"
+
     return data_root / f"{dataset}-max25" / "processed"
 
 
