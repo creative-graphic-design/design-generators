@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
@@ -120,16 +121,80 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
     ]
 
 
-def _dataset_display_name(value: str) -> str:
-    normalized = value.removeprefix("https://huggingface.co/datasets/")
-    return {
-        "creative-graphic-design/Rico": "RICO25",
-        "creative-graphic-design/PubLayNet": "PubLayNet",
-        "creative-graphic-design/magazine": "Magazine",
-        "creative-graphic-design/CGL-Dataset": "CGL",
-        "creative-graphic-design/PKU-PosterLayout": "PKU",
-        "cyberagent/crello": "Crello",
-    }.get(normalized, normalized)
+_DATASET_PRESENTATIONS: dict[str, tuple[str, str]] = {
+    "rico13": ("creative-graphic-design/rico", "RICO13"),
+    "rico25": ("creative-graphic-design/rico", "RICO25"),
+    "publaynet": ("creative-graphic-design/publaynet", "PubLayNet"),
+    "magazine": ("creative-graphic-design/magazine", "Magazine"),
+    "pku_posterlayout": ("creative-graphic-design/pku-posterlayout", "PKU"),
+    "cgl": ("creative-graphic-design/cgl-dataset", "CGL"),
+    "posterlayout": ("posterlayout", "PosterLayout"),
+    "ad_banner": ("ad banner", "Ad Banner"),
+    "crello": ("cyberagent/crello", "Crello"),
+    "coco-grounded": ("coco-grounded", "COCO-grounded"),
+    "vg-msdn": ("vg-msdn", "VG-MSDN"),
+    "smarttext-demo": ("smarttext demo", "SmartText demo"),
+    "grit": ("grit", "GRIT"),
+    "nsr-1k": ("nsr-1k", "NSR-1K"),
+    "web": ("web", "Web"),
+    "info ppt": ("infoppt", "InfoPPT"),
+    "coco": ("coco", "COCO"),
+    "housegan-floorplan-vectorized": (
+        "housegan-floorplan-vectorized",
+        "housegan-floorplan-vectorized",
+    ),
+}
+
+
+def _dataset_key(value: str) -> str:
+    return (
+        value.removeprefix("https://huggingface.co/datasets/")
+        .casefold()
+        .replace("-", "")
+        .replace("_", "")
+        .replace(" ", "")
+    )
+
+
+@lru_cache(maxsize=None)
+def _declared_dataset_displays(slug: str) -> dict[str, str]:
+    metadata = project_metadata(REPO_ROOT / "models" / slug)
+    tool = metadata.get("tool")
+    design_generators = tool.get("design-generators") if isinstance(tool, dict) else {}
+    declared = (
+        design_generators.get("datasets") if isinstance(design_generators, dict) else []
+    )
+    if not isinstance(declared, list):
+        return {}
+
+    displays: dict[str, str] = {}
+    for dataset in declared:
+        if not isinstance(dataset, str):
+            continue
+
+        presentation = _DATASET_PRESENTATIONS.get(dataset.casefold())
+        if presentation is None:
+            continue
+
+        source, display = presentation
+        displays[_dataset_key(dataset)] = display
+        displays[_dataset_key(source)] = display
+
+    return displays
+
+
+def _dataset_display_name(value: str, slug: str | None = None) -> str:
+    if slug is None:
+        return value.removeprefix("https://huggingface.co/datasets/").rsplit(
+            "/", maxsplit=1
+        )[-1]
+
+    return _declared_dataset_displays(slug).get(
+        _dataset_key(value),
+        value.removeprefix("https://huggingface.co/datasets/").rsplit("/", maxsplit=1)[
+            -1
+        ],
+    )
 
 
 def semantic_badge_label(alt: str, query_label: str) -> str:
@@ -378,7 +443,9 @@ def assert_expected_frontmatter(path: Path, text: str) -> None:
             f"{path}: frontmatter datasets missing supported checkpoint datasets {missing}"
         )
 
-    expected_badges = {_dataset_display_name(dataset) for dataset in actual_datasets}
+    expected_badges = {
+        _dataset_display_name(dataset, slug) for dataset in actual_datasets
+    }
     actual_badges = set(badge_messages(text, "dataset"))
     if actual_badges != expected_badges:
         raise AssertionError(

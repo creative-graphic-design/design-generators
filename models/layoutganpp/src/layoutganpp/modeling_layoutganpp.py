@@ -130,6 +130,10 @@ class LayoutGANPPModel(PreTrainedModel):
         self.fc_out = nn.Linear(config.d_model, 4)
         self.post_init()
 
+    def _init_weights(self, module: nn.Module) -> None:
+        """Keep PyTorch constructor initialization during Transformers setup."""
+        del module
+
     def forward(
         self,
         latents: Float[torch.Tensor, "batch elements latent"],

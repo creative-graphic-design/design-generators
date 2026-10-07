@@ -4190,6 +4190,13 @@ download = [
 hub = [
     { name = "huggingface-hub" },
 ]
+training = [
+    { name = "datasets" },
+    { name = "jsonargparse", extra = ["signatures"] },
+    { name = "lightning" },
+    { name = "traingen" },
+    { name = "traingen-parity" },
+]
 vendor = [
     { name = "cma" },
     { name = "pycocotools" },
@@ -4205,9 +4212,12 @@ vendor = [
 [package.metadata]
 requires-dist = [
     { name = "cma", marker = "extra == 'vendor'" },
+    { name = "datasets", marker = "extra == 'training'", specifier = ">=3" },
     { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=1.0.0" },
     { name = "jaxtyping", specifier = ">=0.3" },
+    { name = "jsonargparse", extras = ["signatures"], marker = "extra == 'training'", specifier = ">=4.27.7" },
     { name = "laygen", editable = "lib/laygen" },
+    { name = "lightning", marker = "extra == 'training'", specifier = ">=2.0.0" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pycocotools", marker = "extra == 'vendor'" },
@@ -4218,9 +4228,11 @@ requires-dist = [
     { name = "tensorboard", marker = "extra == 'vendor'" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torch-geometric", marker = "extra == 'vendor'", specifier = ">=2.5,<2.7" },
+    { name = "traingen", marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]
-provides-extras = ["download", "hub", "vendor"]
+provides-extras = ["training", "download", "hub", "vendor"]
 
 [[package]]
 name = "layoutprompter"
