@@ -123,12 +123,12 @@ WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
 ZERO_GRADIENT_LIMIT = 1e-6
 # Later trajectory steps have smaller, more cancelling batch-summed gradients,
-# so some tensors exceed the one-step gradient limit. For those tensors the
-# synchronized step recomputes the same step in float64 and requires both the
-# package and original float32 gradients to lie within ROUNDING_LIMIT of it.
-# The 388 arbitrated gradients have a maximum error of 2.419970e-3; this limit
-# gives that population 11.6% headroom. The direct 1.8e-4 check still governs
-# every gradient that does not need arbitration.
+# so some tensors exceed the one-step gradient limit. The synchronized check
+# recomputes those gradients in float64 and requires both systems' fp32 values
+# to lie within ROUNDING_LIMIT of the recomputation. In the reference run,
+# 2,993 passed directly, 388 were arbitrated, and the maximum arbitrated error
+# was 2.419970e-3; these measurements are report-only, not gates. Each gradient
+# must pass either the direct 1.8e-4 check or this float64 limit.
 ROUNDING_LIMIT = 2.7e-3
 
 
@@ -945,14 +945,13 @@ def test_s3_synchronized_steps(
     gradient_checks = [value for name, value in measured.items() if "/grad/" in name]
     arbitrated = [value for value in gradient_checks if value.get("float64_arbitrated")]
     direct = [value for value in gradient_checks if not value.get("float64_arbitrated")]
-    assert len(gradient_checks) == 3_381
-    assert len(direct) == 2_993
-    assert len(arbitrated) == 388
     max_arbitrated_error = max(
-        max(value["package_float64_error"], value["original_float64_error"])
-        for value in arbitrated
+        (
+            max(value["package_float64_error"], value["original_float64_error"])
+            for value in arbitrated
+        ),
+        default=None,
     )
-    assert max_arbitrated_error <= ROUNDING_LIMIT
 
     check_measured(
         "s3_synchronized",
@@ -968,10 +967,12 @@ def test_s3_synchronized_steps(
             },
         },
     )
+    assert len(gradient_checks) == 3_381
 
 
 def test_s3_production_wiring(tmp_path):
     require(DATA_DIR / "train.jsonl")
+    from canvas_vae.training.checkpoints import validate_final_checkpoint
     from traingen.lightning.cli import lightning_cli_class
 
     cli = lightning_cli_class()(
@@ -996,13 +997,28 @@ def test_s3_production_wiring(tmp_path):
     assert trainer.gradient_clip_val is None
     assert trainer.global_step == 6
     assert "val/total_score" in trainer.callback_metrics
-    checkpoints = sorted(path.name for path in Path(tmp_path).rglob("*.ckpt"))
-    assert checkpoints == ["best.ckpt", "last.ckpt"]
+    checkpoint_paths = list(Path(tmp_path).rglob("*.ckpt"))
+    checkpoints = sorted(path.name for path in checkpoint_paths)
+    best_checkpoint = next(
+        (path for path in checkpoint_paths if path.name == "best.ckpt"), None
+    )
+    last_checkpoint = next(
+        (path for path in checkpoint_paths if path.name == "last.ckpt"), None
+    )
+    assert best_checkpoint is not None and best_checkpoint.is_file()
+    assert last_checkpoint is not None and last_checkpoint.is_file()
+    last_checkpoint_metadata = validate_final_checkpoint(
+        last_checkpoint,
+        max_epochs=2,
+        expected_global_step=trainer.global_step,
+    )
     report(
         "s3_wiring",
         {
             "global_step": trainer.global_step,
             "checkpoints": checkpoints,
+            "last_checkpoint_epoch": last_checkpoint_metadata[0],
+            "last_checkpoint_global_step": last_checkpoint_metadata[1],
             "metrics": {
                 key: float(value) for key, value in trainer.callback_metrics.items()
             },
