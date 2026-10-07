@@ -1141,6 +1141,13 @@ def main() -> None:
             comparison=comparison,
             freeze=freeze,
         )
+        # Refreshing an existing result only repairs provenance fields.  The
+        # original evaluator/runtime evidence remains the source of truth; a
+        # refresh interpreter must not rewrite it as a new evaluation.
+        if isinstance(previous.get("evaluator"), dict):
+            record["evaluator"] = previous["evaluator"]
+        if isinstance(previous.get("runtime_provenance"), dict):
+            record["runtime_provenance"] = previous["runtime_provenance"]
         record["runtime_seconds"] = previous.get("runtime_seconds", 0.0)
         artifact_path.write_text(
             json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
