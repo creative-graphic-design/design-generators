@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -14,7 +15,7 @@ from typing import cast
 
 SHA_PATTERN = re.compile(r"(?i)(?<![0-9a-f])([0-9a-f]{64,})(?![0-9a-f])")
 PATH_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_$])((?:\.cache|models|scripts|docs)/[A-Za-z0-9_./=-]+)"
+    r"(?<![A-Za-z0-9_$])((?:\.cache|models|scripts|docs|evals)/[A-Za-z0-9_./=-]+|\$RALF_CACHE_DIR/[A-Za-z0-9_./=-]+)"
 )
 DOC_PATHS = (Path("models/ralf/TRAINING.md"), Path("PR270_BODY.md"))
 MANIFEST_PATHS = (
@@ -60,7 +61,7 @@ def unique_paths(paths: list[Path]) -> list[Path]:
 
 
 def search_roots(repo_root: Path, search_root: Path) -> list[Path]:
-    return unique_paths([repo_root, *sorted(search_root.glob("ralf-*"))])
+    return unique_paths([repo_root, search_root, *sorted(search_root.glob("ralf-*"))])
 
 
 def candidate_paths(
@@ -73,12 +74,23 @@ def candidate_paths(
 ) -> list[Path]:
     path = Path(raw.rstrip("`.,;:)]}"))
     candidates: list[Path] = []
-    if path.is_absolute():
+    if raw.startswith("$RALF_CACHE_DIR/"):
+        cache_root = os.environ.get("RALF_CACHE_DIR")
+        if cache_root:
+            candidates.append(Path(cache_root) / raw.removeprefix("$RALF_CACHE_DIR/"))
+    elif path.is_absolute():
         candidates.append(path)
     elif raw.startswith(".cache/") or raw.startswith(("models/", "scripts/", "docs/")):
         candidates.extend(root / path for root in roots)
     else:
         candidates.append(base / path)
+
+    if raw.startswith(("evals/", "training_logs/")):
+        for root in roots:
+            candidates.extend(
+                root.glob(f".cache/ralf/training-reproduction/*/*/*/{raw}")
+            )
+            candidates.append(root / path)
 
     if dataset and condition:
         condition_names = {condition, condition.replace("-", "_")}
@@ -297,11 +309,21 @@ def document_target(
     if not candidates:
         return None
 
+    def resolve_document(raw: str) -> Path | None:
+        matches = [
+            path
+            for path in candidate_paths(raw, base=base, roots=roots)
+            if path.is_file()
+        ]
+        if raw.startswith("evals/") and len(matches) != 1:
+            return None
+        return matches[0] if matches else None
+
     def choose(suffix: str) -> Path | None:
         matches = [item for item in candidates if item.group(1).endswith(suffix)]
         if not matches:
             return None
-        return resolve(matches[-1].group(1), base=base, roots=roots)
+        return resolve_document(matches[-1].group(1))
 
     if "manifest sha" in cell:
         return choose("manifest.json")
@@ -314,7 +336,7 @@ def document_target(
     if "trace sha" in cell and "driver log" not in cell and "probe log" not in cell:
         matches = [item for item in candidates if "/trace/" in item.group(1)]
         if matches:
-            return resolve(matches[-1].group(1), base=base, roots=roots)
+            return resolve_document(matches[-1].group(1))
         return None
     if "artifact sha" in cell or "stage sha" in cell:
         matches = [
@@ -324,11 +346,18 @@ def document_target(
             and "loss-vectors" not in item.group(1)
         ]
         if matches:
-            return resolve(matches[-1].group(1), base=base, roots=roots)
+            return resolve_document(matches[-1].group(1))
         return None
 
     nearest = candidates[-1]
     between = line[nearest.end() : match.start()]
+    compact_between = between.strip(" `|,;:()")
+    if not compact_between or (
+        "sha-256" in between.lower() and len(compact_between) <= 12
+    ):
+        target = resolve_document(nearest.group(1))
+        if target is not None:
+            return target
     if match.start() - nearest.end() > 180:
         return None
     if not re.search(r"(?i)sha-?256|hash", between):
@@ -338,7 +367,7 @@ def document_target(
         between,
     ):
         return None
-    return resolve(nearest.group(1), base=base, roots=roots)
+    return resolve_document(nearest.group(1))
 
 
 def read_revision(path: Path, revision: str, repo_root: Path) -> str:
@@ -379,15 +408,20 @@ def main() -> None:
         action="store_true",
         help="audit documents without walking the launch manifests or parity JSON",
     )
-    parser.add_argument(
-        "--search-root",
-        type=Path,
-        default=None,
-    )
+    parser.add_argument("--search-root", type=Path, action="append", default=[])
     args = parser.parse_args()
     repo_root = Path(__file__).resolve().parents[4]
-    search_root = args.search_root.resolve() if args.search_root else repo_root.parent
-    roots = search_roots(repo_root, search_root)
+    search_roots_arg = [path.resolve() for path in args.search_root]
+    if not search_roots_arg:
+        search_roots_arg = [repo_root.parent]
+    roots = unique_paths(
+        [repo_root]
+        + [
+            item
+            for root in search_roots_arg
+            for item in [root, *sorted(root.glob("ralf-*"))]
+        ]
+    )
     counts = {"checked": 0, "mismatch": 0, "invalid": 0, "unresolved": 0}
 
     if args.fix_documents:
