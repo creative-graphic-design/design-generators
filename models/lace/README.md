@@ -169,7 +169,7 @@ The original LACE project trains on PubLayNet and Rico annotations prepared as m
 
 ### Training Procedure
 
-Package-local S0-S4 training reproduction is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md); S5 full-run statistical reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
+Package-local training reproduction is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md); full-run statistical reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
@@ -177,7 +177,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** package-local training and deterministic agreement checks are implemented; full-run statistical training is not claimed.
 
 #### Speeds, Sizes, Times
 
