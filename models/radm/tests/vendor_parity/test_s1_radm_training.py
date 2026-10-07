@@ -1727,8 +1727,20 @@ def _assert_trace(
     divergences: list[dict[str, object]] | None = None,
 ) -> dict[str, dict[str, float]]:
     tolerances = {name: tolerance for name in reference_tensors if name in float_names}
-    reference = build_step_trace("original", reference_tensors)
-    package = build_step_trace("package", package_tensors)
+    reference = build_step_trace(
+        "original",
+        {
+            name: value.detach().to(device="cpu", copy=True)
+            for name, value in reference_tensors.items()
+        },
+    )
+    package = build_step_trace(
+        "package",
+        {
+            name: value.detach().to(device="cpu", copy=True)
+            for name, value in package_tensors.items()
+        },
+    )
     report = compare_step_trace(reference, package, tolerances)
     for name in reference_tensors:
         if name not in package_tensors:
@@ -1835,7 +1847,7 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
             },
         )
         torch.testing.assert_close(
-            source["diffusion_input"],
+            source["diffusion_input"].detach().to(device="cpu", copy=True),
             package_trace["diffusion_input"],
             rtol=0.0,
             atol=0.0,
@@ -1871,12 +1883,24 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
             package_levels.tolist(),
         )
         source_model = cast(Any, state.model)
+        source_backbone_features = [
+            source_capture["backbone"][name].to(
+                device=source_absolute_input.device, copy=True
+            )
+            for name in consumed_features
+        ]
         source_pooled = source_model.head.box_pooler(
-            [source_capture["backbone"][name] for name in consumed_features],
+            source_backbone_features,
             [Boxes(source_absolute_input[0])],
         )
+        package_backbone_features = {
+            name: package_capture["backbone"][name].to(
+                device=source_absolute_input.device, copy=True
+            )
+            for name in consumed_features
+        }
         package_pooled = package.head._roi_features(
-            package_capture["backbone"], source_absolute_input
+            package_backbone_features, source_absolute_input
         )
         roi_errors = _assert_trace(
             {"roi_features": source_pooled},
@@ -1933,10 +1957,14 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
         for index, ((source_indices, source_matched), (logits, boxes)) in enumerate(
             zip(source["assignments"], zip(package_logits, package_boxes), strict=True)
         ):
+            package_target = {
+                name: value.to(device=logits.device, copy=True)
+                for name, value in package_targets[0].items()
+            }
             package_indices = _dynamic_k_match(
                 logits[0],
                 boxes[0],
-                cast(RADMTarget, package_targets[0]),
+                cast(RADMTarget, package_target),
                 alpha=state.effective.alpha,
                 gamma=state.effective.gamma,
                 ota_k=state.effective.ota_k,
@@ -1957,8 +1985,14 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
                     float_names=set(),
                 )
             )
-            assert torch.equal(source_indices, package_indices[0])
-            assert torch.equal(source_matched, package_indices[1])
+            assert torch.equal(
+                source_indices.detach().to(device="cpu", copy=True),
+                package_indices[0].detach().to(device="cpu", copy=True),
+            )
+            assert torch.equal(
+                source_matched.detach().to(device="cpu", copy=True),
+                package_indices[1].detach().to(device="cpu", copy=True),
+            )
 
         fixture_hash_payload = {
             name: tensor_sha256(value) for name, value in fixture_tensors.items()
