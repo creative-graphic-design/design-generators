@@ -183,12 +183,12 @@ The machine-written direct-path proof `.cache/lace/stage-evidence/532b2312f13dfd
 
 | Dataset   | Split | Layouts |  Elements | Loaded-dataset hash                                               | Sample-ID hash                                                     |
 | --------- | ----- | ------: | --------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| PubLayNet | train | 315,757 | 3,033,717 | `5b9912664b5b276c712a4561efdffd552b7131fe09f6ac289956f4380d9d0c73` | `fafc2cc2cccbcf5ed22a3ba06264b0277ef162f85d365782e9810b6351a3ad21` |
-| PubLayNet | val   |  16,619 |   159,541 | `d88cec15caa48602b7fcecc1a677df89034d5251c9d2a704d9cb3661be2bacb5` | `c7be3a18f32b04accd046b72999faa2b69e47119d338fab2082750e8b3b99700` |
-| PubLayNet | test  |  11,142 |   119,402 | `a3f5f6032d0b2ab87d045307e6c76c8392285a57d4aaa0e7e4ee65ea3424d828` | `6d3fd886468786e86c7ca981bbdeb88666b354b200c30f3c635114e627fc8c8e` |
-| RICO25    | train | 358,510 | 3,954,250 | `aae8e685afa6f0551c091749b02f5d8defcc5df8803f67dc8b7d13751842d381` | `d45131f61c51b836d958f3065d06fd9c8a1490bbb20e000c84fcf3cc6ad72b53` |
-| RICO25    | val   |   2,109 |    23,650 | `9807eb04353bcde676a9d6d80107a81a4b458663dbf2de46d878929058687a80` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
-| RICO25    | test  |   4,218 |    47,129 | `73eedb4859cdaa121596e952f06830eb7744d6286af889708457bc56ed556d16` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
+| PubLayNet | train | 315,757 | 3,033,717 | `5bfe22aed397f64222d0f549f7387ac04683ae897355a02ca5ee0e0a7ca40f96` | `fafc2cc2cccbcf5ed22a3ba06264b0277ef162f85d365782e9810b6351a3ad21` |
+| PubLayNet | val   |  16,619 |   159,541 | `f01c6859c92e392d30d47a19f8d8a84724c43dd70431d9040b84f765b2d90fb0` | `c7be3a18f32b04accd046b72999faa2b69e47119d338fab2082750e8b3b99700` |
+| PubLayNet | test  |  11,142 |   119,402 | `f82ccf6279561b4d2d4d02257a4ab1c243dde47a402017aa69a0eb6218bd0a90` | `6d3fd886468786e86c7ca981bbdeb88666b354b200c30f3c635114e627fc8c8e` |
+| RICO25    | train | 358,510 | 3,954,250 | `57d3b859a9d3136114468e171bfee438ef858476aa17b7bd034804362a4356a1` | `d45131f61c51b836d958f3065d06fd9c8a1490bbb20e000c84fcf3cc6ad72b53` |
+| RICO25    | val   |   2,109 |    23,650 | `406078b1390fb983859e7afae76fe7fcab9f5f4db8113804f6a76b6cbdb56a18` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
+| RICO25    | test  |   4,218 |    47,129 | `b27f2555ac6864629f004f3ccb14bed0feed3dd29f65bb04c7bf65dc7937fdd9` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
 
 The direct-path proof records equal file, loaded-dataset, and sample-ID hashes for all six pairs. This is distinct from the S0 LACE/LayoutDM compatibility comparison, whose serialized files differ while its loaded element tuples and record IDs match. Runtime freeze artifacts and wheel provenance are recorded in the stage JSON files.
 
