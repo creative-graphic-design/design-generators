@@ -703,8 +703,7 @@ def evaluate(
         score_path.unlink()
     fid_name = "cgl" if args.dataset == "cgl" else "pku10"
     eval_path = runtime_vendor_source(args, output_dir) / "eval.py"
-    command = [
-        str(args.runtime_python),
+    evaluator_args = [
         "--input-dir",
         str(prediction_dir),
         "--fid-weight-dir",
@@ -724,10 +723,10 @@ def evaluate(
             "import runpy, sys, torch; torch.backends.cudnn.enabled=False; "
             "runpy.run_path(sys.argv[1], run_name='__main__')",
             str(eval_path),
-            *command[1:],
+            *evaluator_args,
         ]
     else:
-        command.insert(1, str(eval_path))
+        command = [str(args.runtime_python), str(eval_path), *evaluator_args]
     environment = os.environ.copy()
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     evaluator_workdir = output_dir / "evaluator-work" / name
