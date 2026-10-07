@@ -1144,6 +1144,17 @@ def _apply_decode_space_restriction(
     eos_id: int,
     max_length: int,
 ) -> Float[torch.Tensor, "batch vocab"]:
+    # The decoder masks unconstrained attributes before applying this helper.
+    # The package keeps the full layout sequence for the constraint encoder, so
+    # skip positions that are not part of the public condition here instead of
+    # treating their target geometry tokens as hard constraints.
+    attribute_index = step % 5
+    if task == "c" and attribute_index != 0:
+        return logits
+
+    if task == "cwh" and attribute_index not in {0, 1, 2}:
+        return logits
+
     if task in {"c", "cwh"}:
         return _restrict_reliable_label_or_size(
             sampling_idx=step + 1,

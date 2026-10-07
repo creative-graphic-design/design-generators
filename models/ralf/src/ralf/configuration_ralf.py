@@ -42,15 +42,6 @@ RALF_RUNTIME_PATH_KEYS: Final[frozenset[str]] = frozenset(
     {
         "resnet_weights_path",
         "fidnet_weights_path",
-        "cache_dir",
-        "data_root",
-        "output_dir",
-        "workdir",
-        "log_dir",
-        "checkpoint_dir",
-        "retrieval_index_path",
-        "validation_retrieval_index_path",
-        "relationship_table_path",
     }
 )
 

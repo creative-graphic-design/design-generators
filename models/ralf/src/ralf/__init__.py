@@ -7,14 +7,9 @@ from .pipeline_ralf import RalfPipeline
 from .processing_ralf import RalfProcessor
 from .retrieval import RalfRetrievalTable, RalfRetrievedBatch
 from .tokenization_ralf import RalfLayoutTokenizer
-
-try:
-    from .training.config import RalfTrainingStage
-    from .training.datamodule import RalfDataModule, RalfTrainingDataset
-    from .training.lightning_module import RalfTrainingModule
-except ImportError:
-    # The optional training extra keeps inference imports lightweight.
-    pass
+from .training.config import RalfTrainingStage
+from .training.datamodule import RalfDataModule, RalfTrainingDataset
+from .training.lightning_module import RalfTrainingModule
 
 __all__ = [
     "RalfConfig",
@@ -25,12 +20,8 @@ __all__ = [
     "RalfProcessor",
     "RalfRetrievalTable",
     "RalfRetrievedBatch",
+    "RalfDataModule",
+    "RalfTrainingDataset",
+    "RalfTrainingModule",
+    "RalfTrainingStage",
 ]
-
-if "RalfTrainingModule" in globals():
-    __all__ += [
-        "RalfDataModule",
-        "RalfTrainingDataset",
-        "RalfTrainingModule",
-        "RalfTrainingStage",
-    ]
