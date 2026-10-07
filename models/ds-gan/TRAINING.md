@@ -32,10 +32,11 @@ UV_FROZEN=1 uv pip sync --python <DSGAN_AUDIT_VENV>/bin/python .cache/ds-gan/run
 UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps <torch-2.8.0+cu128-wheel>
 UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps <torchvision-0.23.0+cu128-wheel>
 UV_FROZEN=1 uv pip install --python <DSGAN_AUDIT_VENV>/bin/python --no-deps --editable models/ds-gan
+UV_FROZEN=1 uv pip freeze --python <DSGAN_AUDIT_VENV>/bin/python > .cache/ds-gan/stage-evidence/runtime/pip-freeze.txt
 CUDA_VISIBLE_DEVICES="" <DSGAN_AUDIT_VENV>/bin/python -m pytest models/ds-gan/tests -q
 ```
 
-The runtime records measure `pip freeze` at execution time and record Torch and torchvision through package metadata and direct URLs. The released checkpoint is downloaded from the authors' [Google Drive weights folder](https://drive.google.com/drive/folders/1UYJ34BhqgYztfh5n5A4GU4nqgboPtoWS); its measured SHA-256 is `d1afdf0a4965229122f111a842a8afabaca94ef2501ad156a930193994b6bf15`. The two pinned backbone downloads are:
+The runtime records measure the package set at execution time with `uv pip freeze --python <DSGAN_AUDIT_VENV>/bin/python` and record Torch and torchvision through package metadata and direct URLs. The released checkpoint is downloaded from the authors' [Google Drive weights folder](https://drive.google.com/drive/folders/1UYJ34BhqgYztfh5n5A4GU4nqgboPtoWS); its measured SHA-256 is `d1afdf0a4965229122f111a842a8afabaca94ef2501ad156a930193994b6bf15`. The two pinned backbone downloads are:
 
 ```bash
 mkdir -p .cache/ds-gan/backbones

@@ -104,7 +104,7 @@ def _runtime() -> dict[str, Any]:
 
     freeze_path.write_text(
         subprocess.check_output(
-            [sys.executable, "-m", "pip", "freeze", "--all"], text=True
+            ["uv", "pip", "freeze", "--python", sys.executable], text=True
         )
     )
     return {
