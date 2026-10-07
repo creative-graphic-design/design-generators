@@ -156,7 +156,9 @@ def _fid_provenance(
         ),
         "sha256": _sha256(feature_path),
         "source_commit": vendor_commit,
-        "source_url": f"https://github.com/puar-playground/LACE/blob/{vendor_commit}/test.py",
+        "source_url": (
+            "https://github.com/puar-playground/LACE/blob/" + vendor_commit + "/test.py"
+        ),
     }
     provenance["fid_evaluator_path"] = "<LACE_FID_ROOT>/fid/model.py"
     return provenance

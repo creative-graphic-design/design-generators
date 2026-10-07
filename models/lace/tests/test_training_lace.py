@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -11,7 +12,10 @@ from torch import nn
 
 pytest.importorskip("lightning")
 
+from laygen.common.testing import skip_or_fail_vendor_parity
+from laygen.common.vendor import vendor_root
 from lace.configuration_lace import default_model_config
+from lace.conversion import convert_state_dict, load_vendor_state_dict
 from lace.modeling_lace import LaceTransformerModel
 from lace.training.config import LaceSeedMode
 from lace.training.datamodule import LaceDataModule
@@ -28,6 +32,75 @@ from lace.training.losses import (
     xywh_to_ltrb_reference,
 )
 from lace.training.seed import apply_lace_seed_mode
+
+
+def _load_vendor_transformer_encoder(vendor_dir: Path) -> type[torch.nn.Module]:
+    spec = spec_from_file_location(
+        "lace_vendor_training_backbone", vendor_dir / "util" / "backbone.py"
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load vendor LACE backbone")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    transformer = getattr(module, "TransformerEncoder")
+    if not isinstance(transformer, type):
+        raise TypeError("Vendor TransformerEncoder must be a class")
+    return cast(type[torch.nn.Module], transformer)
+
+
+@pytest.mark.parametrize(
+    ("dataset", "checkpoint"),
+    [
+        ("publaynet", "publaynet_best.pt"),
+        ("rico25", "rico25_best.pt"),
+    ],
+)
+def test_s0_copied_checkpoint_forward_matches_package(
+    dataset: str,
+    checkpoint: str,
+) -> None:
+    root = Path(__file__).parents[3]
+    checkpoint_path = root / ".cache" / "lace" / "original" / "model" / checkpoint
+    if not checkpoint_path.exists():
+        skip_or_fail_vendor_parity(
+            "LACE vendor checkpoint is local-only",
+            missing_paths=[checkpoint_path],
+            regeneration_hint="download the LACE vendor checkpoints into .cache/lace/original/model",
+        )
+    vendor_dir = vendor_root("lace", marker=Path("util") / "backbone.py")
+    TransformerEncoder = _load_vendor_transformer_encoder(vendor_dir)
+    config = default_model_config(dataset)
+    device = torch.device("cpu")
+    vendor = TransformerEncoder(
+        num_layers=config["num_layers"],
+        dim_seq=config["seq_dim"],
+        dim_transformer=config["dim_transformer"],
+        nhead=config["nhead"],
+        dim_feedforward=config["dim_feedforward"],
+        diffusion_step=config["diffusion_step"],
+        device=device,
+    ).eval()
+    package = LaceTransformerModel(**config).eval()
+    state = convert_state_dict(load_vendor_state_dict(checkpoint_path))
+    vendor.load_state_dict(state, strict=True)
+    package.load_state_dict(state, strict=True)
+    assert sum(parameter.numel() for parameter in vendor.parameters()) == sum(
+        parameter.numel() for parameter in package.parameters()
+    )
+    assert set(vendor.state_dict()) == set(package.state_dict())
+    generator = torch.Generator(device=device).manual_seed(123)
+    sample = torch.randn(
+        2,
+        config["max_seq_length"],
+        config["seq_dim"],
+        device=device,
+        generator=generator,
+    )
+    timestep = torch.tensor([1, 201], device=device)
+    with torch.no_grad():
+        expected = vendor(sample, timestep=timestep)
+        actual = package(sample=sample, timestep=timestep).sample
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
 
 def _write_processed_data(
