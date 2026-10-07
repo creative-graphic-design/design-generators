@@ -83,6 +83,7 @@ class DSGANDataModule(LightningDataModule):
         )
 
     def _generator(self) -> torch.Generator:
-        generator = torch.Generator()
+        """Return the seeded CPU sampler stream used by the reference loader."""
+        generator = torch.Generator(device="cpu")
         generator.manual_seed(self.seed)
         return generator

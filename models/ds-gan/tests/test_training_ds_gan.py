@@ -243,6 +243,37 @@ def test_production_trainer_uses_nonzero_adversarial_ramp_in_epoch_two():
     assert weights[1] > 0.0
 
 
+def test_production_trainer_steps_epoch_schedulers():
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+        scheduler_generator_milestones=(0, 1),
+        scheduler_discriminator_milestones=(0, 1),
+    )
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=2,
+        limit_train_batches=1,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+    )
+    trainer.fit(
+        module,
+        train_dataloaders=torch.utils.data.DataLoader(
+            _BatchDataset([_training_batch(), _training_batch()]), batch_size=None
+        ),
+    )
+
+    schedulers = cast(
+        list[torch.optim.lr_scheduler.MultiStepLR], module.lr_schedulers()
+    )
+    assert [scheduler.last_epoch for scheduler in schedulers] == [2, 2]
+
+
 def test_training_module_accepts_explicit_discriminator_config():
     module = DSGANTrainingModule(
         config=_config(),

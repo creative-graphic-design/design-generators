@@ -339,6 +339,15 @@ class DSGANTrainingModule(LightningModule):
         self._step_index += 1
         return loss_g.detach()
 
+    def on_train_epoch_end(self) -> None:
+        """Advance both epoch schedulers after all manual updates in an epoch."""
+        schedulers = self.lr_schedulers()
+        if isinstance(schedulers, list):
+            for scheduler in cast(
+                list[torch.optim.lr_scheduler.MultiStepLR], schedulers
+            ):
+                scheduler.step()
+
     @staticmethod
     def _parameter_groups(
         module: nn.Module,

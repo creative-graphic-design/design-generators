@@ -56,7 +56,8 @@ SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
 S2_SELF_REPEATS = 12
-S1_RELATIVE_LOSS_BOUND = 1e-3
+S1_SELF_REPEATS = 12
+S1_LOSS_COMPONENTS = ("loss_ce", "loss_bbox", "loss_giou")
 _DETERMINISTIC_WARNINGS: list[str] = []
 
 
@@ -113,8 +114,10 @@ def _runtime() -> dict[str, Any]:
         "torch_distribution": _runtime_distribution("torch"),
         "torchvision": distribution("torchvision").version,
         "torchvision_distribution": _runtime_distribution("torchvision"),
-        "venv_creation_command": (
-            f"UV_FROZEN=1 uv venv --python 3.11 {venv_path_text}"
+        "venv_creation_command": f"UV_FROZEN=1 uv venv --python 3.11 {venv_path_text}",
+        "venv_creation_command_provenance": (
+            "synthesized from the current interpreter prefix; the creating shell command "
+            "was not captured"
         ),
         "environment_basis": "lockfile environment for all CPU-only checks and tests; audited runtime only for CUDA evidence",
         "pip_freeze_path": str(freeze_path.relative_to(ROOT)),
@@ -144,6 +147,16 @@ def _metadata() -> dict[str, Any]:
         "vendor_commit": _git("-C", str(VENDOR), "rev-parse", "HEAD"),
         "backbone_weights": _backbone_manifest(),
         "runtime": _runtime(),
+        "compatibility_hooks": {
+            "vendor_backbone_torch_load": (
+                "temporary torch.load monkeypatch maps vendor backbone paths to the "
+                "pinned local ResNet state dict"
+            ),
+            "vendor_eval_torch_load": (
+                "temporary torch.load monkeypatch supplies weights_only=False to the "
+                "legacy evaluator"
+            ),
+        },
         "deterministic_warning": _warning_record(),
         "strict_determinism_probe": _determinism_probe_record(),
     }
@@ -212,6 +225,7 @@ def _determinism_probe_record() -> dict[str, Any] | None:
     record: dict[str, Any] = {
         "path": str(log_path.relative_to(ROOT)),
         "exists": log_path.is_file(),
+        "source_commit": _git("rev-parse", "HEAD"),
     }
     if log_path.is_file():
         record.update({"bytes": log_path.stat().st_size, "sha256": _sha256(log_path)})
@@ -816,14 +830,7 @@ def _package_loaders(seed: int) -> tuple[Any, Any]:
         seed=seed,
     )
     module.setup("fit")
-    production_train_loader = module.train_dataloader()
-    train_loader = DataLoader(
-        production_train_loader.dataset,
-        batch_size=TRAINING_BATCH_SIZE,
-        shuffle=True,
-        num_workers=16,
-    )
-    return train_loader, module.test_dataloader()
+    return module.train_dataloader(), module.test_dataloader()
 
 
 def _batch_stream_report(
@@ -1063,6 +1070,96 @@ def _package_step(
         epoch=epoch,
     )
     return dict(module.latest_step_trace)
+
+
+def _run_s1_self_repeat(system: str, repeat: int, json_path: Path) -> None:
+    if system not in {"vendor", "package"}:
+        raise ValueError(f"unsupported S1 self-repeat system: {system}")
+
+    _set_determinism(SEED)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    (
+        vendor_generator,
+        vendor_discriminator,
+        package_generator,
+        package_discriminator,
+        generator_config,
+        discriminator_config,
+    ) = _models(device)
+    _copy_module_state(package_generator, vendor_generator)
+    _copy_module_state(package_discriminator, vendor_discriminator)
+    vendor_batch, package_batch, initial_layout, batch_meta = _fixed_batch(SEED, device)
+
+    if system == "vendor":
+        with _capture_deterministic_warnings():
+            with torch.no_grad():
+                classes, boxes = vendor_generator(
+                    vendor_batch["pixel_values"], initial_layout
+                )
+                losses = _vendor_criterion(device)(
+                    {"pred_logits": classes, "pred_boxes": boxes},
+                    _targets(vendor_batch),
+                )
+    else:
+        from ds_gan.training.lightning_module import DSGANTrainingModule
+
+        package_module = DSGANTrainingModule(
+            config=generator_config,
+            discriminator_config=discriminator_config,
+            generator=package_generator,
+            discriminator=package_discriminator,
+        ).to(device)
+        with _capture_deterministic_warnings():
+            with torch.no_grad():
+                output = package_generator(
+                    package_batch["pixel_values"], initial_layout
+                )
+                losses = package_module.criterion(
+                    output.class_probs, output.bbox, _targets(package_batch)
+                )
+
+    json_path.write_text(
+        json.dumps(
+            {
+                **_metadata(),
+                "stage": "S1-self-repeat",
+                "system": system,
+                "repeat": repeat,
+                "seed": SEED,
+                "process_id": os.getpid(),
+                "device": str(device),
+                "batch": batch_meta,
+                "initial_layout_sha256": tensor_sha256(initial_layout),
+                "trace_values": {
+                    name: float(losses[name].item()) for name in S1_LOSS_COMPONENTS
+                },
+                "trace_total": float(sum(losses.values()).item()),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _run_s1_self_repeat_process(system: str, repeat: int) -> dict[str, Any]:
+    artifact_root = EVIDENCE / "s1-forward-loss-attempts"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    json_path = artifact_root / f"{system}-self-repeat-{repeat}.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "s1-self-repeat",
+            str(repeat),
+            str(json_path),
+            "--system",
+            system,
+        ],
+        check=True,
+        cwd=ROOT,
+    )
+    return json.loads(json_path.read_text())
 
 
 def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
@@ -1447,12 +1544,12 @@ def _sign_straddling_parameter_probe(
                 continue
 
             vendor_envelope = (
-                vendor_parameters[:, index_tuple].amax()
-                - vendor_parameters[:, index_tuple].amin()
+                vendor_parameters[(slice(None), *index_tuple)].amax()
+                - vendor_parameters[(slice(None), *index_tuple)].amin()
             )
             package_envelope = (
-                package_parameters[:, index_tuple].amax()
-                - package_parameters[:, index_tuple].amin()
+                package_parameters[(slice(None), *index_tuple)].amax()
+                - package_parameters[(slice(None), *index_tuple)].amin()
             )
             maximum = {
                 "name": name,
@@ -1884,10 +1981,7 @@ def _fixed_batch(
                     "pre_loader": package_pre_loader_rng,
                     "post_loader": package_post_loader_rng,
                     "first_sample_ids": _sample_ids(package_raw_batch["pixel_values"]),
-                    "generator": (
-                        "torch global RNG used by the parity overlay; production "
-                        "DSGANDataModule uses a seeded torch.Generator"
-                    ),
+                    "generator": "seeded CPU torch.Generator in DSGANDataModule",
                     "production_seed": seed,
                 },
             },
@@ -2097,14 +2191,46 @@ def run_s1() -> Path:
     }
     comparison = _trace_compare(vendor_trace, package_trace)
     warning = _warning_record()
-    nondeterministic_loss_pass = (
+    self_runs = {
+        system: [
+            _run_s1_self_repeat_process(system, repeat)
+            for repeat in range(1, S1_SELF_REPEATS + 1)
+        ]
+        for system in ("vendor", "package")
+    }
+    component_comparisons: dict[str, dict[str, Any]] = {
+        name: {
+            "vendor_self": _scalar_self_distribution(self_runs["vendor"], name),
+            "package_self": _scalar_self_distribution(self_runs["package"], name),
+            "cross_system": _scalar_cross_distribution(
+                self_runs["vendor"], self_runs["package"], name
+            ),
+        }
+        for name in S1_LOSS_COMPONENTS
+    }
+    component_comparisons["loss_ce"]["cross_inside_both_self_envelopes"] = (
+        _inside_self_distributions(
+            component_comparisons["loss_ce"]["cross_system"],
+            component_comparisons["loss_ce"]["vendor_self"],
+            component_comparisons["loss_ce"]["package_self"],
+        )
+    )
+    for name in ("loss_bbox", "loss_giou"):
+        component_comparisons[name]["bitwise_cross_system"] = (
+            component_comparisons[name]["cross_system"]["max_abs_difference"] == 0.0
+        )
+    component_loss_gate = (
+        component_comparisons["loss_ce"]["cross_inside_both_self_envelopes"]
+        and component_comparisons["loss_bbox"]["bitwise_cross_system"]
+        and component_comparisons["loss_giou"]["bitwise_cross_system"]
+    )
+    comparison_passed = comparison["passed"] or (
         comparison["failed_count"] == 1
         and comparison["first_difference"] is not None
         and comparison["first_difference"]["name"] == "loss_reconstruction"
         and warning["contains_nll_loss2d"]
-        and comparison["max_relative_difference"] <= S1_RELATIVE_LOSS_BOUND
     )
-    result = "PASS" if comparison["passed"] or nondeterministic_loss_pass else "FAIL"
+    result = "PASS" if comparison_passed and component_loss_gate else "FAIL"
     return _write(
         "s1-forward-loss",
         {
@@ -2114,8 +2240,13 @@ def run_s1() -> Path:
             "batch": batch_meta,
             "comparison": comparison,
             "gate": {
-                "nondeterministic_loss_pass": nondeterministic_loss_pass,
-                "relative_loss_bound": S1_RELATIVE_LOSS_BOUND,
+                "comparison_passed_except_declared_loss_component": comparison_passed,
+                "component_loss_gate": component_loss_gate,
+                "post_hoc_tolerance": False,
+                "criterion": (
+                    "loss_ce cross-system differences must fit both separate-process "
+                    "self envelopes; loss_bbox and loss_giou must be bitwise equal"
+                ),
             },
             "cause": (
                 {
@@ -2125,10 +2256,14 @@ def run_s1() -> Path:
                     "reduction": "mean (implicit default in both operators)",
                     "strict_probe": ".cache/ds-gan/stage-evidence/determinism-probe/strict-s1.log",
                     "raw_comparison_remains_recorded": True,
+                    "component_comparisons": component_comparisons,
+                    "self_repeat_count": S1_SELF_REPEATS,
                 }
-                if nondeterministic_loss_pass
+                if component_loss_gate and warning["contains_nll_loss2d"]
                 else None
             ),
+            "component_comparisons": component_comparisons,
+            "self_repeats": self_runs,
             "trace_fields": sorted(vendor_trace),
         },
     )
@@ -2406,8 +2541,8 @@ def run_s2() -> Path:
             "distributions": cross_distributions,
             "inside_self_distributions": inside_self_distributions,
             "inside_self_distribution_criterion": (
-                "cross max_abs_difference must be <= the larger corresponding "
-                "vendor/package self envelope; relative differences and medians are diagnostic"
+                "cross max_abs_difference must be <= both corresponding vendor and "
+                "package self envelopes; relative differences and medians are diagnostic"
             ),
             "elementwise_envelopes": elementwise_envelopes,
             "parameter_update_mechanism": parameter_update_mechanism,
@@ -2685,18 +2820,26 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
     }
 
 
-def _self_envelope(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
-    parameter_comparison = _state_compare(
-        first["final_parameters"], second["final_parameters"]
-    )
-    optimizer_comparison = _state_compare(
-        first["final_optimizer_state"], second["final_optimizer_state"]
-    )
+def _self_envelope(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    parameter_comparisons = [
+        _state_compare(first["final_parameters"], second["final_parameters"])
+        for index, first in enumerate(runs)
+        for second in runs[index + 1 :]
+    ]
+    optimizer_comparisons = [
+        _state_compare(first["final_optimizer_state"], second["final_optimizer_state"])
+        for index, first in enumerate(runs)
+        for second in runs[index + 1 :]
+    ]
     return {
-        "steps": [first["steps"], second["steps"]],
-        "seed": [first["seed"], second["seed"]],
-        "parameters": parameter_comparison,
-        "optimizer_state": optimizer_comparison,
+        "steps": [run["steps"] for run in runs],
+        "seed": [run["seed"] for run in runs],
+        "repeat_count": len(runs),
+        "pair_count": len(parameter_comparisons),
+        "parameters": _comparison_distribution(parameter_comparisons, "parameters"),
+        "optimizer_state": _comparison_distribution(
+            optimizer_comparisons, "optimizer_state"
+        ),
     }
 
 
@@ -2809,16 +2952,34 @@ def run_s3_production_wiring() -> Path:
     checkpoint_root = CACHE / "training-runs" / "pku_posterlayout" / "checkpoints"
     checkpoints = sorted(checkpoint_root.glob("*.ckpt"))
     logger_root = CACHE / "training-runs" / "pku_posterlayout"
-    checkpoint_scheduler_counts = []
+    checkpoint_scheduler_counts: list[dict[str, Any]] = []
     for checkpoint in checkpoints:
         payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        scheduler_states = cast(list[dict[str, Any]], payload.get("lr_schedulers", []))
         checkpoint_scheduler_counts.append(
             {
                 "path": str(checkpoint.relative_to(ROOT)),
-                "count": len(payload.get("lr_schedulers", [])),
+                "count": len(scheduler_states),
+                "last_epochs": [
+                    state.get("state_dict", {}).get("last_epoch")
+                    for state in scheduler_states
+                ],
             }
         )
-    passed = result.returncode == 0 and bool(checkpoints) and logger_root.is_dir()
+    scheduler_advanced = bool(checkpoint_scheduler_counts) and all(
+        values["count"] == 2
+        and all(
+            isinstance(last_epoch, int) and last_epoch >= 1
+            for last_epoch in values["last_epochs"]
+        )
+        for values in checkpoint_scheduler_counts
+    )
+    passed = (
+        result.returncode == 0
+        and bool(checkpoints)
+        and logger_root.is_dir()
+        and scheduler_advanced
+    )
     return _write(
         "s3-production-wiring",
         {
@@ -2834,6 +2995,7 @@ def run_s3_production_wiring() -> Path:
             "checkpoint_root": str(checkpoint_root.relative_to(ROOT)),
             "checkpoint_files": [str(path.relative_to(ROOT)) for path in checkpoints],
             "checkpoint_scheduler_counts": checkpoint_scheduler_counts,
+            "scheduler_advanced": scheduler_advanced,
             "config": str(config_path.relative_to(ROOT)),
             "traingen_entry_point": "traingen fit",
         },
@@ -2842,10 +3004,10 @@ def run_s3_production_wiring() -> Path:
 
 def run_s3() -> Path:
     repeats = [
-        _run_in_separate_process("s3-natural-repeat", repeat) for repeat in (1, 2)
+        _run_in_separate_process("s3-natural-repeat", repeat) for repeat in (1, 2, 3)
     ]
     self_runs = [
-        _run_in_separate_process("s3-self-repeat", repeat) for repeat in (1, 2)
+        _run_in_separate_process("s3-self-repeat", repeat) for repeat in (1, 2, 3)
     ]
     natural_process_ids = [run["process_id"] for run in repeats]
     self_process_ids = [run["vendor"]["process_id"] for run in self_runs]
@@ -2855,8 +3017,8 @@ def run_s3() -> Path:
         raise RuntimeError("S3 self repeats did not use separate processes")
     vendor_runs = [run["vendor"] for run in self_runs]
     package_runs = [run["package"] for run in self_runs]
-    vendor_self = _self_envelope(vendor_runs[0], vendor_runs[1])
-    package_self = _self_envelope(package_runs[0], package_runs[1])
+    vendor_self = _self_envelope(vendor_runs)
+    package_self = _self_envelope(package_runs)
     cross_system: list[dict[str, Any]] = [
         {
             "repeat": repeat,
@@ -2869,7 +3031,7 @@ def run_s3() -> Path:
             ),
         }
         for repeat, vendor_run, package_run in zip(
-            (1, 2), vendor_runs, package_runs, strict=True
+            (1, 2, 3), vendor_runs, package_runs, strict=True
         )
     ]
     cross_system_max = {
@@ -3965,6 +4127,22 @@ def run_s4() -> Path:
         vendor_boxes_full = np.asarray(
             torch.load("output/boxes-Epoch300.pt", weights_only=False)
         )
+        raw_vendor_output_root = EVIDENCE / "s4-evaluation" / "vendor-raw-output"
+        raw_vendor_output_root.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(
+            vendor_root / "output/clses-Epoch300.pt",
+            raw_vendor_output_root / "clses-Epoch300.pt",
+        )
+        shutil.copy2(
+            vendor_root / "output/boxes-Epoch300.pt",
+            raw_vendor_output_root / "boxes-Epoch300.pt",
+        )
+        torch.save(
+            vendor_classes_full[: len(names)], vendor_root / "output/clses-Epoch300.pt"
+        )
+        torch.save(
+            vendor_boxes_full[: len(names)], vendor_root / "output/boxes-Epoch300.pt"
+        )
         vendor_classes = np.squeeze(vendor_classes_full[: len(names)], axis=-1)
         vendor_boxes = vendor_boxes_full[: len(names)] * np.asarray(
             (513, 750, 513, 750)
@@ -4051,11 +4229,11 @@ def run_s4() -> Path:
         dtype=vendor_boxes_full.dtype,
     )
     torch.save(
-        package_classes_raw_array[..., np.newaxis],
+        package_classes_raw_array[: len(names), ..., np.newaxis],
         package_eval_root / "output/clses-Epoch300.pt",
     )
     torch.save(
-        package_boxes_for_eval,
+        package_boxes_for_eval[: len(names)],
         package_eval_root / "output/boxes-Epoch300.pt",
     )
     with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as package_metrics_dir:
@@ -4092,6 +4270,7 @@ def run_s4() -> Path:
     )
     vendor_metrics = _metrics_from_eval_output(vendor_eval_output)
     package_metrics = _metrics_from_eval_output(package_eval_output)
+    metrics_equal = vendor_metrics == package_metrics
     vendor_summary = _metric_summary(vendor_classes, vendor_boxes)
     package_summary = _metric_summary(package_classes_array, package_boxes_array)
     vendor_weight_hash = _module_state_hash(vendor_generator)
@@ -4132,6 +4311,8 @@ def run_s4() -> Path:
         "evaluator_settings": {
             "test_split": "TEST",
             "rows": len(names),
+            "raw_inference_rows": int(len(vendor_classes_full)),
+            "eval_main_rows": len(names),
             "batch_size": TEST_BATCH_SIZE,
             "shuffle": False,
             "sampling_seed": SEED,
@@ -4147,8 +4328,13 @@ def run_s4() -> Path:
         "vendor_native_coordinate_frame": "normalized xyxy from infer.py converted by multiplying x coordinates by 513 and y coordinates by 750",
         "package_native_coordinate_frame": "normalized center xywh decoded by DSGANPipeline and converted to xyxy then multiplied by 513 and 750",
         "vendor_output_handling": {
-            "raw_output_untouched_for_eval_main": True,
-            "canonical_comparison_only": "in-memory squeeze of class singleton axis and pixel-scale conversion after eval.main input was preserved",
+            "raw_output_untouched_for_eval_main": False,
+            "raw_output_preserved": str(raw_vendor_output_root.relative_to(ROOT)),
+            "eval_main_transformation": (
+                "truncate the final padded inference batch from 908 to the 905 TEST "
+                "rows before eval.py:main; class-axis squeeze and pixel-scale conversion "
+                "are only in-memory canonical comparisons"
+            ),
             "write_overlay": str(vendor_root.relative_to(ROOT)),
         },
         "prediction_files": {
@@ -4181,8 +4367,14 @@ def run_s4() -> Path:
             "package": _sha256(EVIDENCE / "s4-evaluation" / "package-eval.txt"),
         },
         "counts_equal_and_nonzero": count_equal_nonzero,
+        "metrics_equal": metrics_equal,
     }
-    passed = prediction_equal and count_equal_nonzero and test_stream_passed
+    passed = (
+        prediction_equal
+        and count_equal_nonzero
+        and test_stream_passed
+        and metrics_equal
+    )
     return _write(
         "s4-evaluation",
         {
@@ -4224,6 +4416,7 @@ def main() -> None:
         choices=(
             "s0-static",
             "s1-forward-loss",
+            "s1-self-repeat",
             "s2-optimizer-step",
             "s2-vendor-self-repeat",
             "s3-lockstep",
@@ -4254,6 +4447,11 @@ def main() -> None:
         if args.repeat is None or args.json_path is None or args.system is None:
             raise ValueError("S2 self repeat requires system, repeat, and JSON path")
         _run_s2_self_repeat(args.system, args.repeat, args.json_path)
+        return
+    if args.stage == "s1-self-repeat":
+        if args.repeat is None or args.json_path is None or args.system is None:
+            raise ValueError("S1 self repeat requires system, repeat, and JSON path")
+        _run_s1_self_repeat(args.system, args.repeat, args.json_path)
         return
     if args.stage == "s3-natural-repeat":
         if args.repeat is None or args.json_path is None or args.state_path is None:
