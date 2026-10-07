@@ -688,7 +688,7 @@ class RADMProposalHead(nn.Module):
         Float[torch.Tensor, "heads batch proposals 4"],
     ]:
         """Run all proposal refinement blocks."""
-        time_embedding = self.time_mlp(timesteps.float())
+        time_embedding = self.time_mlp(timesteps)
         class_outputs: list[Float[torch.Tensor, "batch proposals classes"]] = []
         box_outputs: list[Float[torch.Tensor, "batch proposals 4"]] = []
         initial_norm_boxes = boxes_xyxy.to(dtype=features["p2"].dtype)
@@ -794,7 +794,7 @@ class _SinusoidalPositionEmbedding(nn.Module):
         self.dimension = dimension
 
     def forward(
-        self, timesteps: Float[torch.Tensor, "batch"]
+        self, timesteps: Int[torch.Tensor, "batch"]
     ) -> Float[torch.Tensor, "batch dimension"]:
         half = self.dimension // 2
         exponent = torch.log(torch.tensor(10000.0, device=timesteps.device)) / max(

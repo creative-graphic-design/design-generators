@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import math
 from pathlib import Path
 import types
 from typing import cast
@@ -50,6 +51,27 @@ def _load_detector_symbols(*names: str) -> types.SimpleNamespace:
     return types.SimpleNamespace(**{name: namespace[name] for name in names})
 
 
+def _load_vendor_sinusoidal_position_embeddings() -> type[torch.nn.Module]:
+    source_path = _require_vendor_file("RADM/head.py")
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    selected = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "SinusoidalPositionEmbeddings"
+        ),
+        None,
+    )
+    if selected is None:
+        raise AssertionError("Missing vendor SinusoidalPositionEmbeddings")
+    module = ast.Module(body=[cast(ast.stmt, selected)], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace: dict[str, object] = {"math": math, "nn": torch.nn, "torch": torch}
+    exec(compile(module, str(source_path), "exec"), namespace)  # noqa: S102
+    return cast(type[torch.nn.Module], namespace["SinusoidalPositionEmbeddings"])
+
+
 @pytest.mark.vendor_parity
 def test_scheduler_cosine_and_forward_diffusion_match_vendor_source() -> None:
     vendor = _load_detector_symbols("cosine_beta_schedule", "extract")
@@ -72,6 +94,49 @@ def test_scheduler_cosine_and_forward_diffusion_match_vendor_source() -> None:
     )
     vendor_out = sqrt_alpha * x_start + sqrt_one_minus * noise
     assert torch.equal(local, vendor_out)
+
+
+@pytest.mark.vendor_parity
+def test_time_embedding_keeps_vendor_integer_timestep_path() -> None:
+    """Pin the vendor's integer timestep input and bitwise embedding output."""
+    vendor_embedding = _load_vendor_sinusoidal_position_embeddings()(8)
+    config = RADMConfig(
+        num_classes=2,
+        num_proposals=2,
+        hidden_dim=8,
+        text_feature_dim=4,
+        max_text_num=2,
+        num_heads=1,
+        num_attention_heads=1,
+        dim_feedforward=8,
+        num_dynamic=2,
+        dim_dynamic=4,
+        num_cls=1,
+        num_reg=1,
+        with_vtram=False,
+        with_gram=False,
+        deep_supervision=False,
+        backbone_depth=18,
+    )
+    package = RADMDenoiser(config=config)
+    captured: list[torch.Tensor] = []
+    handle = package.head.time_mlp[0].register_forward_hook(
+        lambda _module, _inputs, output: captured.append(output.detach().clone())
+    )
+    try:
+        timesteps = torch.tensor([0, 1, 37, 999], dtype=torch.long)
+        package(
+            boxes_xyxy=torch.zeros(4, 2, 4),
+            timesteps=timesteps,
+            text_features=torch.zeros(4, 2, 4),
+            text_mask=torch.ones(4, 2, 1, dtype=torch.bool),
+        )
+    finally:
+        handle.remove()
+
+    assert len(captured) == 1
+    assert captured[0].dtype is torch.float32
+    assert torch.equal(captured[0], vendor_embedding(timesteps))
 
 
 @pytest.mark.vendor_parity
