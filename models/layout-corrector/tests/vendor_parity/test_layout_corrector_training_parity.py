@@ -10,7 +10,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import types
 import time
 from collections.abc import Iterable, Iterator
 from copy import deepcopy
@@ -27,6 +26,7 @@ from unittest.mock import patch
 
 import pytest
 import torch
+import torch.nn.functional as F
 
 pytest.importorskip("lightning")
 pytest.importorskip("traingen_parity")
@@ -89,6 +89,7 @@ EVALUATION_CONDITIONS: Final[tuple[str, ...]] = ("unconditional", "c", "cwh")
 EVALUATION_CORRECTOR_T_LIST: Final[tuple[int, ...]] = (10, 20, 30)
 EVALUATION_SEED: Final[int] = 0
 NATURAL_STREAM_SEED: Final[int] = 42975
+S3_STEP_BOUND: Final[int] = 300
 VALIDATION_LOSS_TOLERANCE: Final[float] = 2.0e-8
 CHECKPOINT_SHA256: Final = {
     "rico25": "7759bdf9e05cccef7a6a7e4260adc50f8c1ef6e6faa10351b79fb63f6b51c853",
@@ -290,19 +291,6 @@ def _runtime_record() -> dict[str, Any]:
 
 
 def _vendor_imports() -> tuple[type[torch.nn.Module], type[torch.nn.Module], type[Any]]:
-    if "prdc" not in sys.modules:
-        prdc_module = types.ModuleType("prdc")
-        setattr(prdc_module, "compute_prdc", lambda **_: {})
-        sys.modules["prdc"] = prdc_module
-    if "pytorch_fid.fid_score" not in sys.modules:
-        fid_module = types.ModuleType("pytorch_fid.fid_score")
-        setattr(
-            fid_module,
-            "calculate_frechet_distance",
-            lambda *_args, **_kwargs: 0.0,
-        )
-        sys.modules["pytorch_fid"] = types.ModuleType("pytorch_fid")
-        sys.modules["pytorch_fid.fid_score"] = fid_module
     vendor_src = ROOT / "vendor" / "layout-corrector" / "src" / "trainer"
     if not vendor_src.exists():
         skip_or_fail_vendor_parity(
@@ -543,8 +531,21 @@ def _fixture(
     )
 
 
-def _loader_worker_count() -> int:
-    return int(os.environ.get("LAYOUT_CORRECTOR_EVIDENCE_WORKERS", "16"))
+def _shipped_training_config(dataset: str) -> DictConfig:
+    config_path = (
+        ROOT
+        / "models"
+        / "layout-corrector"
+        / "configs"
+        / "training"
+        / f"layoutcorrector_{dataset}.yaml"
+    )
+    return cast(DictConfig, OmegaConf.load(config_path))
+
+
+def _loader_worker_count(dataset: str) -> int:
+    config = _shipped_training_config(dataset)
+    return int(config.data.init_args.num_workers)
 
 
 def _paired_real_batch(
@@ -559,7 +560,7 @@ def _paired_real_batch(
     """Load one matching batch through both production dataset adapters."""
     from trainer.data.util import compose_transform, sparse_to_dense
 
-    workers = _loader_worker_count() if num_workers is None else num_workers
+    workers = _loader_worker_count(dataset) if num_workers is None else num_workers
     vendor_split = "val" if split == "validation" else split
     vendor_dataset = _vendor_dataset(
         dataset,
@@ -656,12 +657,26 @@ def _vendor_trace(fixture: Fixture, batch: dict[str, Any]) -> dict[str, Any]:
     prepared["pt"] = captured_probability[0]
     outputs, losses = fixture.vendor(prepared)
     logits = outputs["logits"].squeeze(-1).detach()
+    target = prepared["recon_acc"].float()
+    attribute_count = len(cast(Any, fixture.vendor).tokenizer.var_names)
+    element_count = logits.shape[-1] // attribute_count
+    weights = (
+        torch.as_tensor(
+            cast(Any, fixture.vendor).attr_loss_weights,
+            device=logits.device,
+            dtype=logits.dtype,
+        )
+        .repeat(element_count, 1)
+        .reshape(1, -1)
+    )
+    bce_loss = F.binary_cross_entropy_with_logits(logits, target, reduction="none")
+    weighted_bce_loss = bce_loss * weights
     loss = losses["bce_loss"]
     return {
         **prepared,
         "logits": logits,
-        "bce_loss": loss.detach(),
-        "weighted_bce_loss": loss.detach(),
+        "bce_loss": bce_loss.detach(),
+        "weighted_bce_loss": weighted_bce_loss.detach(),
         "train_loss": loss,
         "input_ids_digest": _tensor_digest(vendor_batch["seq"]),
         "attention_mask_digest": _tensor_digest(vendor_batch["mask"]),
@@ -796,7 +811,8 @@ def _clip_grad_norm(
 
 
 def _s3_steps() -> int:
-    return int(os.environ.get("LAYOUT_CORRECTOR_S3_STEPS", "300"))
+    """Return the fixed protocol bound for the shipped training configs."""
+    return S3_STEP_BOUND
 
 
 def _s3_stage(name: str) -> str:
@@ -828,21 +844,28 @@ def _optimizer_defaults(optimizer: torch.optim.Optimizer) -> dict[str, str]:
     return {key: repr(value) for key, value in sorted(optimizer.defaults.items())}
 
 
-def _assert_optimizer_state_independent(
-    reference: dict[str, Any], target: dict[str, Any]
-) -> None:
-    """Fail if same-device optimizer loading aliases tensor storage."""
-    for state_id, reference_state in reference.get("state", {}).items():
-        target_state = target.get("state", {}).get(state_id, {})
-        for name, value in reference_state.items():
-            target_value = target_state.get(name)
-            if isinstance(value, torch.Tensor) and isinstance(
-                target_value, torch.Tensor
-            ):
-                if value.data_ptr() == target_value.data_ptr():
-                    raise AssertionError(
-                        f"optimizer state storage is shared for {state_id}:{name}"
-                    )
+def _optimizer_state_tensors(
+    optimizer: torch.optim.Optimizer,
+) -> dict[str, torch.Tensor]:
+    state = optimizer.state_dict()["state"]
+    flattened: dict[str, torch.Tensor] = {}
+    for state_id, values in state.items():
+        for name, value in values.items():
+            if isinstance(value, torch.Tensor):
+                flattened[f"{state_id}:{name}"] = value.detach()
+            elif isinstance(value, (int, float)):
+                flattened[f"{state_id}:{name}"] = torch.tensor(value)
+            else:
+                raise TypeError(f"unsupported optimizer state value: {type(value)!r}")
+    return flattened
+
+
+def _optimizer_state_diffs(
+    reference: torch.optim.Optimizer, target: torch.optim.Optimizer
+) -> tuple[dict[str, float], str | None]:
+    return _state_diffs(
+        _optimizer_state_tensors(reference), _optimizer_state_tensors(target)
+    )
 
 
 def _vendor_dataset(dataset: str, split: str, *, transform: Any = None) -> Any:
@@ -1113,12 +1136,28 @@ def test_s2_one_optimizer_step_matches_vendor(
     package_loss = package_trace["train_loss"]
     vendor_loss.backward()
     package_loss.backward()
+    gradient_max_abs_diff, gradient_first = _gradient_diffs(
+        fixture.vendor.model.module, fixture.package.model.model
+    )
+    assert gradient_first is None, {
+        "first_gradient_difference": gradient_first,
+        "max_abs_gradient_diff": gradient_max_abs_diff,
+    }
+    assert gradient_max_abs_diff == 0.0
     vendor_grad_norm = torch.nn.utils.clip_grad_norm_(fixture.vendor.parameters(), 1.0)
     package_grad_norm = torch.nn.utils.clip_grad_norm_(
         fixture.package.model.parameters(), 1.0
     )
     vendor_optimizer.step()
     package_optimizer.step()
+    optimizer_state_diffs, optimizer_state_first = _optimizer_state_diffs(
+        vendor_optimizer, package_optimizer
+    )
+    assert optimizer_state_first is None, {
+        "first_optimizer_state_difference": optimizer_state_first,
+        "optimizer_state_diffs": optimizer_state_diffs,
+    }
+    assert max(optimizer_state_diffs.values(), default=0.0) == 0.0
     diffs, first = _state_diffs(
         fixture.vendor.model.module.state_dict(),
         fixture.package.model.model.state_dict(),
@@ -1137,6 +1176,12 @@ def test_s2_one_optimizer_step_matches_vendor(
             "first_divergence": first,
             "vendor_gradient_norm": float(vendor_grad_norm.item()),
             "package_gradient_norm": float(package_grad_norm.item()),
+            "max_abs_gradient_tensor_diff": gradient_max_abs_diff,
+            "first_gradient_tensor_difference": gradient_first,
+            "max_abs_optimizer_state_diff": max(
+                optimizer_state_diffs.values(), default=0.0
+            ),
+            "first_optimizer_state_difference": optimizer_state_first,
             "scheduler_state": {
                 "vendor_digest": vendor_scheduler_digest,
                 "package_digest": package_scheduler_digest,
@@ -1162,12 +1207,12 @@ def _natural_training_batches(
     list[dict[str, Any]],
     list[dict[str, Any]],
     list[dict[str, Any]],
-    dict[str, str],
+    dict[str, Any],
 ]:
     """Materialize paired production train and validation loader streams."""
     from trainer.data.util import compose_transform, sparse_to_dense
 
-    workers = _loader_worker_count()
+    workers = _loader_worker_count(dataset)
     vendor_dataset = _vendor_dataset(
         dataset, "train", transform=compose_transform(["RandomOrder"])
     )
@@ -1233,6 +1278,10 @@ def _natural_training_batches(
     loader_record = {
         "vendor_pre_loader_rng_digest": vendor_pre_loader_rng_digest,
         "package_pre_loader_rng_digest": package_pre_loader_rng_digest,
+        "configured_num_workers": workers,
+        "stage_step_bound": _s3_steps(),
+        "vendor_train_loader_num_workers": vendor_loader.num_workers,
+        "package_train_loader_num_workers": package_loader.num_workers,
     }
     assert vendor_pre_loader_rng_digest == package_pre_loader_rng_digest
 
@@ -1369,6 +1418,8 @@ def _run_natural_side(
                 "corrupted_tokens_digest": _tensor_digest(trace["xt"]),
                 "reconstructed_tokens_digest": _tensor_digest(trace["x0_recon"]),
                 "model_training": model.training,
+                "bce_loss_digest": _tensor_digest(trace["bce_loss"]),
+                "weighted_bce_loss_digest": _tensor_digest(trace["weighted_bce_loss"]),
             }
         )
     model.eval()
@@ -1460,6 +1511,12 @@ def _run_package_natural_side(
         record["production_command"] = command
         record["production_path"] = command[0:2]
         record["production_config"] = str(config_path.relative_to(ROOT))
+        shipped_config = _shipped_training_config(fixture.dataset)
+        record["configured_num_workers"] = int(
+            shipped_config.data.init_args.num_workers
+        )
+        record["configured_max_epochs"] = int(shipped_config.trainer.max_epochs)
+        record["stage_step_bound"] = _s3_steps()
         rows = cast(list[dict[str, Any]], record["rows"])
         if len(rows) != steps:
             raise AssertionError(
@@ -1474,11 +1531,12 @@ def _run_package_natural_side(
 
 
 def _natural_comparison(
+    dataset: LayoutCorrectorTrainingDatasetName,
     vendor_rows: list[dict[str, Any]],
     package_rows: list[dict[str, Any]],
     vendor_record: dict[str, Any],
     package_record: dict[str, Any],
-    loader_record: dict[str, str],
+    loader_record: dict[str, Any],
 ) -> dict[str, Any]:
     assert len(vendor_rows) == len(package_rows)
     assert Path(package_record["production_path"][0]).name == "traingen"
@@ -1541,13 +1599,34 @@ def _natural_comparison(
         "best_abs_diff": scheduler_best_abs_diff,
         "tolerance": VALIDATION_LOSS_TOLERANCE,
     }
+    shipped_config = _shipped_training_config(dataset)
+    configured_workers = int(shipped_config.data.init_args.num_workers)
+    configured_max_epochs = int(shipped_config.trainer.max_epochs)
+    expected_config = str(
+        (
+            ROOT
+            / "models"
+            / "layout-corrector"
+            / "configs"
+            / "training"
+            / f"layoutcorrector_{dataset}.yaml"
+        ).relative_to(ROOT)
+    )
     assert package_record["trace_seed"] == NATURAL_STREAM_SEED
-    assert package_record["num_workers"] == _loader_worker_count()
-    assert package_record["max_epochs"] == 50
+    assert package_record["production_config"] == expected_config
+    assert package_record["num_workers"] == configured_workers
+    assert package_record["configured_num_workers"] == configured_workers
+    assert package_record["max_epochs"] == configured_max_epochs
+    assert package_record["configured_max_epochs"] == configured_max_epochs
+    assert loader_record["configured_num_workers"] == configured_workers
+    assert loader_record["vendor_train_loader_num_workers"] == configured_workers
+    assert loader_record["package_train_loader_num_workers"] == configured_workers
     assert package_record["model_training"] is True
     assert package_record["validation_batches"]
     assert package_record["observed_train_batches"] == len(package_rows)
-    assert package_record["max_steps"] == len(package_rows)
+    assert package_record["max_steps"] == _s3_steps() == len(package_rows)
+    assert package_record["stage_step_bound"] == _s3_steps()
+    assert loader_record["stage_step_bound"] == _s3_steps()
     assert package_record["train_batches"] >= len(package_rows)
     assert (
         package_record["pre_model_rng_digest"] == vendor_record["pre_model_rng_digest"]
@@ -1566,6 +1645,8 @@ def _natural_comparison(
         "timesteps_digest",
         "corrupted_tokens_digest",
         "reconstructed_tokens_digest",
+        "bce_loss_digest",
+        "weighted_bce_loss_digest",
         "rng_digest",
         "optimizer_state_digest",
         "parameter_state_digest",
@@ -1663,13 +1744,16 @@ def _natural_comparison(
 
 
 def _repeat_envelope(
-    first: list[dict[str, Any]], second: list[dict[str, Any]]
+    first: list[dict[str, Any]],
+    second: list[dict[str, Any]],
+    first_record: dict[str, Any] | None = None,
+    second_record: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     loss_diffs = [
         abs(left["loss"] - right["loss"])
         for left, right in zip(first, second, strict=True)
     ]
-    return {
+    envelope = {
         "max_abs_loss_diff": max(loss_diffs),
         "gradient_norm_mismatch_steps": [
             index
@@ -1713,10 +1797,48 @@ def _repeat_envelope(
         "importance_probability_hash_mismatch_steps": [
             index
             for index, (left, right) in enumerate(zip(first, second, strict=True))
-            if left["importance_probability_digest"]
+            if not left["importance_probability_digest"]
+            or not right["importance_probability_digest"]
+            or left["importance_probability_digest"]
             != right["importance_probability_digest"]
         ],
+        "sample_id_mismatch_steps": [
+            index
+            for index, (left, right) in enumerate(zip(first, second, strict=True))
+            if left["sample_ids"] != right["sample_ids"]
+        ],
+        "loss_component_mismatch_steps": [
+            index
+            for index, (left, right) in enumerate(zip(first, second, strict=True))
+            if left["bce_loss_digest"] != right["bce_loss_digest"]
+            or left["weighted_bce_loss_digest"] != right["weighted_bce_loss_digest"]
+        ],
     }
+    if first_record is not None and second_record is not None:
+        envelope["scheduler_state_digest_equal"] = (
+            first_record["scheduler_state_digest"]
+            == second_record["scheduler_state_digest"]
+        )
+        envelope["scheduler_state_equal"] = (
+            first_record["scheduler_state"] == second_record["scheduler_state"]
+        )
+        envelope["validation_state_equal"] = all(
+            first_record[field] == second_record[field]
+            for field in (
+                "validation_executed",
+                "validation_batches",
+                "validation_loss",
+            )
+        )
+        envelope["pre_model_rng_digest_equal"] = (
+            first_record["pre_model_rng_digest"]
+            == second_record["pre_model_rng_digest"]
+        )
+        envelope["pre_loader_rng_digest_equal"] = (
+            first_record["pre_loader_rng_digest"]
+            == second_record["pre_loader_rng_digest"]
+        )
+    return envelope
 
 
 @pytest.mark.parametrize("dataset", DATASETS)
@@ -1767,11 +1889,18 @@ def test_s3_natural_lockstep_matches_vendor(
         initial_state=initial_state,
         steps=steps,
     )
+    vendor_record["pre_loader_rng_digest"] = loader_record[
+        "vendor_pre_loader_rng_digest"
+    ]
+    vendor_repeat_record["pre_loader_rng_digest"] = loader_record[
+        "vendor_pre_loader_rng_digest"
+    ]
     if package_repeat_record is None:
         raise AssertionError(
             "natural evidence did not use the expected production path"
         )
     comparison = _natural_comparison(
+        dataset,
         vendor_rows,
         package_rows,
         vendor_record,
@@ -1791,6 +1920,10 @@ def test_s3_natural_lockstep_matches_vendor(
             / max(abs(vendor["loss"]), 1.0e-12),
             "vendor_gradient_norm": vendor["gradient_norm"],
             "package_gradient_norm": package["gradient_norm"],
+            "vendor_bce_loss_digest": vendor["bce_loss_digest"],
+            "package_bce_loss_digest": package["bce_loss_digest"],
+            "vendor_weighted_bce_loss_digest": vendor["weighted_bce_loss_digest"],
+            "package_weighted_bce_loss_digest": package["weighted_bce_loss_digest"],
             "learning_rate_vendor": vendor["learning_rate"],
             "learning_rate_package": package["learning_rate"],
             "vendor_optimizer_state_digest": vendor["optimizer_state_digest"],
@@ -1807,6 +1940,8 @@ def test_s3_natural_lockstep_matches_vendor(
             "package_importance_probability_digest": package[
                 "importance_probability_digest"
             ],
+            "vendor_sample_ids": vendor["sample_ids"],
+            "package_sample_ids": package["sample_ids"],
         }
         for vendor, package in zip(vendor_rows, package_rows, strict=True)
     ]
@@ -1826,8 +1961,18 @@ def test_s3_natural_lockstep_matches_vendor(
             "final_parameter_max_abs_diffs": final_parameter_diffs,
             "final_parameter_first_difference": final_parameter_first,
             "repeat_run_envelope": {
-                "vendor": _repeat_envelope(vendor_rows, vendor_repeat_rows),
-                "package": _repeat_envelope(package_rows, package_repeat_rows),
+                "vendor": _repeat_envelope(
+                    vendor_rows,
+                    vendor_repeat_rows,
+                    vendor_record,
+                    vendor_repeat_record,
+                ),
+                "package": _repeat_envelope(
+                    package_rows,
+                    package_repeat_rows,
+                    package_record,
+                    package_repeat_record,
+                ),
             },
             "production_record": package_record,
             "vendor_record": vendor_record,
@@ -1844,8 +1989,12 @@ def test_s3_natural_lockstep_matches_vendor(
     assert path.exists()
     assert final_parameter_first is None, final_parameter_diffs
     assert max(final_parameter_diffs.values()) == 0.0, final_parameter_diffs
-    vendor_repeat = _repeat_envelope(vendor_rows, vendor_repeat_rows)
-    package_repeat = _repeat_envelope(package_rows, package_repeat_rows)
+    vendor_repeat = _repeat_envelope(
+        vendor_rows, vendor_repeat_rows, vendor_record, vendor_repeat_record
+    )
+    package_repeat = _repeat_envelope(
+        package_rows, package_repeat_rows, package_record, package_repeat_record
+    )
     assert vendor_repeat["max_abs_loss_diff"] == 0.0, vendor_repeat
     assert package_repeat["max_abs_loss_diff"] == 0.0, package_repeat
     assert not vendor_repeat["parameter_state_hash_mismatch_steps"], vendor_repeat
@@ -1860,13 +2009,27 @@ def test_s3_natural_lockstep_matches_vendor(
     assert not package_repeat["input_digest_mismatch_steps"], package_repeat
     assert not vendor_repeat["trace_digest_mismatch_steps"], vendor_repeat
     assert not package_repeat["trace_digest_mismatch_steps"], package_repeat
+    assert not vendor_repeat["sample_id_mismatch_steps"], vendor_repeat
+    assert not package_repeat["sample_id_mismatch_steps"], package_repeat
+    assert not vendor_repeat["loss_component_mismatch_steps"], vendor_repeat
+    assert not package_repeat["loss_component_mismatch_steps"], package_repeat
     assert not vendor_repeat["importance_probability_hash_mismatch_steps"], (
         vendor_repeat
     )
     assert vendor_repeat_record == vendor_record
+    assert vendor_repeat["scheduler_state_digest_equal"] is True
+    assert vendor_repeat["scheduler_state_equal"] is True
+    assert vendor_repeat["validation_state_equal"] is True
+    assert vendor_repeat["pre_model_rng_digest_equal"] is True
+    assert vendor_repeat["pre_loader_rng_digest_equal"] is True
     assert not package_repeat["importance_probability_hash_mismatch_steps"], (
         package_repeat
     )
+    assert package_repeat["scheduler_state_digest_equal"] is True
+    assert package_repeat["scheduler_state_equal"] is True
+    assert package_repeat["validation_state_equal"] is True
+    assert package_repeat["pre_model_rng_digest_equal"] is True
+    assert package_repeat["pre_loader_rng_digest_equal"] is True
 
 
 @pytest.mark.parametrize("dataset", DATASETS)
@@ -1878,20 +2041,68 @@ def test_s3_synchronized_diagnostic_matches_vendor(
     )
     if not natural_path.is_file():
         raise AssertionError(f"natural evidence is missing: {natural_path}")
-    natural = json.loads(natural_path.read_text())
-    comparison = natural["comparison"]
-    assert comparison["relative_loss_criterion_passed"] is True, comparison
-    assert not comparison["digest_mismatch_steps"], comparison
-    assert not comparison["importance_probability_missing_steps"], comparison
-    assert not comparison["importance_probability_hash_mismatch_steps"], comparison
+    trace_path = natural_path.parent / "trace.jsonl"
+    if not trace_path.is_file():
+        raise AssertionError(f"natural trace is missing: {trace_path}")
+    raw_rows = [
+        cast(dict[str, Any], json.loads(line))
+        for line in trace_path.read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(raw_rows) == _s3_steps()
+    raw_fields = {
+        "loss": ("vendor_loss", "package_loss"),
+        "gradient_norm": ("vendor_gradient_norm", "package_gradient_norm"),
+        "learning_rate": ("learning_rate_vendor", "learning_rate_package"),
+        "optimizer_state_digest": (
+            "vendor_optimizer_state_digest",
+            "package_optimizer_state_digest",
+        ),
+        "parameter_state_digest": (
+            "vendor_parameter_state_digest",
+            "package_parameter_state_digest",
+        ),
+        "rng_digest": ("vendor_rng_digest", "package_rng_digest"),
+        "timesteps_digest": (
+            "vendor_timesteps_digest",
+            "package_timesteps_digest",
+        ),
+        "importance_probability_digest": (
+            "vendor_importance_probability_digest",
+            "package_importance_probability_digest",
+        ),
+        "bce_loss_digest": ("vendor_bce_loss_digest", "package_bce_loss_digest"),
+        "weighted_bce_loss_digest": (
+            "vendor_weighted_bce_loss_digest",
+            "package_weighted_bce_loss_digest",
+        ),
+    }
+    raw_mismatches = {
+        field: [
+            index for index, row in enumerate(raw_rows) if row[pair[0]] != row[pair[1]]
+        ]
+        for field, pair in raw_fields.items()
+    }
+    assert not any(raw_mismatches.values()), raw_mismatches
+    assert all(
+        row["vendor_importance_probability_digest"]
+        and row["package_importance_probability_digest"]
+        for row in raw_rows
+    )
+    assert all(
+        row["vendor_sample_ids"] == row["package_sample_ids"] for row in raw_rows
+    )
     path = _write_json(
         "s3-lockstep-synchronized",
         dataset,
         {
             "dataset": dataset,
             "status": "not-needed",
-            "basis": "natural production-path comparison is bitwise across the recorded steps",
+            "basis": "natural production-path comparison is bitwise across raw trace rows",
             "natural_evidence": str(natural_path.relative_to(ROOT)),
+            "trace_artifact": str(trace_path.relative_to(ROOT)),
+            "raw_trace_rows": len(raw_rows),
+            "raw_trace_mismatches": raw_mismatches,
             "runtime": _runtime_record(),
             "source_commit": _source_commit(ROOT),
         },
@@ -2010,7 +2221,7 @@ def test_s4_loader_stream_matches_vendor(
             "val" if split == "validation" else split,
             fixture,
             random_order=split == "train",
-            evidence_num_workers=_loader_worker_count(),
+            evidence_num_workers=_loader_worker_count(dataset),
         )
         for split in ("train", "validation", "test")
     }
@@ -2032,7 +2243,7 @@ def test_s4_loader_stream_matches_vendor(
         for row in rows
     )
     assert all(len(rows) == 2 for rows in split_rows.values())
-    assert observed_loader_num_workers == [_loader_worker_count()]
+    assert observed_loader_num_workers == [_loader_worker_count(dataset)]
     assert batch_stream_comparison
     path = _write_json(
         "loader-stream",
@@ -2359,12 +2570,11 @@ def _package_evaluation(
     pipeline_path: Path,
     vendor_pkl_paths: dict[str, Path],
     scratch: Path,
-) -> tuple[dict[str, Path], dict[str, list[dict[str, Any]]], bool, dict[str, Any]]:
+) -> tuple[dict[str, Path], dict[str, list[dict[str, Any]]], dict[str, Any]]:
     from layout_corrector import LayoutCorrectorPipeline
     from layout_dm.training.dataset import LayoutDMProcessedDataset
 
-    device = torch.device(os.environ.get("LAYOUT_CORRECTOR_S4_DEVICE", "cuda:0"))
-    package_reused = os.environ.get("LAYOUT_CORRECTOR_S4_REUSE_PACKAGE") == "1"
+    device = torch.device("cuda:0")
     pipeline = LayoutCorrectorPipeline.from_pretrained(pipeline_path)
     weight_identity = _corrector_weight_identity(
         pipeline,
@@ -2377,8 +2587,7 @@ def _package_evaluation(
     )
     assert weight_identity["same_key_set"], weight_identity
     assert weight_identity["same_tensors"], weight_identity
-    if not package_reused:
-        pipeline.to(device)
+    pipeline.to(device)
     processed_root = _evaluation_asset_root() / "datasets"
     dataset_config = pipeline.layout_dm.tokenizer.config
     package_dataset = LayoutDMProcessedDataset(
@@ -2402,37 +2611,6 @@ def _package_evaluation(
     }
     package_inputs: dict[str, list[dict[str, Any]]] = {}
     expected_unconditional_count = _vendor_unconditional_sample_count()
-    if package_reused:
-        for condition, package_dir in package_dirs.items():
-            package_path = package_dir / "seed_0.pkl"
-            if not package_path.is_file():
-                raise FileNotFoundError(package_path)
-            if condition == "unconditional":
-                package_inputs[condition] = []
-                continue
-            package_inputs[condition] = [
-                {
-                    "input_ids": cast(torch.Tensor, batch["input_ids"]).detach().cpu(),
-                    "attention_mask": cast(torch.Tensor, batch["attention_mask"])
-                    .detach()
-                    .cpu(),
-                    "sample_ids": [str(value) for value in batch.get("id", [])],
-                }
-                for batch in loader
-            ]
-        subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
-                str(package_root),
-                "--force",
-            ],
-            cwd=scratch,
-            env=_evaluation_environment(scratch),
-            check=True,
-        )
-        return package_dirs, package_inputs, True, weight_identity
-
     for condition, vendor_path in vendor_pkl_paths.items():
         vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         generator = torch.Generator(device=device).manual_seed(EVALUATION_SEED)
@@ -2532,7 +2710,7 @@ def _package_evaluation(
         env=_evaluation_environment(scratch),
         check=True,
     )
-    return package_dirs, package_inputs, False, weight_identity
+    return package_dirs, package_inputs, weight_identity
 
 
 def _vendor_evaluation_inputs(
@@ -2631,7 +2809,7 @@ def test_s4_test_evaluation_path_matches_vendor(
     )
     evidence_dir = _evidence_root() / "evaluation-path" / dataset
     evidence_dir.mkdir(parents=True, exist_ok=True)
-    package_dirs, package_inputs, package_reused, weight_identity = _package_evaluation(
+    package_dirs, package_inputs, weight_identity = _package_evaluation(
         dataset,
         _evaluation_pipeline_root(dataset),
         vendor_pkl_paths,
@@ -2679,7 +2857,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         "pipeline_path": str(pipeline_path),
         "vendor_command": vendor_command,
         "vendor_evaluation_mode": "reused" if vendor_reused else "executed",
-        "package_evaluation_mode": "reused" if package_reused else "executed",
+        "package_evaluation_mode": "executed",
         "vendor_sweep_source_commit": vendor_sweep_source_commit
         if vendor_reused
         else _source_commit(ROOT),
@@ -2691,6 +2869,15 @@ def test_s4_test_evaluation_path_matches_vendor(
         "source_commit": _source_commit(ROOT),
         "runtime": _runtime_record(),
     }
+    if vendor_reused:
+        assert vendor_sweep_source_commit == "5ee3af2", vendor_sweep_source_commit
+        results["retained_vendor_provenance"] = {
+            "sweep_source_commit": vendor_sweep_source_commit,
+            "vendor_result_sha256": {
+                condition: _sha256(path) for condition, path in vendor_pkl_paths.items()
+            },
+            "vendor_weight_sha256": _sha256(corrector_checkpoint / "best_model.pt"),
+        }
     for condition, vendor_path in vendor_pkl_paths.items():
         vendor_meta = _load_vendor_metadata(vendor_path, scratch)
         with (package_dirs[condition] / "seed_0.pkl").open("rb") as handle:

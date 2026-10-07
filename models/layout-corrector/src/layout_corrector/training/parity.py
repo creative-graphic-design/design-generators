@@ -249,6 +249,8 @@ class ProductionTraceCallback(Callback):
                 "importance_probability_digest": _tensor_digest(trace["pt"]),
                 "corrupted_tokens_digest": _tensor_digest(trace["xt"]),
                 "reconstructed_tokens_digest": _tensor_digest(trace["x0_recon"]),
+                "bce_loss_digest": _tensor_digest(trace["bce_loss"]),
+                "weighted_bce_loss_digest": _tensor_digest(trace["weighted_bce_loss"]),
                 "model_training": module.model.training,
             }
         )
