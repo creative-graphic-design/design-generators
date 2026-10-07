@@ -16,6 +16,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import zipfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
@@ -122,13 +123,12 @@ WELL_CONDITIONED_LIMIT = 1.6e-3
 WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
 ZERO_GRADIENT_LIMIT = 1e-6
-# Later trajectory steps have smaller, more cancelling batch-summed gradients,
-# so some tensors exceed the one-step gradient limit. The synchronized check
-# recomputes those gradients in float64 and requires both systems' fp32 values
-# to lie within ROUNDING_LIMIT of the recomputation. In the reference run,
-# 2,993 passed directly, 388 were arbitrated, and the maximum arbitrated error
-# was 2.419970e-3; these measurements are report-only, not gates. Each gradient
-# must pass either the direct 1.8e-4 check or this float64 limit.
+# Machine-dependent fp32 reduction can push cross-system comparisons over
+# direct limits. One-step and synchronized-trajectory checks recompute the
+# corresponding references in float64 and require both systems' fp32 values
+# to stay within this bound after a direct-limit failure.
+# The reference multi-step run's split (2,993 direct / 388 arbitrated) and
+# maximum error (2.419970e-3) are report-only measurements, not gates.
 ROUNDING_LIMIT = 2.7e-3
 
 
@@ -144,6 +144,25 @@ def require(*paths: Path) -> None:
 
 def report(name: str, payload) -> None:
     REPORTS.mkdir(parents=True, exist_ok=True)
+    output = subprocess.run(
+        ["lscpu"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "LC_ALL": "C"},
+    ).stdout
+    fields: dict[str, str] = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition(":")
+        if separator:
+            fields[key.strip()] = value.strip()
+
+    flags = set(fields.get("Flags", "").split())
+    payload = {
+        "cpu_model_name": fields.get("Model name", "unknown").strip(),
+        "avx512_present": any(flag.startswith("avx512") for flag in flags),
+        **payload,
+    }
     (REPORTS / f"{name}.json").write_text(json.dumps(payload, indent=1, sort_keys=True))
 
 
@@ -531,15 +550,15 @@ def test_s1_fixed_batch_forward_trace(
 
 
 def keras_adam_float64(grad, m, v, step: int):
-    """Return the clipped Keras Adam update and second moment in float64."""
-    g = torch.as_tensor(np.asarray(grad), dtype=torch.float64)
+    """Return the Keras Adam update, clipped gradient, and moments in float64."""
+    g = torch.as_tensor(grad, dtype=torch.float64)
     g = g * 1.0 / max(float(g.norm()), 1.0)
-    m = torch.as_tensor(np.asarray(m), dtype=torch.float64)
-    v = torch.as_tensor(np.asarray(v), dtype=torch.float64)
+    m = torch.as_tensor(m, dtype=torch.float64)
+    v = torch.as_tensor(v, dtype=torch.float64)
     m = m + (g - m) * (1 - 0.9)
     v = v + (g * g - v) * (1 - 0.999)
     alpha = 1e-3 * math.sqrt(1 - 0.999**step) / (1 - 0.9**step)
-    return -(m * alpha) / (v.sqrt() + 1e-7), v
+    return -(m * alpha) / (v.sqrt() + 1e-7), g, m, v
 
 
 def check_update(
@@ -548,10 +567,10 @@ def check_update(
     """Gate Adam-rule and well-conditioned checks; record full-update norm as diagnostic."""
     package = torch.as_tensor(package, dtype=torch.float64)
     original = torch.as_tensor(np.asarray(original), dtype=torch.float64)
-    package_exact, _ = keras_adam_float64(
+    package_exact, _, _, _ = keras_adam_float64(
         package_grad.detach().cpu().numpy(), m, v, step
     )
-    original_exact, v_exact = keras_adam_float64(original_grad, m, v, step)
+    original_exact, _, _, v_exact = keras_adam_float64(original_grad, m, v, step)
     well = v_exact.sqrt() >= WELL_CONDITIONED_SQRT_V
     delta = package - original
     rule = {
@@ -637,7 +656,13 @@ def test_s2_one_optimizer_step(
             float(parameters[key].grad.abs().max()),
             float(np.abs(step0[f"grad/{source}"]).max()),
         )
-        assert max(zero_gradient[key]) <= ZERO_GRADIENT_LIMIT, key
+        measured[f"zero_gradient/{key}"] = {
+            "package_max_abs": zero_gradient[key][0],
+            "original_max_abs": zero_gradient[key][1],
+            "max_abs": max(zero_gradient[key]),
+            "limit": ZERO_GRADIENT_LIMIT,
+            "within": max(zero_gradient[key]) <= ZERO_GRADIENT_LIMIT,
+        }
 
     for key, (source, transpose) in sources.items():
         assert_close(
@@ -649,6 +674,7 @@ def test_s2_one_optimizer_step(
         )
 
     raw = {key: parameters[key].grad.clone() for key in sources}
+    package_values = {"grad": raw}
     clip_gradients_by_norm(model.parameters(), 1.0)
     for key, (source, transpose) in sources.items():
         assert_close(
@@ -658,12 +684,20 @@ def test_s2_one_optimizer_step(
             GRADIENT,
             measured,
         )
+    package_values["clipped"] = {
+        key: parameters[key].grad.detach().clone() for key in sources
+    }
 
     optimizer = KerasAdam(model.parameters())
     optimizer.step()
+    package_values["m"] = {}
+    package_values["v"] = {}
+    optimizer_step_matches = {}
     for key, (source, transpose) in sources.items():
         state = optimizer.state[parameters[key]]
-        assert state["step"] == int(step0["iterations"]) == 1
+        optimizer_step_matches[key] = (
+            int(state["step"]) == int(step0["iterations"]) == 1
+        )
         assert_close(
             f"m/{key}",
             state["exp_avg"],
@@ -671,6 +705,7 @@ def test_s2_one_optimizer_step(
             GRADIENT,
             measured,
         )
+        package_values["m"][key] = state["exp_avg"].detach().clone()
         assert_close(
             f"v/{key}",
             state["exp_avg_sq"],
@@ -678,6 +713,7 @@ def test_s2_one_optimizer_step(
             SECOND_MOMENT,
             measured,
         )
+        package_values["v"][key] = state["exp_avg_sq"].detach().clone()
         zeros = np.zeros(tuple(parameters[key].shape))
         check_update(
             f"update/{key}",
@@ -706,9 +742,86 @@ def test_s2_one_optimizer_step(
         FORWARD,
         measured,
     )
-    assert math.isclose(
-        float(step0["learning_rate"]), optimizer.param_groups[0]["lr"], rel_tol=1e-7
+    expected_learning_rate = float(step0["learning_rate"])
+    package_learning_rate = float(optimizer.param_groups[0]["lr"])
+    learning_rate_matches = math.isclose(
+        expected_learning_rate, package_learning_rate, rel_tol=1e-7
     )
+
+    families = ("grad", "clipped", "m", "v")
+    direct_failures = [
+        (family, key)
+        for family in families
+        for key in sources
+        if not measured[f"{family}/{key}"]["within"]
+    ]
+    for family in families:
+        for key in sources:
+            measured[f"{family}/{key}"].setdefault("float64_arbitrated", False)
+
+    if direct_failures:
+        num_elements, element_ids = model_inputs(batches, 0)
+        exact_gradients = float64_gradients(
+            fresh_model(initial_state, original_vocabularies),
+            num_elements,
+            element_ids,
+            torch.from_numpy(step0["noise"]),
+        )
+        exact_families = {"grad": exact_gradients}
+        exact_families["clipped"] = {}
+        exact_families["m"] = {}
+        exact_families["v"] = {}
+        for key, exact_gradient in exact_gradients.items():
+            zeros = torch.zeros_like(exact_gradient)
+            _, clipped, moment, variance = keras_adam_float64(
+                exact_gradient, zeros, zeros, 1
+            )
+            exact_families["clipped"][key] = clipped
+            exact_families["m"][key] = moment
+            exact_families["v"][key] = variance
+
+        for family, key in direct_failures:
+            source, transpose = sources[key]
+            package_value = package_values[family][key].double()
+            original_value = torch.as_tensor(
+                as_package(step0[f"{family}/{source}"], transpose),
+                dtype=torch.float64,
+            )
+            exact_value = exact_families[family][key]
+            package_error = float(
+                (package_value - exact_value).norm()
+                / exact_value.norm().clamp_min(1e-30)
+            )
+            original_error = float(
+                (original_value - exact_value).norm()
+                / exact_value.norm().clamp_min(1e-30)
+            )
+            measured[f"{family}/{key}"].update(
+                {
+                    "package_float64_error": package_error,
+                    "original_float64_error": original_error,
+                    "float64_limit": ROUNDING_LIMIT,
+                    "float64_arbitrated": True,
+                    "within": max(package_error, original_error) <= ROUNDING_LIMIT,
+                }
+            )
+
+    arbitration_by_family = {}
+    arbitrated_errors = []
+    for family in families:
+        family_checks = [measured[f"{family}/{key}"] for key in sources]
+        family_arbitrated = [
+            check for check in family_checks if check["float64_arbitrated"]
+        ]
+        arbitration_by_family[family] = {
+            "direct": len(family_checks) - len(family_arbitrated),
+            "arbitrated": len(family_arbitrated),
+        }
+        arbitrated_errors.extend(
+            max(check["package_float64_error"], check["original_float64_error"])
+            for check in family_arbitrated
+        )
+
     check_measured(
         "s2",
         measured,
@@ -716,8 +829,28 @@ def test_s2_one_optimizer_step(
             "grad_types": sorted(grad_types),
             "zero_gradient_max_abs": zero_gradient,
             "update_criterion": summarize_updates(measured),
+            "float64_arbitration": {
+                "by_family": arbitration_by_family,
+                "direct": sum(
+                    value["direct"] for value in arbitration_by_family.values()
+                ),
+                "arbitrated": sum(
+                    value["arbitrated"] for value in arbitration_by_family.values()
+                ),
+                "max_error": max(arbitrated_errors, default=None),
+                "limit": ROUNDING_LIMIT,
+                "summary_report_only": True,
+            },
+            "optimizer_step_matches": optimizer_step_matches,
+            "learning_rate": {
+                "expected": expected_learning_rate,
+                "package": package_learning_rate,
+                "matches": learning_rate_matches,
+            },
         },
     )
+    assert all(optimizer_step_matches.values())
+    assert learning_rate_matches
 
 
 def package_trajectory(
