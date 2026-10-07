@@ -397,6 +397,25 @@ def test_datamodule_builds_seeded_train_and_test_loaders(monkeypatch):
         DSGANDataModule(dataset_name="other")
 
 
+def test_datamodule_sampler_matches_vendor_rng_consumption():
+    dataset = torch.utils.data.TensorDataset(torch.arange(32))
+    torch.manual_seed(0)
+    vendor_loader = torch.utils.data.DataLoader(dataset, batch_size=8, shuffle=True)
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(0)
+    package_loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=8,
+        sampler=datamodule_module._VendorRandomSampler(dataset, generator),
+        generator=generator,
+    )
+
+    for _ in range(2):
+        vendor_values = torch.cat([batch[0] for batch in vendor_loader])
+        package_values = torch.cat([batch[0] for batch in package_loader])
+        assert torch.equal(vendor_values, package_values)
+
+
 def test_losses_match_and_discriminator_orders_layouts():
     matcher = HungarianMatcher()
     with pytest.raises(ValueError, match="at least one"):

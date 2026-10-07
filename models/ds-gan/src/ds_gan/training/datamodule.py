@@ -2,14 +2,36 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sized
+
 from datasets import DatasetDict
 from lightning.pytorch import LightningDataModule
 from jaxtyping import Shaped
+from laygen.common.randomness import randperm, random_seed
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler
 
 from ..processing_ds_gan import DSGANProcessor
 from .dataset import DSGANDataset, load_cached_dataset
+
+
+class _VendorRandomSampler(Sampler[int]):
+    """Reproduce the reference loader's default RandomSampler RNG sequence."""
+
+    def __init__(self, data_source: Sized, generator: torch.Generator) -> None:
+        self.data_source = data_source
+        self.generator = generator
+
+    def __iter__(self) -> Iterator[int]:
+        seed = random_seed(self.generator)
+        permutation_generator = torch.Generator(device="cpu")
+        permutation_generator.manual_seed(seed)
+        yield from randperm(
+            len(self.data_source), generator=permutation_generator, device="cpu"
+        ).tolist()
+
+    def __len__(self) -> int:
+        return len(self.data_source)
 
 
 class DSGANDataModule(LightningDataModule):
@@ -51,17 +73,19 @@ class DSGANDataModule(LightningDataModule):
             self.setup("fit")
 
         assert self.dataset is not None
+        dataset = DSGANDataset(
+            self.dataset["train"],
+            split="train",
+            processor=self.processor,
+            max_elem=self.max_elem,
+        )
+        generator = self._generator()
         return DataLoader(
-            DSGANDataset(
-                self.dataset["train"],
-                split="train",
-                processor=self.processor,
-                max_elem=self.max_elem,
-            ),
+            dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            sampler=_VendorRandomSampler(dataset, generator),
             num_workers=self.num_workers,
-            generator=self._generator(),
+            generator=generator,
         )
 
     def test_dataloader(self) -> DataLoader[dict[str, Shaped[torch.Tensor, "..."]]]:
