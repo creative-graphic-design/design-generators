@@ -20,7 +20,7 @@ import subprocess
 import zipfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypedDict
 
 import numpy as np
 import pytest
@@ -53,6 +53,13 @@ class Tolerance(NamedTuple):
 
     metric: str
     limit: float
+
+
+class FieldMeasurement(TypedDict):
+    records_with_mismatch: int
+    max_mismatches_per_record: int
+    max_abs_difference: float
+    examples: list[dict[str, int | None]]
 
 
 class RecordingCrossEpochBatchSampler(CrossEpochBatchSampler):
@@ -90,6 +97,7 @@ ARCHIVE = Path(
 )
 REPORTS = REFERENCE / "reports"
 CONFIG_DIR = Path("models/canvas-vae/configs/training")
+CALIBRATION_MODE = os.environ.get("CANVAS_VAE_PARITY_CALIBRATE") == "1"
 REGENERATE = (
     "uv run --package canvas-vae --extra vendor "
     "models/canvas-vae/scripts/generate_vendor_reference.py trace"
@@ -184,12 +192,99 @@ def assert_close(name, actual, expected, tolerance, measured):
     measured[name] = diff(actual, expected)
     measured[name]["tolerance"] = list(tolerance)
     measured[name]["within"] = measured[name][tolerance.metric] <= tolerance.limit
+    measured[name]["ignore_limit_in_calibration"] = True
+
+
+def record_gate(
+    measured, name, within, *, ignore_limit_in_calibration=False, **details
+):
+    measured[name] = {
+        "within": bool(within),
+        "ignore_limit_in_calibration": ignore_limit_in_calibration,
+        **details,
+    }
+
+
+def report_value(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): report_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [report_value(item) for item in value]
+
+    return value
+
+
+def record_equal(measured, name, actual, expected):
+    record_gate(
+        measured,
+        name,
+        actual == expected,
+        actual=report_value(actual),
+        expected=report_value(expected),
+    )
+
+
+def record_sequence_equal(measured, name, actual, expected):
+    actual = list(actual)
+    expected = list(expected)
+    mismatches = []
+    max_item_mismatches = 0
+    for index in range(max(len(actual), len(expected))):
+        if index >= len(actual) or index >= len(expected):
+            mismatches.append(index)
+            max_item_mismatches = max(max_item_mismatches, 1)
+            continue
+
+        actual_item = actual[index]
+        expected_item = expected[index]
+        if isinstance(actual_item, (list, tuple)) and isinstance(
+            expected_item, (list, tuple)
+        ):
+            item_mismatches = sum(
+                left != right
+                for left, right in zip(actual_item, expected_item, strict=False)
+            ) + abs(len(actual_item) - len(expected_item))
+        else:
+            item_mismatches = int(actual_item != expected_item)
+
+        if item_mismatches:
+            mismatches.append(index)
+            max_item_mismatches = max(max_item_mismatches, item_mismatches)
+
+    record_gate(
+        measured,
+        name,
+        not mismatches,
+        actual_items=len(actual),
+        expected_items=len(expected),
+        mismatched_item_indices=mismatches,
+        max_mismatches_per_item=max_item_mismatches,
+    )
 
 
 def check_measured(name: str, measured, extra=None) -> None:
-    report(name, {**(extra or {}), **measured})
-    failed = sorted(key for key, value in measured.items() if not value["within"])
-    assert not failed, f"outside tolerance: {failed}"
+    report(
+        name,
+        {
+            **(extra or {}),
+            **measured,
+            "calibration_mode": CALIBRATION_MODE,
+        },
+    )
+    failed = sorted(
+        key
+        for key, value in measured.items()
+        if value.get("within") is False
+        and (
+            not CALIBRATION_MODE or not value.get("ignore_limit_in_calibration", False)
+        )
+    )
+    if failed:
+        raise AssertionError(f"outside tolerance: {failed}")
 
 
 @pytest.fixture(scope="module")
@@ -275,76 +370,186 @@ def vendor_text(relative: str) -> str:
 def test_s0_topology_and_static_config(
     static, initial_state, original_vocabularies, batches, trace_dir
 ):
+    measured: dict[str, dict[str, object]] = {}
     config = make_config(original_vocabularies, 0.0)
     model = CanvasVAEModel(config)
     trainable = sum(param.numel() for param in model.parameters())
     buffers = sum(buffer.numel() for buffer in model.buffers())
-    assert trainable == static["trainable_parameters"] == 1_558_435
-    assert buffers == static["non_trainable_parameters"] == 512
+    record_gate(
+        measured,
+        "trainable_parameter_count",
+        trainable == static["trainable_parameters"] == 1_558_435,
+        package=trainable,
+        reference=static["trainable_parameters"],
+        expected=1_558_435,
+    )
+    record_gate(
+        measured,
+        "non_trainable_buffer_count",
+        buffers == static["non_trainable_parameters"] == 512,
+        package=buffers,
+        reference=static["non_trainable_parameters"],
+        expected=512,
+    )
     sources = trainable_sources(config)
-    assert sorted(source for source, _ in sources.values()) == static["trainable_keys"]
-    assert not any("norm3" in key for key in static["trainable_keys"])
-    model.load_state_dict(initial_state, strict=True)
+    record_equal(
+        measured,
+        "trainable_key_coverage",
+        sorted(source for source, _ in sources.values()),
+        static["trainable_keys"],
+    )
+    extra_keys = [key for key in static["trainable_keys"] if "norm3" in key]
+    record_gate(
+        measured, "unbuilt_norm3_excluded", not extra_keys, offending_keys=extra_keys
+    )
+    load_result = model.load_state_dict(initial_state, strict=False)
+    record_gate(
+        measured,
+        "initial_state_key_coverage",
+        not load_result.missing_keys and not load_result.unexpected_keys,
+        missing_keys=load_result.missing_keys,
+        unexpected_keys=load_result.unexpected_keys,
+    )
 
     columns = static["input_columns"]
-    assert columns["length"]["input_dim"] == config.max_length == 50
+    record_gate(
+        measured,
+        "input_dim/length",
+        columns.get("length", {}).get("input_dim") == config.max_length == 50,
+        reference=columns.get("length", {}).get("input_dim"),
+        package=config.max_length,
+        expected=50,
+    )
     for field, size in config.field_sizes.items():
-        assert columns[field]["input_dim"] == size
+        record_equal(
+            measured,
+            f"input_dim/{field}",
+            columns.get(field, {}).get("input_dim"),
+            size,
+        )
 
-    assert [
-        config.field_sizes[key]
-        for key in ("left", "clickable", "component", "icon", "text_button")
-    ] == [64, 2, 27, 59, 25]
-    assert columns["component"]["primary_label"] == config.primary_label_id
-    assert all(
-        static["lookups"][key][0] == "[UNK]"
-        for key in ("component", "icon", "text_button")
-    )
-    assert static["lookups"]["length"] == list(range(1, 51))
-    processor = CanvasVAEProcessor(original_vocabularies)
-    assert np.array_equal(
-        np.asarray(static["bin_boundaries"], dtype=np.float32), processor.bin_boundaries
-    )
-
-    assert static["initializers"] == sorted(
+    record_equal(
+        measured,
+        "categorical_field_sizes",
         [
-            'GlorotUniform:{"seed": null}',
-            'RandomUniform:{"maxval": 0.05, "minval": -0.05, "seed": null}',
-            "Zeros:{}",
-        ]
+            config.field_sizes[key]
+            for key in ("left", "clickable", "component", "icon", "text_button")
+        ],
+        [64, 2, 27, 59, 25],
+    )
+    record_equal(
+        measured,
+        "component_primary_label",
+        columns.get("component", {}).get("primary_label"),
+        config.primary_label_id,
+    )
+    for key in ("component", "icon", "text_button"):
+        tokens = static["lookups"].get(key, [])
+        record_gate(
+            measured,
+            f"lookup_unknown_token/{key}",
+            bool(tokens) and tokens[0] == "[UNK]",
+            first_token=tokens[0] if tokens else None,
+            expected="[UNK]",
+        )
+    record_equal(
+        measured, "length_lookup", static["lookups"].get("length"), list(range(1, 51))
+    )
+    processor = CanvasVAEProcessor(original_vocabularies)
+    reference_boundaries = np.asarray(static["bin_boundaries"], dtype=np.float32)
+    boundaries_same_shape = reference_boundaries.shape == processor.bin_boundaries.shape
+    boundary_delta = (
+        np.abs(reference_boundaries - processor.bin_boundaries)
+        if boundaries_same_shape
+        else np.asarray([], dtype=np.float32)
+    )
+    record_gate(
+        measured,
+        "bin_boundaries_exact",
+        boundaries_same_shape
+        and np.array_equal(reference_boundaries, processor.bin_boundaries),
+        reference_shape=list(reference_boundaries.shape),
+        package_shape=list(processor.bin_boundaries.shape),
+        elements=int(reference_boundaries.size),
+        differing_elements=int(np.count_nonzero(boundary_delta)),
+        max_abs_difference=float(boundary_delta.max()) if boundary_delta.size else 0.0,
+    )
+
+    record_equal(
+        measured,
+        "initializers",
+        static["initializers"],
+        sorted(
+            [
+                'GlorotUniform:{"seed": null}',
+                'RandomUniform:{"maxval": 0.05, "minval": -0.05, "seed": null}',
+                "Zeros:{}",
+            ]
+        ),
     )
     optimizer = static["optimizer"]
-    assert np.float32(optimizer["learning_rate"]) == np.float32(0.001)
-    assert (optimizer["beta_1"], optimizer["beta_2"], optimizer["epsilon"]) == (
-        0.9,
-        0.999,
-        1e-07,
+    record_equal(
+        measured,
+        "optimizer_learning_rate",
+        float(np.float32(optimizer["learning_rate"])),
+        float(np.float32(0.001)),
     )
-    assert optimizer["clipnorm"] == 1.0 and optimizer["global_clipnorm"] is None
-    assert (
+    record_equal(
+        measured,
+        "optimizer_betas_epsilon",
+        (optimizer["beta_1"], optimizer["beta_2"], optimizer["epsilon"]),
+        (0.9, 0.999, 1e-07),
+    )
+    record_gate(
+        measured,
+        "optimizer_clipping",
+        optimizer["clipnorm"] == 1.0 and optimizer["global_clipnorm"] is None,
+        clipnorm=optimizer["clipnorm"],
+        global_clipnorm=optimizer["global_clipnorm"],
+        expected_clipnorm=1.0,
+        expected_global_clipnorm=None,
+    )
+    record_gate(
+        measured,
+        "optimizer_optional_features",
         optimizer["use_ema"] is False
         and optimizer["weight_decay"] is None
-        and optimizer["amsgrad"] is False
+        and optimizer["amsgrad"] is False,
+        use_ema=optimizer["use_ema"],
+        weight_decay=optimizer["weight_decay"],
+        amsgrad=optimizer["amsgrad"],
     )
     defaults = KerasAdam([torch.nn.Parameter(torch.zeros(1))]).defaults
-    assert (defaults["lr"], *defaults["betas"], defaults["eps"]) == (
-        0.001,
-        0.9,
-        0.999,
-        1e-07,
+    record_equal(
+        measured,
+        "package_optimizer_defaults",
+        (defaults["lr"], *defaults["betas"], defaults["eps"]),
+        (0.001, 0.9, 0.999, 1e-07),
     )
-    assert static["batch_norm"] == {
-        "momentum": config.batch_norm_momentum,
-        "epsilon": config.batch_norm_epsilon,
-    }
-    assert static["layer_norm_epsilon"] == config.layer_norm_epsilon
+    record_equal(
+        measured,
+        "batch_norm",
+        static["batch_norm"],
+        {"momentum": config.batch_norm_momentum, "epsilon": config.batch_norm_epsilon},
+    )
+    record_equal(
+        measured,
+        "layer_norm_epsilon",
+        static["layer_norm_epsilon"],
+        config.layer_norm_epsilon,
+    )
     linear_and_embedding = sum(
         1
         for module in model.modules()
         if isinstance(module, (torch.nn.Linear, torch.nn.Embedding))
         for _ in module.parameters(recurse=False)
     )
-    assert static["num_regularized_variables"] == linear_and_embedding
+    record_equal(
+        measured,
+        "regularized_variable_count",
+        static["num_regularized_variables"],
+        linear_and_embedding,
+    )
 
     args = static["args"]
     full = yaml.safe_load((CONFIG_DIR / "canvas_vae_rico.yaml").read_text())
@@ -353,84 +558,135 @@ def test_s0_topology_and_static_config(
         full["data"]["init_args"],
         full["trainer"],
     )
-    assert (args["batch_size"], args["num_epochs"], args["validation_freq"]) == (
-        data_args["batch_size"],
-        trainer["max_epochs"],
-        trainer["check_val_every_n_epoch"],
+    record_equal(
+        measured,
+        "batch_epoch_validation_config",
+        (args["batch_size"], args["num_epochs"], args["validation_freq"]),
+        (
+            data_args["batch_size"],
+            trainer["max_epochs"],
+            trainer["check_val_every_n_epoch"],
+        ),
     )
-    assert (
-        args["learning_rate"],
-        args["latent_dim"],
-        args["num_blocks"],
-        args["kl"],
-        args["l2"],
-    ) == (
-        model_args["learning_rate"],
-        model_args["latent_dim"],
-        model_args["num_blocks"],
-        model_args["kl_weight"],
-        model_args["l2_weight"],
+    record_equal(
+        measured,
+        "model_recipe_config",
+        (
+            args["learning_rate"],
+            args["latent_dim"],
+            args["num_blocks"],
+            args["kl"],
+            args["l2"],
+        ),
+        (
+            model_args["learning_rate"],
+            model_args["latent_dim"],
+            model_args["num_blocks"],
+            model_args["kl_weight"],
+            model_args["l2_weight"],
+        ),
     )
-    assert (args["decoder_type"], args["block_type"]) == ("oneshot", "deepsvg")
-    assert (
+    record_equal(
+        measured,
+        "decoder_block_config",
+        (args["decoder_type"], args["block_type"]),
+        ("oneshot", "deepsvg"),
+    )
+    record_gate(
+        measured,
+        "gradient_clipping_config",
         model_args["clip_norm"] == optimizer["clipnorm"]
-        and "gradient_clip_val" not in trainer
+        and "gradient_clip_val" not in trainer,
+        model_clip_norm=model_args["clip_norm"],
+        vendor_clipnorm=optimizer["clipnorm"],
+        package_gradient_clip_val=trainer.get("gradient_clip_val"),
     )
-    assert trainer["precision"] == "32-true" and trainer["num_sanity_val_steps"] == 0
+    record_gate(
+        measured,
+        "trainer_precision_sanity_steps",
+        trainer["precision"] == "32-true" and trainer["num_sanity_val_steps"] == 0,
+        precision=trainer["precision"],
+        num_sanity_val_steps=trainer["num_sanity_val_steps"],
+    )
 
     sizes = static["split_sizes"]
-    assert (
+    package_steps = {
+        "train": len(CrossEpochBatchSampler(sizes["train"], 1024, torch.Generator())),
+        "val": len(wrapping_batches(sizes["val"], 1024)),
+        "test": len(sequential_batches(sizes["test"], 1024)),
+    }
+    record_gate(
+        measured,
+        "steps_per_epoch",
         static["steps_per_epoch"]
-        == {
-            "train": len(
-                CrossEpochBatchSampler(sizes["train"], 1024, torch.Generator())
-            ),
-            "val": len(wrapping_batches(sizes["val"], 1024)),
-            "test": len(sequential_batches(sizes["test"], 1024)),
-        }
-        == {"train": 45, "val": 6, "test": 6}
+        == package_steps
+        == {"train": 45, "val": 6, "test": 6},
+        reference=static["steps_per_epoch"],
+        package=package_steps,
+        expected={"train": 45, "val": 6, "test": 6},
     )
 
     train_source = vendor_text("src/canvas-vae/canvasvae/train.py")
     spec_source = vendor_text("src/canvas-vae/canvasvae/data/spec.py")
     encoder_source = vendor_text("src/canvas-vae/canvasvae/models/encoder.py")
-    assert (
+    train_evaluates_after_fit = (
         "model = train(args, dataspec)\n    evaluate(args, dataspec, model)"
         in train_source
     )
-    assert "def train(args, dataspec, return_best_model=False)" in train_source
-    assert (
-        re.search(
-            r"set_random_seed|set_seed|np\.random\.seed",
-            "".join(
-                vendor_text(f"src/canvas-vae/canvasvae/{name}")
-                for name in ("train.py", "main.py", "data/spec.py")
-            ),
-        )
-        is None
+    record_gate(measured, "original_train_evaluate_order", train_evaluates_after_fit)
+    record_gate(
+        measured,
+        "original_train_signature",
+        "def train(args, dataspec, return_best_model=False)" in train_source,
     )
-    assert (
-        re.search(
-            r"schedule|warmup|mixed_precision|use_ema|ExponentialMovingAverage",
-            train_source,
-            re.IGNORECASE,
-        )
-        is None
+    seed_text = "".join(
+        vendor_text(f"src/canvas-vae/canvasvae/{name}")
+        for name in ("train.py", "main.py", "data/spec.py")
     )
-    assert spec_source.index("dataset.repeat()") < spec_source.index("dataset.batch(")
-    assert (
+    seed_match = re.search(r"set_random_seed|set_seed|np\.random\.seed", seed_text)
+    record_gate(measured, "original_seed_setting", seed_match is None)
+    schedule_match = re.search(
+        r"schedule|warmup|mixed_precision|use_ema|ExponentialMovingAverage",
+        train_source,
+        re.IGNORECASE,
+    )
+    record_gate(measured, "original_schedule_and_ema_absent", schedule_match is None)
+    repeat_position = spec_source.find("dataset.repeat()")
+    batch_position = spec_source.find("dataset.batch(")
+    record_gate(
+        measured,
+        "original_repeat_before_batch",
+        0 <= repeat_position < batch_position,
+        repeat_position=repeat_position if repeat_position >= 0 else None,
+        batch_position=batch_position if batch_position >= 0 else None,
+    )
+    record_gate(
+        measured,
+        "original_validation_repeats_and_caches",
         "val_dataset = dataspec.make_dataset('val', repeat=True, cache=True)"
-        in train_source
+        in train_source,
     )
-    assert "validation_steps=dataspec.steps_per_epoch('val')" in train_source
-    assert "kl_div = -0.5 * tf.reduce_mean(" in encoder_source
-    assert static["unpatched_batch_norm_error"].startswith("InvalidArgumentError")
+    record_gate(
+        measured,
+        "original_validation_steps",
+        "validation_steps=dataspec.steps_per_epoch('val')" in train_source,
+    )
+    record_gate(
+        measured,
+        "original_kl_reduction",
+        "kl_div = -0.5 * tf.reduce_mean(" in encoder_source,
+    )
+    record_gate(
+        measured,
+        "original_unpatched_batch_norm_error",
+        static["unpatched_batch_norm_error"].startswith("InvalidArgumentError"),
+        observed=static["unpatched_batch_norm_error"],
+    )
 
     torch.manual_seed(0)
     eval_model = fresh_model(initial_state, original_vocabularies).eval()
     step0 = np.load(trace_dir / "step0.npz")
     num_elements, element_ids = model_inputs(batches, 0)
-    measured: dict[str, dict[str, float]] = {}
     output = eval_model(num_elements, element_ids)
     assert_close(
         "eval_z_mean",
@@ -447,7 +703,13 @@ def test_s0_topology_and_static_config(
         measured,
     )
     width = step0["eval_logits/left"].shape[1]
-    assert output.mask.shape[1] == width
+    record_gate(
+        measured,
+        "eval_mask_width",
+        output.mask.shape[1] == width,
+        actual=output.mask.shape[1],
+        expected=width,
+    )
     for key in SEQUENCE_COLUMNS:
         assert_close(
             f"eval_logits/{key}",
@@ -511,7 +773,15 @@ def test_s1_fixed_batch_forward_trace(
         FORWARD,
         measured,
     )
-    assert output.mask.sum().item() == int(num_elements.sum())
+    mask_elements = output.mask.sum().item()
+    expected_mask_elements = int(num_elements.sum())
+    record_gate(
+        measured,
+        "mask_element_count",
+        mask_elements == expected_mask_elements,
+        actual=mask_elements,
+        expected=expected_mask_elements,
+    )
     assert_close(
         "logits/length",
         output.length_logits,
@@ -592,9 +862,13 @@ def check_update(
         "well_conditioned_fraction": float(well.double().mean()),
         "well_conditioned_elements": int(well.sum()),
         "elements": delta.numel(),
+        "ignore_limit_in_calibration": True,
         "well_conditioned_norm_rel": well_rel,
         "adam_rule_limit": ADAM_RULE_LIMIT,
         "well_conditioned_limit": WELL_CONDITIONED_LIMIT,
+        "package_adam_rule_within": rule["package_adam_rule"] <= ADAM_RULE_LIMIT,
+        "original_adam_rule_within": rule["original_adam_rule"] <= ADAM_RULE_LIMIT,
+        "well_conditioned_within": well_rel <= WELL_CONDITIONED_LIMIT,
         "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
         "near_zero_difference_sq": float(delta[~well].square().sum()),
         "total_difference_sq": float(delta.square().sum()),
@@ -662,6 +936,7 @@ def test_s2_one_optimizer_step(
             "max_abs": max(zero_gradient[key]),
             "limit": ZERO_GRADIENT_LIMIT,
             "within": max(zero_gradient[key]) <= ZERO_GRADIENT_LIMIT,
+            "ignore_limit_in_calibration": True,
         }
 
     for key, (source, transpose) in sources.items():
@@ -758,6 +1033,9 @@ def test_s2_one_optimizer_step(
     for family in families:
         for key in sources:
             measured[f"{family}/{key}"].setdefault("float64_arbitrated", False)
+            measured[f"{family}/{key}"]["direct_within"] = measured[f"{family}/{key}"][
+                "within"
+            ]
 
     if direct_failures:
         num_elements, element_ids = model_inputs(batches, 0)
@@ -801,6 +1079,8 @@ def test_s2_one_optimizer_step(
                     "package_float64_error": package_error,
                     "original_float64_error": original_error,
                     "float64_limit": ROUNDING_LIMIT,
+                    "float64_within": max(package_error, original_error)
+                    <= ROUNDING_LIMIT,
                     "float64_arbitrated": True,
                     "within": max(package_error, original_error) <= ROUNDING_LIMIT,
                 }
@@ -822,6 +1102,24 @@ def test_s2_one_optimizer_step(
             for check in family_arbitrated
         )
 
+    for key, matches in optimizer_step_matches.items():
+        record_gate(
+            measured,
+            f"optimizer_step/{key}",
+            matches,
+            actual=int(optimizer.state[parameters[key]]["step"]),
+            expected=1,
+        )
+    record_gate(
+        measured,
+        "learning_rate",
+        learning_rate_matches,
+        ignore_limit_in_calibration=True,
+        actual=package_learning_rate,
+        expected=expected_learning_rate,
+        rel_tol=1e-7,
+    )
+
     check_measured(
         "s2",
         measured,
@@ -842,15 +1140,13 @@ def test_s2_one_optimizer_step(
                 "summary_report_only": True,
             },
             "optimizer_step_matches": optimizer_step_matches,
-            "learning_rate": {
+            "learning_rate_summary": {
                 "expected": expected_learning_rate,
                 "package": package_learning_rate,
                 "matches": learning_rate_matches,
             },
         },
     )
-    assert all(optimizer_step_matches.values())
-    assert learning_rate_matches
 
 
 def package_trajectory(
@@ -888,6 +1184,7 @@ def package_trajectory(
 def test_s3_natural_trajectory(
     trace_dir, batches, initial_state, original_vocabularies
 ):
+    measured = {}
     trajectory = np.load(trace_dir / "trajectory.npz")
     noises = trajectory["noise"]
     steps = len(trajectory["total_loss"])
@@ -934,8 +1231,16 @@ def test_s3_natural_trajectory(
             np.abs(repeated - expected).max()
         )
 
-    report(
+    record_gate(
+        measured,
+        "natural_total_losses_finite",
+        all(math.isfinite(value) for value in first[0]),
+        finite_values=sum(math.isfinite(value) for value in first[0]),
+        steps=steps,
+    )
+    check_measured(
         "s3",
+        measured,
         {
             "steps": steps,
             "package_loss": first[0],
@@ -952,7 +1257,6 @@ def test_s3_natural_trajectory(
     # The natural record is evidence, not a gate: when a step leaves the
     # one-step loss tolerance, test_s3_synchronized_steps applies the one-step
     # contract at every optimizer boundary instead.
-    assert all(math.isfinite(value) for value in first[0])
 
 
 def float64_gradients(
@@ -965,7 +1269,7 @@ def float64_gradients(
     return {key: parameter.grad for key, parameter in exact.named_parameters()}
 
 
-def synchronized_step(model, optimizer, state, config):
+def synchronized_step(model, optimizer, state, config, measured):
     """Load original weights and Adam state, returning fresh-storage tensors."""
     weights = {
         key.removeprefix("weight/"): value
@@ -983,9 +1287,11 @@ def synchronized_step(model, optimizer, state, config):
         for name, prefix in (("exp_avg", "m"), ("exp_avg_sq", "v")):
             array = as_package(state[f"{prefix}/{source.key}"], source.transpose)
             moments[name] = torch.tensor(np.ascontiguousarray(array))
-            assert (
+            record_gate(
+                measured,
+                f"step{step}/optimizer_state_storage_independent/{key}/{name}",
                 moments[name].untyped_storage().data_ptr()
-                != parameter.untyped_storage().data_ptr()
+                != parameter.untyped_storage().data_ptr(),
             )
 
         optimizer.state[parameter] = {"step": step, **moments}
@@ -1013,7 +1319,7 @@ def test_s3_synchronized_steps(
         after = dict(
             np.load(sync / (f"step{step + 1}.npz" if step + 1 < steps else "final.npz"))
         )
-        synchronized_step(model, optimizer, state, config)
+        synchronized_step(model, optimizer, state, config, measured)
         before = {key: value.detach().clone() for key, value in parameters.items()}
         optimizer.zero_grad(set_to_none=True)
         num_elements, element_ids = model_inputs(batches, step)
@@ -1045,6 +1351,8 @@ def test_s3_synchronized_steps(
             measured[name] |= {
                 "package_float64_error": package_error,
                 "original_float64_error": original_error,
+                "direct_within": measured[name]["within"],
+                "float64_within": max(package_error, original_error) <= ROUNDING_LIMIT,
             }
             if not measured[name]["within"]:
                 measured[name]["within"] = (
@@ -1086,6 +1394,13 @@ def test_s3_synchronized_steps(
         default=None,
     )
 
+    record_gate(
+        measured,
+        "gradient_comparison_count",
+        len(gradient_checks) == 3_381,
+        actual=len(gradient_checks),
+        expected=3_381,
+    )
     check_measured(
         "s3_synchronized",
         measured,
@@ -1100,7 +1415,6 @@ def test_s3_synchronized_steps(
             },
         },
     )
-    assert len(gradient_checks) == 3_381
 
 
 def test_s3_production_wiring(tmp_path):
@@ -1126,10 +1440,36 @@ def test_s3_production_wiring(tmp_path):
     )
     cli.trainer.fit(cli.model, cli.datamodule)
     trainer = cli.trainer
-    assert isinstance(trainer.optimizers[0], KerasAdam)
-    assert trainer.gradient_clip_val is None
-    assert trainer.global_step == 6
-    assert "val/total_score" in trainer.callback_metrics
+    measured = {}
+    optimizer = trainer.optimizers[0] if trainer.optimizers else None
+    record_gate(
+        measured,
+        "optimizer_type",
+        isinstance(optimizer, KerasAdam),
+        actual=type(optimizer).__name__ if optimizer is not None else None,
+        expected=KerasAdam.__name__,
+    )
+    record_gate(
+        measured,
+        "global_gradient_clipping_disabled",
+        trainer.gradient_clip_val is None,
+        actual=trainer.gradient_clip_val,
+        expected=None,
+    )
+    record_gate(
+        measured,
+        "global_step",
+        trainer.global_step == 6,
+        actual=trainer.global_step,
+        expected=6,
+    )
+    record_gate(
+        measured,
+        "validation_total_score_logged",
+        "val/total_score" in trainer.callback_metrics,
+        available_metrics=sorted(trainer.callback_metrics),
+        expected_metric="val/total_score",
+    )
     checkpoint_paths = list(Path(tmp_path).rglob("*.ckpt"))
     checkpoints = sorted(path.name for path in checkpoint_paths)
     best_checkpoint = next(
@@ -1138,20 +1478,51 @@ def test_s3_production_wiring(tmp_path):
     last_checkpoint = next(
         (path for path in checkpoint_paths if path.name == "last.ckpt"), None
     )
-    assert best_checkpoint is not None and best_checkpoint.is_file()
-    assert last_checkpoint is not None and last_checkpoint.is_file()
-    last_checkpoint_metadata = validate_final_checkpoint(
-        last_checkpoint,
-        max_epochs=2,
-        expected_global_step=trainer.global_step,
+    record_gate(
+        measured,
+        "best_checkpoint_written",
+        best_checkpoint is not None and best_checkpoint.is_file(),
+        path=str(best_checkpoint) if best_checkpoint is not None else None,
     )
-    report(
+    record_gate(
+        measured,
+        "last_checkpoint_written",
+        last_checkpoint is not None and last_checkpoint.is_file(),
+        path=str(last_checkpoint) if last_checkpoint is not None else None,
+    )
+    last_checkpoint_metadata = None
+    last_checkpoint_error = None
+    if last_checkpoint is not None and last_checkpoint.is_file():
+        try:
+            last_checkpoint_metadata = validate_final_checkpoint(
+                last_checkpoint,
+                max_epochs=2,
+                expected_global_step=trainer.global_step,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            last_checkpoint_error = str(error)
+    record_gate(
+        measured,
+        "last_checkpoint_is_final",
+        last_checkpoint_metadata == (1, trainer.global_step),
+        epoch=last_checkpoint_metadata[0] if last_checkpoint_metadata else None,
+        global_step=last_checkpoint_metadata[1] if last_checkpoint_metadata else None,
+        expected_epoch=1,
+        expected_global_step=trainer.global_step,
+        error=last_checkpoint_error,
+    )
+    check_measured(
         "s3_wiring",
+        measured,
         {
-            "global_step": trainer.global_step,
+            "trainer_global_step": trainer.global_step,
             "checkpoints": checkpoints,
-            "last_checkpoint_epoch": last_checkpoint_metadata[0],
-            "last_checkpoint_global_step": last_checkpoint_metadata[1],
+            "last_checkpoint_epoch": (
+                last_checkpoint_metadata[0] if last_checkpoint_metadata else None
+            ),
+            "last_checkpoint_global_step": (
+                last_checkpoint_metadata[1] if last_checkpoint_metadata else None
+            ),
             "metrics": {
                 key: float(value) for key, value in trainer.callback_metrics.items()
             },
@@ -1202,13 +1573,23 @@ def test_s4_records_and_vocabulary(
 ):
     measured = {}
     original_hashes = {}
-    package_documents = {
-        document["content_hash"]: document
+    package_rows = [
+        document
         for dataset in production_data_module.splits.values()
         for document in dataset.documents
+    ]
+    package_documents = {
+        document["content_hash"]: document for document in package_rows
     }
     expected_counts = {"train": 45_222, "val": 5_584, "test": 5_623}
-    assert len(package_documents) == sum(expected_counts.values())
+    record_gate(
+        measured,
+        "package_unique_document_count",
+        len(package_documents) == sum(expected_counts.values()),
+        unique_documents=len(package_documents),
+        total_documents=len(package_rows),
+        expected_documents=sum(expected_counts.values()),
+    )
     for split in ("train", "val", "test"):
         with gzip.open(
             stream_dir / f"records_{split}.jsonl.gz", "rt", encoding="utf-8"
@@ -1218,25 +1599,47 @@ def test_s4_records_and_vocabulary(
         package = {
             key for key, doc in package_documents.items() if doc["split"] == split
         }
-        original = {hashes_by_id[row["id"]] for row in rows}
+        original = {
+            hashes_by_id[row["id"]] for row in rows if row.get("id") in hashes_by_id
+        }
+        missing_hash_ids = [
+            row.get("id") for row in rows if row.get("id") not in hashes_by_id
+        ]
         original_hashes[split] = original
-        measured[split] = {
+        row_measurement = {
             "original_rows": len(rows),
             "original_hashes": len(original),
             "package": len(package),
             "expected": expected_counts[split],
             "only_package": sorted(package - original),
             "only_original": sorted(original - package),
+            "missing_reference_hash_ids": missing_hash_ids,
         }
-        assert len(rows) == expected_counts[split], split
-        assert len(original) == expected_counts[split], split
-        assert len(package) == expected_counts[split], split
-        assert original == package, split
-        for row in rows:
-            document = package_documents[hashes_by_id[row["id"]]]
-            elements = document["elements"]
-            assert row["length"] == len(elements)
+        measured[f"{split}/counts"] = {
+            "within": len(rows) == expected_counts[split]
+            and len(original) == expected_counts[split]
+            and len(package) == expected_counts[split],
+            **row_measurement,
+        }
+        record_gate(
+            measured,
+            f"{split}/content_hash_sets_equal",
+            not row_measurement["only_package"]
+            and not row_measurement["only_original"]
+            and not missing_hash_ids,
+            package_only_hashes=row_measurement["only_package"],
+            original_only_hashes=row_measurement["only_original"],
+            missing_reference_hash_ids=missing_hash_ids,
+        )
+        per_field: dict[str, FieldMeasurement] = {
+            key: {
+                "records_with_mismatch": 0,
+                "max_mismatches_per_record": 0,
+                "max_abs_difference": 0.0,
+                "examples": [],
+            }
             for key in (
+                "length",
                 "left",
                 "top",
                 "width",
@@ -1246,11 +1649,78 @@ def test_s4_records_and_vocabulary(
                 "component",
                 "icon",
                 "text_button",
-            ):
-                assert row[key] == [element[key] for element in elements], (
-                    row["id"],
-                    key,
+            )
+        }
+        missing_package_documents = []
+        mismatched_records = 0
+        for row in rows:
+            content_hash = hashes_by_id.get(row.get("id"))
+            document = package_documents.get(content_hash)
+            if document is None:
+                missing_package_documents.append(row.get("id"))
+                mismatched_records += 1
+                continue
+
+            elements = document["elements"]
+            fields = {
+                "length": (row.get("length"), len(elements)),
+                **{
+                    key: (row.get(key), [element[key] for element in elements])
+                    for key in (
+                        "left",
+                        "top",
+                        "width",
+                        "height",
+                        "clickable",
+                        "class",
+                        "component",
+                        "icon",
+                        "text_button",
+                    )
+                },
+            }
+            row_has_mismatch = False
+            for key, (actual, expected) in fields.items():
+                if actual == expected:
+                    continue
+
+                row_has_mismatch = True
+                actual_values = actual if isinstance(actual, list) else [actual]
+                expected_values = expected if isinstance(expected, list) else [expected]
+                differing_values = sum(
+                    left != right
+                    for left, right in zip(actual_values, expected_values, strict=False)
+                ) + abs(len(actual_values) - len(expected_values))
+                deltas = []
+                for left, right in zip(actual_values, expected_values, strict=False):
+                    if isinstance(left, (int, float)) and isinstance(
+                        right, (int, float)
+                    ):
+                        deltas.append(abs(float(left) - float(right)))
+                field_measurement = per_field[key]
+                field_measurement["records_with_mismatch"] += 1
+                field_measurement["max_mismatches_per_record"] = max(
+                    field_measurement["max_mismatches_per_record"], differing_values
                 )
+                field_measurement["max_abs_difference"] = max(
+                    field_measurement["max_abs_difference"], max(deltas, default=0.0)
+                )
+                if len(field_measurement["examples"]) < 20:
+                    field_measurement["examples"].append(
+                        {"id": row.get("id"), "mismatches": differing_values}
+                    )
+
+            mismatched_records += int(row_has_mismatch)
+
+        measured[f"{split}/record_fields_exact"] = {
+            "within": mismatched_records == 0
+            and not missing_package_documents
+            and not missing_hash_ids,
+            "records_with_mismatch": mismatched_records,
+            "missing_package_document_ids": missing_package_documents,
+            "missing_reference_hash_ids": missing_hash_ids,
+            "per_field": per_field,
+        }
 
     original_counts = json.loads((stream_dir / "vocabulary.json").read_text())
     kept = [
@@ -1260,38 +1730,52 @@ def test_s4_records_and_vocabulary(
     ]
     replayed = count_values(kept)
     for key in ("class", "component", "icon", "text_button"):
-        assert dict(replayed[key]) == dict(original_counts[key]), key
+        record_equal(
+            measured,
+            f"original_vocabulary_counts/{key}",
+            dict(replayed[key]),
+            dict(original_counts[key]),
+        )
 
     package_counts = json.loads((DATA_DIR / "vocabulary.json").read_text())
-    measured["original_count_json"] = json.loads(
-        (stream_dir / "count.json").read_text()
-    )
-    measured["lookup_tables_equal"] = {
-        key: tables == static["lookups"][key]
-        for key, tables in build_vocabularies(package_counts).items()
-    }
-    assert all(measured["lookup_tables_equal"].values())
+    original_count_json = json.loads((stream_dir / "count.json").read_text())
+    for key, tables in build_vocabularies(package_counts).items():
+        record_equal(
+            measured,
+            f"package_lookup_table/{key}",
+            tables,
+            static["lookups"].get(key),
+        )
     processor = production_data_module.processor
-    assert processor is not None
     expected_vocabularies = {
         key: static["lookups"][key] for key in ("component", "icon", "text_button")
     }
-    measured["production_vocabularies_equal"] = {
-        key: processor.vocabularies[key] == tokens
-        for key, tokens in expected_vocabularies.items()
-    }
-    measured["production_lookup_tables_equal"] = {
-        key: processor.token_ids[key]
-        == {token: index for index, token in enumerate(tokens)}
-        for key, tokens in expected_vocabularies.items()
-    }
-    assert all(measured["production_vocabularies_equal"].values())
-    assert all(measured["production_lookup_tables_equal"].values())
-    report("s4_records", measured)
+    record_gate(measured, "production_processor_available", processor is not None)
+    if processor is not None:
+        for key, tokens in expected_vocabularies.items():
+            record_equal(
+                measured,
+                f"production_vocabulary/{key}",
+                processor.vocabularies.get(key),
+                tokens,
+            )
+            record_equal(
+                measured,
+                f"production_token_ids/{key}",
+                processor.token_ids.get(key),
+                {token: index for index, token in enumerate(tokens)},
+            )
+
+    check_measured(
+        "s4_records",
+        measured,
+        {"original_count_json": original_count_json},
+    )
 
 
 def test_s4_stream_replay(stream_dir, static, production_data_module):
     streams = json.loads((stream_dir / "streams.json").read_text())
+    measured = {}
 
     def document_id_batches(split, reference_batches):
         dataset = production_data_module.splits[RicoSplit(split)]
@@ -1299,13 +1783,21 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
             document["id"]: index for index, document in enumerate(dataset.documents)
         }
         return [
-            [index_by_id[sample_id] for sample_id in batch["ids"]]
+            [index_by_id.get(sample_id, -1) for sample_id in batch.get("ids", [])]
             for batch in reference_batches
         ]
 
     def ids_from_indices(split, index_batches):
         documents = production_data_module.splits[RicoSplit(split)].documents
-        return [[documents[index]["id"] for index in batch] for batch in index_batches]
+        return [
+            [
+                documents[index]["id"]
+                if 0 <= index < len(documents)
+                else f"<invalid-index:{index}>"
+                for index in batch
+            ]
+            for batch in index_batches
+        ]
 
     def digest(encoded, reference_batch, lengths_by_id):
         num_elements = encoded["num_elements"].numpy()
@@ -1320,17 +1812,44 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
             hasher.update(np.ascontiguousarray(arrays[key], dtype=np.int64).tobytes())
 
         expected_lengths = np.asarray(
-            [lengths_by_id[sample_id] for sample_id in reference_batch["ids"]]
+            [
+                lengths_by_id.get(sample_id, -1)
+                for sample_id in reference_batch.get("ids", [])
+            ]
         )
-        assert np.array_equal(num_elements, expected_lengths)
+        lengths_shape_matches = num_elements.shape == expected_lengths.shape
+        length_delta = (
+            np.abs(num_elements - expected_lengths)
+            if lengths_shape_matches
+            else np.asarray([], dtype=np.int64)
+        )
         width = element_ids.shape[1]
         actual_mask = length_mask(encoded["num_elements"] - 1, width).cpu().numpy()
         expected_mask = np.arange(width)[None, :] < expected_lengths[:, None]
-        assert np.array_equal(actual_mask, expected_mask)
+        return_values = {
+            "lengths": {
+                "within": lengths_shape_matches
+                and np.array_equal(num_elements, expected_lengths),
+                "elements": int(expected_lengths.size),
+                "differing_elements": int(np.count_nonzero(length_delta)),
+                "max_abs_difference": (
+                    int(length_delta.max()) if length_delta.size else 0
+                ),
+            },
+            "mask": {
+                "within": actual_mask.shape == expected_mask.shape
+                and np.array_equal(actual_mask, expected_mask),
+                "elements": int(expected_mask.size),
+                "differing_elements": (
+                    int(np.count_nonzero(actual_mask != expected_mask))
+                    if actual_mask.shape == expected_mask.shape
+                    else None
+                ),
+            },
+        }
 
-        return hasher.hexdigest(), width
+        return hasher.hexdigest(), width, return_values
 
-    measured = {}
     original_lengths = {}
     for split in ("train", "val", "test"):
         with gzip.open(
@@ -1340,11 +1859,29 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
                 row = json.loads(line)
                 original_lengths[row["id"]] = row["length"]
 
-    train = streams["train/attempt0"]
+    train = streams.get("train/attempt0", [])
     sizes = static["split_sizes"]
-    assert len(train) == 90 and all(len(batch["ids"]) == 1024 for batch in train)
+    train_batch_sizes = [len(batch.get("ids", [])) for batch in train]
+    record_gate(
+        measured,
+        "train_reference_batch_shape",
+        len(train) == 90 and all(size == 1024 for size in train_batch_sizes),
+        actual_batch_count=len(train),
+        expected_batch_count=90,
+        batch_sizes=train_batch_sizes,
+        expected_batch_size=1024,
+    )
     train_indices = document_id_batches("train", train)
     ordered_train_indices = [index for batch in train_indices for index in batch]
+    invalid_train_indices = [
+        index for index in ordered_train_indices if not 0 <= index < sizes["train"]
+    ]
+    record_gate(
+        measured,
+        "train_reference_ids_resolve",
+        not invalid_train_indices,
+        invalid_indices=invalid_train_indices,
+    )
     sampler_probe = CrossEpochBatchSampler(
         sizes["train"],
         1024,
@@ -1352,10 +1889,15 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
         ordered_indices=ordered_train_indices,
     )
     sampled_indices = list(sampler_probe) + list(sampler_probe)
-    assert sampled_indices == train_indices
-    assert ids_from_indices("train", sampled_indices) == [
-        batch["ids"] for batch in train
-    ]
+    record_sequence_equal(
+        measured, "train_probe_indices", sampled_indices, train_indices
+    )
+    record_sequence_equal(
+        measured,
+        "train_probe_sample_ids",
+        ids_from_indices("train", sampled_indices),
+        [batch.get("ids", []) for batch in train],
+    )
 
     production_sampler = RecordingCrossEpochBatchSampler(
         sizes["train"],
@@ -1366,55 +1908,159 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
     production_data_module.train_sampler = production_sampler
     train_loader = production_data_module.train_dataloader()
     produced_train = list(train_loader) + list(train_loader)
-    assert len(produced_train) == len(train)
-    assert production_sampler.produced_batches == train_indices
-    assert ids_from_indices("train", production_sampler.produced_batches) == [
-        batch["ids"] for batch in train
-    ]
-    for encoded, reference_batch in zip(produced_train, train, strict=True):
-        assert digest(encoded, reference_batch, original_lengths) == (
-            reference_batch["digest"],
-            reference_batch["width"],
+    record_gate(
+        measured,
+        "train_production_batch_count",
+        len(produced_train) == len(train),
+        actual=len(produced_train),
+        expected=len(train),
+    )
+    record_sequence_equal(
+        measured,
+        "train_production_sampler_indices",
+        production_sampler.produced_batches,
+        train_indices,
+    )
+    record_sequence_equal(
+        measured,
+        "train_production_sample_ids",
+        ids_from_indices("train", production_sampler.produced_batches),
+        [batch.get("ids", []) for batch in train],
+    )
+    for index, (encoded, reference_batch) in enumerate(
+        zip(produced_train, train, strict=False)
+    ):
+        actual_digest, actual_width, digest_checks = digest(
+            encoded, reference_batch, original_lengths
+        )
+        for check, details in digest_checks.items():
+            record_gate(measured, f"train/batch{index}/{check}", **details)
+        record_gate(
+            measured,
+            f"train/batch{index}/encoded_digest",
+            actual_digest == reference_batch.get("digest"),
+            actual=actual_digest,
+            expected=reference_batch.get("digest"),
+        )
+        record_equal(
+            measured,
+            f"train/batch{index}/encoded_width",
+            actual_width,
+            reference_batch.get("width"),
         )
 
     for split in ("val", "test"):
-        reference_batches = streams[f"{split}/attempt0"]
+        reference_batches = streams.get(f"{split}/attempt0", [])
         data_loader = (
             production_data_module.val_dataloader()
             if split == "val"
             else production_data_module.test_dataloader()
         )
         sampled_indices = list(data_loader.batch_sampler)
-        assert ids_from_indices(split, sampled_indices) == [
-            batch["ids"] for batch in reference_batches
-        ]
+        record_sequence_equal(
+            measured,
+            f"{split}/production_sampler_sample_ids",
+            ids_from_indices(split, sampled_indices),
+            [batch.get("ids", []) for batch in reference_batches],
+        )
         produced_batches = list(data_loader)
-        assert len(produced_batches) == len(reference_batches)
-        for encoded, reference_batch in zip(
-            produced_batches, reference_batches, strict=True
+        record_gate(
+            measured,
+            f"{split}/production_batch_count",
+            len(produced_batches) == len(reference_batches),
+            actual=len(produced_batches),
+            expected=len(reference_batches),
+        )
+        for index, (encoded, reference_batch) in enumerate(
+            zip(produced_batches, reference_batches, strict=False)
         ):
-            assert digest(encoded, reference_batch, original_lengths) == (
-                reference_batch["digest"],
-                reference_batch["width"],
+            actual_digest, actual_width, digest_checks = digest(
+                encoded, reference_batch, original_lengths
+            )
+            for check, details in digest_checks.items():
+                record_gate(measured, f"{split}/batch{index}/{check}", **details)
+            record_gate(
+                measured,
+                f"{split}/batch{index}/encoded_digest",
+                actual_digest == reference_batch.get("digest"),
+                actual=actual_digest,
+                expected=reference_batch.get("digest"),
+            )
+            record_equal(
+                measured,
+                f"{split}/batch{index}/encoded_width",
+                actual_width,
+                reference_batch.get("width"),
             )
 
-    train_ids = [sample_id for batch in train for sample_id in batch["ids"]]
-    assert len(set(train_ids[: sizes["train"]])) == sizes["train"]
-    val_batches = streams["val/attempt0"]
-    val_ids = [sample_id for batch in val_batches for sample_id in batch["ids"]]
-    assert len(val_batches) == 6 and len(val_ids) == 6 * 1024
-    assert val_ids[sizes["val"] :] == val_ids[: 6 * 1024 - sizes["val"]]
-    test = streams["test/attempt0"]
-    test_ids = [sample_id for batch in test for sample_id in batch["ids"]]
-    assert [len(batch["ids"]) for batch in test] == [1024] * 5 + [503]
-    assert len(test_ids) == sizes["test"] and len(set(test_ids)) == sizes["test"]
+    train_ids = [sample_id for batch in train for sample_id in batch.get("ids", [])]
+    train_unique_count = len(set(train_ids[: sizes["train"]]))
+    record_gate(
+        measured,
+        "train_unique_sample_count",
+        train_unique_count == sizes["train"],
+        actual=train_unique_count,
+        expected=sizes["train"],
+    )
+    val_batches = streams.get("val/attempt0", [])
+    val_ids = [sample_id for batch in val_batches for sample_id in batch.get("ids", [])]
+    record_gate(
+        measured,
+        "validation_stream_shape",
+        len(val_batches) == 6 and len(val_ids) == 6 * 1024,
+        batches=len(val_batches),
+        ids=len(val_ids),
+        expected_batches=6,
+        expected_ids=6 * 1024,
+    )
+    validation_wrapped_ids = val_ids[sizes["val"] :]
+    expected_wrapped_ids = val_ids[: 6 * 1024 - sizes["val"]]
+    record_sequence_equal(
+        measured,
+        "validation_wrap_order",
+        validation_wrapped_ids,
+        expected_wrapped_ids,
+    )
+    test = streams.get("test/attempt0", [])
+    test_ids = [sample_id for batch in test for sample_id in batch.get("ids", [])]
+    test_batch_sizes = [len(batch.get("ids", [])) for batch in test]
+    record_sequence_equal(
+        measured,
+        "test_batch_sizes",
+        test_batch_sizes,
+        [1024] * 5 + [503],
+    )
+    record_gate(
+        measured,
+        "test_sample_count_and_uniqueness",
+        len(test_ids) == sizes["test"] and len(set(test_ids)) == sizes["test"],
+        samples=len(test_ids),
+        unique_samples=len(set(test_ids)),
+        expected_samples=sizes["test"],
+    )
     measured["train_batches"] = len(train)
     measured["validation_batches"] = len(val_batches)
     measured["validation_wrapped_screens"] = 6 * 1024 - sizes["val"]
     measured["test_batches"] = len(test)
-    measured["test_final_batch"] = len(test[-1]["ids"])
-    measured["stream_repeat_identical"] = all(
-        streams[f"{split}/attempt0"] == streams[f"{split}/attempt1"]
-        for split in ("train", "val", "test")
-    )
-    report("s4_stream", measured)
+    measured["test_final_batch"] = len(test[-1].get("ids", [])) if test else 0
+    for split in ("train", "val", "test"):
+        first = streams.get(f"{split}/attempt0", [])
+        repeated = streams.get(f"{split}/attempt1", [])
+        differing_batches = [
+            index
+            for index in range(max(len(first), len(repeated)))
+            if index >= len(first)
+            or index >= len(repeated)
+            or first[index] != repeated[index]
+        ]
+        record_gate(
+            measured,
+            f"{split}/stream_repeat_identical",
+            not differing_batches,
+            first_attempt_batches=len(first),
+            repeated_attempt_batches=len(repeated),
+            differing_batch_indices=differing_batches,
+            max_mismatches_per_batch=1 if differing_batches else 0,
+        )
+
+    check_measured("s4_stream", measured)
