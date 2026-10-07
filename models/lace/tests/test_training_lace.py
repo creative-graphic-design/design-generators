@@ -30,6 +30,8 @@ from lace.training.losses import (
     xywh_to_ltrb_reference,
 )
 from lace.training.seed import apply_lace_seed_mode
+from lace.training.trace import _gradient_norm, _mapping_l2_norm, _tensor_hashes
+from traingen_parity.trace import tensor_sha256
 
 
 def _load_vendor_transformer_encoder(vendor_dir: Path) -> type[torch.nn.Module]:
@@ -160,6 +162,27 @@ def test_training_config_seed_and_ema() -> None:
     empty = LaceEMA(mu=0.5)
     empty.update(module)
     assert set(empty.shadow) == {"weight", "bias"}
+
+
+def test_training_trace_summaries_use_shared_helpers() -> None:
+    values = {
+        "b": torch.tensor([1.0, 2.0], dtype=torch.float32),
+        "a": torch.tensor([3.0], dtype=torch.float32),
+    }
+    parameters = {
+        "weight": nn.Parameter(torch.zeros(1, 2)),
+        "bias": nn.Parameter(torch.zeros(1)),
+    }
+    parameters["weight"].grad = values["b"].view(1, 2)
+    parameters["bias"].grad = values["a"]
+    expected = torch.cat([values["a"], values["b"]]).to(dtype=torch.float64)
+    expected_norm = float(expected.square().sum().sqrt().item())
+
+    assert _tensor_hashes(values) == {
+        name: tensor_sha256(value) for name, value in values.items()
+    }
+    assert _mapping_l2_norm(values) == expected_norm
+    assert _gradient_norm(parameters) == expected_norm
 
 
 def test_processed_dataset_and_batch_collation(tmp_path: Path) -> None:

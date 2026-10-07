@@ -37,7 +37,7 @@ from traingen_parity.compare import (
     compare_step_trace,
 )
 from traingen_parity.determinism import capture_rng_state, restore_rng_state
-from traingen_parity.trace import build_step_trace, tensor_sha256
+from traingen_parity.trace import build_step_trace
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -75,6 +75,11 @@ from lace.training.config import LaceTrainingDatasetName, LaceTrainingSplit  # n
 from lace.training.dataset import LaceProcessedDataset, collate_lace_batch  # noqa: E402
 from lace.training.ema import LaceEMA  # noqa: E402
 from lace.training.lightning_module import LaceTrainingModule  # noqa: E402
+from lace.training.trace import (  # noqa: E402
+    _gradient_norm as _production_gradient_norm,
+    _mapping_l2_norm as _production_mapping_l2_norm,
+    _tensor_hashes as _production_tensor_hashes,
+)
 
 
 def _git_commit(path: Path = ROOT) -> str:
@@ -395,7 +400,7 @@ def _vendor_training_iteration(
         name: _parameter_grad(parameter).detach().clone()
         for name, parameter in named_parameters.items()
     }
-    gradient_norm = _named_gradient_norm(named_parameters)
+    gradient_norm = _production_gradient_norm(named_parameters)
     torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
     clipped_gradients = {
         name: _parameter_grad(parameter).detach().clone()
@@ -413,10 +418,10 @@ def _vendor_training_iteration(
         "learning_rate": optimizer.param_groups[0]["lr"],
         "gradient_hashes": _tensor_hashes(gradients),
         "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
-        "clipped_gradient_norm": _named_gradient_norm(named_parameters),
+        "clipped_gradient_norm": _production_gradient_norm(named_parameters),
         "optimizer_state_hashes": _tensor_hashes(optimizer_state),
-        "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
-        "parameter_l2_norm": _mapping_l2_norm(vendor.model.state_dict()),
+        "optimizer_state_l2_norm": _production_mapping_l2_norm(optimizer_state),
+        "parameter_l2_norm": _production_mapping_l2_norm(vendor.model.state_dict()),
         "parameter_hashes": _tensor_hashes(vendor.model.state_dict()),
         "ema_hashes": _tensor_hashes(ema.shadow),
     }
@@ -865,8 +870,8 @@ def run_s2(args: argparse.Namespace) -> Path:
             },
         ),
     )
-    vendor_grad_norm = _named_gradient_norm(vendor_parameters)
-    package_grad_norm = _named_gradient_norm(package_parameters)
+    vendor_grad_norm = _production_gradient_norm(vendor_parameters)
+    package_grad_norm = _production_gradient_norm(package_parameters)
     torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
     torch.nn.utils.clip_grad_norm_(target.model.parameters(), 1.0)
     clipped_report = compare_step_trace(
@@ -1012,7 +1017,7 @@ def run_s2(args: argparse.Namespace) -> Path:
 
 
 def _tensor_hashes(values: Mapping[str, torch.Tensor]) -> dict[str, str]:
-    return {name: tensor_sha256(value) for name, value in values.items()}
+    return _production_tensor_hashes(values)
 
 
 def _canonical_hash_pair(
@@ -1073,14 +1078,6 @@ def _canonical_hash_pair(
     )
 
 
-def _mapping_l2_norm(values: Mapping[str, torch.Tensor]) -> float:
-    total = torch.zeros((), dtype=torch.float64)
-    for name in sorted(values):
-        value = values[name]
-        total += value.detach().double().square().sum().cpu()
-    return float(total.sqrt().item())
-
-
 def _optimizer_state_tensors(
     optimizer: torch.optim.Optimizer,
 ) -> dict[str, torch.Tensor]:
@@ -1103,15 +1100,6 @@ def _batch_tensors(
         key: cast(torch.Tensor, batch[key]).to(device)
         for key in ("bbox", "labels", "mask")
     }
-
-
-def _named_gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
-    squared_norm = torch.zeros((), dtype=torch.float64)
-    for name in sorted(parameters):
-        parameter = parameters[name]
-        if parameter.grad is not None:
-            squared_norm += parameter.grad.detach().double().square().sum().cpu()
-    return float(squared_norm.sqrt().item())
 
 
 def _processed_root(data_root: Path, dataset: str) -> Path:
@@ -1676,8 +1664,8 @@ def run_s3(args: argparse.Namespace) -> Path:
             )
             vendor_parameters = dict(synchronized_vendor.model.named_parameters())
             package_parameters = dict(synchronized_package.model.named_parameters())
-            vendor_grad_norm = _named_gradient_norm(vendor_parameters)
-            package_grad_norm = _named_gradient_norm(package_parameters)
+            vendor_grad_norm = _production_gradient_norm(vendor_parameters)
+            package_grad_norm = _production_gradient_norm(package_parameters)
             torch.nn.utils.clip_grad_norm_(synchronized_vendor.model.parameters(), 1.0)
             torch.nn.utils.clip_grad_norm_(synchronized_package.model.parameters(), 1.0)
             synchronized_vendor_optimizer.step()

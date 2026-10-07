@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,26 +12,20 @@ import torch
 from jaxtyping import Shaped
 from lightning.pytorch import Callback, LightningModule, Trainer
 from torch import nn
+from traingen_parity.trace import tensor_sha256
 
 
 def _tensor_hashes(values: Mapping[str, Shaped[torch.Tensor, "..."]]) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for name, value in sorted(values.items()):
-        digest = hashlib.sha256()
-        tensor = value.detach().cpu().contiguous()
-        digest.update(str(tensor.dtype).encode())
-        digest.update(repr(tuple(tensor.shape)).encode())
-        digest.update(tensor.numpy().tobytes())
-        hashes[name] = digest.hexdigest()
-
-    return hashes
+    return {name: tensor_sha256(value) for name, value in sorted(values.items())}
 
 
 def _gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
     total = torch.zeros((), dtype=torch.float64)
-    for parameter in parameters.values():
+    for name in sorted(parameters):
+        parameter = parameters[name]
         if parameter.grad is not None:
-            total += parameter.grad.detach().double().square().sum().cpu()
+            gradient = parameter.grad.detach().to(device="cpu", dtype=torch.float64)
+            total += gradient.square().sum()
 
     return float(total.sqrt().item())
 
@@ -54,8 +47,10 @@ def _optimizer_state(
 
 def _mapping_l2_norm(values: Mapping[str, Shaped[torch.Tensor, "..."]]) -> float:
     total = torch.zeros((), dtype=torch.float64)
-    for value in values.values():
-        total += value.detach().double().square().sum().cpu()
+    for name in sorted(values):
+        value = values[name]
+        tensor = value.detach().to(device="cpu", dtype=torch.float64)
+        total += tensor.square().sum()
 
     return float(total.sqrt().item())
 
