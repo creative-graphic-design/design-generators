@@ -2864,6 +2864,7 @@ def test_s4_test_evaluation_path_matches_vendor(
         "vendor_evaluator_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
         "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
         "evaluator_unconditional_sample_count": expected_unconditional_count,
+        "evaluator_environment": {"PYTHONHASHSEED": "0"},
         "source_commit": _source_commit(ROOT),
         "runtime": _runtime_record(),
     }
