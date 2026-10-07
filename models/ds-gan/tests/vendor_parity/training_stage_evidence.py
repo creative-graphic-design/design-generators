@@ -838,6 +838,16 @@ def _package_loaders(seed: int) -> tuple[Any, Any]:
     return module.train_dataloader(), module.test_dataloader()
 
 
+def _bind_package_loader_generator(
+    package_module: Any, package_loader: DataLoader[Any]
+) -> None:
+    generator = package_loader.generator
+    if not isinstance(generator, torch.Generator):
+        raise RuntimeError("package DataModule loader has no seeded torch.Generator")
+
+    package_module._torch_generator = generator
+
+
 def _batch_stream_report(
     package_batch: dict[str, torch.Tensor], vendor_batch: dict[str, torch.Tensor]
 ) -> tuple[BatchStreamReport, dict[str, Any]]:
@@ -2703,6 +2713,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
+    _bind_package_loader_generator(package_module, package_loader)
     vendor_schedulers = _schedulers(vendor_optimizers)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -2876,6 +2887,7 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
+    _bind_package_loader_generator(package_module, package_loader)
     stopper = _StopAfterIterations()
     trainer = Trainer(
         accelerator="gpu" if device.type == "cuda" else "cpu",

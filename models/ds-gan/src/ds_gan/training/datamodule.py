@@ -61,6 +61,7 @@ class DSGANDataModule(LightningDataModule):
         self.seed = seed
         self.processor = DSGANProcessor()
         self.dataset: DatasetDict | None = None
+        self._train_generator: torch.Generator | None = None
 
     def setup(self, stage: str | None = None) -> None:
         """Open cached source rows for fitting or evaluation."""
@@ -79,7 +80,7 @@ class DSGANDataModule(LightningDataModule):
             processor=self.processor,
             max_elem=self.max_elem,
         )
-        generator = self._generator()
+        generator = self.training_generator
         return DataLoader(
             dataset,
             batch_size=self.batch_size,
@@ -106,8 +107,11 @@ class DSGANDataModule(LightningDataModule):
             num_workers=self.num_workers,
         )
 
-    def _generator(self) -> torch.Generator:
-        """Return the seeded CPU sampler stream used by the reference loader."""
-        generator = torch.Generator(device="cpu")
-        generator.manual_seed(self.seed)
-        return generator
+    @property
+    def training_generator(self) -> torch.Generator:
+        """Return the shared sampler and layout-initialization RNG stream."""
+        if self._train_generator is None:
+            self._train_generator = torch.Generator(device="cpu")
+            self._train_generator.manual_seed(self.seed)
+
+        return self._train_generator

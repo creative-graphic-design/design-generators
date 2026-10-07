@@ -184,6 +184,16 @@ class DSGANTrainingModule(LightningModule):
 
         return output
 
+    def on_fit_start(self) -> None:
+        """Share the data module's seeded stream with layout initialization."""
+        datamodule = getattr(self.trainer, "datamodule", None)
+        if datamodule is None:
+            return
+
+        generator = getattr(datamodule, "training_generator", None)
+        if isinstance(generator, torch.Generator):
+            self._torch_generator = generator
+
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Return Adam optimizers and reference MultiStepLR schedulers."""
         generator_backbone, generator_head = self._parameter_groups(self.generator)

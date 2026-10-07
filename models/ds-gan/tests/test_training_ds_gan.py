@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
@@ -414,6 +415,24 @@ def test_datamodule_sampler_matches_vendor_rng_consumption():
         vendor_values = torch.cat([batch[0] for batch in vendor_loader])
         package_values = torch.cat([batch[0] for batch in package_loader])
         assert torch.equal(vendor_values, package_values)
+
+
+def test_datamodule_reuses_training_generator_for_layout_initialization(monkeypatch):
+    source = {"train": [_row()], "test": [_row()]}
+    monkeypatch.setattr(datamodule_module, "load_cached_dataset", lambda _: source)
+    data = DSGANDataModule(batch_size=1, test_batch_size=1, max_elem=2)
+    train_loader = data.train_dataloader()
+    assert train_loader.generator is data.training_generator
+    assert data.train_dataloader().generator is train_loader.generator
+
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+    )
+    module._trainer = cast(Trainer, SimpleNamespace(datamodule=data))
+    module.on_fit_start()
+    assert module._torch_generator is train_loader.generator
 
 
 def test_losses_match_and_discriminator_orders_layouts():
