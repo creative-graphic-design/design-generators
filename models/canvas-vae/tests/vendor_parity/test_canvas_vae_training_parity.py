@@ -18,7 +18,7 @@ import os
 import re
 import subprocess
 import zipfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
@@ -275,6 +275,16 @@ def check_measured(name: str, measured, extra=None) -> None:
             "calibration_mode": CALIBRATION_MODE,
         },
     )
+    invalid = [
+        key
+        for key, value in measured.items()
+        if not isinstance(value, Mapping) or "within" not in value
+    ]
+    if invalid:
+        raise TypeError(
+            f"measured gates must be mappings with a 'within' key: {invalid}"
+        )
+
     failed = sorted(
         key
         for key, value in measured.items()
@@ -285,6 +295,16 @@ def check_measured(name: str, measured, extra=None) -> None:
     )
     if failed:
         raise AssertionError(f"outside tolerance: {failed}")
+
+
+@pytest.mark.parametrize("value", [1, {"value": 1}])
+def test_check_measured_rejects_non_gate_values(monkeypatch, value):
+    monkeypatch.setitem(globals(), "report", lambda *_args: None)
+
+    with pytest.raises(
+        TypeError, match="measured gates must be mappings with a 'within' key"
+    ):
+        check_measured("invalid_measured_shape", {"report_only_count": value})
 
 
 @pytest.fixture(scope="module")
@@ -1776,6 +1796,13 @@ def test_s4_records_and_vocabulary(
 def test_s4_stream_replay(stream_dir, static, production_data_module):
     streams = json.loads((stream_dir / "streams.json").read_text())
     measured = {}
+    report_metadata = {
+        "report_only_counts": {
+            "train_batches": len(streams.get("train/attempt0", [])),
+            "validation_batches": len(streams.get("val/attempt0", [])),
+            "test_batches": len(streams.get("test/attempt0", [])),
+        }
+    }
 
     def document_id_batches(split, reference_batches):
         dataset = production_data_module.splits[RicoSplit(split)]
@@ -2038,11 +2065,12 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
         unique_samples=len(set(test_ids)),
         expected_samples=sizes["test"],
     )
-    measured["train_batches"] = len(train)
-    measured["validation_batches"] = len(val_batches)
-    measured["validation_wrapped_screens"] = 6 * 1024 - sizes["val"]
-    measured["test_batches"] = len(test)
-    measured["test_final_batch"] = len(test[-1].get("ids", [])) if test else 0
+    report_metadata["report_only_counts"].update(
+        {
+            "validation_wrapped_screens": 6 * 1024 - sizes["val"],
+            "test_final_batch": len(test[-1].get("ids", [])) if test else 0,
+        }
+    )
     for split in ("train", "val", "test"):
         first = streams.get(f"{split}/attempt0", [])
         repeated = streams.get(f"{split}/attempt1", [])
@@ -2063,4 +2091,4 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
             max_mismatches_per_batch=1 if differing_batches else 0,
         )
 
-    check_measured("s4_stream", measured)
+    check_measured("s4_stream", measured, {"report_metadata": report_metadata})
