@@ -1748,6 +1748,42 @@ def _parameter_update_mechanism(
     }
 
 
+def _s2_elementwise_evidence(
+    vendor_states: list[dict[str, Any]], package_states: list[dict[str, Any]]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    elementwise_envelopes = {
+        field: _elementwise_envelope(vendor_states, package_states, field)
+        for field in ("gradients", "parameters")
+    }
+    parameter_update_mechanism = _parameter_update_mechanism(
+        vendor_states,
+        package_states,
+        elementwise_envelopes["parameters"],
+    )
+    sign_straddling_probe = _sign_straddling_parameter_probe(
+        vendor_states, package_states
+    )
+    if sign_straddling_probe is not None:
+        parameter_update_mechanism["sign_straddling_probe"] = (
+            _parameter_update_mechanism(
+                vendor_states,
+                package_states,
+                {"outside_self_envelope": [sign_straddling_probe]},
+                include_maximum_probe=False,
+            )["candidates"][0]
+        )
+    else:
+        parameter_update_mechanism["sign_straddling_probe"] = None
+    sign_straddling_probe = parameter_update_mechanism["sign_straddling_probe"]
+    parameter_update_mechanism["sign_straddling_probe_passed"] = bool(
+        sign_straddling_probe is not None
+        and sign_straddling_probe["both_signs_occur"]
+        and sign_straddling_probe["gradient_inside_like_for_like_envelope"]
+        and sign_straddling_probe["adam_prediction_bitwise"]
+    )
+    return elementwise_envelopes, parameter_update_mechanism
+
+
 class _NaturalParityCallback(Callback):
     def __init__(
         self,
@@ -2504,37 +2540,8 @@ def run_s2() -> Path:
         )
         for field in cross_distributions
     }
-    elementwise_envelopes = {
-        field: _elementwise_envelope(
-            self_states["vendor"], self_states["package"], field
-        )
-        for field in ("gradients", "parameters")
-    }
-    parameter_update_mechanism = _parameter_update_mechanism(
-        self_states["vendor"],
-        self_states["package"],
-        elementwise_envelopes["parameters"],
-    )
-    sign_straddling_probe = _sign_straddling_parameter_probe(
+    elementwise_envelopes, parameter_update_mechanism = _s2_elementwise_evidence(
         self_states["vendor"], self_states["package"]
-    )
-    if sign_straddling_probe is not None:
-        parameter_update_mechanism["sign_straddling_probe"] = (
-            _parameter_update_mechanism(
-                self_states["vendor"],
-                self_states["package"],
-                {"outside_self_envelope": [sign_straddling_probe]},
-                include_maximum_probe=False,
-            )["candidates"][0]
-        )
-    else:
-        parameter_update_mechanism["sign_straddling_probe"] = None
-    sign_straddling_probe = parameter_update_mechanism["sign_straddling_probe"]
-    parameter_update_mechanism["sign_straddling_probe_passed"] = bool(
-        sign_straddling_probe is not None
-        and sign_straddling_probe["both_signs_occur"]
-        and sign_straddling_probe["gradient_inside_like_for_like_envelope"]
-        and sign_straddling_probe["adam_prediction_bitwise"]
     )
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
@@ -2650,6 +2657,24 @@ def run_s2() -> Path:
     )
 
 
+def _load_recorded_s2_states() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    artifact_root = EVIDENCE / "s2-optimizer-step-attempts"
+    states: dict[str, list[dict[str, Any]]] = {"vendor": [], "package": []}
+    for system in ("vendor", "package"):
+        for repeat in range(1, S2_SELF_REPEATS + 1):
+            metadata_path = artifact_root / f"{system}-self-repeat-{repeat}.json"
+            metadata = json.loads(metadata_path.read_text())
+            state_path = (ROOT / metadata["state_artifact"]).resolve()
+            if not state_path.is_relative_to(ROOT):
+                raise RuntimeError(
+                    f"recorded S2 state escapes repository: {state_path}"
+                )
+            states[system].append(
+                torch.load(state_path, map_location="cpu", weights_only=True)
+            )
+    return states["vendor"], states["package"]
+
+
 def _reevaluate_s2_recorded_artifact() -> Path:
     target = EVIDENCE / "s2-optimizer-step" / "run.json"
     payload = json.loads(target.read_text())
@@ -2660,6 +2685,7 @@ def _reevaluate_s2_recorded_artifact() -> Path:
     cross_system = cause["cross_system_repeat_pairs"]
     distributions = cross_system["distributions"]
     self_repeats = cause["self_repeats"]
+    vendor_states, package_states = _load_recorded_s2_states()
     inside_self_distributions = {
         field: _inside_self_distributions(
             distributions[field],
@@ -2672,8 +2698,11 @@ def _reevaluate_s2_recorded_artifact() -> Path:
     cross_system["inside_self_distribution_criterion"] = (
         DISTRIBUTIONAL_ENVELOPE_CRITERION
     )
-    elementwise_envelopes = cross_system["elementwise_envelopes"]
-    parameter_update_mechanism = cross_system["parameter_update_mechanism"]
+    elementwise_envelopes, parameter_update_mechanism = _s2_elementwise_evidence(
+        vendor_states, package_states
+    )
+    cross_system["elementwise_envelopes"] = elementwise_envelopes
+    cross_system["parameter_update_mechanism"] = parameter_update_mechanism
     cause_passed = (
         all(inside_self_distributions.values())
         and elementwise_envelopes["gradients"]["cross_inside_combined_self_envelope"]
@@ -2689,6 +2718,7 @@ def _reevaluate_s2_recorded_artifact() -> Path:
         "stage_execution_rerun": False,
         "criterion": DISTRIBUTIONAL_ENVELOPE_CRITERION,
         "reason": "re-evaluated recorded S2 values without resampling",
+        "source_commit": _git("rev-parse", "HEAD"),
     }
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return target
