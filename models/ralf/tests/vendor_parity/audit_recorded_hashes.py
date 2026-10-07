@@ -22,14 +22,21 @@ MANIFEST_PATHS = (
     Path(".cache/ralf/training-reproduction/pku/s5/manifest.json"),
 )
 PARITY_ROOT = Path(".cache/ralf/training-reproduction/evaluation-path-parity-003")
+DIGEST_CACHE: dict[Path, str] = {}
 
 
 def digest(path: Path) -> str:
+    resolved = path.resolve()
+    cached = DIGEST_CACHE.get(resolved)
+    if cached is not None:
+        return cached
     value = hashlib.sha256()
-    with path.open("rb") as handle:
+    with resolved.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             value.update(block)
-    return value.hexdigest()
+    result = value.hexdigest()
+    DIGEST_CACHE[resolved] = result
+    return result
 
 
 def line_for_hash(path: Path, value: str) -> int:
@@ -118,9 +125,12 @@ def report_hash(
     actual = digest(target)
     counts["checked"] += 1
     if actual != recorded:
+        label = target.as_posix()
+        marker = "/training-reproduction/"
+        if marker in label:
+            label = ".cache/ralf/training-reproduction/" + label.split(marker, 1)[1]
         print(
-            f"MISMATCH {source}:{line} expected={recorded} actual={actual} "
-            f"path={target}"
+            f"MISMATCH {source}:{line} expected={recorded} actual={actual} path={label}"
         )
         counts["mismatch"] += 1
 
@@ -199,6 +209,36 @@ def audit_document(
     )
 
 
+def rewrite_document(path: Path, *, repo_root: Path, roots: list[Path]) -> int:
+    """Replace mismatched explicit file hashes with hashes computed here."""
+
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    replacements = 0
+    for line_number, original in enumerate(lines, 1):
+        line = original.rstrip("\n")
+        hashes = list(SHA_PATTERN.finditer(line))
+        paths = list(PATH_PATTERN.finditer(line))
+        for match in reversed(hashes):
+            target = document_target(
+                line,
+                match,
+                paths=paths,
+                base=repo_root,
+                roots=roots,
+            )
+            if target is None or len(match.group(1)) != 64:
+                continue
+            actual = digest(target)
+            if actual == match.group(1):
+                continue
+            start, end = match.span(1)
+            line = line[:start] + actual + line[end:]
+            replacements += 1
+        lines[line_number - 1] = line + ("\n" if original.endswith("\n") else "")
+    path.write_text("".join(lines), encoding="utf-8")
+    return replacements
+
+
 def audit_document_text(
     text: str,
     *,
@@ -212,12 +252,13 @@ def audit_document_text(
         paths = list(PATH_PATTERN.finditer(line))
         for match in hashes:
             recorded = match.group(1)
-            nearest = min(
-                paths, key=lambda item: abs(item.start() - match.start()), default=None
+            target = document_target(
+                line,
+                match,
+                paths=paths,
+                base=repo_root,
+                roots=roots,
             )
-            target = None
-            if nearest is not None:
-                target = resolve(nearest.group(1), base=repo_root, roots=roots)
             report_hash(
                 source=source,
                 line=line_number,
@@ -225,6 +266,79 @@ def audit_document_text(
                 target=target,
                 counts=counts,
             )
+
+
+def document_target(
+    line: str,
+    match: re.Match[str],
+    *,
+    paths: list[re.Match[str]],
+    base: Path,
+    roots: list[Path],
+) -> Path | None:
+    """Resolve only a document hash that names a file explicitly.
+
+    Training prose also contains digests of tensors, data-stream memberships,
+    and sequence values.  Those values are evidence fields, not hashes of the
+    nearest file path.  The labels below keep those values unresolved instead
+    of silently assigning them to an unrelated artifact.
+    """
+
+    preceding = [item for item in paths if item.end() <= match.start()]
+    previous_hashes = list(SHA_PATTERN.finditer(line[: match.start()]))
+    context_start = max(
+        line.rfind("|", 0, match.start()) + 1,
+        line.rfind(";", 0, match.start()) + 1,
+    )
+    if previous_hashes:
+        context_start = max(context_start, previous_hashes[-1].end())
+    cell = line[context_start : match.start()].lower()
+    candidates = preceding
+    if not candidates:
+        return None
+
+    def choose(suffix: str) -> Path | None:
+        matches = [item for item in candidates if item.group(1).endswith(suffix)]
+        if not matches:
+            return None
+        return resolve(matches[-1].group(1), base=base, roots=roots)
+
+    if "manifest sha" in cell:
+        return choose("manifest.json")
+    if "comparison json sha" in cell or "comparison sha" in cell:
+        return choose("comparison.json")
+    if "analysis script sha" in cell or "comparison script" in cell:
+        return choose(".py")
+    if "loss-vector" in cell and "sha" in cell:
+        return choose("loss-vectors.json")
+    if "trace sha" in cell and "driver log" not in cell and "probe log" not in cell:
+        matches = [item for item in candidates if "/trace/" in item.group(1)]
+        if matches:
+            return resolve(matches[-1].group(1), base=base, roots=roots)
+        return None
+    if "artifact sha" in cell or "stage sha" in cell:
+        matches = [
+            item
+            for item in candidates
+            if item.group(1).startswith(".cache/")
+            and "loss-vectors" not in item.group(1)
+        ]
+        if matches:
+            return resolve(matches[-1].group(1), base=base, roots=roots)
+        return None
+
+    nearest = candidates[-1]
+    between = line[nearest.end() : match.start()]
+    if match.start() - nearest.end() > 180:
+        return None
+    if not re.search(r"(?i)sha-?256|hash", between):
+        return None
+    if re.search(
+        r"(?i)(?:canonical\s+stream|sequence|pad[- ]mask|tensor|digest|\bstate\b|\bloader\b|\bcondition\b|\bpackage\b|\bvendor\b|driver\s+log|probe\s+log)",
+        between,
+    ):
+        return None
+    return resolve(nearest.group(1), base=base, roots=roots)
 
 
 def read_revision(path: Path, revision: str, repo_root: Path) -> str:
@@ -256,6 +370,16 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--revision", default=None)
     parser.add_argument(
+        "--fix-documents",
+        action="store_true",
+        help="rewrite mismatched explicit file hashes in the current documents",
+    )
+    parser.add_argument(
+        "--documents-only",
+        action="store_true",
+        help="audit documents without walking the launch manifests or parity JSON",
+    )
+    parser.add_argument(
         "--search-root",
         type=Path,
         default=None,
@@ -266,12 +390,20 @@ def main() -> None:
     roots = search_roots(repo_root, search_root)
     counts = {"checked": 0, "mismatch": 0, "invalid": 0, "unresolved": 0}
 
+    if args.fix_documents:
+        fixed = sum(
+            rewrite_document(path, repo_root=repo_root, roots=roots)
+            for path in DOC_PATHS
+        )
+        print(f"FIXED document_hash_mismatches={fixed}")
+
     for path in DOC_PATHS:
         audit_document(path, repo_root=repo_root, roots=roots, counts=counts)
-    for path in MANIFEST_PATHS:
-        audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
-    for path in sorted(PARITY_ROOT.glob("**/evaluation-path-parity.json")):
-        audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
+    if not args.documents_only:
+        for path in MANIFEST_PATHS:
+            audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
+        for path in sorted(PARITY_ROOT.glob("**/evaluation-path-parity.json")):
+            audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
     if args.revision:
         audit_revision_documents(
             args.revision, repo_root=repo_root, roots=roots, counts=counts
