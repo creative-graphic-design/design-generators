@@ -652,6 +652,11 @@ def vendor_prediction_dir(
     environment = os.environ.copy()
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     vendor_runtime = runtime_vendor_source(args, output_root)
+    environment["PYTHONPATH"] = os.pathsep.join(
+        part
+        for part in (str(vendor_runtime), environment.get("PYTHONPATH", ""))
+        if part
+    )
     subprocess.run(
         command,
         cwd=vendor_runtime,
@@ -727,6 +732,12 @@ def evaluate(
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     evaluator_workdir = output_dir / "evaluator-work" / name
     evaluator_workdir.mkdir(parents=True, exist_ok=True)
+    vendor_runtime = runtime_vendor_source(args, output_dir)
+    environment["PYTHONPATH"] = os.pathsep.join(
+        part
+        for part in (str(vendor_runtime), environment.get("PYTHONPATH", ""))
+        if part
+    )
     subprocess.run(command, cwd=evaluator_workdir, env=environment, check=True)
     return require_file(score_path, f"{name} score file")
 
