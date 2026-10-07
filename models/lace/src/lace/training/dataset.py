@@ -51,6 +51,7 @@ class LaceProcessedDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
             processed_root = (
                 processed_root / f"{dataset_name}-max{max_seq_length}" / "processed"
             )
+
         path = processed_root / f"{_PROCESSED_SPLITS[split]}.pt"
         if not path.exists():
             raise FileNotFoundError(path)
