@@ -151,6 +151,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-count", type=int, default=TEST_LIMIT)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument(
+        "--disable-cudnn",
+        action="store_true",
+        help="disable cuDNN for package, vendor, and evaluator processes",
+    )
+    parser.add_argument(
         "--skip-vendor-inference",
         action="store_true",
         help="use an existing vendor prediction directory under output-root",
@@ -608,14 +613,22 @@ def vendor_prediction_dir(
         shutil.rmtree(root)
     root.mkdir(parents=True, exist_ok=True)
     command = [str(args.runtime_python), "-u"]
+    module_wrapper = (
+        "import torch; torch.backends.cudnn.enabled=False; "
+        "import runpy; runpy.run_module('image2layout.train.inference', run_name='__main__')"
+    )
     if args.condition == "refinement":
         command.extend(
             [
                 "-c",
-                "import random, runpy, torch; random.seed(0); torch.manual_seed(0); "
+                "import random, runpy, torch; "
+                + ("torch.backends.cudnn.enabled=False; " if args.disable_cudnn else "")
+                + "random.seed(0); torch.manual_seed(0); "
                 "runpy.run_module('image2layout.train.inference', run_name='__main__')",
             ]
         )
+    elif args.disable_cudnn:
+        command.extend(["-c", module_wrapper])
     else:
         command.extend(["-m", "image2layout.train.inference"])
     command.extend(
@@ -684,9 +697,9 @@ def evaluate(
     if score_path.is_file():
         score_path.unlink()
     fid_name = "cgl" if args.dataset == "cgl" else "pku10"
+    eval_path = runtime_vendor_source(args, output_dir) / "eval.py"
     command = [
         str(args.runtime_python),
-        str(runtime_vendor_source(args, output_dir) / "eval.py"),
         "--input-dir",
         str(prediction_dir),
         "--fid-weight-dir",
@@ -699,6 +712,17 @@ def evaluate(
         "--batch-size",
         str(args.batch_size),
     ]
+    if args.disable_cudnn:
+        command = [
+            str(args.runtime_python),
+            "-c",
+            "import runpy, sys, torch; torch.backends.cudnn.enabled=False; "
+            "runpy.run_path(sys.argv[1], run_name='__main__')",
+            str(eval_path),
+            *command[1:],
+        ]
+    else:
+        command.insert(1, str(eval_path))
     environment = os.environ.copy()
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     evaluator_workdir = output_dir / "evaluator-work" / name
@@ -958,6 +982,7 @@ def artifact(
             "relation_backtracking": args.condition == "relation",
             "inference_workers": 0,
             "evaluation_workers": 2,
+            "cudnn_enabled": torch.backends.cudnn.enabled,
         },
         "checkpoint": {
             "path": args.checkpoint_artifact_path,
@@ -1042,7 +1067,7 @@ def artifact(
         "runner": {
             "path": "models/ralf/tests/vendor_parity/run_condition_parity.py",
             "sha256": sha256(script_path),
-            "regeneration_command": 'source <protected-dataset-environment>; CUDA_VISIBLE_DEVICES=<gpu> <audited-cu128-python> models/ralf/tests/vendor_parity/run_condition_parity.py --dataset-root "$RALF_PKU_SOURCE_DIR" --dataset <dataset> --condition <condition> --campaign-root <campaign-root> --output-root <output-root> --runtime-freeze-path <parity-root>/runtime-freeze.txt --gpu <gpu>',
+            "regeneration_command": 'source <protected-dataset-environment>; CUDA_VISIBLE_DEVICES=<gpu> <audited-cu128-python> models/ralf/tests/vendor_parity/run_condition_parity.py --dataset-root "$RALF_PKU_SOURCE_DIR" --dataset <dataset> --condition <condition> --campaign-root <campaign-root> --output-root <output-root> --runtime-freeze-path <parity-root>/runtime-freeze.txt --gpu <gpu> --disable-cudnn',
         },
         "comparison": comparison,
     }
@@ -1051,6 +1076,8 @@ def artifact(
 
 def main() -> None:
     args = parse_args()
+    if args.disable_cudnn:
+        torch.backends.cudnn.enabled = False
     args.dataset_root = args.dataset_root.resolve()
     args.campaign_root = args.campaign_root.resolve()
     args.output_root = args.output_root.resolve()
