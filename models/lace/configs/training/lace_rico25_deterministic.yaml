@@ -10,6 +10,8 @@ trainer:
   limit_val_batches: 0
   num_sanity_val_steps: 0
   gradient_clip_val: 1.0
+  callbacks:
+    - class_path: lace.training.trace.LaceTrainingTraceCallback
 model:
   class_path: lace.training.LaceTrainingModule
   init_args:

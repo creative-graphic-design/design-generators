@@ -1,9 +1,5 @@
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("lightning")
-
 from lace.training.datamodule import LaceDataModule
 from lace.training.lightning_module import LaceTrainingModule
 from traingen.lightning.cli import lightning_cli_class

@@ -10,8 +10,6 @@ import pytest
 import torch
 from torch import nn
 
-pytest.importorskip("lightning")
-
 from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
 from lace.configuration_lace import default_model_config
@@ -167,7 +165,7 @@ def test_training_config_seed_and_ema() -> None:
 def test_processed_dataset_and_batch_collation(tmp_path: Path) -> None:
     _write_processed_data(tmp_path)
     dataset = LaceProcessedDataset(
-        processed_data_dir=tmp_path,
+        processed_data_dir=tmp_path / "publaynet-max25" / "processed",
         dataset_name="publaynet",
         split="validation",
         max_seq_length=25,
@@ -209,7 +207,7 @@ def test_processed_dataset_and_batch_collation(tmp_path: Path) -> None:
 def test_data_module_builds_all_loader_streams(tmp_path: Path) -> None:
     _write_processed_data(tmp_path)
     data_module = LaceDataModule(
-        processed_data_dir=tmp_path,
+        processed_data_dir=tmp_path / "publaynet-max25" / "processed",
         dataset_name="publaynet",
         batch_size=2,
         max_seq_length=25,
@@ -224,7 +222,7 @@ def test_data_module_builds_all_loader_streams(tmp_path: Path) -> None:
     assert next(iter(data_module.train_dataloader()))["bbox"].shape == (2, 25, 4)
 
     lazy = LaceDataModule(
-        processed_data_dir=tmp_path,
+        processed_data_dir=tmp_path / "publaynet-max25" / "processed",
         dataset_name="publaynet",
         batch_size=2,
         max_seq_length=25,
@@ -308,6 +306,9 @@ def test_lightning_training_module_runs_tiny_cpu_step(
     )
     monkeypatch.setattr(module, "log", lambda *args, **kwargs: None)
     module.on_fit_start()
+    assert {value.device for value in module.ema_helper.shadow.values()} == {
+        next(module.model.parameters()).device
+    }
     optimizer = module.configure_optimizers()
     assert isinstance(optimizer, torch.optim.Adam)
     assert optimizer.defaults["lr"] == 1e-5

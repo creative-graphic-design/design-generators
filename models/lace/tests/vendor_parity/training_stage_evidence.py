@@ -31,7 +31,6 @@ from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch import nn
 from torch.utils.data import DataLoader
 from torch_geometric.data import Dataset as GeometricDataset
-from lightning.pytorch import Callback, LightningModule, Trainer
 from traingen_parity.compare import (
     compare_batch_stream,
     compare_optimizer_step,
@@ -74,7 +73,6 @@ from lace.conversion import build_pipeline_from_vendor_checkpoint  # noqa: E402
 from lace.modeling_lace import LaceTransformerModel  # noqa: E402
 from lace.training.config import LaceTrainingDatasetName, LaceTrainingSplit  # noqa: E402
 from lace.training.dataset import LaceProcessedDataset, collate_lace_batch  # noqa: E402
-from lace.training.datamodule import LaceDataModule  # noqa: E402
 from lace.training.ema import LaceEMA  # noqa: E402
 from lace.training.lightning_module import LaceTrainingModule  # noqa: E402
 
@@ -627,6 +625,22 @@ def _compatibility(
     }
 
 
+def _source_provenance(dataset: str) -> dict[str, str]:
+    constructor = PubLayNetDataset if dataset == "publaynet" else Rico25Dataset
+    return {
+        "dataset_constructor": _source_entrypoint(constructor),
+        "processed_dataset": _source_entrypoint(LaceProcessedDataset),
+    }
+
+
+def _ema_update_provenance() -> dict[str, str]:
+    return {
+        "vendor": _source_entrypoint(VendorEMA.update),
+        "package": _source_entrypoint(LaceEMA.update),
+        "package_boundary": _source_entrypoint(LaceTrainingModule.on_train_batch_end),
+    }
+
+
 def run_s0(args: argparse.Namespace) -> Path:
     source_commit, vendor_commit = _assert_clean_sources()
     output = Path(args.output_root) / "s0-static"
@@ -648,6 +662,21 @@ def run_s0(args: argparse.Namespace) -> Path:
     vendor_ema = VendorEMA(mu=0.9999)
     vendor_ema.register(vendor.model)
     package_ema = target.ema_helper
+    gate_checks = {
+        "state_key_set_equal": set(vendor_state) == set(package_state),
+        "state_shapes_equal": shape_equal,
+        "parameter_count_equal": sum(
+            parameter.numel() for parameter in vendor.model.parameters()
+        )
+        == sum(parameter.numel() for parameter in target.model.parameters()),
+        "initialized_state_equal": initialized_state_max_abs_diff == 0.0,
+        "optimizer_parameter_count_equal": len(
+            vendor_optimizer.param_groups[0]["params"]
+        )
+        == len(package_optimizer.param_groups[0]["params"]),
+        "ema_mu_equal": vendor_ema.mu == package_ema.mu == 0.9999,
+        "ema_state_key_set_equal": set(vendor_ema.shadow) == set(package_ema.shadow),
+    }
     payload: dict[str, object] = {
         "stage": "S0",
         "source_commit": source_commit,
@@ -656,7 +685,7 @@ def run_s0(args: argparse.Namespace) -> Path:
         "dataset": dataset,
         "reproduction_stream": {
             "consumer_stages": ["S1", "S2", "S3", "S4"],
-            "provenance": "LACE's own processed InMemoryDataset stream from the approved source",
+            "provenance": _source_provenance(dataset),
             "source": "creative-graphic-design/PubLayNet and creative-graphic-design/Rico",
             "lace_processed_root": "<LACE_DATA_ROOT>",
             "layoutdm_role": "compatibility cross-check only; not consumed by reproduction stages",
@@ -702,10 +731,12 @@ def run_s0(args: argparse.Namespace) -> Path:
                 vendor_ema.shadow and package_ema.shadow
             ),
             "mu_equal": vendor_ema.mu == package_ema.mu == 0.9999,
-            "update_rule": "post-optimizer-step",
+            "update_rule": _ema_update_provenance(),
             "vendor_and_package_shadow_key_sets_equal": set(vendor_ema.shadow)
             == set(package_ema.shadow),
         },
+        "gate_verdict": "pass" if all(gate_checks.values()) else "fail",
+        "gate_checks": gate_checks,
         "data_compatibility": {
             name: _compatibility(
                 Path(args.lace_data_root), Path(args.layoutdm_data_root), name
@@ -1083,111 +1114,97 @@ def _named_gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
     return float(squared_norm.sqrt().item())
 
 
-class _PackageNaturalTraceCallback(Callback):
-    """Capture the production Lightning optimizer path after each batch."""
+def _processed_root(data_root: Path, dataset: str) -> Path:
+    if data_root.name == "processed":
+        return data_root
+    return data_root / f"{dataset}-max25" / "processed"
 
-    def __init__(self) -> None:
-        self._batch_ids: list[str] = []
-        self._pre_clip_hashes: dict[str, str] = {}
-        self._pre_clip_norm = 0.0
-        self._record: dict[str, object] | None = None
-        self.records: list[dict[str, object]] = []
 
-    def on_train_batch_start(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        batch: object,
-        batch_idx: int,
-    ) -> None:
-        del trainer, batch_idx
-        self._finalize_record(pl_module)
-        if not isinstance(batch, Mapping):
-            raise TypeError("LACE production batch must be a mapping")
-        ids = batch.get("id", [])
-        if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
-            raise TypeError("LACE production batch must carry string ids")
-        self._batch_ids = cast(list[str], ids)
+def _traingen_command(
+    dataset: str,
+    data_root: Path,
+    *,
+    seed: int,
+    steps: int,
+    run_root: Path,
+) -> list[str]:
+    if steps < 1:
+        raise ValueError("traingen fit requires at least one step")
+    processed_root = _processed_root(data_root, dataset).resolve()
+    config = f"models/lace/configs/training/lace_{dataset}.yaml"
+    return [
+        "uv",
+        "run",
+        "--package",
+        "lace",
+        "--extra",
+        "training",
+        "traingen",
+        "fit",
+        "--config",
+        config,
+        "--seed_everything",
+        "123",
+        "--model.init_args.seed_mode",
+        "deterministic",
+        "--model.init_args.seed",
+        str(seed),
+        "--data.init_args.loader_seed",
+        "42975",
+        "--data.init_args.processed_data_dir",
+        str(processed_root.relative_to(ROOT)),
+        "--trainer.max_steps",
+        str(steps),
+        "--trainer.limit_train_batches",
+        str(steps),
+        "--trainer.default_root_dir",
+        str(run_root.relative_to(ROOT)),
+    ]
 
-    def on_after_backward(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        parameters = dict(pl_module.named_parameters())
-        self._pre_clip_hashes = _tensor_hashes(
-            {
-                name: parameter.grad.detach()
-                for name, parameter in parameters.items()
-                if parameter.grad is not None
-            }
+
+def _run_traingen(
+    command: list[str], *, trace_path: Path, run_root: Path
+) -> subprocess.CompletedProcess[str]:
+    run_root.mkdir(parents=True, exist_ok=True)
+    environment = os.environ.copy()
+    environment["LACE_TRAINING_TRACE_PATH"] = str(trace_path)
+    environment["UV_FROZEN"] = "1"
+    environment["UV_NO_SYNC"] = "1"
+    audit_venv = environment.get("LACE_AUDIT_VENV")
+    if audit_venv:
+        environment["UV_PROJECT_ENVIRONMENT"] = audit_venv
+    python_paths = [
+        ROOT / "models" / "lace" / "src",
+        ROOT / "lib" / "laygen" / "src",
+        ROOT / "lib" / "traingen" / "src",
+        ROOT / "lib" / "traingen-parity" / "src",
+        ROOT,
+    ]
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        [
+            *(str(path) for path in python_paths),
+            *([existing_pythonpath] if existing_pythonpath else []),
+        ]
+    )
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    (run_root / "stdout.log").write_text(completed.stdout)
+    (run_root / "stderr.log").write_text(completed.stderr)
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "traingen fit failed with exit code "
+            f"{completed.returncode}: {completed.stderr[-4000:]}"
         )
-        self._pre_clip_norm = _named_gradient_norm(parameters)
-
-    def on_before_optimizer_step(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        optimizer: torch.optim.Optimizer,
-    ) -> None:
-        trace = getattr(pl_module, "latest_step_trace", {})
-        self._record = {
-            "batch_ids": list(self._batch_ids),
-            "loss": float(cast(torch.Tensor, trace["train_loss"]).item()),
-            "gradient_hashes": self._pre_clip_hashes,
-            "gradient_norm": self._pre_clip_norm,
-            "learning_rate": optimizer.param_groups[0]["lr"],
-            "trainer_gradient_clip_val": trainer.gradient_clip_val,
-            "trainer_gradient_clip_algorithm": trainer.gradient_clip_algorithm,
-        }
-
-    def on_train_batch_end(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        outputs: object,
-        batch: object,
-        batch_idx: int,
-    ) -> None:
-        del trainer, outputs, batch, batch_idx
-        if self._record is None:
-            raise RuntimeError("Lightning optimizer callback did not capture a step")
-        optimizer = cast(torch.optim.Optimizer, pl_module.optimizers())
-        model = cast(nn.Module, getattr(pl_module, "model"))
-        parameters = dict(pl_module.named_parameters())
-        gradients = {
-            name: parameter.grad.detach()
-            for name, parameter in parameters.items()
-            if parameter.grad is not None
-        }
-        self._record.update(
-            {
-                "clipped_gradient_hashes": _tensor_hashes(gradients),
-                "clipped_gradient_norm": _named_gradient_norm(parameters),
-            }
-        )
-        optimizer_state = _optimizer_state_tensors(optimizer)
-        self._record.update(
-            {
-                "optimizer_state_hashes": _tensor_hashes(optimizer_state),
-                "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
-                "parameter_l2_norm": _mapping_l2_norm(model.state_dict()),
-                "parameter_hashes": _tensor_hashes(model.state_dict()),
-            }
-        )
-
-    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        del trainer
-        self._finalize_record(pl_module)
-
-    def finalize(self, pl_module: LightningModule) -> None:
-        """Finalize a step whose trainer stopped at the configured max step."""
-        self._finalize_record(pl_module)
-
-    def _finalize_record(self, pl_module: LightningModule) -> None:
-        if self._record is None:
-            return
-        ema_state = cast(
-            Mapping[str, torch.Tensor], getattr(pl_module, "latest_ema_state")
-        )
-        self.records.append({**self._record, "ema_hashes": _tensor_hashes(ema_state)})
-        self._record = None
+    if not trace_path.exists():
+        raise FileNotFoundError(trace_path)
+    return completed
 
 
 def _run_natural_system(
@@ -1199,49 +1216,48 @@ def _run_natural_system(
     batch_size: int,
     steps: int,
     seed: int,
+    output_root: Path,
+    run_name: str,
 ) -> list[dict[str, object]]:
-    vendor, target = _build_training_fixture(dataset, device, seed=seed)
     if system == "package":
-        callback = _PackageNaturalTraceCallback()
-        datamodule = LaceDataModule(
-            processed_data_dir=data_root,
-            dataset_name=cast(LaceTrainingDatasetName, dataset),
-            batch_size=batch_size,
-            num_workers=0,
-            pin_memory=False,
-            loader_seed=42975,
+        if batch_size != 256:
+            raise ValueError("the shipped LACE configs use batch_size=256")
+        run_root = (output_root / "natural" / run_name).resolve()
+        trace_path = run_root / "trace.json"
+        command = _traingen_command(
+            dataset,
+            data_root,
+            seed=seed,
+            steps=steps,
+            run_root=run_root,
         )
-        trainer = Trainer(
-            accelerator="gpu" if device.type == "cuda" else "cpu",
-            devices=1,
-            max_steps=steps,
-            limit_train_batches=steps,
-            limit_val_batches=0,
-            num_sanity_val_steps=0,
-            gradient_clip_val=1.0,
-            gradient_clip_algorithm="norm",
-            logger=False,
-            enable_checkpointing=False,
-            enable_progress_bar=False,
-            enable_model_summary=False,
-            callbacks=[callback],
-            default_root_dir=ROOT / ".cache" / "lace" / "trainer",
-            log_every_n_steps=steps,
-        )
-        trainer.fit(target, datamodule=datamodule)
-        callback.finalize(target)
-        if trainer.global_step != steps or len(callback.records) != steps:
+        completed = _run_traingen(command, trace_path=trace_path, run_root=run_root)
+        trace = json.loads(trace_path.read_text())
+        records = trace.get("records")
+        trainer_state = trace.get("trainer_state")
+        if not isinstance(records, list) or not isinstance(trainer_state, dict):
+            raise TypeError("package training trace has invalid structure")
+        if trainer_state.get("global_step") != steps or len(records) != steps:
             raise RuntimeError(
-                f"package Trainer produced {trainer.global_step} steps and "
-                f"{len(callback.records)} records, expected {steps}"
+                f"package traingen fit produced {trainer_state.get('global_step')} steps "
+                f"and {len(records)} records, expected {steps}"
             )
-        return [
+        _write_json(
+            run_root,
+            "command.json",
             {
-                **record,
-                "step": index,
-            }
-            for index, record in enumerate(callback.records, start=1)
+                "command": command,
+                "returncode": completed.returncode,
+                "stdout": str((run_root / "stdout.log").relative_to(ROOT)),
+                "stderr": str((run_root / "stderr.log").relative_to(ROOT)),
+            },
+        )
+        return [
+            {**cast(dict[str, object], record), "step": index}
+            for index, record in enumerate(records, start=1)
         ]
+
+    vendor, target = _build_training_fixture(dataset, device, seed=seed)
     if system not in {"vendor", "package"}:
         raise ValueError(system)
 
@@ -1288,6 +1304,7 @@ def _natural_pair_records(
     batch_size: int,
     steps: int,
     seed: int,
+    output_root: Path,
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
     vendor_runs = [
         _run_natural_system(
@@ -1298,8 +1315,10 @@ def _natural_pair_records(
             batch_size=batch_size,
             steps=steps,
             seed=seed,
+            output_root=output_root,
+            run_name=f"vendor-{index}",
         )
-        for _ in range(2)
+        for index in range(2)
     ]
     package_runs = [
         _run_natural_system(
@@ -1310,8 +1329,10 @@ def _natural_pair_records(
             batch_size=batch_size,
             steps=steps,
             seed=seed,
+            output_root=output_root,
+            run_name=f"package-{index}",
         )
-        for _ in range(2)
+        for index in range(2)
     ]
     records: list[dict[str, object]] = []
     for vendor_record, package_record in zip(
@@ -1482,6 +1503,59 @@ def _natural_pair_records(
     }
 
 
+def _production_wiring_record(
+    dataset: str,
+    data_root: Path,
+    *,
+    output_root: Path,
+    seed: int,
+) -> dict[str, object]:
+    run_root = (output_root / "production-wiring" / dataset).resolve()
+    command = _traingen_command(
+        dataset,
+        data_root,
+        seed=seed,
+        steps=2,
+        run_root=run_root,
+    )
+    completed = _run_traingen(
+        command,
+        trace_path=run_root / "trace.json",
+        run_root=run_root,
+    )
+    trace = json.loads((run_root / "trace.json").read_text())
+    trainer_state = trace.get("trainer_state")
+    if not isinstance(trainer_state, dict):
+        raise TypeError("production wiring trace has invalid trainer state")
+    logger_path = trainer_state.get("logger_path")
+    logger_files = sorted(
+        str(path.relative_to(ROOT))
+        for path in run_root.rglob("*")
+        if path.is_file()
+        and (path.name == "metrics.csv" or "events.out.tfevents" in path.name)
+    )
+    checkpoint_files = sorted(
+        str(path.relative_to(ROOT))
+        for path in run_root.rglob("*.ckpt")
+        if path.is_file()
+    )
+    if not logger_files:
+        raise FileNotFoundError(f"no logger output under {run_root}")
+    if not checkpoint_files:
+        raise FileNotFoundError(f"no checkpoint under {run_root}")
+    trainer_state["logger_path"] = str(logger_path) if logger_path else None
+    trainer_state["checkpoint_paths"] = checkpoint_files
+    return {
+        "command": command,
+        "returncode": completed.returncode,
+        "logger_output": logger_files,
+        "checkpoint_written": checkpoint_files,
+        "scheduler": "not applicable",
+        "trainer_state": trainer_state,
+        "trace": str((run_root / "trace.json").relative_to(ROOT)),
+    }
+
+
 def _synchronize_s3_state(
     vendor: VendorDiffusion,
     target: LaceTrainingModule,
@@ -1519,6 +1593,13 @@ def run_s3(args: argparse.Namespace) -> Path:
         device=device,
         batch_size=args.batch_size,
         steps=args.steps,
+        seed=10000,
+        output_root=output,
+    )
+    production_wiring = _production_wiring_record(
+        args.dataset,
+        Path(args.lace_data_root),
+        output_root=output,
         seed=10000,
     )
 
@@ -1761,6 +1842,7 @@ def run_s3(args: argparse.Namespace) -> Path:
             ),
             "repeat_run_envelope": repeat_envelope,
         },
+        "production_wiring": production_wiring,
         "synchronized": {
             "artifact": synchronized_artifact,
             "population": {
