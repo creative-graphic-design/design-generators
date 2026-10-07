@@ -200,7 +200,7 @@ def _runtime_metadata(output_root: Path) -> dict[str, object]:
     freeze_root.mkdir(parents=True, exist_ok=True)
     freeze_path = freeze_root / "pip-freeze.txt"
     freeze = subprocess.run(
-        [sys.executable, "-m", "pip", "freeze"],
+        ["uv", "pip", "freeze", "--python", sys.executable],
         check=True,
         capture_output=True,
         text=True,
@@ -213,7 +213,7 @@ def _runtime_metadata(output_root: Path) -> dict[str, object]:
         "cuda_version": torch.version.cuda,
         "python": platform.python_version(),
         "python_executable": sys.executable,
-        "pip_freeze_command": [sys.executable, "-m", "pip", "freeze"],
+        "pip_freeze_command": ["uv", "pip", "freeze", "--python", sys.executable],
         "pip_freeze_artifact": str(freeze_path.relative_to(ROOT)),
         "pip_freeze_sha256": _sha256(freeze_path),
     }
