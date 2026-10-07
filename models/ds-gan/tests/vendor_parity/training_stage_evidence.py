@@ -1480,7 +1480,8 @@ def _elementwise_envelope(
             maximum_cross_abs = candidate_cross_abs
         outside_vendor_mask = cross > vendor_envelope
         outside_package_mask = cross > package_envelope
-        outside_mask = outside_vendor_mask | outside_package_mask
+        larger_corresponding_envelope = torch.maximum(vendor_envelope, package_envelope)
+        outside_mask = cross > larger_corresponding_envelope
         outside_vendor = outside_vendor or bool(outside_vendor_mask.any().item())
         outside_package = outside_package or bool(outside_package_mask.any().item())
         for index in zip(*torch.where(outside_mask)):
@@ -1492,6 +1493,9 @@ def _elementwise_envelope(
                     "cross_max_abs": float(cross[index_tuple].item()),
                     "vendor_self_max_abs": float(vendor_envelope[index_tuple].item()),
                     "package_self_max_abs": float(package_envelope[index_tuple].item()),
+                    "larger_corresponding_self_max_abs": float(
+                        larger_corresponding_envelope[index_tuple].item()
+                    ),
                     "outside_vendor_self_envelope": bool(
                         outside_vendor_mask[index_tuple].item()
                     ),
