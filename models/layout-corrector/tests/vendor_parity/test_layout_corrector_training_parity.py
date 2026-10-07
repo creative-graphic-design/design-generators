@@ -694,8 +694,6 @@ def _package_trace(fixture: Fixture, batch: dict[str, Any]) -> dict[str, torch.T
     )
     loss, trace = fixture.package._corrector_loss(prepared)
     trace["mask"] = (prepared["xt"] == prepared["x0"]).long()
-    trace["bce_loss"] = loss.detach()
-    trace["weighted_bce_loss"] = loss.detach()
     trace["train_loss"] = loss
     return trace
 
