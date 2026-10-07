@@ -214,7 +214,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+Package-local training support exists, but this PR did not perform S5 full-run model training. Conversion, agreement checks, and any future training costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
