@@ -34,4 +34,8 @@ def test_training_configs_instantiate_package_classes() -> None:
 
         assert isinstance(cli.model, LaceTrainingModule)
         assert isinstance(cli.datamodule, LaceDataModule)
-        assert cli.datamodule.processed_data_dir == Path(".cache/lace/data")
+        expected_root = Path(".cache/lace/data") / (
+            f"{cli.datamodule.dataset_name}-max{cli.datamodule.max_seq_length}"
+            "/processed"
+        )
+        assert cli.datamodule.processed_data_dir == expected_root
