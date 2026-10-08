@@ -64,6 +64,7 @@ nav:
           - traingen-parity: api/libraries/traingen-parity.md
       - Models:
           - basnet: api/models/basnet.md
+          - canvas-vae: api/models/canvas-vae.md
           - cgb-dm: api/models/cgb-dm.md
           - coarse-to-fine: api/models/coarse-to-fine.md
           - dlt: api/models/dlt.md
