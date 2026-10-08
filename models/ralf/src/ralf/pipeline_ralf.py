@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, ClassVar, Literal, Protocol, cast, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
@@ -23,6 +23,9 @@ from .modeling_ralf import (
 )
 from .processing_ralf import RalfProcessor
 from .retrieval import RalfRetrievalTable
+
+if TYPE_CHECKING:
+    from .relation_restriction import RelationConditioner
 
 RalfScalar = str | int | float | bool | None
 RalfSequenceInput = (
@@ -118,6 +121,7 @@ class RalfPipeline(LayoutGenerationPipeline):
         super().__init__(model.config)
         self.model = model
         self.processor = processor or RalfProcessor.from_config(model.config)
+        self._relation_conditioner: RelationConditioner | None = None
 
     @classmethod
     def from_pretrained(
@@ -153,6 +157,17 @@ class RalfPipeline(LayoutGenerationPipeline):
         return cls(
             model=cast(RalfForConditionalLayoutGeneration, components["model"]),
             processor=cast(RalfProcessor, components["processor"]),
+        )
+
+    def configure_relation_conditioner(self, relations: RalfRelationshipTable) -> None:
+        """Install the inference-only relation condition preparer once."""
+        from .relation_restriction import RelationConditioner
+
+        self._relation_conditioner = RelationConditioner(
+            self.processor.layout_tokenizer,
+            relations,
+            global_task_embedding=self.config.global_task_embedding,
+            relation_size=self.config.relation_size,
         )
 
     @torch.no_grad()
@@ -290,24 +305,68 @@ class RalfPipeline(LayoutGenerationPipeline):
                 intermediates["retrieval"] = {"indexes": retrieval_batch.indexes}
         elif retrieval_table is not None and query_ids is not None:
             intermediates["retrieval"] = {"indexes": retrieval_table.lookup(query_ids)}
-        sequences = self.model._generate_sequences(
-            encoded["input_ids"].to(model_device),
-            pixel_values=encoded["pixel_values"].to(model_device),
-            saliency=encoded["saliency"].to(model_device),
-            attention_mask=encoded["attention_mask"].to(model_device),
-            max_length=self.config.max_token_length,
-            temperature=temperature,
-            top_k=top_k,
-            generator=generation_generator,
-            token_mask=self.processor.layout_tokenizer.token_mask(model_device),
-            retrieved=encoded.get("retrieval"),
-            condition_type=cast(RalfConfigTaskName, str(condition)),
-            constraint_input_ids=encoded["input_ids"].to(model_device),
-            constraint_mask=encoded["attention_mask"].to(model_device),
-            constraint_element_mask=encoded["constraint_mask"].to(model_device),
-            relationship_table=relations,
-            sample_ids=query_ids,
-        )
+
+        input_ids = encoded["input_ids"].to(model_device)
+        token_mask = self.processor.layout_tokenizer.token_mask(model_device)
+        if condition == ConditionType.relation:
+            from .relation_restriction import generate_relation_sequences
+
+            if relations is None:
+                raise ValueError("relation generation requires a relationship table")
+
+            if self._relation_conditioner is None:
+                self._relation_conditioner = RelationConditioner(
+                    self.processor.layout_tokenizer,
+                    relations,
+                    global_task_embedding=self.config.global_task_embedding,
+                    relation_size=self.config.relation_size,
+                )
+
+            relation_sequence, relation_pad_mask = self._relation_conditioner.prepare(
+                input_ids, query_ids
+            )
+            encoder_inputs = self.model._prepare_conditional_inputs(
+                pixel_values=encoded["pixel_values"].to(model_device),
+                saliency=encoded["saliency"].to(model_device),
+                retrieved=encoded.get("retrieval"),
+                batch_size=input_ids.size(0),
+                condition_type="uncond",
+            )
+            encoder_inputs["seq_layout_const"] = relation_sequence
+            encoder_inputs["seq_layout_const_pad_mask"] = relation_pad_mask
+            encoded_feat = self.model._encode_into_memory(encoder_inputs)
+            sequences = generate_relation_sequences(
+                self.model,
+                encoded_feat=encoded_feat,
+                condition_sequences=relation_sequence,
+                constraint_input_ids=input_ids,
+                max_length=self.config.max_token_length,
+                temperature=temperature,
+                top_k=top_k,
+                generator=generation_generator,
+                token_mask=token_mask,
+                vocabulary=self._relation_conditioner,
+            )
+        else:
+            sequences = self.model._generate_sequences(
+                input_ids,
+                pixel_values=encoded["pixel_values"].to(model_device),
+                saliency=encoded["saliency"].to(model_device),
+                attention_mask=encoded["attention_mask"].to(model_device),
+                max_length=self.config.max_token_length,
+                temperature=temperature,
+                top_k=top_k,
+                generator=generation_generator,
+                token_mask=token_mask,
+                retrieved=encoded.get("retrieval"),
+                condition_type=cast(RalfConfigTaskName, str(condition)),
+                constraint_input_ids=input_ids,
+                constraint_mask=encoded["attention_mask"].to(model_device),
+                constraint_element_mask=encoded["constraint_mask"].to(model_device),
+                relationship_table=relations,
+                sample_ids=query_ids,
+            )
+
         return self.processor.post_process_layouts(
             sequences.cpu(),
             output_type=output_type,

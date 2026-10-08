@@ -181,13 +181,13 @@ Metrics are exact state-dict equality, exact tensor equality, or explicitly stat
 
 ### Parity Results
 
-| Dataset             | Compared artifact                          |                   Cases | Match criterion                                                                                                                        | Result |
-| ------------------- | ------------------------------------------ | ----------------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| CGL                 | `ralf_uncond_cgl` strict conversion        |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| CGL                 | `ralf_uncond_cgl` local-vs-vendor logits   | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
-| PKU                 | `ralf_uncond_pku10` strict conversion      |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| PKU                 | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
-| Synthetic CPU smoke | local `save_pretrained` reload             |                       1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label`                                                        | passed |
+| Dataset             | Compared artifact                          |                                 Cases | Match criterion                                                                                                                        | Result |
+| ------------------- | ------------------------------------------ | ------------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| CGL                 | `ralf_uncond_cgl` strict conversion        |                                     1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| CGL                 | `ralf_uncond_cgl` local-vs-vendor logits   | 1 synthetic batch on one selected GPU | `max_abs_diff=0.0`                                                                                                                     | passed |
+| PKU                 | `ralf_uncond_pku10` strict conversion      |                                     1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| PKU                 | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic batch on one selected GPU | `max_abs_diff=0.0`                                                                                                                     | passed |
+| Synthetic CPU smoke | local `save_pretrained` reload             |                                     1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label`                                                        | passed |
 
 ## Reproducibility
 

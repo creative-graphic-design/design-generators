@@ -42,8 +42,13 @@ import torch
 import yaml
 
 from ralf import RalfPipeline
-from ralf.datasets import _IndexableDataset, build_retrieved_batch
+from ralf.datasets import (
+    PKU_ORG_TO_CHECKPOINT_LABEL_ID,
+    _IndexableDataset,
+    build_retrieved_batch,
+)
 from ralf.modeling_ralf import RalfRelationshipTable
+from ralf.training.lightning_module import _load_relationship_table
 from ralf_evaluator_adapter import (
     VendorSample,
     layout_output_to_vendor_samples,
@@ -72,6 +77,10 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
 
 
 def path_label(path: Path, root: Path) -> str:
@@ -402,7 +411,30 @@ class TransformedDataset:
         return row
 
 
-def load_local_dataset(input_root: Path) -> tuple[Any, Any]:
+class SourceLabelRetrievalDataset:
+    """Expose source PKU labels for the package helper's single remap."""
+
+    def __init__(self, dataset: TransformedDataset, dataset_name: str) -> None:
+        self.dataset = dataset
+        self.dataset_name = dataset_name
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, index: int) -> Mapping[str, Any]:
+        row = dict(self.dataset[index])
+        if self.dataset_name == "pku":
+            checkpoint_to_source = {
+                int(checkpoint): source
+                for source, checkpoint in enumerate(
+                    PKU_ORG_TO_CHECKPOINT_LABEL_ID.tolist()
+                )
+            }
+            row["label"] = [checkpoint_to_source[int(value)] for value in row["label"]]
+        return row
+
+
+def load_local_dataset(input_root: Path, dataset_name: str) -> tuple[Any, Any]:
     from datasets import load_dataset
 
     files = {
@@ -415,9 +447,11 @@ def load_local_dataset(input_root: Path) -> tuple[Any, Any]:
     )
     label_ids = {name: index for index, name in enumerate(sorted(vocabulary["label"]))}
     train_layouts = data["train"].remove_columns(["image", "saliency"])
-    return TransformedDataset(train_layouts, label_ids), TransformedDataset(
-        data["test"], label_ids
-    )
+    transformed_train = TransformedDataset(train_layouts, label_ids)
+    transformed_test = TransformedDataset(data["test"], label_ids)
+    return SourceLabelRetrievalDataset(
+        transformed_train, dataset_name
+    ), transformed_test
 
 
 def load_retrieval_table(path: Path) -> Mapping[int | str, Sequence[int]]:
@@ -449,10 +483,7 @@ def retrieval_indexes(
 def load_relationship_table(path: Path | None) -> RalfRelationshipTable | None:
     if path is None:
         return None
-    value = torch.load(path, map_location="cpu", weights_only=False)
-    if not isinstance(value, Mapping):
-        raise TypeError(f"relationship table is not a mapping: {path}")
-    return cast(RalfRelationshipTable, value)
+    return _load_relationship_table(path)
 
 
 def rows_to_inputs(
@@ -498,6 +529,11 @@ def refinement_bbox(
     return values.tolist()
 
 
+def consume_vendor_dataloader_seed() -> None:
+    """Mirror the iterator seed draw before each vendor test seed."""
+    torch.empty((), dtype=torch.int64).random_()
+
+
 def generate_package_predictions(
     *, args: argparse.Namespace, input_root: Path, converted: Path, output_root: Path
 ) -> Path:
@@ -506,18 +542,24 @@ def generate_package_predictions(
         # construction; construction consumes RNG state before the first
         # noisy condition is prepared.
         torch.manual_seed(0)
+    if args.condition == "relation":
+        # The vendor constructs RelationshipPreprocessor after this
+        # process-start seed and before set_seed(seed) in inference.py.
+        random.seed(0)
     pipe = RalfPipeline.from_pretrained(converted, local_files_only=True)
-    train, test = load_local_dataset(input_root)
+    train, test = load_local_dataset(input_root, args.dataset)
     retrieval = load_retrieval_table(retrieval_path(args))
     if args.condition == "relation":
-        vendor_root = vendor_source(args)
-        sys.path.insert(0, str(vendor_root))
-        try:
-            relation = load_relationship_table(relation_path(args))
-        finally:
-            sys.path.remove(str(vendor_root))
+        # RelationshipPreprocessor shuffles every table list once during
+        # construction, before inference.py seeds each evaluation run. The
+        # vendor wrapper applies the same fixed process-start seed.
+        relation = load_relationship_table(relation_path(args))
     else:
         relation = None
+    if relation is not None:
+        # Install the inference-only conditioner once so its construction-time
+        # shuffle happens before the per-seed set_seed calls.
+        pipe.configure_relation_conditioner(relation)
     device = torch.device("cuda:0")
     pipe.model.to(device).eval()
     prediction_root = output_root / "package-pipeline"
@@ -528,6 +570,10 @@ def generate_package_predictions(
         result_path = prediction_root / f"test_{seed}.pkl"
         random.seed(seed)
         torch.manual_seed(seed)
+        if args.condition == "relation":
+            # The vendor DataLoader iterator consumes this CPU draw before its
+            # first batch, even with the test launcher override of workers.
+            consume_vendor_dataloader_seed()
         generator = torch.Generator(device=device).manual_seed(seed)
         results: list[VendorSample] = []
         for start in range(0, len(test), args.batch_size):
@@ -630,6 +676,17 @@ def vendor_prediction_dir(
                 "runpy.run_module('image2layout.train.inference', run_name='__main__')",
             ]
         )
+    elif args.condition == "relation":
+        relation_wrapper = (
+            "import random; random.seed(0); "
+            + (
+                "import torch; torch.backends.cudnn.enabled=False; "
+                if args.disable_cudnn
+                else ""
+            )
+            + "import runpy; runpy.run_module('image2layout.train.inference', run_name='__main__')"
+        )
+        command.extend(["-c", relation_wrapper])
     elif args.disable_cudnn:
         command.extend(["-c", module_wrapper])
     else:
@@ -843,21 +900,33 @@ def sampler_violation_counts(prediction_dir: Path) -> dict[str, int | str | None
 def runtime_freeze(
     output_root: Path, runtime_python: Path, shared_path: Path | None
 ) -> dict[str, str]:
-    record_path = shared_path or output_root / "runtime-freeze.txt"
-    if not record_path.is_file():
-        result = subprocess.run(
-            ["uv", "pip", "freeze", "--python", str(runtime_python)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+    record_path = (shared_path or output_root / "runtime-freeze.txt").resolve()
+    result = subprocess.run(
+        ["uv", "pip", "freeze", "--python", str(runtime_python)],
+        check=True,
+        capture_output=True,
+    )
+    fresh_freeze = result.stdout
+    if shared_path is not None:
+        require_file(record_path, "shared runtime freeze")
+        expected_freeze = record_path.read_bytes()
+        expected_hash = sha256(record_path)
+        fresh_hash = sha256_bytes(fresh_freeze)
+        if fresh_freeze != expected_freeze:
+            raise RuntimeError(
+                "runtime interpreter freeze mismatch; refusing to launch: "
+                f"fresh hash {fresh_hash}, expected {expected_hash}"
+            )
+    else:
         record_path.parent.mkdir(parents=True, exist_ok=True)
-        record_path.write_text(result.stdout, encoding="utf-8")
+        record_path.write_bytes(fresh_freeze)
+    repo_root = Path(__file__).resolve().parents[4]
+    label_root = repo_root if shared_path is not None else output_root.resolve()
     return {
         "path": (
-            ".cache/ralf/training-reproduction/evaluation-path-parity-003/runtime-freeze.txt"
+            path_label(record_path, label_root)
             if shared_path is not None
-            else path_label(record_path, output_root)
+            else path_label(record_path, label_root)
         ),
         "sha256": sha256(record_path),
     }
@@ -894,7 +963,11 @@ def runtime_provenance(
     return {
         "fresh_capture": True,
         "same_campaign_venv": campaign_runtime_match,
-        "venv": "campaign audited cu128 venv",
+        "interpreter": runtime_python,
+        "evaluator_dependency_overlay": os.environ.get(
+            "RALF_EVALUATOR_DEPENDENCY_OVERLAY", "none"
+        ),
+        "venv": "RALF-dedicated audited cu128 venv",
         "captured_freeze": {
             "path": freeze["path"],
             "sha256": freeze["sha256"],
@@ -909,7 +982,7 @@ def runtime_provenance(
             "status": "unavailable: historical freeze file is not retained",
             "equal": None,
             "differing_packages": None,
-            "venv_used": "campaign audited cu128 venv",
+            "venv_used": "RALF-dedicated audited cu128 venv",
         },
     }
 
@@ -1049,6 +1122,7 @@ def artifact(
         },
         "evaluator": {
             "source_commit": evaluator_source_commit(args),
+            "interpreter": str(args.runtime_python),
             "runtime_freeze_record": freeze["path"],
             "runtime_freeze_sha256": freeze["sha256"],
             "torch": torch.__version__,
@@ -1077,6 +1151,39 @@ def artifact(
                 "per_seed_order": "set_seed(seed), then prepare each noisy condition, then sample",
             }
             if args.condition == "refinement"
+            else {
+                "preparation_owner": "inference-only package component",
+                "package_path": (
+                    "models/ralf/src/ralf/relation_restriction.py:RelationConditioner; "
+                    "the training-time RalfTaskPreprocessor is unchanged and is not used "
+                    "by the pipeline relation-generation path."
+                ),
+                "runner_source": (
+                    "models/ralf/tests/vendor_parity/run_condition_parity.py: "
+                    "random.seed(0), load the raw relationship table, then "
+                    "configure_relation_conditioner once before set_seed(seed)."
+                ),
+                "vendor_source": (
+                    "image2layout/train/models/layoutformerpp/task_preprocessor.py:498-507 "
+                    "loads and shuffles the table during RelationshipPreprocessor construction; "
+                    "image2layout/train/helpers/relationships.py:110-145 consumes one "
+                    "random.random draw per candidate edge; task_preprocessor.py:568-585 "
+                    "calls size-0/1 randperm and samples relation records; "
+                    "image2layout/train/models/layoutformerpp/relation_restriction.py:354-813 "
+                    "implements the decoder restriction."
+                ),
+                "per_seed_order": (
+                    "process-start random.seed(0), construct RelationConditioner once, "
+                    "then set_seed(seed), then consume edge draws, perform both label "
+                    "randperm passes, sample relation records, and decode each batch"
+                ),
+                "training_deviation": (
+                    "training-time relation preprocessing consumes RNG in package order "
+                    "rather than vendor order; both S5 systems use vendor inference.py, "
+                    "so this S5 comparison is unaffected"
+                ),
+            }
+            if args.condition == "relation"
             else None
         ),
         "runner": {
@@ -1087,6 +1194,59 @@ def artifact(
         "comparison": comparison,
     }
     return record
+
+
+def update_manifest_parity(*, args: argparse.Namespace, artifact_path: Path) -> None:
+    """Index a completed condition artifact in its reconstructed manifest."""
+    repo_root = Path(__file__).resolve().parents[4]
+    manifest_path = (
+        repo_root
+        / ".cache"
+        / "ralf"
+        / "training-reproduction"
+        / args.dataset
+        / "s5"
+        / "manifest.json"
+    )
+    if not manifest_path.is_file():
+        return
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    conditions = manifest.get("conditions", [])
+    if isinstance(conditions, Mapping):
+        condition = conditions.get(args.condition)
+    elif isinstance(conditions, list):
+        condition = next(
+            (
+                item
+                for item in conditions
+                if isinstance(item, dict) and item.get("condition") == args.condition
+            ),
+            None,
+        )
+    else:
+        condition = None
+    if not isinstance(condition, dict):
+        raise KeyError(f"manifest has no {args.dataset}/{args.condition} condition")
+    relative_path = path_label(artifact_path, repo_root)
+    entry = {"path": relative_path, "sha256": sha256(artifact_path)}
+    condition["evaluation_path_parity"] = entry
+    artifacts = condition.setdefault("artifacts", {})
+    if not isinstance(artifacts, dict):
+        raise TypeError("manifest condition field is not a mapping: artifacts")
+    artifacts[relative_path] = entry["sha256"]
+    records = condition.setdefault("artifact_records", [])
+    if not isinstance(records, list):
+        raise TypeError("manifest condition field is not a list: artifact_records")
+    records[:] = [
+        item
+        for item in records
+        if not isinstance(item, dict) or item.get("path") != relative_path
+    ]
+    records.append(entry.copy())
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> None:
@@ -1147,18 +1307,26 @@ def main() -> None:
             ),
             "existing vendor predictions",
         ).parent
-        package_scores = next(
-            iter(sorted((args.output_root / "scores-package-pipeline").glob("*.yaml"))),
-            require_file(
+        package_score_candidates = sorted(
+            (args.output_root / "scores-package-pipeline").glob("*.yaml")
+        )
+        package_scores = (
+            package_score_candidates[0]
+            if package_score_candidates
+            else require_file(
                 args.output_root / "package-pipeline" / "scores_all.yaml",
                 "existing package scores",
-            ),
+            )
         )
-        vendor_scores = next(
-            iter(sorted((args.output_root / "scores-vendor-inference").glob("*.yaml"))),
-            require_file(
+        vendor_score_candidates = sorted(
+            (args.output_root / "scores-vendor-inference").glob("*.yaml")
+        )
+        vendor_scores = (
+            vendor_score_candidates[0]
+            if vendor_score_candidates
+            else require_file(
                 vendor_predictions / "scores_all.yaml", "existing vendor scores"
-            ),
+            )
         )
         artifact_path = args.output_root / "evaluation-path-parity.json"
         previous = (
@@ -1194,6 +1362,7 @@ def main() -> None:
         artifact_path.write_text(
             json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
+        update_manifest_parity(args=args, artifact_path=artifact_path)
         print(
             json.dumps({"artifact": str(artifact_path), "status": comparison["status"]})
         )
@@ -1250,6 +1419,7 @@ def main() -> None:
     artifact_path.write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    update_manifest_parity(args=args, artifact_path=artifact_path)
     print(json.dumps({"artifact": str(artifact_path), "status": comparison["status"]}))
 
 

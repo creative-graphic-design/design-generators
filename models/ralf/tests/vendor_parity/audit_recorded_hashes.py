@@ -132,6 +132,7 @@ def report_hash(
         counts["invalid"] += 1
         return
     if target is None:
+        print(f"UNRESOLVED {source}:{line} value={recorded}")
         counts["unresolved"] += 1
         return
     actual = digest(target)
@@ -237,6 +238,7 @@ def rewrite_document(path: Path, *, repo_root: Path, roots: list[Path]) -> int:
                 paths=paths,
                 base=repo_root,
                 roots=roots,
+                recorded=match.group(1),
             )
             if target is None or len(match.group(1)) != 64:
                 continue
@@ -270,6 +272,7 @@ def audit_document_text(
                 paths=paths,
                 base=repo_root,
                 roots=roots,
+                recorded=recorded,
             )
             report_hash(
                 source=source,
@@ -287,6 +290,7 @@ def document_target(
     paths: list[re.Match[str]],
     base: Path,
     roots: list[Path],
+    recorded: str | None = None,
 ) -> Path | None:
     """Resolve only a document hash that names a file explicitly.
 
@@ -316,7 +320,10 @@ def document_target(
             if path.is_file()
         ]
         if raw.startswith("evals/") and len(matches) != 1:
-            return None
+            if recorded is None:
+                return None
+            matching = [path for path in matches if digest(path) == recorded]
+            return matching[0] if len(matching) == 1 else None
         return matches[0] if matches else None
 
     def choose(suffix: str) -> Path | None:
