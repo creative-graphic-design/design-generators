@@ -40,6 +40,19 @@ The claimed datasets are [creative-graphic-design/PubLayNet](https://huggingface
 
 The approved source and processed-stream amendment is recorded in [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247). The machine-written dataset identity proof `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/dataset-path-identity.json` has SHA-256 `d6cf7b0f68ac34a47e142a427c2f227ed07ad32d4a0dc429292a8ae198fca2ba` and records equal file, loaded-dataset, and sample-ID hashes for all six split pairs.
 
+The proof compares the legacy data-root form used at source commit `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` with the direct processed-root form introduced at source commit `532b2312f13dfd4d9821d623d311aef440b6676f`. It records `file_sha256_equal=true`, `loaded_dataset_equal=true`, and `sample_ids_equal=true` for every split; the loaded-dataset and sample-ID hashes are:
+
+| Dataset   | Split | Layouts |  Elements | Loaded-dataset hash                                                | Sample-ID hash                                                     |
+| --------- | ----- | ------: | --------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| PubLayNet | train | 315,757 | 3,033,717 | `5bfe22aed397f64222d0f549f7387ac04683ae897355a02ca5ee0e0a7ca40f96` | `fafc2cc2cccbcf5ed22a3ba06264b0277ef162f85d365782e9810b6351a3ad21` |
+| PubLayNet | val   |  16,619 |   159,541 | `f01c6859c92e392d30d47a19f8d8a84724c43dd70431d9040b84f765b2d90fb0` | `c7be3a18f32b04accd046b72999faa2b69e47119d338fab2082750e8b3b99700` |
+| PubLayNet | test  |  11,142 |   119,402 | `f82ccf6279561b4d2d4d02257a4ab1c243dde47a402017aa69a0eb6218bd0a90` | `6d3fd886468786e86c7ca981bbdeb88666b354b200c30f3c635114e627fc8c8e` |
+| RICO25    | train | 358,510 | 3,954,250 | `57d3b859a9d3136114468e171bfee438ef858476aa17b7bd034804362a4356a1` | `d45131f61c51b836d958f3065d06fd9c8a1490bbb20e000c84fcf3cc6ad72b53` |
+| RICO25    | val   |   2,109 |    23,650 | `406078b1390fb983859e7afae76fe7fcab9f5f4db8113804f6a76b6cbdb56a18` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
+| RICO25    | test  |   4,218 |    47,129 | `b27f2555ac6864629f004f3ccb14bed0feed3dd29f65bb04c7bf65dc7937fdd9` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
+
+This proof is distinct from the S0 LACE/LayoutDM compatibility comparison: those serialized files differ, while their loaded element tuples and record IDs match.
+
 ## Configs
 
 Training configs live under `models/lace/configs/training`.
@@ -143,8 +156,8 @@ Acquire the FID evaluator and weights into the cache, then create the test featu
 export LACE_AUDIT_VENV="<your audit venv>"
 export LACE_DATA_ROOT=".cache/lace/data"
 export LACE_FID_ROOT=".cache/lace/fidroot"
-mkdir -p "$LACE_FID_ROOT/fid" "$LACE_FID_ROOT/FIDNetV3" "$LACE_FID_ROOT/feature"
-git -C vendor/layout-dm show 873b5eebe4c61862e5c08a10859accf65a168dfd:src/trainer/trainer/fid/model.py > "$LACE_FID_ROOT/fid/model.py"
+mkdir -p "$LACE_FID_ROOT/fid" "$LACE_FID_ROOT/FIDNetV3" "$LACE_FID_ROOT/feature" .cache/lace/original
+curl --fail --location --output "$LACE_FID_ROOT/fid/model.py" "https://raw.githubusercontent.com/CyberAgentAILab/layout-dm/873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py"
 curl --fail --location --output .cache/lace/original/layoutdm_starter.zip https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip
 unzip -o .cache/lace/original/layoutdm_starter.zip 'fid_weights/FIDNetV3/*/model_best.pth.tar' -d .cache/lace/original/layoutdm-unpacked
 cp -a .cache/lace/original/layoutdm-unpacked/fid_weights/FIDNetV3/. "$LACE_FID_ROOT/FIDNetV3/"
