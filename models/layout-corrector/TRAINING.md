@@ -141,7 +141,7 @@ Identical prediction files produce identical metrics through the same evaluator.
 
 The OOB counts are report-only counts of decoded elements outside the original normalized `[0,1]` center-xywh frame. No element is removed from any metric denominator, and no `valid_elements_per_prediction` metric is used.
 
-The S3 natural record includes the systematic causes fixed during implementation: x0 sampling softmax-before-flatten, conditional initialization of weak or invalid tokens, and `predict_start` reduction order through the corrector steps. The synchronized layer is not needed because the natural production trajectory has no first divergence and vendor and package repeats are bitwise stable.
+The synchronized layer is not needed because the natural production trajectory has no first divergence and vendor and package repeats are bitwise stable.
 
 ## Regeneration Metadata
 

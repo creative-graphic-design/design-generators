@@ -1,3 +1,4 @@
+# ruff: noqa: E402 - audited-runtime gate must run before optional imports.
 from __future__ import annotations
 
 import ast
@@ -28,7 +29,32 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-pytest.importorskip("lightning")
+
+def _require_audited_runtime_when_gated() -> None:
+    if os.environ.get("PARITY_REQUIRE") != "1":
+        return
+
+    required = (
+        "LAYOUT_CORRECTOR_AUDIT_VENV",
+        "LAYOUT_CORRECTOR_TORCH_WHEEL",
+        "LAYOUT_CORRECTOR_TORCHVISION_WHEEL",
+    )
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
+        raise RuntimeError(
+            "PARITY_REQUIRE=1 requires audited runtime metadata: " + ", ".join(missing)
+        )
+
+    runtime = Path(os.environ["LAYOUT_CORRECTOR_AUDIT_VENV"])
+    expected_python = (runtime / "bin" / "python").resolve()
+    if Path(sys.executable).resolve() != expected_python:
+        raise RuntimeError(
+            "PARITY_REQUIRE=1 must run under LAYOUT_CORRECTOR_AUDIT_VENV: "
+            f"{sys.executable} != {expected_python}"
+        )
+
+
+pytest.importorskip("lightning", _require_audited_runtime_when_gated())
 pytest.importorskip("traingen_parity")
 pytest.importorskip("omegaconf")
 pytest.importorskip("torch_geometric")
@@ -849,7 +875,15 @@ def _state_dict_digest(state_dict: dict[str, torch.Tensor]) -> str:
 
 
 def _optimizer_defaults(optimizer: torch.optim.Optimizer) -> dict[str, str]:
-    return {key: repr(value) for key, value in sorted(optimizer.defaults.items())}
+    return {
+        key: repr(value)
+        for key, value in sorted(optimizer.defaults.items())
+        if key != "weight_decay"
+    }
+
+
+def _optimizer_group_weight_decays(optimizer: torch.optim.Optimizer) -> list[float]:
+    return [float(group["weight_decay"]) for group in optimizer.param_groups]
 
 
 def _optimizer_state_tensors(
@@ -1061,6 +1095,12 @@ def test_s0_training_static_state_matches_vendor(
                 "vendor": _optimizer_defaults(vendor_optimizer),
                 "package": _optimizer_defaults(package_optimizer),
                 "equal": vendor_optimizer.defaults == package_optimizer.defaults,
+            },
+            "optimizer_group_weight_decays": {
+                "vendor": _optimizer_group_weight_decays(vendor_optimizer),
+                "package": _optimizer_group_weight_decays(package_optimizer),
+                "equal": _optimizer_group_weight_decays(vendor_optimizer)
+                == _optimizer_group_weight_decays(package_optimizer),
             },
             "optimizer_initial_state_entries": {
                 "vendor": vendor_optimizer_state_entries,
@@ -2351,6 +2391,12 @@ def _evaluation_pipeline_root(dataset: str) -> Path:
 
 
 def _evaluation_environment(scratch: Path) -> dict[str, str]:
+    parent_hash_seed = os.environ.get("PYTHONHASHSEED")
+    if parent_hash_seed != "0":
+        raise RuntimeError(
+            "S4 evaluator requires the parent process to set PYTHONHASHSEED=0"
+        )
+
     environment = os.environ.copy()
     runtime = os.environ.get("LAYOUT_CORRECTOR_AUDIT_VENV")
     if runtime is not None:
@@ -2359,7 +2405,7 @@ def _evaluation_environment(scratch: Path) -> dict[str, str]:
         (str(scratch), str(scratch / "src" / "trainer"))
     )
     environment["CUDA_VISIBLE_DEVICES"] = "0"
-    environment["PYTHONHASHSEED"] = "0"
+    environment["PYTHONHASHSEED"] = parent_hash_seed
     environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     return environment
 
@@ -2855,6 +2901,7 @@ def test_s4_test_evaluation_path_matches_vendor(
             "LAYOUT_CORRECTOR_S4_VENDOR_SWEEP_COMMIT is required when reusing "
             "vendor outputs"
         )
+    evaluator_environment = _evaluation_environment(scratch)
     results: dict[str, Any] = {
         "dataset": dataset,
         "split": "test",
@@ -2874,7 +2921,9 @@ def test_s4_test_evaluation_path_matches_vendor(
         "vendor_evaluator_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
         "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
         "evaluator_unconditional_sample_count": expected_unconditional_count,
-        "evaluator_environment": {"PYTHONHASHSEED": "0"},
+        "evaluator_environment": {
+            "PYTHONHASHSEED": evaluator_environment["PYTHONHASHSEED"]
+        },
         "source_commit": _source_commit(ROOT),
         "runtime": _runtime_record(),
     }
