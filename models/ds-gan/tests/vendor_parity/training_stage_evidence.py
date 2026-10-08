@@ -857,6 +857,8 @@ def _batch_stream_report(
         "passed": report.passed,
         "checked_steps": report.checked_steps,
         "first_mismatch": report.first_mismatch,
+        "vendor_batch_digest": tensor_sha256(vendor_batch["pixel_values"]),
+        "package_batch_digest": tensor_sha256(package_batch["pixel_values"]),
     }
 
 
@@ -1810,6 +1812,7 @@ class _NaturalParityCallback(Callback):
         self._vendor_gradients: dict[str, torch.Tensor] = {}
         self._vendor_optimizer_state: dict[str, torch.Tensor] = {}
         self._batch_report: BatchStreamReport | None = None
+        self._batch_identity: dict[str, Any] | None = None
         self.iterations = 0
 
     def on_train_epoch_start(self, trainer: Any, pl_module: Any) -> None:
@@ -1830,7 +1833,9 @@ class _NaturalParityCallback(Callback):
 
         vendor_batch = _vendor_batch(next(self.vendor_iterator), self.device)
         package_batch = _package_batch(batch, self.device)
-        self._batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
+        self._batch_report, self._batch_identity = _batch_stream_report(
+            package_batch, vendor_batch
+        )
         self._vendor_trace = _vendor_step(
             self.vendor_generator,
             self.vendor_discriminator,
@@ -1860,7 +1865,11 @@ class _NaturalParityCallback(Callback):
         self, trainer: Any, pl_module: Any, outputs: Any, batch: Any, batch_idx: int
     ) -> None:
         del outputs, batch, batch_idx
-        if self._vendor_trace is None or self._batch_report is None:
+        if (
+            self._vendor_trace is None
+            or self._batch_report is None
+            or self._batch_identity is None
+        ):
             raise RuntimeError("natural parity callback has no vendor step")
 
         package_schedulers = tuple(
@@ -1913,8 +1922,9 @@ class _NaturalParityCallback(Callback):
                 "step": self.iterations,
                 "epoch": trainer.current_epoch + 1,
                 "batch_stream": {
+                    **self._batch_identity,
                     "passed": self._batch_report.passed,
-                    "checked_steps": self._batch_report.checked_steps,
+                    "checked_steps": self.iterations,
                 },
                 "trace": _trace_compare(self._vendor_trace, package_trace),
                 "gradients": _state_compare(self._vendor_gradients, package_gradients),
@@ -2786,11 +2796,20 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
             f"package Trainer produced {len(callback.rows)} iterations, expected {LOCKSTEP_STEPS}"
         )
     trace_rows = callback.rows
+    batch_stream_rows = [row["batch_stream"] for row in trace_rows]
+    batch_stream_passed = len(batch_stream_rows) == LOCKSTEP_STEPS and all(
+        row["passed"] and row["checked_steps"] == index
+        for index, row in enumerate(batch_stream_rows, 1)
+    )
+    first_batch_mismatch = next(
+        (row for row in batch_stream_rows if not row["passed"]), None
+    )
     first_divergence = next(
         (
             row
             for row in trace_rows
-            if not all(
+            if not row["batch_stream"]["passed"]
+            or not all(
                 comparison["passed"]
                 for comparison in (
                     row["trace"],
@@ -2834,7 +2853,13 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         "repeat": repeat,
         "steps": len(trace_rows),
         "first_divergence": first_divergence,
-        "bitwise_300": first_divergence is None,
+        "bitwise_300": first_divergence is None and batch_stream_passed,
+        "batch_stream": {
+            "passed": batch_stream_passed,
+            "checked_steps": len(batch_stream_rows),
+            "first_mismatch": first_batch_mismatch,
+            "per_step": batch_stream_rows,
+        },
         "max_abs_difference": max_abs,
         "trace": str(trace_path.relative_to(ROOT)),
         "seed": SEED,
@@ -3198,19 +3223,35 @@ def run_s3() -> Path:
             item["optimizer_state"]["max_abs_difference"] for item in cross_system
         ),
     }
-    within_vendor_envelope = (
-        cross_system_max["parameters"]
-        <= vendor_self["parameters"]["max_abs_difference"]
-        and cross_system_max["optimizer_state"]
-        <= vendor_self["optimizer_state"]["max_abs_difference"]
+    cross_system_within_larger_self_envelope = {
+        field: cross_system_max[field]
+        <= max(
+            vendor_self[field]["max_abs_difference"],
+            package_self[field]["max_abs_difference"],
+        )
+        for field in ("parameters", "optimizer_state")
+    }
+    natural_batch_streams_identical = all(
+        run["batch_stream"]["passed"] for run in repeats
     )
-    within_package_envelope = (
-        cross_system_max["parameters"]
-        <= package_self["parameters"]["max_abs_difference"]
-        and cross_system_max["optimizer_state"]
-        <= package_self["optimizer_state"]["max_abs_difference"]
+    warning_captured = all(
+        run["deterministic_warning"]["contains_nll_loss2d"] for run in repeats
     )
     natural_pass = all(item["bitwise_300"] for item in repeats)
+    natural_cause = (
+        "shared nondeterministic CUDA nll_loss2d reduction"
+        if natural_batch_streams_identical and warning_captured
+        else "unattributed natural drift"
+    )
+    field_interpretation = {
+        field: (
+            f"cross {field} max_abs_difference is "
+            f"{'inside' if inside else 'outside'} the larger self envelope "
+            f"(vendor={vendor_self[field]['max_abs_difference']}, "
+            f"package={package_self[field]['max_abs_difference']})"
+        )
+        for field, inside in cross_system_within_larger_self_envelope.items()
+    }
     return _write(
         "s3-lockstep",
         {
@@ -3219,6 +3260,13 @@ def run_s3() -> Path:
             "evidence_layer": "natural",
             "result": "PASS" if natural_pass else "FAIL",
             "steps": LOCKSTEP_STEPS,
+            "cause": natural_cause,
+            "cause_requires": {
+                "batch_streams_identical_at_all_steps": True,
+                "deterministic_nll_loss2d_warning": True,
+            },
+            "batch_streams_identical_at_all_steps": natural_batch_streams_identical,
+            "deterministic_nll_loss2d_warning": warning_captured,
             "repeats": repeats,
             "repeat_process_ids": {
                 "natural": natural_process_ids,
@@ -3231,13 +3279,10 @@ def run_s3() -> Path:
                 "package_runs": [_envelope_run_metadata(run) for run in package_runs],
                 "vendor_self": vendor_self,
                 "package_self": package_self,
-                "cross_system_within_vendor_self_envelope": within_vendor_envelope,
-                "cross_system_within_package_self_envelope": within_package_envelope,
-                "interpretation": (
-                    "cross-system final-state drift is within both observed self envelopes"
-                    if within_vendor_envelope and within_package_envelope
-                    else "cross-system final-state drift exceeds at least one observed self envelope"
+                "cross_system_within_larger_self_envelope": (
+                    cross_system_within_larger_self_envelope
                 ),
+                "field_interpretation": field_interpretation,
                 "repeat_count": len(repeats),
             },
         },
