@@ -111,7 +111,11 @@ def assert_within_limits(
         AssertionError: If metric sets differ or any limit is exceeded.
     """
     if set(observed) != set(limits):
-        raise AssertionError("held-out metrics do not match calibrated metrics")
+        raise AssertionError(
+            "held-out metric sets do not match calibrated metrics: "
+            f"missing={tuple(sorted(set(limits) - set(observed)))}, "
+            f"unexpected={tuple(sorted(set(observed) - set(limits)))}"
+        )
 
     failures = {
         key: (observed[key], limits[key])

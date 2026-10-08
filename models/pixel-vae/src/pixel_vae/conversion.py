@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 import hashlib
 import json
-from typing import Final, Protocol, assert_never, cast
+from typing import Final, Protocol, assert_never
 
 import numpy as np
 import torch
@@ -237,17 +237,17 @@ def tensorflow_weight_map(model: PixelVAEModel) -> tuple[WeightAssignment, ...]:
     assignments.extend(_dense_assignments("decoder/dense", "decoder.dense"))
 
     decoder_modules: tuple[tuple[str, nn.Module], ...] = (
-        ("bn0", model.decoder.batch_norms[0]),
+        ("batch_norms.0", model.decoder.batch_norms[0]),
         ("transpose_convolutions.0", model.decoder.transpose_convolutions[0]),
-        ("bn1", model.decoder.batch_norms[1]),
+        ("batch_norms.1", model.decoder.batch_norms[1]),
         ("transpose_convolutions.1", model.decoder.transpose_convolutions[1]),
-        ("bn2", model.decoder.batch_norms[2]),
+        ("batch_norms.2", model.decoder.batch_norms[2]),
         ("transpose_convolutions.2", model.decoder.transpose_convolutions[2]),
-        ("bn3", model.decoder.batch_norms[3]),
+        ("batch_norms.3", model.decoder.batch_norms[3]),
         ("transpose_convolutions.3", model.decoder.transpose_convolutions[3]),
-        ("bn4", model.decoder.batch_norms[4]),
+        ("batch_norms.4", model.decoder.batch_norms[4]),
         ("transpose_convolutions.4", model.decoder.transpose_convolutions[4]),
-        ("bn5", model.decoder.batch_norms[5]),
+        ("batch_norms.5", model.decoder.batch_norms[5]),
         ("output_convolution", model.decoder.output_convolution),
     )
     for index, (target_module, module) in enumerate(decoder_modules):
@@ -353,6 +353,25 @@ def tensorflow_arrays_to_torch(
             continue
 
         source = torch.from_numpy(np.asarray(weights[assignment.source_key]))
+        expected_rank = (
+            2
+            if assignment.layout is WeightLayout.dense
+            else 4
+            if assignment.layout
+            in (
+                WeightLayout.conv2d,
+                WeightLayout.depthwise,
+                WeightLayout.conv2d_transpose,
+            )
+            else None
+        )
+        if expected_rank is not None and source.ndim != expected_rank:
+            raise ValueError(
+                f"shape mismatch for {assignment.source_key} -> "
+                f"{assignment.target_key}: expected rank {expected_rank}, "
+                f"got shape {tuple(source.shape)}"
+            )
+
         target = _convert_layout(source, assignment.layout)
         target_tensor = state[assignment.target_key]
         if target.shape != target_tensor.shape:
@@ -385,7 +404,7 @@ def _collect_layer(
 
     selected_names = names if len(arrays) == len(names) else names[:-1]
     weights.update(
-        (f"{key}/{name}", cast(Float[np.ndarray, "..."], np.asarray(array)))
+        (f"{key}/{name}", np.asarray(array))
         for name, array in zip(selected_names, arrays, strict=True)
     )
 

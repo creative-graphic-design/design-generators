@@ -53,6 +53,9 @@ class PixelVAEOutput(ModelOutput):
 class PixelVAEBatchNorm2d(nn.Module):
     """Batch normalization with population variance and moving averages."""
 
+    running_mean: Float[torch.Tensor, "channels"]
+    running_var: Float[torch.Tensor, "channels"]
+
     def __init__(self, channels: int, eps: float, momentum: float) -> None:
         """Create affine parameters and moving statistics."""
         super().__init__()
@@ -421,7 +424,7 @@ class PixelVAEModel(PreTrainedModel):
             if epsilon.shape != z_mean.shape:
                 raise ValueError("epsilon must have the same shape as the posterior")
 
-            latents = z_mean + torch.exp(0.5 * z_log_variance) * epsilon
+            latents = z_mean + z_log_variance.mul(0.5).exp() * epsilon
         else:
             if epsilon is not None:
                 raise ValueError("epsilon is only valid when sample=True")

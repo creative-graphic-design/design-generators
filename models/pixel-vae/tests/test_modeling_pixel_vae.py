@@ -93,14 +93,20 @@ def test_keras_batch_norm_uses_biased_variance_and_ema() -> None:
     norm = PixelVAEBatchNorm2d(1, eps=1e-3, momentum=0.5).train()
     values = torch.tensor([[[[1.0, 3.0]]]])
     normalized = norm(values)
+    epsilon_scale = torch.rsqrt(torch.tensor(1.001))
     torch.testing.assert_close(
-        normalized, torch.tensor([[[[-1.0, 1.0]]]]), atol=1e-4, rtol=1e-4
+        normalized,
+        torch.tensor([[[[-1.0, 1.0]]]]) * epsilon_scale,
+        atol=1e-4,
+        rtol=1e-4,
     )
     torch.testing.assert_close(norm.running_mean, torch.tensor([1.0]))
     torch.testing.assert_close(norm.running_var, torch.tensor([1.0]))
 
     norm.eval()
-    torch.testing.assert_close(norm(values), torch.tensor([[[[0.0, 2.0]]]]))
+    torch.testing.assert_close(
+        norm(values), torch.tensor([[[[0.0, 2.0]]]]) * epsilon_scale
+    )
 
 
 def test_reconstruction_masks_rgb_for_transparent_targets() -> None:
