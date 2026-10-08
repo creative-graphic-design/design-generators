@@ -123,8 +123,9 @@ S2_BATCH_NORM = Tolerance("max_rel_to_max", 1e-5)
 S2_ADAM_RULE_LIMIT = 3.5e-4
 S2_WELL_CONDITIONED_LIMIT = 1.6e-3
 # The synchronized direct check uses the recalibrated one-step gradient limit.
-# This is the stricter reading of the registered rule: calibrating the direct
-# threshold from the synchronized population could bypass float64 arbitration.
+# This deviates from the literal formula in the stricter direction: with a pass
+# rule of direct <= D or float64 <= R, lowering D can only reject more. The
+# literal D of 4.1e-3 would leave no calibration-set comparisons to arbitrate.
 S3_DIRECT_GRADIENT = S2_GRADIENT
 S3_TOTAL_LOSS = Tolerance("max_rel_to_max", 1.2e-6)
 S3_RUNNING_VARIANCE = Tolerance("max_rel_to_max", 1e-5)
