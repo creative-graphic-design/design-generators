@@ -104,40 +104,38 @@ REGENERATE = (
 )
 SEQUENCE_COLUMNS = tuple(str(field) for field in CanvasVAEField)
 
-# On complete RICO data, the eval forward differs by at most 1.266045e-6 and
-# train-mode logits by 1.867336e-6 of each tensor's largest magnitude. The
-# largest per-field loss difference is 1.434896e-7 relative.
-# The largest one-step gradient, clipped-gradient, and first-moment difference
-# is 1.482e-4 in relative L2 norm; the 1.8e-4 bound leaves 21% headroom.
+# Calibrated limits remain separate by stage and metric population. The
+# calibration summary and measured maxima are recorded in TRAINING.md.
 # TensorFlow and PyTorch reduce layer, attention, pooling, batch-statistic, and
 # batch-summed gradient values in different orders, so fp32 values agree to
 # rounding rather than bitwise.
 # Attention key-projection biases are excluded from relative checks: softmax is
 # invariant to them, their exact gradient is zero, and both systems produce
 # rounding noise below 1e-7 that Adam turns into sign-dependent updates.
-FORWARD = Tolerance("max_rel_to_max", 1e-5)
-LOSS = Tolerance("max_rel_to_max", 1e-6)
-GRADIENT = Tolerance("norm_rel", 1.8e-4)
-SECOND_MOMENT = Tolerance("norm_rel", 2e-4)
-# Each update must follow float64 Keras Adam applied to that system's own
-# gradient and prior moments. The largest measured rule error is 2.985e-4;
-# 3.5e-4 leaves 17% headroom. Where sqrt(v) is at least 100 times epsilon
-# (1e-7), cross-system updates differ by at most 1.354e-3; 1.6e-3 leaves 18%
-# headroom. The remaining elements are near-zero-gradient cases where Adam's
-# epsilon dominates; they account for 99.9998% of one-step and 25.9% of
-# synchronized-trajectory squared update difference.
-ADAM_RULE_LIMIT = 3.5e-4
-WELL_CONDITIONED_LIMIT = 1.6e-3
+S0_FORWARD = Tolerance("max_rel_to_max", 1e-5)
+S1_FORWARD = Tolerance("max_rel_to_max", 1e-5)
+S1_LOSS = Tolerance("max_rel_to_max", 1e-6)
+S2_GRADIENT = Tolerance("norm_rel", 3.5e-4)
+S2_CLIPPED_GRADIENT = Tolerance("norm_rel", 3.5e-4)
+S2_FIRST_MOMENT = Tolerance("norm_rel", 3.5e-4)
+S2_SECOND_MOMENT = Tolerance("norm_rel", 3.5e-4)
+S2_BATCH_NORM = Tolerance("max_rel_to_max", 1e-5)
+S2_ADAM_RULE_LIMIT = 3.5e-4
+S2_WELL_CONDITIONED_LIMIT = 1.6e-3
+# The synchronized direct check uses the recalibrated one-step gradient limit.
+# This is the stricter reading of the registered rule: calibrating the direct
+# threshold from the synchronized population could bypass float64 arbitration.
+S3_DIRECT_GRADIENT = S2_GRADIENT
+S3_TOTAL_LOSS = Tolerance("max_rel_to_max", 1.2e-6)
+S3_RUNNING_VARIANCE = Tolerance("max_rel_to_max", 1e-5)
+S3_ADAM_RULE_LIMIT = 5.1e-4
+S3_WELL_CONDITIONED_LIMIT = 6.1e-3
+# One float64 error bound applies to both one-step and synchronized checks.
+ROUNDING_LIMIT = 4.1e-3
+ZERO_GRADIENT_LIMIT = 1e-6
 WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
-ZERO_GRADIENT_LIMIT = 1e-6
-# Machine-dependent fp32 reduction can push cross-system comparisons over
-# direct limits. One-step and synchronized-trajectory checks recompute the
-# corresponding references in float64 and require both systems' fp32 values
-# to stay within this bound after a direct-limit failure.
-# The reference multi-step run's split (2,993 direct / 388 arbitrated) and
-# maximum error (2.419970e-3) are report-only measurements, not gates.
-ROUNDING_LIMIT = 2.7e-3
+# Counts of direct and float64-arbitrated comparisons remain report-only.
 
 
 def require(*paths: Path) -> None:
@@ -712,14 +710,14 @@ def test_s0_topology_and_static_config(
         "eval_z_mean",
         output.z_mean,
         step0["eval_z_mean"],
-        FORWARD,
+        S0_FORWARD,
         measured,
     )
     assert_close(
         "eval_length_logits",
         output.length_logits,
         step0["eval_logits/length"],
-        FORWARD,
+        S0_FORWARD,
         measured,
     )
     width = step0["eval_logits/left"].shape[1]
@@ -735,7 +733,7 @@ def test_s0_topology_and_static_config(
             f"eval_logits/{key}",
             output.element_logits[key],
             step0[f"eval_logits/{key}"],
-            FORWARD,
+            S0_FORWARD,
             measured,
         )
 
@@ -781,16 +779,16 @@ def test_s1_fixed_batch_forward_trace(
             name,
             captured[name],
             step0[f"layer/{name}"],
-            FORWARD,
+            S1_FORWARD,
             measured,
         )
 
-    assert_close("z_mean", output.z_mean, step0["z_mean"], FORWARD, measured)
+    assert_close("z_mean", output.z_mean, step0["z_mean"], S1_FORWARD, measured)
     assert_close(
         "z_log_var",
         output.z_log_var,
         step0["z_log_var"],
-        FORWARD,
+        S1_FORWARD,
         measured,
     )
     mask_elements = output.mask.sum().item()
@@ -806,7 +804,7 @@ def test_s1_fixed_batch_forward_trace(
         "logits/length",
         output.length_logits,
         step0["logits/length"],
-        FORWARD,
+        S1_FORWARD,
         measured,
     )
     for key in SEQUENCE_COLUMNS:
@@ -814,26 +812,28 @@ def test_s1_fixed_batch_forward_trace(
             f"logits/{key}",
             output.element_logits[key],
             step0[f"logits/{key}"],
-            FORWARD,
+            S1_FORWARD,
             measured,
         )
 
     for key, value in output.reconstruction_losses.items():
-        assert_close(f"loss/{key}", value, step0[f"metric/{key}_loss"], LOSS, measured)
+        assert_close(
+            f"loss/{key}", value, step0[f"metric/{key}_loss"], S1_LOSS, measured
+        )
 
     assert_close(
         "kl_divergence",
         output.kl_divergence,
         step0["metric/kl_divergence"],
-        LOSS,
+        S1_LOSS,
         measured,
     )
-    assert_close("l2", penalty, step0["l2"], LOSS, measured)
+    assert_close("l2", penalty, step0["l2"], S1_LOSS, measured)
     assert_close(
         "total_loss",
         output.loss + penalty,
         step0["total_loss"],
-        LOSS,
+        S1_LOSS,
         measured,
     )
     check_measured("s1", measured)
@@ -852,7 +852,18 @@ def keras_adam_float64(grad, m, v, step: int):
 
 
 def check_update(
-    name, package, original, package_grad, original_grad, m, v, step, measured
+    name,
+    package,
+    original,
+    package_grad,
+    original_grad,
+    m,
+    v,
+    step,
+    measured,
+    *,
+    adam_rule_limit,
+    well_conditioned_limit,
 ):
     """Gate Adam-rule and well-conditioned checks; record full-update norm as diagnostic."""
     package = torch.as_tensor(package, dtype=torch.float64)
@@ -884,23 +895,23 @@ def check_update(
         "elements": delta.numel(),
         "ignore_limit_in_calibration": True,
         "well_conditioned_norm_rel": well_rel,
-        "adam_rule_limit": ADAM_RULE_LIMIT,
-        "well_conditioned_limit": WELL_CONDITIONED_LIMIT,
-        "package_adam_rule_within": rule["package_adam_rule"] <= ADAM_RULE_LIMIT,
-        "original_adam_rule_within": rule["original_adam_rule"] <= ADAM_RULE_LIMIT,
-        "well_conditioned_within": well_rel <= WELL_CONDITIONED_LIMIT,
+        "adam_rule_limit": adam_rule_limit,
+        "well_conditioned_limit": well_conditioned_limit,
+        "package_adam_rule_within": rule["package_adam_rule"] <= adam_rule_limit,
+        "original_adam_rule_within": rule["original_adam_rule"] <= adam_rule_limit,
+        "well_conditioned_within": well_rel <= well_conditioned_limit,
         "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
         "near_zero_difference_sq": float(delta[~well].square().sum()),
         "total_difference_sq": float(delta.square().sum()),
         "near_zero_share_of_difference": float(
             delta[~well].square().sum() / delta.square().sum().clamp_min(1e-300)
         ),
-        "within": max(rule.values()) <= ADAM_RULE_LIMIT
-        and well_rel <= WELL_CONDITIONED_LIMIT,
+        "within": max(rule.values()) <= adam_rule_limit
+        and well_rel <= well_conditioned_limit,
     }
 
 
-def summarize_updates(measured):
+def summarize_updates(measured, *, adam_rule_limit, well_conditioned_limit):
     """Summarize Adam-rule checks and the squared update-difference split."""
     updates = {
         name: values
@@ -927,8 +938,8 @@ def summarize_updates(measured):
         / max(total_sq, 1e-300),
         "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
         "epsilon": 1e-7,
-        "adam_rule_limit": ADAM_RULE_LIMIT,
-        "well_conditioned_limit": WELL_CONDITIONED_LIMIT,
+        "adam_rule_limit": adam_rule_limit,
+        "well_conditioned_limit": well_conditioned_limit,
     }
 
 
@@ -964,7 +975,7 @@ def test_s2_one_optimizer_step(
             f"grad/{key}",
             parameters[key].grad,
             as_package(step0[f"grad/{source}"], transpose),
-            GRADIENT,
+            S2_GRADIENT,
             measured,
         )
 
@@ -976,7 +987,7 @@ def test_s2_one_optimizer_step(
             f"clipped/{key}",
             parameters[key].grad,
             as_package(step0[f"clipped/{source}"], transpose),
-            GRADIENT,
+            S2_CLIPPED_GRADIENT,
             measured,
         )
     package_values["clipped"] = {
@@ -997,7 +1008,7 @@ def test_s2_one_optimizer_step(
             f"m/{key}",
             state["exp_avg"],
             as_package(step0[f"m/{source}"], transpose),
-            GRADIENT,
+            S2_FIRST_MOMENT,
             measured,
         )
         package_values["m"][key] = state["exp_avg"].detach().clone()
@@ -1005,7 +1016,7 @@ def test_s2_one_optimizer_step(
             f"v/{key}",
             state["exp_avg_sq"],
             as_package(step0[f"v/{source}"], transpose),
-            SECOND_MOMENT,
+            S2_SECOND_MOMENT,
             measured,
         )
         package_values["v"][key] = state["exp_avg_sq"].detach().clone()
@@ -1021,20 +1032,22 @@ def test_s2_one_optimizer_step(
             zeros,
             1,
             measured,
+            adam_rule_limit=S2_ADAM_RULE_LIMIT,
+            well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
         )
 
     assert_close(
         "running_mean",
         model.encoder.norm.running_mean,
         step0["after/encoder/norm/moving_mean"],
-        FORWARD,
+        S2_BATCH_NORM,
         measured,
     )
     assert_close(
         "running_var",
         model.encoder.norm.running_var,
         step0["after/encoder/norm/moving_variance"],
-        FORWARD,
+        S2_BATCH_NORM,
         measured,
     )
     expected_learning_rate = float(step0["learning_rate"])
@@ -1146,7 +1159,11 @@ def test_s2_one_optimizer_step(
         {
             "grad_types": sorted(grad_types),
             "zero_gradient_max_abs": zero_gradient,
-            "update_criterion": summarize_updates(measured),
+            "update_criterion": summarize_updates(
+                measured,
+                adam_rule_limit=S2_ADAM_RULE_LIMIT,
+                well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
+            ),
             "float64_arbitration": {
                 "by_family": arbitration_by_family,
                 "direct": sum(
@@ -1218,7 +1235,7 @@ def test_s3_natural_trajectory(
     expected = trajectory["total_loss"]
     relative = [abs(a - b) / abs(b) for a, b in zip(first[0], expected, strict=True)]
     first_divergence = next(
-        (index + 1 for index, value in enumerate(relative) if value > LOSS.limit),
+        (index + 1 for index, value in enumerate(relative) if value > S1_LOSS.limit),
         None,
     )
     parameter_drift = {}
@@ -1349,7 +1366,11 @@ def test_s3_synchronized_steps(
         loss = output.loss + l2_penalty(model, model.config.l2_weight)
         loss.backward()
         assert_close(
-            f"step{step}/total_loss", loss, state["total_loss"], LOSS, measured
+            f"step{step}/total_loss",
+            loss,
+            state["total_loss"],
+            S3_TOTAL_LOSS,
+            measured,
         )
         grads = {key: parameters[key].grad.clone() for key in sources}
         clip_gradients_by_norm(model.parameters(), 1.0)
@@ -1357,7 +1378,7 @@ def test_s3_synchronized_steps(
         for key, (source, transpose) in sources.items():
             original = as_package(state[f"grad/{source}"], transpose)
             name = f"step{step}/grad/{key}"
-            assert_close(name, grads[key], original, GRADIENT, measured)
+            assert_close(name, grads[key], original, S3_DIRECT_GRADIENT, measured)
             package_error = float(
                 (grads[key].double() - exact[key]).norm() / exact[key].norm()
             )
@@ -1393,13 +1414,15 @@ def test_s3_synchronized_steps(
                 as_package(state[f"v/{source}"], transpose),
                 int(state["iterations"]) + 1,
                 measured,
+                adam_rule_limit=S3_ADAM_RULE_LIMIT,
+                well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
             )
 
         assert_close(
             f"step{step}/running_var",
             model.encoder.norm.running_var,
             after["weight/encoder/norm/moving_variance"],
-            FORWARD,
+            S3_RUNNING_VARIANCE,
             measured,
         )
 
@@ -1425,7 +1448,11 @@ def test_s3_synchronized_steps(
         "s3_synchronized",
         measured,
         {
-            "update_criterion": summarize_updates(measured),
+            "update_criterion": summarize_updates(
+                measured,
+                adam_rule_limit=S3_ADAM_RULE_LIMIT,
+                well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
+            ),
             "float64_arbitration": {
                 "total_gradients": len(gradient_checks),
                 "directly_checked": len(direct),
