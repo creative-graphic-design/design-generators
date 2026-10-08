@@ -56,7 +56,7 @@ class PixelVAEConfig(PretrainedConfig):
         if not 0 <= decoder_batch_norm_momentum < 1:
             raise ValueError("decoder_batch_norm_momentum must be in [0, 1)")
 
-        super().__init__(**kwargs)  # ty: ignore[invalid-argument-type, unused-ignore-comment]
+        super().__init__(**kwargs)  # ty: ignore[invalid-argument-type]
         self.latent_dim = latent_dim
         self.quantize_factor = quantize_factor
         self.kl_weight = kl_weight

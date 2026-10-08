@@ -44,7 +44,7 @@ class KerasAdam(torch.optim.Optimizer):
         super().__init__(params, {"lr": lr, "betas": betas, "eps": eps})
 
     @torch.no_grad()
-    def step(  # ty: ignore[invalid-method-override, unused-ignore-comment]
+    def step(  # ty: ignore[invalid-method-override]
         self, closure: Callable[[], float | Float[torch.Tensor, ""]] | None = None
     ) -> float | Float[torch.Tensor, ""] | None:
         """Apply one update to every parameter with a gradient."""
