@@ -51,7 +51,7 @@ The proof compares the legacy data-root form used at source commit `2c4f37691c9a
 | RICO25    | val   |   2,109 |    23,650 | `406078b1390fb983859e7afae76fe7fcab9f5f4db8113804f6a76b6cbdb56a18` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
 | RICO25    | test  |   4,218 |    47,129 | `b27f2555ac6864629f004f3ccb14bed0feed3dd29f65bb04c7bf65dc7937fdd9` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
 
-This proof is distinct from the S0 LACE/LayoutDM compatibility comparison: those serialized files differ, while their loaded element tuples and record IDs match.
+This proof is distinct from the S0 LACE/LayoutDM compatibility comparison: for the five matching splits, serialized files differ while loaded element tuples and record IDs match; RICO25 train is intentionally a tenfold LACE stream and is excluded from that cross-source comparison.
 
 ## Configs
 
@@ -137,7 +137,7 @@ The S4 loader gate covers PubLayNet train/val/test populations of 315757/16619/1
 
 The compared evaluation inputs are the captured vendor `real_layout` and the package processor's own encoding of the same `bbox`, `labels`, and `mask`; predictions are then compared on the same decoded layout. The harness records both input artifacts, loaded package state, prediction files, evaluator, FIDNetV3 weights, and feature cache.
 
-The source diff from the S4 evidence commit is confined to `models/lace/src/lace/training/dataset.py`, `models/lace/src/lace/training/lightning_module.py`, and the trace callback `models/lace/src/lace/training/trace.py`. The Lightning hunk moves EMA shadow tensors to the model device at fit start; the dataset hunk removes the legacy-root fallback. The executed `models/lace/src/lace/pipeline*` and evaluation paths have an empty diff against the S4 evidence commit, so the S4 result stands.
+The measured source diff from the original S4 execution commit `532b2312f13dfd4d9821d623d311aef440b6676f` to the current head over `models/lace/src` and `lib` is confined to `models/lace/src/lace/training/dataset.py`, `models/lace/src/lace/training/lightning_module.py`, and the trace callback `models/lace/src/lace/training/trace.py`; the refreshed evidence/harness commit `efb25ee0f3e357ccc0279ad95cc11a6bf475a9f5` changed only the harness and documentation. The Lightning hunk moves EMA shadow tensors to the model device at fit start; the dataset hunk removes the legacy-root fallback. The executed `models/lace/src/lace/pipeline*` and evaluation paths have an empty diff against the original S4 execution commit, so the S4 result stands.
 
 ## Regeneration Metadata
 
