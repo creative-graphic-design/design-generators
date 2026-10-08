@@ -243,9 +243,19 @@ def _runtime_record() -> dict[str, Any]:
     """Return the audited runtime identity used to produce a stage record."""
     runtime = os.environ.get("LAYOUT_CORRECTOR_AUDIT_VENV")
     if runtime is None:
+        if os.environ.get("PARITY_REQUIRE") == "1":
+            raise RuntimeError(
+                "PARITY_REQUIRE=1 requires LAYOUT_CORRECTOR_AUDIT_VENV for evidence"
+            )
         return {"environment": "lockfile"}
 
     python = Path(runtime) / "bin" / "python"
+    if Path(sys.executable).resolve() != python.resolve():
+        raise RuntimeError(
+            "evidence must run from LAYOUT_CORRECTOR_AUDIT_VENV: "
+            f"{sys.executable} != {python}"
+        )
+
     result = subprocess.run(
         ["uv", "pip", "freeze", "--python", str(python)],
         check=True,
