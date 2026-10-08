@@ -374,9 +374,7 @@ class RADMGeometryRelationAwareModule(nn.Module):
             ),
             dim=1,
         )
-        transformed = self.linear2(
-            pooled_features.reshape(pooled_features.shape[0] * proposals, -1)
-        )
+        transformed = self.linear2(pooled_features.view(pooled_features.shape[0], -1))
         topology = transformed.new_zeros((boxes_with_batch.shape[0], self.topo_out_dim))
         for batch_index in range(batch):
             selected = boxes_with_batch[:, 0] == batch_index
@@ -534,7 +532,7 @@ class RADMRelationBlock(nn.Module):
     def forward(
         self,
         proposal_features: Float[torch.Tensor, "batch proposals hidden"] | None,
-        roi_features: Float[torch.Tensor, "batch proposals channels roi roi"],
+        roi_features: Float[torch.Tensor, "batch_proposals channels roi roi"],
         boxes_xyxy: Float[torch.Tensor, "batch proposals 4"],
         initial_norm_boxes: Float[torch.Tensor, "batch proposals 4"],
         text_features: Float[torch.Tensor, "batch text text_dim"],
@@ -549,6 +547,12 @@ class RADMRelationBlock(nn.Module):
         batch, proposals = boxes_xyxy.shape[:2]
         textual = roi_features.new_zeros((batch * proposals, self.d_model))
         topology = roi_features.new_zeros((batch * proposals, 64))
+
+        if proposal_features is None:
+            proposal_features = roi_features.view(
+                batch, proposals, self.d_model, -1
+            ).mean(-1)
+
         if self.with_gram:
             topology = self.GRAM(boxes_xyxy, roi_features)
 
@@ -565,11 +569,11 @@ class RADMRelationBlock(nn.Module):
             )
             textual = textual.reshape(batch * proposals, self.d_model, -1).mean(-1)
 
-        if proposal_features is None:
-            proposal_features = roi_features.reshape(
-                batch, proposals, self.d_model, -1
-            ).mean(-1)
-        elif proposal_features.ndim == 3 and proposal_features.shape[0] == 1:
+        if (
+            proposal_features is not None
+            and proposal_features.ndim == 3
+            and proposal_features.shape[0] == 1
+        ):
             proposal_features = proposal_features.reshape(
                 batch, proposals, self.d_model
             )
@@ -727,7 +731,7 @@ class RADMProposalHead(nn.Module):
         self,
         features: Mapping[str, Float[torch.Tensor, "batch channels height width"]],
         boxes_xyxy: Float[torch.Tensor, "batch proposals 4"],
-    ) -> Float[torch.Tensor, "batch proposals roi hidden"]:
+    ) -> Float[torch.Tensor, "batch_proposals channels roi roi"]:
         absolute_boxes = boxes_xyxy
         batch_indices = torch.arange(
             boxes_xyxy.shape[0], device=boxes_xyxy.device, dtype=boxes_xyxy.dtype
@@ -757,22 +761,19 @@ class RADMProposalHead(nn.Module):
                 levels.flatten() == level, as_tuple=False
             ).flatten()
             feature = self.feature_projection[name](features[name])
-            pooled[selected] = roi_align(
-                feature,
-                rois[selected].to(dtype=feature.dtype),
-                output_size=self.roi_resolution,
-                spatial_scale=1.0 / stride,
-                sampling_ratio=self.roi_sampling_ratio,
-                aligned=True,
+            pooled.index_put_(
+                (selected,),
+                roi_align(
+                    feature,
+                    rois[selected].to(dtype=feature.dtype),
+                    output_size=self.roi_resolution,
+                    spatial_scale=1.0 / stride,
+                    sampling_ratio=self.roi_sampling_ratio,
+                    aligned=True,
+                ),
             )
 
-        return pooled.reshape(
-            boxes_xyxy.shape[0],
-            boxes_xyxy.shape[1],
-            self.hidden_dim,
-            self.roi_resolution,
-            self.roi_resolution,
-        )
+        return pooled
 
     @staticmethod
     def _assign_pooler_levels(

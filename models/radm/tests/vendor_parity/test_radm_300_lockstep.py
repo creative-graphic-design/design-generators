@@ -179,7 +179,11 @@ def _step1_head_trace_comparison(
                 }
             )
         else:
-            if source_value.shape != package_value.shape:
+            comparable_package = package_value
+            shape_equal = source_value.shape == package_value.shape
+            if not shape_equal and source_value.numel() == package_value.numel():
+                comparable_package = package_value.reshape(source_value.shape)
+            if not shape_equal and source_value.numel() != package_value.numel():
                 entry.update(
                     {
                         "bitwise": False,
@@ -203,24 +207,29 @@ def _step1_head_trace_comparison(
                 )
             else:
                 difference = (
-                    source_value - package_value.to(source_value.device)
+                    source_value - comparable_package.to(source_value.device)
                 ).abs()
                 source_max = (
                     float(source_value.abs().max()) if source_value.numel() else 0.0
                 )
                 package_max = (
-                    float(package_value.abs().max()) if package_value.numel() else 0.0
+                    float(comparable_package.abs().max())
+                    if comparable_package.numel()
+                    else 0.0
                 )
                 max_abs = float(difference.max()) if difference.numel() else 0.0
                 entry.update(
                     {
-                        "bitwise": torch.equal(source_value, package_value),
+                        "bitwise": torch.equal(source_value, comparable_package),
+                        "shape_equal": shape_equal,
+                        "source_shape": list(source_value.shape),
+                        "package_shape": list(package_value.shape),
                         "shape": list(source_value.shape),
                         "dtype": str(source_value.dtype),
                         "max_abs": max_abs,
                         "max_rel": _max_relative_error(source_max, package_max),
                         "source_sha256": tensor_sha256(source_value),
-                        "package_sha256": tensor_sha256(package_value),
+                        "package_sha256": tensor_sha256(comparable_package),
                     }
                 )
         surfaces.append(entry)
@@ -854,6 +863,12 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         "calls": [],
         "scatter": [],
         "full_levels": [list(item) for item in sorted(full_levels)],
+        "gradient_handles": [],
+        "implementation": {
+            "module": original.__module__,
+            "qualname": original.__qualname__,
+            "source_file": original.__code__.co_filename,
+        },
     }
 
     if package:
@@ -909,23 +924,57 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         spatial_scale = kwargs.get("spatial_scale", args[3] if len(args) > 3 else 1.0)
         sampling_ratio = kwargs.get("sampling_ratio", args[4] if len(args) > 4 else -1)
         aligned = kwargs.get("aligned", args[5] if len(args) > 5 else False)
-        captured["calls"].append(
-            {
-                "stage": stage,
-                "level": level,
-                "full_capture": retain_tensors,
-                "input": input_capture,
-                "input_evidence": input_evidence,
-                "rois": roi_capture,
-                "roi_tensor_evidence": roi_evidence,
-                "output": output_capture,
-                "output_evidence": output_evidence,
-                "output_size": output_size,
-                "spatial_scale": float(spatial_scale),
-                "sampling_ratio": int(sampling_ratio),
-                "aligned": bool(aligned),
-            }
-        )
+        call = {
+            "stage": stage,
+            "level": level,
+            "full_capture": retain_tensors,
+            "input": input_capture,
+            "input_evidence": input_evidence,
+            "rois": roi_capture,
+            "roi_tensor_evidence": roi_evidence,
+            "output": output_capture,
+            "output_evidence": output_evidence,
+            "output_size": output_size,
+            "spatial_scale": float(spatial_scale),
+            "sampling_ratio": int(sampling_ratio),
+            "aligned": bool(aligned),
+        }
+        if stage == 0:
+            if input_tensor.requires_grad:
+                captured["gradient_handles"].append(
+                    input_tensor.register_hook(
+                        lambda gradient: (
+                            call.__setitem__(
+                                "input_gradient", _tensor_evidence(gradient)
+                            ),
+                            call.__setitem__(
+                                "input_gradient_full",
+                                gradient.detach().to(device="cpu", copy=True),
+                            )
+                            if retain_tensors
+                            else None,
+                            gradient,
+                        )[-1]
+                    )
+                )
+            if output.requires_grad:
+                captured["gradient_handles"].append(
+                    output.register_hook(
+                        lambda gradient: (
+                            call.__setitem__(
+                                "output_gradient", _tensor_evidence(gradient)
+                            ),
+                            call.__setitem__(
+                                "output_gradient_full",
+                                gradient.detach().to(device="cpu", copy=True),
+                            )
+                            if retain_tensors
+                            else None,
+                            gradient,
+                        )[-1]
+                    )
+                )
+        captured["calls"].append(call)
         return output
 
     handle = patch.object(module, "roi_align", new=trace_roi_align)
@@ -1134,6 +1183,114 @@ def _compare_roi_plumbing(
         "package": package_summary,
         "scatter_indices": scatter_indices,
         "surfaces": surfaces,
+    }
+
+
+def _compare_roi_gradient_probe(
+    source_capture: Mapping[str, Any], package_capture: Mapping[str, Any]
+) -> dict[str, Any]:
+    def by_level(
+        capture: Mapping[str, Any],
+    ) -> dict[tuple[int, int], Mapping[str, Any]]:
+        return {
+            (int(call["stage"]), int(call["level"])): call
+            for call in cast(list[Mapping[str, Any]], capture.get("calls", []))
+            if "input_gradient" in call or "output_gradient" in call
+        }
+
+    source_calls = by_level(source_capture)
+    package_calls = by_level(package_capture)
+    keys = sorted(set(source_calls) | set(package_calls))
+    comparisons: list[dict[str, Any]] = []
+    first_difference: str | None = None
+    for stage, level in keys:
+        source_call = source_calls.get((stage, level), {})
+        package_call = package_calls.get((stage, level), {})
+        for name in ("output_gradient", "input_gradient"):
+            source_value = source_call.get(name)
+            package_value = package_call.get(name)
+            bitwise = source_value == package_value
+            surface = f"stage{stage}.level{level}.{name}"
+            comparisons.append(
+                {
+                    "surface": surface,
+                    "source": source_value,
+                    "package": package_value,
+                    "bitwise": bitwise,
+                }
+            )
+            if first_difference is None and not bitwise:
+                first_difference = surface
+    full_gradient_comparisons: list[dict[str, Any]] = []
+    for stage, level in keys:
+        source_call = source_calls.get((stage, level), {})
+        package_call = package_calls.get((stage, level), {})
+        for name in ("output_gradient_full", "input_gradient_full"):
+            source_value = source_call.get(name)
+            package_value = package_call.get(name)
+            if not isinstance(source_value, torch.Tensor) or not isinstance(
+                package_value, torch.Tensor
+            ):
+                continue
+            source_flat = source_value.reshape(source_value.shape[0], -1)
+            package_flat = package_value.reshape(package_value.shape[0], -1)
+            difference = (source_flat - package_flat).abs()
+            differing_rows = torch.any(source_flat != package_flat, dim=1)
+            source_max = float(source_flat.abs().max()) if source_flat.numel() else 0.0
+            package_max = (
+                float(package_flat.abs().max()) if package_flat.numel() else 0.0
+            )
+            per_roi: list[dict[str, Any]] = []
+            if name == "output_gradient_full":
+                for roi_index, (source_row, package_row) in enumerate(
+                    zip(source_flat, package_flat, strict=True)
+                ):
+                    row_difference = (source_row - package_row).abs()
+                    per_roi.append(
+                        {
+                            "roi_index": roi_index,
+                            "bitwise": torch.equal(source_row, package_row),
+                            "source_contiguous_sha256": tensor_sha256(
+                                source_row.contiguous()
+                            ),
+                            "package_contiguous_sha256": tensor_sha256(
+                                package_row.contiguous()
+                            ),
+                            "max_abs": (
+                                float(row_difference.max())
+                                if row_difference.numel()
+                                else 0.0
+                            ),
+                        }
+                    )
+            full_gradient_comparisons.append(
+                {
+                    "surface": f"stage{stage}.level{level}.{name}",
+                    "shape": list(source_value.shape),
+                    "source_stride": list(source_value.stride()),
+                    "package_stride": list(package_value.stride()),
+                    "logical_bitwise": torch.equal(source_value, package_value),
+                    "source_contiguous_sha256": tensor_sha256(
+                        source_value.contiguous()
+                    ),
+                    "package_contiguous_sha256": tensor_sha256(
+                        package_value.contiguous()
+                    ),
+                    "differing_row_count": int(differing_rows.sum().item()),
+                    "first_differing_row": (
+                        int(torch.nonzero(differing_rows, as_tuple=False)[0].item())
+                        if differing_rows.any()
+                        else None
+                    ),
+                    "max_abs": float(difference.max()) if difference.numel() else 0.0,
+                    "max_rel": _max_relative_error(source_max, package_max),
+                    "per_roi": per_roi,
+                }
+            )
+    return {
+        "first_difference": first_difference,
+        "comparisons": comparisons,
+        "full_gradient_comparisons": full_gradient_comparisons,
     }
 
 
@@ -1417,6 +1574,305 @@ def _step1_sidecar_enabled() -> bool:
 
 def _backward_probe_enabled() -> bool:
     return os.environ.get("RADM_300_LOCKSTEP_BACKWARD_PROBE") == "1"
+
+
+def _backend_state() -> dict[str, Any]:
+    return {
+        "cudnn": {
+            "benchmark": bool(torch.backends.cudnn.benchmark),
+            "deterministic": bool(torch.backends.cudnn.deterministic),
+            "allow_tf32": bool(torch.backends.cudnn.allow_tf32),
+        },
+        "cuda_matmul_allow_tf32": bool(torch.backends.cuda.matmul.allow_tf32),
+        "deterministic_algorithms": bool(torch.are_deterministic_algorithms_enabled()),
+        "autocast": {
+            "cuda_enabled": bool(torch.is_autocast_enabled("cuda")),
+            "cuda_dtype": str(torch.get_autocast_dtype("cuda")),
+            "cpu_enabled": bool(torch.is_autocast_enabled("cpu")),
+            "cpu_dtype": str(torch.get_autocast_dtype("cpu")),
+        },
+    }
+
+
+def _memory_layout(value: torch.Tensor) -> dict[str, Any]:
+    return {
+        "shape": list(value.shape),
+        "stride": list(value.stride()),
+        "is_contiguous": bool(value.is_contiguous()),
+        "is_channels_last": bool(
+            value.ndim == 4 and value.is_contiguous(memory_format=torch.channels_last)
+        ),
+    }
+
+
+def _install_fpn_backend_probe(
+    model: torch.nn.Module, *, package: bool
+) -> tuple[dict[str, Any], list[Any]]:
+    backbone = cast(Any, model.backbone)
+    module = cast(
+        torch.nn.Conv2d,
+        (backbone.body.fpn.layer_blocks[0][0] if package else backbone.fpn_output2),
+    )
+    captured: dict[str, Any] = {
+        "backend_before_forward": _backend_state(),
+        "module_type": f"{module.__class__.__module__}.{module.__class__.__qualname__}",
+        "module_config": {
+            "padding": list(module.padding),
+            "padding_mode": str(module.padding_mode),
+            "stride": list(module.stride),
+            "dilation": list(module.dilation),
+            "groups": int(module.groups),
+            "has_detectron2_empty_input_branch": module.__class__.__module__.startswith(
+                "detectron2."
+            ),
+        },
+        "module": "backbone.body.fpn.layer_blocks.0.0"
+        if package
+        else "backbone.fpn_output2",
+    }
+
+    def capture_input(_module: torch.nn.Module, args: tuple[Any, ...]) -> None:
+        value = args[0]
+        if not isinstance(value, torch.Tensor):
+            raise TypeError("the FPN output convolution input must be a tensor")
+        captured["backend_at_fpn_output2"] = _backend_state()
+        captured["input_layout"] = _memory_layout(value)
+
+    def capture_backward(
+        _module: torch.nn.Module,
+        grad_input: tuple[torch.Tensor, ...] | torch.Tensor,
+        grad_output: tuple[torch.Tensor, ...] | torch.Tensor,
+    ) -> None:
+        grad_input_values = cast(tuple[torch.Tensor | None, ...], grad_input)
+        grad_output_values = cast(tuple[torch.Tensor | None, ...], grad_output)
+        captured["grad_input"] = [
+            None if value is None else _tensor_evidence(value)
+            for value in grad_input_values
+        ]
+        captured["grad_output"] = [
+            None if value is None else _tensor_evidence(value)
+            for value in grad_output_values
+        ]
+
+    return captured, [
+        module.register_forward_pre_hook(capture_input),
+        module.register_full_backward_hook(capture_backward),
+    ]
+
+
+def _compare_fpn_backend_probe(
+    source: Mapping[str, Any], package: Mapping[str, Any]
+) -> dict[str, Any]:
+    fields = (
+        "backend_before_forward",
+        "backend_at_fpn_output2",
+        "input_layout",
+        "grad_output",
+        "grad_input",
+    )
+    equality = {
+        f"{field}_equal": source.get(field) == package.get(field) for field in fields
+    }
+    first_difference = next(
+        (field for field in fields if not equality[f"{field}_equal"]), None
+    )
+    return {
+        **equality,
+        "first_difference": first_difference,
+        "source": dict(source),
+        "package": dict(package),
+    }
+
+
+def _install_activation_gradient_probe(
+    model: torch.nn.Module, *, package: bool
+) -> tuple[dict[str, Any], list[Any]]:
+    dynamic_model = cast(Any, model)
+    captured: dict[str, Any] = {"execution_order": [], "gradients": {}}
+    handles: list[Any] = []
+
+    def capture_roi_features(output: Any) -> None:
+        if isinstance(output, torch.Tensor) and "roi_features" not in captured:
+            captured["roi_features"] = _tensor_evidence(output)
+
+    def register(name: str, value: Any) -> None:
+        if not isinstance(value, torch.Tensor) or not value.requires_grad:
+            return
+
+        def capture(gradient: torch.Tensor) -> torch.Tensor:
+            captured["execution_order"].append(name)
+            captured["gradients"][name] = _tensor_evidence(gradient)
+            return gradient
+
+        handles.append(value.register_hook(capture))
+
+    def capture_backbone(
+        _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        for name, value in output.items():
+            register(f"backbone.{name}", value)
+
+    def capture_block(
+        _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        for name, value in zip(("logits", "boxes", "features"), output, strict=False):
+            register(f"head.block0.{name}", value)
+
+    def capture_head(
+        _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        register("head.logits", output[0])
+        register("head.boxes", output[1])
+
+    def register_tensors(name: str, value: Any) -> None:
+        if isinstance(value, torch.Tensor):
+            register(name, value)
+            return
+        if isinstance(value, (tuple, list)):
+            for index, item in enumerate(value):
+                register_tensors(f"{name}.{index}", item)
+            return
+        if isinstance(value, Mapping):
+            for key, item in value.items():
+                register_tensors(f"{name}.{key}", item)
+
+    def capture_block_input(_module: torch.nn.Module, inputs: tuple[Any, ...]) -> None:
+        register_tensors("head.block0.input", inputs)
+        if package and len(inputs) > 1:
+            capture_roi_features(inputs[1])
+
+    def capture_submodule_input(
+        name: str, _module: torch.nn.Module, inputs: tuple[Any, ...]
+    ) -> None:
+        register_tensors(f"{name}.input", inputs)
+
+    def capture_submodule_output(
+        name: str, _module: torch.nn.Module, output: Any
+    ) -> None:
+        register_tensors(f"{name}.output", output)
+
+    first_block = (
+        dynamic_model.head.head_series[0]
+        if hasattr(dynamic_model.head, "head_series")
+        else dynamic_model.head.blocks[0]
+    )
+    handles.extend(
+        [
+            dynamic_model.backbone.register_forward_hook(capture_backbone),
+            dynamic_model.head.register_forward_hook(capture_head),
+            first_block.register_forward_hook(capture_block),
+            first_block.register_forward_pre_hook(capture_block_input),
+        ]
+    )
+    if not package:
+        handles.append(
+            dynamic_model.head.box_pooler.register_forward_hook(
+                lambda _module, _inputs, output: capture_roi_features(output)
+            )
+        )
+    block_prefix = "head.head_series.0" if not package else "head.blocks.0"
+    for relative_name, submodule in first_block.named_modules():
+        if not relative_name:
+            continue
+        canonical_name = f"{block_prefix}.{relative_name}"
+
+        handles.append(
+            submodule.register_forward_pre_hook(
+                lambda _module, inputs, name=canonical_name: capture_submodule_input(
+                    name, _module, inputs
+                )
+            )
+        )
+        handles.append(
+            submodule.register_forward_hook(
+                lambda _module, _inputs, output, name=canonical_name: (
+                    capture_submodule_output(name, _module, output)
+                )
+            )
+        )
+    captured["system"] = "package" if package else "source"
+    return captured, handles
+
+
+def _compare_activation_gradient_probe(
+    source: Mapping[str, Any], package: Mapping[str, Any]
+) -> dict[str, Any]:
+    source_gradients = cast(dict[str, Any], source.get("gradients", {}))
+    package_gradients = cast(dict[str, Any], package.get("gradients", {}))
+
+    def package_name(source_name: str) -> str:
+        mapped = source_name.replace("head.head_series.0.", "head.blocks.0.", 1)
+        if mapped.endswith(".GRAM.input.2"):
+            return mapped.removesuffix(".GRAM.input.2") + ".GRAM.input.1"
+        if mapped.endswith(".GRAM.input.1"):
+            return mapped.removesuffix(".GRAM.input.1") + ".GRAM.input.0"
+        return mapped.replace("head.block0.input.7", "head.block0.input.6", 1)
+
+    def tensors_equal(source_value: Any, package_value: Any) -> bool:
+        if source_value == package_value:
+            return True
+        if not isinstance(source_value, Mapping) or not isinstance(
+            package_value, Mapping
+        ):
+            return False
+        source_sha = source_value.get("sha256")
+        package_sha = package_value.get("sha256")
+        source_shape = source_value.get("shape")
+        package_shape = package_value.get("shape")
+        if (
+            source_sha is None
+            or source_sha != package_sha
+            or source_value.get("dtype") != package_value.get("dtype")
+            or not isinstance(source_shape, list)
+            or not isinstance(package_shape, list)
+        ):
+            return False
+        return math.prod(source_shape) == math.prod(package_shape)
+
+    source_order = [str(name) for name in source.get("execution_order", [])]
+    package_order = [str(name) for name in package.get("execution_order", [])]
+    names = list(source_order)
+    mapped_source_names = {package_name(source_name) for source_name in source_order}
+    names.extend(name for name in package_order if name not in mapped_source_names)
+    comparisons: list[dict[str, Any]] = []
+    first_difference: str | None = None
+    for name in names:
+        source_value = source_gradients.get(name)
+        mapped_name = package_name(name)
+        if name not in source_gradients:
+            mapped_name = name
+        package_value = package_gradients.get(mapped_name)
+        bitwise = tensors_equal(source_value, package_value)
+        comparisons.append(
+            {
+                "name": name,
+                "package_name": mapped_name,
+                "source": source_value,
+                "package": package_value,
+                "bitwise": bitwise,
+                "shape_equal": (
+                    source_value is not None
+                    and package_value is not None
+                    and source_value.get("shape") == package_value.get("shape")
+                    if isinstance(source_value, Mapping)
+                    and isinstance(package_value, Mapping)
+                    else source_value == package_value
+                ),
+            }
+        )
+        if first_difference is None and not bitwise:
+            first_difference = name
+    return {
+        "source_execution_order": source_order,
+        "package_execution_order": package_order,
+        "roi_features": {
+            "source": source.get("roi_features"),
+            "package": package.get("roi_features"),
+            "bitwise": source.get("roi_features") == package.get("roi_features"),
+        },
+        "comparisons": comparisons,
+        "first_difference": first_difference,
+    }
 
 
 def _install_backward_probe(
@@ -2613,9 +3069,12 @@ def _run_lockstep(
     step1_localization_sha256: str | None = None
     step1_head_comparison: dict[str, Any] | None = None
     step1_roi_plumbing: dict[str, Any] | None = None
+    step1_roi_gradient_probe: dict[str, Any] | None = None
     step1_time_mlp_invocation_comparison: dict[str, Any] | None = None
     step1_time_mlp_internal_comparison: dict[str, Any] | None = None
     step1_package_roi_capture: dict[str, Any] | None = None
+    step1_backend_probe: dict[str, Any] | None = None
+    step1_activation_gradient_probe: dict[str, Any] | None = None
     step1_backward_probe: dict[str, Any] | None = None
     step1_backward_probe_sha256: str | None = None
     step1_backward_probe_file_sha256: str | None = None
@@ -2666,10 +3125,20 @@ def _run_lockstep(
         package_handles: list[Any] = []
         package_roi_capture: dict[str, Any] = {}
         package_roi_handles: list[Any] = []
+        package_backend_capture: dict[str, Any] = {}
+        package_backend_handles: list[Any] = []
+        package_activation_capture: dict[str, Any] = {}
+        package_activation_handles: list[Any] = []
         if step == capture_step and sidecar_path is not None:
             package_capture, package_handles = _install_trace_hooks(package)
             package_roi_capture, package_roi_handles = _install_roi_plumbing_hooks(
                 package=True
+            )
+            package_backend_capture, package_backend_handles = (
+                _install_fpn_backend_probe(package, package=True)
+            )
+            package_activation_capture, package_activation_handles = (
+                _install_activation_gradient_probe(package, package=True)
             )
         package_backward_capture: dict[str, Any] = {}
         package_backward_handles: list[Any] = []
@@ -2692,10 +3161,16 @@ def _run_lockstep(
                 handle.remove()
             for handle in package_roi_handles:
                 handle.stop()
+            for handle in package_backend_handles:
+                handle.remove()
         try:
             package_total.backward()
         finally:
             for handle in package_backward_handles:
+                handle.remove()
+            for handle in package_activation_handles:
+                handle.remove()
+            for handle in package_roi_capture.pop("gradient_handles", []):
                 handle.remove()
         if step == capture_step and sidecar_path is not None:
             step1_package_roi_capture = package_roi_capture
@@ -2778,6 +3253,8 @@ def _run_lockstep(
                 "time_mlp_linear2_parameters": package_capture.get(
                     "time_mlp_linear2_parameters"
                 ),
+                "backend_probe": package_backend_capture,
+                "activation_gradient_probe": package_activation_capture,
                 "capture": package_capture,
                 "head_outputs": {
                     "logits": package_capture.get("head_logits"),
@@ -2889,6 +3366,10 @@ def _run_lockstep(
             source_handles: list[Any] = []
             source_roi_capture: dict[str, Any] = {}
             source_roi_handles: list[Any] = []
+            source_backend_capture: dict[str, Any] = {}
+            source_backend_handles: list[Any] = []
+            source_activation_capture: dict[str, Any] = {}
+            source_activation_handles: list[Any] = []
             source_backward_capture: dict[str, Any] = {}
             source_backward_handles: list[Any] = []
             capture_preprocess_image: Any = None
@@ -2897,6 +3378,12 @@ def _run_lockstep(
                 source_capture, source_handles = _install_trace_hooks(source_model)
                 source_roi_capture, source_roi_handles = _install_roi_plumbing_hooks(
                     package=False
+                )
+                source_backend_capture, source_backend_handles = (
+                    _install_fpn_backend_probe(source_model, package=False)
+                )
+                source_activation_capture, source_activation_handles = (
+                    _install_activation_gradient_probe(source_model, package=False)
                 )
                 original_preprocess_image = source_model.preprocess_image
                 original_prepare_targets = source_model.prepare_targets
@@ -2946,6 +3433,8 @@ def _run_lockstep(
                 handle.remove()
             for handle in source_roi_handles:
                 handle.stop()
+            for handle in source_backend_handles:
+                handle.remove()
             if step == capture_step and sidecar_path is not None:
                 source_head_inputs = cast(
                     dict[str, Any], source_capture.setdefault("head_inputs", {})
@@ -2959,6 +3448,10 @@ def _run_lockstep(
                 source_total.backward()
             finally:
                 for handle in source_backward_handles:
+                    handle.remove()
+                for handle in source_activation_handles:
+                    handle.remove()
+                for handle in source_roi_capture.pop("gradient_handles", []):
                     handle.remove()
             source_gradients = _snapshot_gradients(
                 source_state.model, source_state.optimizer
@@ -3017,6 +3510,10 @@ def _run_lockstep(
                     step1_package_sidecar["capture"]["block_input_boxes"],
                     source_capture["stage0_roi_features"],
                     step1_package_sidecar["capture"]["stage0_roi_features"],
+                )
+                step1_roi_gradient_probe = _compare_roi_gradient_probe(
+                    source_roi_capture,
+                    step1_package_roi_capture,
                 )
                 for head_index in range(source_logits.shape[0]):
                     source_matches, _ = source_model.criterion.matcher(
@@ -3087,6 +3584,14 @@ def _run_lockstep(
                         "time_mlp_linear2_parameters"
                     ),
                 }
+                step1_backend_probe = _compare_fpn_backend_probe(
+                    source_backend_capture,
+                    step1_package_sidecar["backend_probe"],
+                )
+                step1_activation_gradient_probe = _compare_activation_gradient_probe(
+                    source_activation_capture,
+                    step1_package_sidecar["activation_gradient_probe"],
+                )
                 step1_localization_sha256 = _write_json_evidence(
                     cast(Path, localization_path),
                     {
@@ -3096,8 +3601,11 @@ def _run_lockstep(
                         "image_shapes": step1_package_sidecar["image_shapes"],
                         "comparison": step1_head_comparison,
                         "roi_plumbing": step1_roi_plumbing,
+                        "roi_gradient_probe": step1_roi_gradient_probe,
                         "time_mlp_invocations": step1_time_mlp_invocation_comparison,
                         "time_mlp_internal": step1_time_mlp_internal_comparison,
+                        "backend_probe": step1_backend_probe,
+                        "activation_gradient_probe": step1_activation_gradient_probe,
                     },
                 )
                 step1_sidecar_sha256 = _write_step1_sidecar(
@@ -3427,6 +3935,9 @@ def _run_lockstep(
         "step1_localization_sha256": step1_localization_sha256,
         "step1_head_comparison": step1_head_comparison,
         "step1_roi_plumbing": step1_roi_plumbing,
+        "step1_roi_gradient_probe": step1_roi_gradient_probe,
+        "step1_backend_probe": step1_backend_probe,
+        "step1_activation_gradient_probe": step1_activation_gradient_probe,
         "step1_time_mlp_invocation_comparison": step1_time_mlp_invocation_comparison,
         "step1_time_mlp_internal_comparison": step1_time_mlp_internal_comparison,
         "step1_backward_probe_path": (
@@ -3572,6 +4083,35 @@ def test_radm_300_step_cgl_lockstep() -> None:
     except ReferenceUnavailable as exc:
         pytest.fail(str(exc))
     assert report["records"] == steps
+    if steps == 1 and report.get("step1_head_comparison") is not None:
+        head_comparison = cast(Mapping[str, Any], report["step1_head_comparison"])
+        assert head_comparison["first_non_bitwise"] is None, json.dumps(
+            head_comparison, sort_keys=True
+        )
+        backend_probe = cast(Mapping[str, Any], report["step1_backend_probe"])
+        assert backend_probe["grad_output_equal"] is True, json.dumps(
+            backend_probe, sort_keys=True
+        )
+        roi_gradient_probe = cast(Mapping[str, Any], report["step1_roi_gradient_probe"])
+        output_gradients = [
+            cast(Mapping[str, Any], comparison)
+            for comparison in roi_gradient_probe["full_gradient_comparisons"]
+            if str(comparison["surface"]).endswith("output_gradient_full")
+        ]
+        assert output_gradients, json.dumps(roi_gradient_probe, sort_keys=True)
+        for comparison in output_gradients:
+            assert comparison["source_stride"] == [12544, 1, 1792, 256], json.dumps(
+                comparison, sort_keys=True
+            )
+            assert comparison["package_stride"] == [12544, 1, 1792, 256], json.dumps(
+                comparison, sort_keys=True
+            )
+            assert comparison["source_stride"] == comparison["package_stride"], (
+                json.dumps(comparison, sort_keys=True)
+            )
+            assert comparison["logical_bitwise"] is True, json.dumps(
+                comparison, sort_keys=True
+            )
     if steps == _STEPS:
         first_divergence = cast(Mapping[str, object] | None, report["first_divergence"])
         assert first_divergence is not None, json.dumps(report, sort_keys=True)
