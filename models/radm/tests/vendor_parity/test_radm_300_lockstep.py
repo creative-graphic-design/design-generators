@@ -4114,8 +4114,4 @@ def test_radm_300_step_cgl_lockstep() -> None:
             )
     if steps == _STEPS:
         first_divergence = cast(Mapping[str, object] | None, report["first_divergence"])
-        assert first_divergence is not None, json.dumps(report, sort_keys=True)
-        assert first_divergence["step"] == 2, json.dumps(report, sort_keys=True)
-        assert first_divergence["surface"] == (
-            "preclip_gradients.backbone.body.body.layer3.2.conv2.weight"
-        ), json.dumps(report, sort_keys=True)
+        assert first_divergence is None, json.dumps(report, sort_keys=True)
