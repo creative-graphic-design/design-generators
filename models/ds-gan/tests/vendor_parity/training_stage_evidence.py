@@ -862,6 +862,35 @@ def _batch_stream_report(
     }
 
 
+def _paired_training_iterators(
+    vendor_loader: DataLoader[Any], package_loader: DataLoader[Any]
+) -> tuple[Iterator[Any], Iterator[Any], dict[str, Any]]:
+    package_generator = package_loader.generator
+    if not isinstance(package_generator, torch.Generator):
+        raise RuntimeError("package DataModule loader has no seeded torch.Generator")
+
+    pre_iterator_state = capture_rng_state().torch_cpu.detach().clone()
+    vendor_iterator = iter(vendor_loader)
+    vendor_post_iterator_state = capture_rng_state().torch_cpu.detach().clone()
+    package_generator.set_state(pre_iterator_state)
+    package_iterator = iter(package_loader)
+    package_post_iterator_state = package_generator.get_state().detach().clone()
+    return (
+        vendor_iterator,
+        package_iterator,
+        {
+            "pre_iterator_torch_cpu": tensor_sha256(pre_iterator_state),
+            "vendor_post_iterator_torch_cpu": tensor_sha256(vendor_post_iterator_state),
+            "package_post_iterator_torch_cpu": tensor_sha256(
+                package_post_iterator_state
+            ),
+            "post_iterator_states_equal": bool(
+                torch.equal(vendor_post_iterator_state, package_post_iterator_state)
+            ),
+        },
+    )
+
+
 def _sample_ids(batch: torch.Tensor) -> list[str]:
     return [tensor_sha256(sample) for sample in batch]
 
@@ -3997,18 +4026,22 @@ def run_s3_synchronized() -> Path:
     vendor_loader, _ = _vendor_loaders(SEED)
     _set_determinism(SEED)
     package_loader, _ = _package_loaders(SEED)
-    vendor_iterator = iter(vendor_loader)
-    package_iterator = iter(package_loader)
+    vendor_iterator, package_iterator, loader_alignment = _paired_training_iterators(
+        vendor_loader, package_loader
+    )
+    loader_alignments = [{"epoch": 1, **loader_alignment}]
     rows: list[dict[str, Any]] = []
     pre_synchronization_mismatches = 0
     for step in range(1, LOCKSTEP_STEPS + 1):
         epoch = (step - 1) // TRAIN_BATCHES_PER_EPOCH + 1
         if step > 1 and (step - 1) % TRAIN_BATCHES_PER_EPOCH == 0:
-            vendor_iterator = iter(vendor_loader)
-            package_iterator = iter(package_loader)
+            vendor_iterator, package_iterator, loader_alignment = (
+                _paired_training_iterators(vendor_loader, package_loader)
+            )
+            loader_alignments.append({"epoch": epoch, **loader_alignment})
         vendor_batch = _vendor_batch(next(vendor_iterator), device)
         package_batch = _package_batch(next(package_iterator), device)
-        batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
+        batch_report, batch_identity = _batch_stream_report(package_batch, vendor_batch)
         if not batch_report.passed:
             pre_synchronization_mismatches += 1
             package_batch = {
@@ -4030,6 +4063,7 @@ def run_s3_synchronized() -> Path:
             repeat_pair,
         )
         row["batch_stream"] = {
+            **batch_identity,
             "passed_before_synchronization": batch_report.passed,
             "synchronized_batch_source": (
                 "independent_package_loader"
@@ -4144,6 +4178,7 @@ def run_s3_synchronized() -> Path:
             },
             "natural_record": ".cache/ds-gan/stage-evidence/s3-lockstep/run.json",
             "pre_synchronization_loader_mismatch_steps": pre_synchronization_mismatches,
+            "synchronized_loader_rng_alignment": loader_alignments,
             "synchronized_batch_policy": (
                 "copy vendor batch into the package step when independent loader streams differ"
             ),
