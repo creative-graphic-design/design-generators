@@ -2014,7 +2014,7 @@ def _stream_split(
 ) -> dict[str, object]:
     vendor_dataset = _vendor_dataset(dataset, data_root, split)
     package_dataset = LaceProcessedDataset(
-        processed_data_dir=data_root,
+        processed_data_dir=_processed_root(data_root, dataset),
         dataset_name=cast(LaceTrainingDatasetName, dataset),
         split=cast(LaceTrainingSplit, _package_split(split)),
         max_seq_length=25,

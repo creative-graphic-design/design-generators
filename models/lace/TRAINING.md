@@ -161,7 +161,7 @@ curl --fail --location --output "$LACE_FID_ROOT/fid/model.py" "https://raw.githu
 curl --fail --location --output .cache/lace/original/layoutdm_starter.zip https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip
 unzip -o .cache/lace/original/layoutdm_starter.zip 'fid_weights/FIDNetV3/*/model_best.pth.tar' -d .cache/lace/original/layoutdm-unpacked
 cp -a .cache/lace/original/layoutdm-unpacked/fid_weights/FIDNetV3/. "$LACE_FID_ROOT/FIDNetV3/"
-PYTHONPATH="vendor/lace:$LACE_FID_ROOT" "$LACE_AUDIT_VENV/bin/python" - <<'PY'
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="vendor/lace:$LACE_FID_ROOT" "$LACE_AUDIT_VENV/bin/python" -B - <<'PY'
 import os
 import pickle
 from pathlib import Path
