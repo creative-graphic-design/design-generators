@@ -1170,8 +1170,7 @@ def _traingen_command(
         str(steps),
         "--trainer.default_root_dir",
         str(run_root.relative_to(ROOT)),
-        "--trainer.callbacks+=",
-        "lace.training.trace.LaceTrainingTraceCallback",
+        "--trainer.callbacks+=lace.training.trace.LaceTrainingTraceCallback",
     ]
 
 
