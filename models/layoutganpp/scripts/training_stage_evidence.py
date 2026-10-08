@@ -24,6 +24,7 @@ from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import torch
+import torch.version
 from jaxtyping import Float, Int, Shaped
 from lightning.pytorch import Callback, LightningModule, Trainer
 from lightning.pytorch.utilities.types import STEP_OUTPUT
