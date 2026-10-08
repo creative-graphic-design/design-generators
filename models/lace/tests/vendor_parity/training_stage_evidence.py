@@ -47,21 +47,6 @@ DEFAULT_OUTPUT_ROOT = ROOT / ".cache" / "lace" / "stage-evidence"
 LACE_CHECKPOINT_SOURCE_URL = (
     "https://huggingface.co/datasets/puar-playground/LACE/resolve/main/model.tar.gz"
 )
-FID_EVALUATOR_ACQUISITION_COMMAND = (
-    'mkdir -p "$LACE_FID_ROOT/fid" && '
-    'curl --fail --location --output "$LACE_FID_ROOT/fid/model.py" '
-    '"https://raw.githubusercontent.com/CyberAgentAILab/layout-dm/873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py"'
-)
-FIDNET_V3_ACQUISITION_COMMAND = (
-    "curl --fail --location --output .cache/lace/original/layoutdm_starter.zip "
-    "https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip && unzip -o "
-    ".cache/lace/original/layoutdm_starter.zip "
-    "'download/fid_weights/FIDNetV3/*/model_best.pth.tar' -d "
-    ".cache/lace/original/layoutdm-unpacked && cp -a "
-    ".cache/lace/original/layoutdm-unpacked/download/fid_weights/FIDNetV3/. "
-    '"$LACE_FID_ROOT/FIDNetV3/"'
-)
-
 sys.path.insert(0, str(ROOT / "vendor" / "lace"))
 
 from model_diffusion import Diffusion as VendorDiffusion  # noqa: E402
@@ -153,10 +138,6 @@ def _fid_provenance(
     provenance = json.loads(metadata_path.read_text())
     if not isinstance(provenance, dict):
         raise TypeError("FID provenance must be a JSON object")
-    fid_evaluator = cast(dict[str, object], provenance["fid_evaluator"])
-    fid_evaluator["acquisition_command"] = FID_EVALUATOR_ACQUISITION_COMMAND
-    fidnet_v3 = cast(dict[str, object], provenance["fidnet_v3"])
-    fidnet_v3["acquisition_command"] = FIDNET_V3_ACQUISITION_COMMAND
     model_path = fid_root / "fid" / "model.py"
     weight_path = fid_root / "FIDNetV3" / f"{dataset}-max25" / "model_best.pth.tar"
     feature_path = fid_root / "feature" / f"fid_feat_test_{dataset}.pk"
@@ -187,42 +168,6 @@ def _fid_provenance(
     }
     provenance["fid_evaluator_path"] = "<LACE_FID_ROOT>/fid/model.py"
     return provenance
-
-
-def _repair_fid_provenance(args: argparse.Namespace) -> Path:
-    fid_root = Path(args.fid_root)
-    s4_root = Path(args.s4_root) / "s4-loader-evaluation"
-    provenance_path = fid_root / "provenance.json"
-    provenance = json.loads(provenance_path.read_text())
-    if not isinstance(provenance, dict):
-        raise TypeError("FID provenance must be a JSON object")
-    fid_evaluator = cast(dict[str, object], provenance["fid_evaluator"])
-    fid_evaluator["acquisition_command"] = FID_EVALUATOR_ACQUISITION_COMMAND
-    fidnet_v3 = cast(dict[str, object], provenance["fidnet_v3"])
-    fidnet_v3["acquisition_command"] = FIDNET_V3_ACQUISITION_COMMAND
-    feature_cache = cast(dict[str, object], provenance["feature_cache"])
-    vendor_commit = str(feature_cache["source_commit"])
-    _write_json(fid_root, "provenance.json", provenance)
-
-    summary_path = s4_root / "summary.json"
-    summary = json.loads(summary_path.read_text())
-    if not isinstance(summary, dict):
-        raise TypeError("S4 summary must be a JSON object")
-    evaluations = cast(dict[str, object], summary["evaluations"])
-    for dataset in ("publaynet", "rico25"):
-        evaluation_path = s4_root / f"{dataset}-evaluation" / "evaluation.json"
-        evaluation = json.loads(evaluation_path.read_text())
-        if not isinstance(evaluation, dict):
-            raise TypeError("S4 evaluation must be a JSON object")
-        evaluation_test_split = cast(dict[str, object], evaluation["test_split"])
-        fid_metadata = _fid_provenance(fid_root, dataset, vendor_commit)
-        evaluation_test_split["fid"] = fid_metadata
-        evaluation["fid"] = fid_metadata
-        _write_json(evaluation_path.parent, evaluation_path.name, evaluation)
-        summary_evaluation = cast(dict[str, object], evaluations[dataset])
-        summary_test_split = cast(dict[str, object], summary_evaluation["test_split"])
-        summary_test_split["fid"] = fid_metadata
-    return _write_json(s4_root, "summary.json", summary)
 
 
 def _source_entrypoint(function: Callable[..., object]) -> str:
@@ -2685,9 +2630,7 @@ def run_s4(args: argparse.Namespace) -> Path:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "stage", choices=("s0", "s1", "s2", "s3", "s4", "repair-fid-provenance")
-    )
+    parser.add_argument("stage", choices=("s0", "s1", "s2", "s3", "s4"))
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument(
         "--dataset", default="publaynet", choices=("publaynet", "rico25")
@@ -2713,7 +2656,6 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--evaluation-ddim-steps", type=int, default=100)
     parser.add_argument("--fid-root", type=Path, default=None)
-    parser.add_argument("--s4-root", type=Path, default=None)
     parser.add_argument(
         "--deterministic-algorithms",
         action="store_true",
@@ -2740,10 +2682,6 @@ def _parse_args() -> argparse.Namespace:
         args.lace_data_root is None or args.checkpoint_root is None
     ):
         parser.error("s4 requires --lace-data-root and --checkpoint-root")
-    if args.stage == "repair-fid-provenance" and (
-        args.fid_root is None or args.s4_root is None
-    ):
-        parser.error("repair-fid-provenance requires --fid-root and --s4-root")
     return args
 
 
@@ -2760,7 +2698,6 @@ def main() -> None:
         "s2": run_s2,
         "s3": run_s3,
         "s4": run_s4,
-        "repair-fid-provenance": _repair_fid_provenance,
     }
     path = runners[args.stage](args)
     print(path.resolve().relative_to(ROOT))
