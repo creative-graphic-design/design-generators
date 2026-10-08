@@ -145,7 +145,7 @@ The S3 natural record includes the systematic causes fixed during implementation
 
 ## Regeneration Metadata
 
-S0-S3 evidence source commit `d893c9a26ece2dfc35bba254d0f88e14ae5f3db3` and S4 evidence source commit `53b4fc562409e49f084ef19fa51f042f0cc8b4a8` are ancestors of the final PR head. The audited runtime freeze SHA-256 is `bcc0e50d5c4434d0e3e88d29496ef24ac3dbc89a49c8c0cdfd258b09bcad9409`; evidence ran on GPU 0 with 16 loader workers. The retained vendor evaluation outputs came from sweep source commit `5ee3af2`; the final comparison reused those outputs while executing the package pipeline at the S4 evidence commit.
+S0-S3 evidence source commit `d893c9a26ece2dfc35bba254d0f88e14ae5f3db3` and S4 evidence source commit `53b4fc562409e49f084ef19fa51f042f0cc8b4a8` are ancestors of the final PR head. The audited runtime freeze SHA-256 is `bcc0e50d5c4434d0e3e88d29496ef24ac3dbc89a49c8c0cdfd258b09bcad9409`; evidence ran on GPU 0 with 16 loader workers. The retained vendor evaluation outputs came from sweep source commit `5ee3af2`; the final comparison reused those outputs while executing the package pipeline at the S4 evidence commit. `git diff --stat 53b4fc5 74704f0 -- models/layout-corrector/src models/layout-dm/src` is empty, so the merge changed neither package source path and did not invalidate S0-S3.
 
 ```text
 .cache/layout-corrector/stage-evidence/s0-static/<dataset>/summary.json
