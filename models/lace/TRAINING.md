@@ -8,189 +8,127 @@ tags:
 
 # LACE Training
 
-This document is for a first-time contributor who needs to reproduce the package-local LACE checks. The ordered stages and their gate rules are defined in [the training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md). The completed evidence covers PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical training remains S5 and has not been run.
+Package-local LACE reproduction passes the asserted S0-S4 gates for PubLayNet and RICO25. The evidence covers exact initialization, fixed-batch and optimizer-step traces, 300 natural training steps, the bounded production-wiring run, the complete processed loader streams, and the full TEST evaluation path. S5 full-run statistical reproduction is not claimed.
 
 Run commands from the repository root. Generated data, logs, checkpoints, runtime metadata, and evaluation artifacts stay under `.cache/lace/` and are not committed.
 
 ## Install
 
-The lockfile environment is used for CPU checks and repository tests. Every `uv` command below is frozen.
-
 ```bash
 UV_FROZEN=1 uv sync --package lace --extra training --extra vendor
 ```
 
-The verified CUDA runtime is supplied through `LACE_AUDIT_VENV=<your audit venv>`; select one device with `CUDA_VISIBLE_DEVICES=<gpu>`. No host path is part of the package configuration.
+The verified CUDA runtime is selected through `LACE_AUDIT_VENV=<your audit venv>` and one selected device through `CUDA_VISIBLE_DEVICES=<gpu>`. The audited freeze contains editable `lace`, `laygen`, `traingen`, and `traingen-parity` installs, torch `2.8.0+cu128`, and torchvision `0.23.0+cu128`.
 
 ```bash
-LACE_AUDIT_VENV="<your audit venv>"
-python3.11 -m venv "$LACE_AUDIT_VENV"
-"$LACE_AUDIT_VENV/bin/python" -m pip install --upgrade pip
-"$LACE_AUDIT_VENV/bin/python" -m pip install --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple "torch==2.8.0" "torchvision==0.23.0"
-"$LACE_AUDIT_VENV/bin/python" -m pip install lightning torch-geometric datasets fsspec matplotlib pycocotools seaborn tqdm
-"$LACE_AUDIT_VENV/bin/python" -m pip install --no-deps -e models/lace
+export LACE_AUDIT_VENV="<your audit venv>"
+export CUDA_VISIBLE_DEVICES="<gpu>"
 ```
-
-At run time, the harness records `torch.__version__`, both distributions' `direct_url.json`, their wheel SHA-256 values, and a `pip freeze` artifact and SHA-256. The S0-S3 records were produced with Python 3.11 and torch `2.8.0+cu128`; S4 records the complete runtime metadata in its own artifact.
 
 ## Data
 
-The approved sources are [creative-graphic-design/PubLayNet](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) and the `ui-screenshots-and-hierarchies-with-semantic-annotations` configuration of [creative-graphic-design/Rico](https://huggingface.co/datasets/creative-graphic-design/Rico), as specified by [the repository data-source policy](https://github.com/creative-graphic-design/design-generators/blob/main/docs/data-sources.md). The processed files are made with LACE's own `InMemoryDataset` `process()` path from those approved sources and are consumed by every evidence stage:
+The claimed datasets are [creative-graphic-design/PubLayNet](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) and the `ui-screenshots-and-hierarchies-with-semantic-annotations` configuration of [creative-graphic-design/Rico](https://huggingface.co/datasets/creative-graphic-design/Rico). The package and evidence harness consume LACE's processed stream:
 
 ```text
 .cache/lace/data/<dataset>-max25/processed/{train,val,test}.pt
 ```
 
-The acquisition and processing command is the vendor-faithful dataset constructor, with the raw approved-source files supplied at `LACE_RAW_DATA_ROOT`:
+| Dataset   | Source                              | Config or path                                                   |
+| --------- | ----------------------------------- | ---------------------------------------------------------------- |
+| PubLayNet | `creative-graphic-design/PubLayNet` | `.cache/lace/data/publaynet-max25/processed/{train,val,test}.pt` |
+| RICO25    | `creative-graphic-design/Rico`      | `.cache/lace/data/rico25-max25/processed/{train,val,test}.pt`    |
 
-```bash
-PYTHONPATH=vendor/lace "$LACE_AUDIT_VENV/bin/python" -c "from util.datasets.publaynet import PubLayNetDataset; from util.datasets.rico import Rico25Dataset; PubLayNetDataset(dir='$LACE_RAW_DATA_ROOT', max_seq_length=25); Rico25Dataset(dir='$LACE_RAW_DATA_ROOT', max_seq_length=25)"
-```
-
-The evidence stream is LACE's own `InMemoryDataset` processed stream because the vendor constructors produce the `processed/*.pt` files used by training and evaluation. The approved-source and stream decision is recorded in the [issue 423 amendment](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247).
-
-| Dataset   |                      Processed layouts |                         Processed elements | Evidence stream                                                  |
-| --------- | -------------------------------------: | -----------------------------------------: | ---------------------------------------------------------------- |
-| PubLayNet | train 315,757; val 16,619; test 11,142 | train 3,033,717; val 159,541; test 119,402 | `.cache/lace/data/publaynet-max25/processed/{train,val,test}.pt` |
-| RICO25    |   train 358,510; val 2,109; test 4,218 |   train 3,954,250; val 23,650; test 47,129 | `.cache/lace/data/rico25-max25/processed/{train,val,test}.pt`    |
-
-The S0 source records show identical record IDs and element tuples for PubLayNet and for RICO25 validation and TEST against the LayoutDM compatibility files; those cross-source serialized files have different file SHA-256 values by design. RICO25 training is intentionally the LACE tenfold repeated source stream. A separate legacy-root versus direct-processed-root check produced identical file, loaded-dataset, and sample-ID hashes for all six splits, so the S0-S3 evidence remains valid under the rerun rule.
+The approved source and processed-stream amendment is recorded in [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247). The machine-written dataset identity proof `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/dataset-path-identity.json` has SHA-256 `d6cf7b0f68ac34a47e142a427c2f227ed07ad32d4a0dc429292a8ae198fca2ba` and records equal file, loaded-dataset, and sample-ID hashes for all six split pairs.
 
 ## Configs
 
-Training configs live under `models/lace/configs/training` and use the processed directory directly.
+Training configs live under `models/lace/configs/training`.
 
-| Config                              | Dataset   | Seed mode     | Purpose                               |
-| ----------------------------------- | --------- | ------------- | ------------------------------------- |
-| `lace_publaynet.yaml`               | PubLayNet | default       | Package training recipe.              |
-| `lace_rico25.yaml`                  | RICO25    | default       | Package training recipe.              |
-| `lace_publaynet_deterministic.yaml` | PubLayNet | deterministic | Controlled deterministic diagnostics. |
-| `lace_rico25_deterministic.yaml`    | RICO25    | deterministic | Controlled deterministic diagnostics. |
-
-`models/lace/tests/test_training_configs.py` instantiates all four YAML files and asserts their resolved processed roots.
+| Config                              | Dataset   | Seed mode     | Purpose                  |
+| ----------------------------------- | --------- | ------------- | ------------------------ |
+| `lace_publaynet.yaml`               | PubLayNet | default       | Package training recipe. |
+| `lace_rico25.yaml`                  | RICO25    | default       | Package training recipe. |
+| `lace_publaynet_deterministic.yaml` | PubLayNet | deterministic | Controlled evidence run. |
+| `lace_rico25_deterministic.yaml`    | RICO25    | deterministic | Controlled evidence run. |
 
 ## Scheduler and Recipe Notes
 
-The source recipe uses dimension 1024, four transformer layers, feed-forward dimension 2048, batch size 256, learning rate `1e-5`, 1,000 diffusion timesteps, gradient clipping at norm 1.0, and Adam with betas `(0.9, 0.999)`, epsilon `1e-8`, zero weight decay, and no AMSGrad. There is no scheduler. EMA is registered before the first optimizer step with `mu=0.9999` and updated after `optimizer.step()`.
+The recipe uses batch size 256, learning rate `1e-5`, Adam with betas `(0.9, 0.999)`, epsilon `1e-8`, zero weight decay, gradient clipping at norm 1.0, and EMA `mu=0.9999` updated after `optimizer.step()`. The package configs and shipped vendor loader use `num_workers=4` with pinned memory; the exact evidence harness uses `num_workers=0` and `pin_memory=False`, while the production-wiring row uses the shipped config and therefore records the shipped worker setting.
 
-The adapter executes the vendor iteration in this order: `sample_t`, `forward_t`, loss computation, `optimizer.zero_grad`, backward, `clip_grad_norm_`, `optimizer.step`, and `ema.update`. The package side uses the production Lightning training path.
+- Scheduler cadence — not applicable: the LACE optimizer has no learning-rate scheduler.
+- AMP scale state — not applicable: AMP is disabled in the recorded recipe.
+- S4/S5 data path — amended by [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247): use LACE's processed stream from the approved sources.
+- Sampler activation — applicable: both loops execute the vendor timestep-sampling branch over the configured training range.
+- EMA activation — applicable: EMA is registered before the first optimizer step and updated after the optimizer step.
+- Multi-worker loader — applicable: shipped and production settings use 4 workers; exact evidence uses 0 workers and records that deviation.
 
-| Fix                                     | Regression test                                                                                 |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| x0 reconstruction arithmetic            | `training_stage_evidence.py s1` and `s2` exact reconstruction and loss traces for both datasets |
-| GPU positional-embedding device         | `test_s0_copied_checkpoint_forward_matches_package` and the CUDA S1 trace                       |
-| Scheduler device-local cumulative alpha | `test_training_cumulative_alphas_use_requested_device` and exact S1/S2 trace records            |
-| EMA operation order                     | `test_training_config_seed_and_ema` and exact S2 post-step EMA records                          |
-| Alignment autograd helper order         | `test_training_loss_helpers_cover_reference_operations` and exact S1/S2 loss records            |
+The pre-evidence fixes are recorded as fixes with regression tests:
 
-The following protocol rules are inapplicable to this evidence: `Scheduler cadence — not applicable: the training optimizer has no scheduler.` `AMP scale state — not applicable: AMP is disabled in the recorded recipe.` `S4/S5 data path — amended by the [issue 423 amendment](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247): use LACE's processed stream from the approved sources.`
-
-`Sampler activation — applicable: both training loops sample a timestep with the vendor `sample_t` branch over the configured training range; the fixed-batch and optimizer-step records capture the sampled timestep tensors and loss traces.` `Multi-worker loader — production setting: the package configs and vendor default use `num_workers=4`; evidence setting: the bitwise S0-S4 harness uses `num_workers=0` for both loaders, with matching seeded generators and `pin_memory=False`.`
+| Fix                                     | Regression test or evidence gate                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| x0 reconstruction arithmetic            | Fixed-batch and optimizer-step exact traces in the stage-evidence harness.         |
+| GPU positional-embedding device         | `test_s0_copied_checkpoint_forward_matches_package` and the fixed-batch trace.     |
+| Scheduler device-local cumulative alpha | `test_training_cumulative_alphas_use_requested_device` and the fixed-batch trace.  |
+| EMA operation order                     | `test_training_config_seed_and_ema` and the optimizer-step trace.                  |
+| Alignment autograd helper order         | `test_training_loss_helpers_cover_reference_operations` and the fixed-batch trace. |
 
 ## Seed Policy
 
-S0-S3 use the real loader seed 42975 and the natural training random seed 10000 for each system. S4 uses `20260000 + test batch index` for both evaluation paths. These are parity and evaluation seeds, not S5 training-seed evidence.
+The step-level and 300-step evidence uses loader seed 42975 and natural training seed 10000 for both systems. Evaluation uses the recorded TEST sampling seed formula `20260000 + test batch index`. These are parity and evaluation scopes, not S5 training-seed evidence.
 
 ## Validation Stages
 
-The stage table distinguishes asserted gates from report-only diagnostics. A gate is an asserted pass over the stated population; a report is measured context that is not promoted to exactness.
-
-| Stage | Scope                                                                                                                     | Gate or report                                                                                                                     |
-| ----- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | Static topology, independent initialization, optimizer, EMA, and source-stream compatibility for both datasets            | Gate: package/vendor construction and the measured data policy agree.                                                              |
-| S1    | One real train batch of 256 layouts per dataset before optimizer mutation                                                 | Gate: trace equality over the batch.                                                                                               |
-| S2    | One real train batch and one optimizer step under natural, strict deterministic, warn-only, math-SDPA, and CPU conditions | Gate: gradients, clipping, optimizer state, parameters, EMA, and learning rate are equal; warning text is a captured measurement.  |
-| S3    | 300 real shuffled train batches at batch size 256 per dataset, plus two repeat runs per system                            | Gate: natural traces are bitwise exact for both datasets; synchronized layer not needed. Repeat envelopes are report-only context. |
-| S4    | Every train, validation, and TEST layout in both processed streams; full TEST evaluation through both entry points        | Gate: full loader stream and full TEST path equality.                                                                              |
-| S5    | Full-run statistical training comparison                                                                                  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)`.                                           |
-
-The S0 topology guard is also collected by the regular member-test command as `test_s0_copied_checkpoint_forward_matches_package` in `models/lace/tests/test_training_lace.py`; it copies each authors' checkpoint into the vendor and package models, checks parameter and state-key parity, and asserts bitwise forward equality on both claimed datasets.
+| Stage | Scope                                                                                                        | Gate status                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Static topology, initialization, optimizer/EMA state, and source-stream compatibility for both datasets.     | Passed for both datasets at the recorded head.                                                                                               |
+| S1    | One real 256-layout train batch before optimizer mutation for both datasets.                                 | Exact for both datasets.                                                                                                                     |
+| S2    | One real 256-layout batch and one optimizer step under the refreshed CPU condition for both datasets.        | Exact for both datasets; the record reports zero gradient, clipped-gradient, EMA, optimizer-state, parameter, and learning-rate differences. |
+| S3    | 300 real shuffled train batches at batch size 256, two runs per system, plus the production-wiring boundary. | Natural traces bitwise exact for both datasets; synchronized layer not needed; production wiring passed separately.                          |
+| S4    | Every train, validation, and TEST layout in both processed streams and the full TEST evaluation path.        | Loader and evaluation gates passed for both datasets.                                                                                        |
+| S5    | Full-run statistical comparison.                                                                             | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)`.                                                     |
 
 ## Stage Evidence
 
-All rows below cite the exact command family that produced the cited artifact. The source commits are copied from the machine-written JSON records.
+All artifact hashes below are SHA-256 values of the cited machine-written files. The refreshed S0-S3 records use source commit `0b3576960fa9c227ce5499754407c4d09616ab51`; the S4 records use source commit `532b2312f13dfd4d9821d623d311aef440b6676f`; the vendor source commit in every record is `3df36879a1e80cce58affa4aadeeb768f676c7f1`.
 
-| Stage | Command                                                                                                                                                                                                                                                                                                                                             | Artifact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Package source commit                      | Vendor source commit                       | Result                                                                                                                                                  |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | `export LACE_AUDIT_VENV="<your audit venv>"; CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s0 --dataset <publaynet\|rico25> --lace-data-root .cache/lace/data --layoutdm-data-root <layoutdm-data-root> --output-root .cache/lace/stage-evidence/2c4f37691c9a-s0-<dataset>` | PubLayNet `.cache/lace/stage-evidence/2c4f37691c9a-s0-publaynet/s0-static/summary.json` — SHA-256 `ece2db54b85dcfd3c61f0d0bc77093cef24b388eb999c3aff341bad45ad90713`; RICO25 `.cache/lace/stage-evidence/2c4f37691c9a-s0-rico25/s0-static/summary.json` — SHA-256 `de09d8fde75b4a57052f81a6f66a453e247dde2f8e6418f95f5d43b410bdc880`                                                                                                                                                                                                                                           | `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` | `3df36879a1e80cce58affa4aadeeb768f676c7f1` | Gate passed for both datasets.                                                                                                                          |
-| S1    | `export LACE_AUDIT_VENV="<your audit venv>"; CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s1 --dataset <publaynet\|rico25> --device cuda --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/2c4f37691c9a-s1-<dataset>`            | PubLayNet `.cache/lace/stage-evidence/2c4f37691c9a-s1-publaynet/s1-fixed-batch/summary.json` — SHA-256 `a28402b0d08e24c7c40b510ac76b7cb6cebb8cdc96a18da29b0d7b57285f638d`; RICO25 `.cache/lace/stage-evidence/2c4f37691c9a-s1-rico25/s1-fixed-batch/summary.json` — SHA-256 `78f8e0384dde11cd7f17dd72b4e0e14ff9eb1015d44783de0f08d8c7ec54bb7b`                                                                                                                                                                                                                                 | `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` | `3df36879a1e80cce58affa4aadeeb768f676c7f1` | Gate passed: exact on both real 256-layout batches.                                                                                                     |
-| S2    | See the five exact condition commands below.                                                                                                                                                                                                                                                                                                        | Natural summaries: PubLayNet `.cache/lace/stage-evidence/2c4f37691c9a-s2-natural-publaynet/s2-optimizer-step/summary.json` — SHA-256 `bbe6e9b8d2e66596b377e80c34b4fe17be0252600b28580bed4963416a69630d`; RICO25 `.cache/lace/stage-evidence/2c4f37691c9a-s2-natural-rico25/s2-optimizer-step/summary.json` — SHA-256 `8fc74674c3b5ae3c3d94947244b56f8a3871fd81ef38149ed3db3f0d8a188a5c`; all condition artifacts are listed below.                                                                                                                                             | `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` | `3df36879a1e80cce58affa4aadeeb768f676c7f1` | Gate passed for both datasets under all five conditions.                                                                                                |
-| S3    | See the exact command below, once per dataset.                                                                                                                                                                                                                                                                                                      | PubLayNet `.cache/lace/stage-evidence/2c4f37691c9a-s3-publaynet/s3-lockstep/summary.json` — SHA-256 `637ad04ec625ffe6ccf78acb6e4647ccfb01bf777d3cabeaf2aa20b73dbff6bc`; RICO25 `.cache/lace/stage-evidence/2c4f37691c9a-s3-rico25/s3-lockstep/summary.json` — SHA-256 `8d38c6ce5056917579c33010861c6fc9f7deebfda957c74b24845ce651825a75`                                                                                                                                                                                                                                       | `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` | `3df36879a1e80cce58affa4aadeeb768f676c7f1` | Gate passed: natural traces are bitwise exact for both datasets over 300 steps; synchronized layer not needed for the parity claim.                     |
-| S4    | See the full command below.                                                                                                                                                                                                                                                                                                                         | `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/summary.json` — SHA-256 `945e74cd7fd59cf65de559345a14482b1f4ae847de9131903ff155aaa3bbb67f`; PubLayNet `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/publaynet-evaluation/evaluation.json` — SHA-256 `7fe0402c87c14de1edf6629e6ca6ade80321e46cd500b0647bef8442a5949596`; RICO25 `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/rico25-evaluation/evaluation.json` — SHA-256 `5f16d5b8ddfadd2e12e93733a2ccde639609b7c47f2d752cfda98a1afc8dab2d` | `532b2312f13dfd4d9821d623d311aef440b6676f` | `3df36879a1e80cce58affa4aadeeb768f676c7f1` | Gate passed: evidence loaders use `num_workers=0`; production defaults remain `num_workers=4`; full TEST evaluation is exact through both entry points. |
-| S5    | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)`                                                                                                                                                                                                                                                             | `.cache/lace/full-run/publaynet/manifest.json; evaluation-path-parity: https://github.com/creative-graphic-design/design-generators/issues/423`                                                                                                                                                                                                                                                                                                                                                                                                                                | —                                          | —                                          | Not run.                                                                                                                                                |
-
-S2 condition artifacts:
-
-| Condition            | PubLayNet artifact and SHA-256                                                                                                                                           | RICO25 artifact and SHA-256                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| strict deterministic | `.cache/lace/stage-evidence/2c4f37691c9a-s2-deterministic-publaynet/s2-optimizer-step/summary.json` — `156ec41da2249f4b974c446bfcae4007799a4a1b30a1020d32df2674add6332e` | `.cache/lace/stage-evidence/2c4f37691c9a-s2-deterministic-rico25/s2-optimizer-step/summary.json` — `81eb9f9a297e7445d8c7d5e46af744bef0319350d947aad8c373370d87a16c78` |
-| warn-only            | `.cache/lace/stage-evidence/2c4f37691c9a-s2-warn-only-publaynet/s2-optimizer-step/summary.json` — `59f7b08515a231006db1ecbfe46af027842a870a8828f691ac2abb8f721e9f24`     | `.cache/lace/stage-evidence/2c4f37691c9a-s2-warn-only-rico25/s2-optimizer-step/summary.json` — `e1094d7a7ab4bbaa85f28914599c3439c4aa6791a83a0fc0e6d575f656a8e3b0`     |
-| math-SDPA            | `.cache/lace/stage-evidence/2c4f37691c9a-s2-math-sdpa-publaynet/s2-optimizer-step/summary.json` — `7b4e04ed3983302695e29810d4b5e042eab5e9a9d4928ac7e6aaf445f467d440`     | `.cache/lace/stage-evidence/2c4f37691c9a-s2-math-sdpa-rico25/s2-optimizer-step/summary.json` — `f21435df5bc9943151af92fd8a07155c2b703a2290ce6f1f4bc392dfca4d2605`     |
-| CPU                  | `.cache/lace/stage-evidence/2c4f37691c9a-s2-cpu-publaynet/s2-optimizer-step/summary.json` — `02f35c4d14bd287df205f3979501fea0160e3cc8b69867ea62ec8bba748d9179`           | `.cache/lace/stage-evidence/2c4f37691c9a-s2-cpu-rico25/s2-optimizer-step/summary.json` — `5a64e853fff99a3bc2710dd856d0f45c7213a4ab31c6592b115cc11bc24458cd`           |
-
-Run S2 with the conditions recorded by the machine-written artifacts:
-
-```bash
-export LACE_AUDIT_VENV="<your audit venv>"
-CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet|rico25> --device cuda --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/2c4f37691c9a-s2-natural-<dataset>
-CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet|rico25> --device cuda --batch-size 256 --lace-data-root .cache/lace/data --deterministic-algorithms --output-root .cache/lace/stage-evidence/2c4f37691c9a-s2-deterministic-<dataset>
-CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet|rico25> --device cuda --batch-size 256 --lace-data-root .cache/lace/data --deterministic-algorithms --warn-only --output-root .cache/lace/stage-evidence/2c4f37691c9a-s2-warn-only-<dataset>
-CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet|rico25> --device cuda --batch-size 256 --lace-data-root .cache/lace/data --sdpa-math --output-root .cache/lace/stage-evidence/2c4f37691c9a-s2-math-sdpa-<dataset>
-"$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet|rico25> --device cpu --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/2c4f37691c9a-s2-cpu-<dataset>
-```
-
-Run the 300-step stage and the full loader/evaluation stage on the selected GPU:
-
-```bash
-export LACE_AUDIT_VENV="<your audit venv>"
-CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s3 --dataset <publaynet|rico25> --device cuda --steps 300 --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/2c4f37691c9a-s3-<dataset>
-CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s4 --device cuda --evaluation-batch-size 256 --lace-data-root .cache/lace/data --checkpoint-root .cache/lace/original/model --fid-root .cache/lace/fidroot --output-root .cache/lace/stage-evidence/532b2312f13dfd4d-s4-full
-```
-
-S2 compares raw gradient, clipped-gradient, optimizer-state, parameter, EMA, and learning-rate values like-for-like. The warn-only record captures the memory-efficient attention backward warning; the five condition records remain separate gate results.
+| Stage                | Command                                                                                                                                                                                                                                                                                                                                                                             | Artifact and SHA-256                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Result                                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0                   | `"$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s0 --dataset <publaynet\|rico25> --lace-data-root .cache/lace/data --layoutdm-data-root <layoutdm-data-root> --output-root .cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s0-<dataset>`                                                                              | PubLayNet `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s0-publaynet/s0-static/summary.json` — `df4c4f9c9da6a50a22f72471b74b8459fd84559369cc052b603291ada84cac7b`; RICO25 `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s0-rico25/s0-static/summary.json` — `6742adb57d87580bd1aa023032c2c4620040810598832b8e3ba21f77f625a699`                                                                                                                                                                                                                                                                                              | Gate passed for both datasets.                                                                                                                                 |
+| S1                   | `"$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s1 --dataset <publaynet\|rico25> --device cpu --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s1-<dataset>`                                                                                          | PubLayNet `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s1-publaynet/s1-fixed-batch/summary.json` — `98d42eebfb721ded7a3a1265f4507f41617387caa7b7be55322da343e30ab0a8`; RICO25 `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s1-rico25/s1-fixed-batch/summary.json` — `083ec2107ffbbcb28037bc74a3349608a7e3f9479241393865305ebd06e7174c`                                                                                                                                                                                                                                                                                    | Exact for both real batches.                                                                                                                                   |
+| S2                   | `"$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s2 --dataset <publaynet\|rico25> --device cpu --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s2-natural-<dataset>`                                                                                  | PubLayNet `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s2-natural-publaynet/s2-optimizer-step/summary.json` — `f094519ee852e9640611ac4541f653bd000a1a7eed12499f5cf15340a327cf39`; RICO25 `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s2-natural-rico25/s2-optimizer-step/summary.json` — `fc515f2b4d1a482af4646fe4efe29c8d4700f4b3b88af2a3b17d28ee5ee16900`                                                                                                                                                                                                                                                              | Exact for both datasets; all recorded norm and state differences are `0.0`.                                                                                    |
+| S3 natural           | `LACE_AUDIT_VENV="<your audit venv>" CUDA_VISIBLE_DEVICES="<gpu>" "$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s3 --dataset <publaynet\|rico25> --device cuda --steps 300 --batch-size 256 --lace-data-root .cache/lace/data --output-root .cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s3-<dataset>-lace-audit` | PubLayNet summary `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s3-publaynet-lace-audit/s3-lockstep/summary.json` — `b38dfdad5545644890ac976308023081872c0a1cbb8f415f697ef173441bb54f`; natural `natural.jsonl` — `1fcadb3a5408d7e03f03f1c82630cefc627e2cc67c96098765c3dc49f1da4e38`; RICO25 summary `.cache/lace/stage-evidence/0b3576960fa9c227ce5499754407c4d09616ab51-s3-rico25-lace-audit/s3-lockstep/summary.json` — `188f505cc4922fa545554ef2576f61cd988b585f5b786578116d30a15bcbe7b1`; natural `natural.jsonl` — `244d9d1f7de560e991bcf7285cc82d47dffcc20822820349308a302378bd681a`                                                        | Natural traces are bitwise exact for both datasets over 300 steps; loss and every shared norm summary difference are `0.0`; synchronized layer not needed.     |
+| S3 synchronized      | Same S3 command; retained as a diagnostic layer.                                                                                                                                                                                                                                                                                                                                    | PubLayNet `synchronized.jsonl` — `2ada6ec0358f8debe3c47861b4c093fc77ffad4d06cb1dfff73f14f19ac8270a`; RICO25 `synchronized.jsonl` — `244d330e54a17bd03078cfad64a5ad7797f3258b17f6f1e5d037cc3128c9c7d4`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Diagnostic pre-sync gate passed with zero state differences; no post-sync exactness claim and no synchronized layer needed for the natural gate.               |
+| S3 production wiring | `uv run --package lace --extra training traingen fit --config models/lace/configs/training/lace_<dataset>.yaml` with only seed, step, and processed-path overrides.                                                                                                                                                                                                                 | PubLayNet and RICO25 production-wiring traces, logger outputs, checkpoints, and trainer states are recorded in their S3 summary artifacts above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Both commands returned `0`, wrote a logger and checkpoint, recorded the trainer state, and recorded scheduler `not applicable`; the shipped worker count is 4. |
+| S4                   | `"$LACE_AUDIT_VENV/bin/python" models/lace/tests/vendor_parity/training_stage_evidence.py s4 --device cuda --evaluation-batch-size 256 --lace-data-root .cache/lace/data --checkpoint-root .cache/lace/original/model --fid-root .cache/lace/fidroot --output-root .cache/lace/stage-evidence/532b2312f13dfd4d-s4-full`                                                             | Summary `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/summary.json` — `945e74cd7fd59cf65de559345a14482b1f4ae847de9131903ff155aaa3bbb67f`; PubLayNet evaluation `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/publaynet-evaluation/evaluation.json` — `7fe0402c87c14de1edf6629e6ca6ade80321e46cd500b0647bef8442a5949596`; RICO25 evaluation `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/rico25-evaluation/evaluation.json` — `5f16d5b8ddfadd2e12e93733a2ccde639609b7c47f2d752cfda98a1afc8dab2d`; identity proof — `d6cf7b0f68ac34a47e142a427c2f227ed07ad32d4a0dc429292a8ae198fca2ba` | Every loader row and every full TEST prediction is exact for both datasets; the executed pipeline/evaluation diff against the S4 source is empty.              |
+| S5                   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)`                                                                                                                                                                                                                                                                                             | `.cache/lace/full-run/<dataset>/manifest.json; evaluation-path-parity: https://github.com/creative-graphic-design/design-generators/issues/423`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Not run.                                                                                                                                                       |
 
 ## Reproduction Results
 
-The package and original implementation agree exactly for the asserted S0-S4 populations on PubLayNet and RICO25 under the recorded parity and evaluation seed scopes; RICO13 and S5 full-run statistical reproduction are not claimed. S3 is a 300-step parity check, not statistical training evidence. S4 evaluates all 11,142 PubLayNet TEST layouts and all 4,218 RICO25 TEST layouts with the authors' checkpoints through `vendor/lace/test.py::test_layout_cond` and `models/lace/src/lace/pipeline_lace.py::__call__`.
+The package and original implementation agree exactly for the asserted S0-S4 populations on PubLayNet and RICO25. The reported metrics are the full TEST evaluation path; S5 training-seed reproduction remains `not-yet-run` for both datasets.
 
-The full loader gate checked PubLayNet train/val/test populations of 315,757/16,619/11,142 layouts in 1,234/65/44 batches and RICO25 train/val/test populations of 358,510/2,109/4,218 layouts in 1,401/9/17 batches. Train used seeded shuffle with seed 42975; validation and TEST used the vendor-faithful unshuffled loader.
+| Dataset   | System | Status                                                                                  | Seed scope                       | Primary metrics                                                                                                  | Loss evidence                                                                 | Artifact summary                                                                                                |
+| --------- | ------ | --------------------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| PubLayNet | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | parity and evaluation seeds only | alignment 0.12166322767734528; overlap 4.450292110443115; FID 4.861517592551877; maximum IoU 0.32819171112340273 | Fixed-batch, optimizer-step, and 300-step traces exact; loss difference `0.0` | `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/publaynet-evaluation/evaluation.json` |
+| RICO25    | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | parity and evaluation seeds only | alignment 0.11119277030229568; overlap 83.5333480834961; FID 3.3846049958445974; maximum IoU 0.33588000299444437 | Fixed-batch, optimizer-step, and 300-step traces exact; loss difference `0.0` | `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/rico25-evaluation/evaluation.json`    |
+| RICO13    | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | no claimed seed scope            | no approved authors' RICO13 checkpoint                                                                           | no S0-S4 claim                                                                | `https://github.com/creative-graphic-design/design-generators/issues/423`                                       |
 
-| Dataset   | System | Status                                                                                  | Seed scope                       | Primary metrics                                                                           | Loss evidence                                      | Artifact summary                                                                                                |
-| --------- | ------ | --------------------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| PubLayNet | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | parity and evaluation seeds only | alignment 0.1216632277; overlap 4.4502921104; FID 4.8615175926; maximum IoU 0.3281917111  | S1, S2, and S3 exact over their stated populations | `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/publaynet-evaluation/evaluation.json` |
-| RICO25    | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | parity and evaluation seeds only | alignment 0.1111927703; overlap 83.5333480835; FID 3.3846049958; maximum IoU 0.3358800030 | S1, S2, and S3 exact over their stated populations | `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/s4-loader-evaluation/rico25-evaluation/evaluation.json`    |
-| RICO13    | both   | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)` | no claimed seed scope            | no RICO13 authors' checkpoint in the approved archive                                     | no S0-S4 claim                                     | `https://github.com/creative-graphic-design/design-generators/issues/423`                                       |
-
-S5 remains `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/423)`; the status above describes the completed practical S0-S4 evaluation path, not a full-run statistical claim.
+The S4 loader gate covers PubLayNet train/val/test populations of 315757/16619/11142 layouts in 1234/65/44 batches and RICO25 train/val/test populations of 358510/2109/4218 layouts in 1401/9/17 batches. Exact evidence loaders use zero workers; the shipped and production configuration uses four workers.
 
 ### Comparison Scope
 
-| Dataset   | System | Evaluator                                                                                         | Test split       | Checkpoint-selection rule    |                       Sample count |
-| --------- | ------ | ------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------- | ---------------------------------: |
-| PubLayNet | both   | `vendor/lace/test.py::test_layout_cond` and `LacePipeline.__call__`, with vendor metric functions | LACE TEST stream | authors' `publaynet_best.pt` | 11,142 layouts per evaluation seed |
-| RICO25    | both   | `vendor/lace/test.py::test_layout_cond` and `LacePipeline.__call__`, with vendor metric functions | LACE TEST stream | authors' `rico25_best.pt`    |  4,218 layouts per evaluation seed |
-| RICO13    | both   | not applicable; no approved authors' RICO13 checkpoint                                            | not applicable   | not applicable               |   0 layouts; outside this evidence |
+| Dataset   | System | Evaluator                                                                                         | Test split       | Checkpoint-selection rule    | Sample count                      |
+| --------- | ------ | ------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------- | --------------------------------- |
+| PubLayNet | both   | `vendor/lace/test.py::test_layout_cond` and `LacePipeline.__call__`, with vendor metric functions | LACE TEST stream | authors' `publaynet_best.pt` | 11142 layouts per evaluation seed |
+| RICO25    | both   | `vendor/lace/test.py::test_layout_cond` and `LacePipeline.__call__`, with vendor metric functions | LACE TEST stream | authors' `rico25_best.pt`    | 4218 layouts per evaluation seed  |
+| RICO13    | both   | not applicable; no approved authors' RICO13 checkpoint                                            | not applicable   | not applicable               | 0 layouts; outside this evidence  |
 
-The captured vendor `real_layout` is the evaluation input. The package receives the same captured layout array; the harness does not re-encode a second source array. The records hash each package and vendor input artifact, each loaded package state dict, each prediction artifact, the FID evaluator, FIDNetV3 weights, and feature cache. Vendor `init_dataset`, `test_fid_feat`, and `load_fidnet_v3` are recorded as explicit substitutions in the evaluation records.
+The compared evaluation inputs are the captured vendor `real_layout` and the package processor's own encoding of the same `bbox`, `labels`, and `mask`; predictions are then compared on the same decoded layout. The harness records both input artifacts, loaded package state, prediction files, evaluator, FIDNetV3 weights, and feature cache.
+
+The source diff from the S4 evidence commit is confined to `models/lace/src/lace/training/dataset.py`, `models/lace/src/lace/training/lightning_module.py`, and the trace callback `models/lace/src/lace/training/trace.py`. The Lightning hunk moves EMA shadow tensors to the model device at fit start; the dataset hunk removes the legacy-root fallback. The executed `models/lace/src/lace/pipeline*` and evaluation paths have an empty diff against the S4 evidence commit, so the S4 result stands.
 
 ## Regeneration Metadata
 
-The authors' checkpoints came from [the LACE model archive](https://huggingface.co/datasets/puar-playground/LACE/resolve/main/model.tar.gz). The current files are `.cache/lace/original/model/publaynet_best.pt` (SHA-256 `d13ea9a64d913d910a35db6204a4be7b115101ffea54874683ef8c9f98607ff4`) and `.cache/lace/original/model/rico25_best.pt` (SHA-256 `9c2f2198dbab7d530363a413d98efa779bc5a1ebcdf55d1c1fc64175361abe93`).
-
-FID provenance is measured from `.cache/lace/fidroot/provenance.json`: the evaluator is `fid/model.py`, source commit `873b5eebe4c61862e5c08a10859accf65a168dfd`, source URL [at the measured source path](https://github.com/CyberAgentAILab/layout-dm/blob/873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py), and measured file SHA-256 `5df4cf82a869167d8cb6ab19470e58ecf42a576c0b8ae134c424cbd8505fdced`. FIDNetV3 came from the recorded LayoutDM release command and archive SHA-256 `357a0b8cd305793164ae4e9da1033ac1b687bfd46a53716673b32c83280c443b`. The measured FIDNetV3 and feature-cache hashes are PubLayNet weights `ff7208304e5c5f673ddd7cd5d73f85a0982df97a70713016f1b034a9c972d6fd`, features `ae9f84bb3c87eb5a4d94c4d0b3a0a32a49a3360fcc1e99d30ac35815fc3b027d`; RICO25 weights `3e99f113bdea8f6e4623103bea88aff6217f322eef3deba5a787f3acd19e3296`, features `61fbdfc6e2255eb7a36441509e165858932931866f2193834cfa6a6e8741b975`. The harness records these values and the explicit evaluator substitutions in each evaluation JSON.
-
-The machine-written direct-path proof `.cache/lace/stage-evidence/532b2312f13dfd4d-s4-full/dataset-path-identity.json` (SHA-256 `d6cf7b0f68ac34a47e142a427c2f227ed07ad32d4a0dc429292a8ae198fca2ba`) compares the legacy data-root form used at source commit `2c4f37691c9ae663fcf6e000eb977cd688ac8e6a` with the direct processed-root form introduced at source commit `532b2312f13dfd4d9821d623d311aef440b6676f`. It records `file_sha256_equal=true`, `loaded_dataset_equal=true`, and `sample_ids_equal=true` for every split; the hashes below are the loaded-dataset and sample-ID hashes from that proof:
-
-| Dataset   | Split | Layouts |  Elements | Loaded-dataset hash                                               | Sample-ID hash                                                     |
-| --------- | ----- | ------: | --------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| PubLayNet | train | 315,757 | 3,033,717 | `5bfe22aed397f64222d0f549f7387ac04683ae897355a02ca5ee0e0a7ca40f96` | `fafc2cc2cccbcf5ed22a3ba06264b0277ef162f85d365782e9810b6351a3ad21` |
-| PubLayNet | val   |  16,619 |   159,541 | `f01c6859c92e392d30d47a19f8d8a84724c43dd70431d9040b84f765b2d90fb0` | `c7be3a18f32b04accd046b72999faa2b69e47119d338fab2082750e8b3b99700` |
-| PubLayNet | test  |  11,142 |   119,402 | `f82ccf6279561b4d2d4d02257a4ab1c243dde47a402017aa69a0eb6218bd0a90` | `6d3fd886468786e86c7ca981bbdeb88666b354b200c30f3c635114e627fc8c8e` |
-| RICO25    | train | 358,510 | 3,954,250 | `57d3b859a9d3136114468e171bfee438ef858476aa17b7bd034804362a4356a1` | `d45131f61c51b836d958f3065d06fd9c8a1490bbb20e000c84fcf3cc6ad72b53` |
-| RICO25    | val   |   2,109 |    23,650 | `406078b1390fb983859e7afae76fe7fcab9f5f4db8113804f6a76b6cbdb56a18` | `a17d601b3f000c1cb94f297704241c0d98c3a9162954da1135db5efc53308b8a` |
-| RICO25    | test  |   4,218 |    47,129 | `b27f2555ac6864629f004f3ccb14bed0feed3dd29f65bb04c7bf65dc7937fdd9` | `b14f37a4dfcc1dd482edb9500aceaefd6472a02dd283f79942752e1f8314c45d` |
-
-The direct-path proof records equal file, loaded-dataset, and sample-ID hashes for all six pairs. This is distinct from the S0 LACE/LayoutDM compatibility comparison, whose serialized files differ while its loaded element tuples and record IDs match. Runtime freeze artifacts and wheel provenance are recorded in the stage JSON files.
+The authors' checkpoints are under `.cache/lace/original/model/`; FID evaluator code, FIDNetV3 weights, and feature caches are under `.cache/lace/fidroot/`. The FID evaluator source is LayoutDM commit `873b5eebe4c61862e5c08a10859accf65a168dfd`; the measured FID evaluator SHA-256 is `5df4cf82a869167d8cb6ab19470e58ecf42a576c0b8ae134c424cbd8505fdced`; the LayoutDM starter archive SHA-256 is `357a0b8cd305793164ae4e9da1033ac1b687bfd46a53716673b32c83280c443b`.
 
 ```text
 .cache/lace/data/
@@ -199,14 +137,68 @@ The direct-path proof records equal file, loaded-dataset, and sample-ID hashes f
 .cache/lace/stage-evidence/
 ```
 
-## Training Commands
-
-The repository training command is `traingen fit`; `python -m lightning.pytorch.cli` is not a training entry point.
+Acquire the FID evaluator and weights into the cache, then create the test feature cache without writing under `vendor/`:
 
 ```bash
-UV_FROZEN=1 uv run --package lace --extra training traingen fit --config models/lace/configs/training/lace_publaynet.yaml --trainer.devices=1
-UV_FROZEN=1 uv run --package lace --extra training traingen fit --config models/lace/configs/training/lace_rico25.yaml --trainer.devices=1
-UV_FROZEN=1 uv run --package lace scripts/run_member_tests.sh models/lace
+export LACE_AUDIT_VENV="<your audit venv>"
+export LACE_DATA_ROOT=".cache/lace/data"
+export LACE_FID_ROOT=".cache/lace/fidroot"
+mkdir -p "$LACE_FID_ROOT/fid" "$LACE_FID_ROOT/FIDNetV3" "$LACE_FID_ROOT/feature"
+git -C vendor/layout-dm show 873b5eebe4c61862e5c08a10859accf65a168dfd:src/trainer/trainer/fid/model.py > "$LACE_FID_ROOT/fid/model.py"
+curl --fail --location --output .cache/lace/original/layoutdm_starter.zip https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip
+unzip -o .cache/lace/original/layoutdm_starter.zip 'fid_weights/FIDNetV3/*/model_best.pth.tar' -d .cache/lace/original/layoutdm-unpacked
+cp -a .cache/lace/original/layoutdm-unpacked/fid_weights/FIDNetV3/. "$LACE_FID_ROOT/FIDNetV3/"
+PYTHONPATH="vendor/lace:$LACE_FID_ROOT" "$LACE_AUDIT_VENV/bin/python" - <<'PY'
+import os
+import pickle
+from pathlib import Path
+
+import torch
+from torch_geometric.loader import DataLoader
+from fid.model import load_fidnet_v3
+from util.datasets.publaynet import PubLayNetDataset
+from util.datasets.rico import Rico25Dataset
+from util.seq_util import sparse_to_dense
+
+data_root = Path(os.environ["LACE_DATA_ROOT"])
+fid_root = Path(os.environ["LACE_FID_ROOT"])
+device = torch.device("cuda")
+for dataset_name, dataset_class in (("publaynet", PubLayNetDataset), ("rico25", Rico25Dataset)):
+    dataset = dataset_class(dir=str(data_root), split="test", max_seq_length=25)
+    loader = DataLoader(dataset, shuffle=False, batch_size=20, num_workers=4, pin_memory=True)
+    model = load_fidnet_v3(dataset, str(fid_root / "FIDNetV3"), device=device)
+    features = []
+    with torch.no_grad():
+        for batch in loader:
+            bbox, labels, padding_mask, _ = sparse_to_dense(batch)
+            features.append(model.extract_features(bbox.to(device), labels.to(device), padding_mask.to(device)).cpu())
+    with (fid_root / "feature" / f"fid_feat_test_{dataset_name}.pk").open("wb") as stream:
+        pickle.dump(features, stream)
+PY
 ```
 
-S5 training is intentionally not launched by this document.
+## Training Commands
+
+The package training entry point is `traingen fit` with the shipped config. The production-wiring command uses only seed, step, and processed-path overrides; its logger, checkpoint, scheduler status, and trainer state are recorded in the S3 summary artifacts.
+
+```bash
+export LACE_AUDIT_VENV="<your audit venv>"
+CUDA_VISIBLE_DEVICES="<gpu>" UV_FROZEN=1 UV_PROJECT_ENVIRONMENT="$LACE_AUDIT_VENV" \
+  uv run --package lace --extra training traingen fit \
+  --config models/lace/configs/training/lace_publaynet.yaml \
+  --trainer.devices=1
+```
+
+```bash
+export LACE_AUDIT_VENV="<your audit venv>"
+CUDA_VISIBLE_DEVICES="<gpu>" UV_FROZEN=1 UV_PROJECT_ENVIRONMENT="$LACE_AUDIT_VENV" \
+  uv run --package lace --extra training traingen fit \
+  --config models/lace/configs/training/lace_rico25.yaml \
+  --trainer.devices=1
+```
+
+```bash
+scripts/run_member_tests.sh models/lace
+```
+
+The checkpoint-gated topology test `test_s0_copied_checkpoint_forward_matches_package` is local-only because the authors' checkpoints remain under `.cache/lace/original/model/`; the regular member suite records that missing local asset as a skip.

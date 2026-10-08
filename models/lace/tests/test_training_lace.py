@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 from torch import nn
 
 from laygen.common.testing import skip_or_fail_vendor_parity
@@ -30,7 +32,12 @@ from lace.training.losses import (
     xywh_to_ltrb_reference,
 )
 from lace.training.seed import apply_lace_seed_mode
-from lace.training.trace import _gradient_norm, _mapping_l2_norm, _tensor_hashes
+from lace.training.trace import (
+    LaceTrainingTraceCallback,
+    _gradient_norm,
+    _mapping_l2_norm,
+    _tensor_hashes,
+)
 from traingen_parity.trace import tensor_sha256
 
 
@@ -183,6 +190,62 @@ def test_training_trace_summaries_use_shared_helpers() -> None:
     }
     assert _mapping_l2_norm(values) == expected_norm
     assert _gradient_norm(parameters) == expected_norm
+
+
+def test_training_trace_callback_records_optimizer_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace_path = tmp_path / "trace.json"
+    monkeypatch.setenv("LACE_TRAINING_TRACE_PATH", str(trace_path))
+    parameter = nn.Parameter(torch.tensor([1.0]))
+    optimizer = torch.optim.Adam([parameter], lr=1e-5)
+
+    class FakeModule(nn.Module):
+        latest_step_trace = {"train_loss": torch.tensor(2.0)}
+        latest_ema_state = {"weight": torch.tensor([1.0])}
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = parameter
+            self.model = SimpleNamespace(
+                state_dict=lambda: {"weight": parameter.detach()}
+            )
+
+        def optimizers(self) -> torch.optim.Optimizer:
+            return optimizer
+
+    class FakeTrainer:
+        global_step = 1
+        current_epoch = 0
+        max_steps = 1
+        num_training_batches = 1
+        logger = SimpleNamespace(log_dir=tmp_path / "logs")
+
+    module = FakeModule()
+    trainer = FakeTrainer()
+    callback = LaceTrainingTraceCallback()
+    callback.on_train_batch_start(
+        cast(Trainer, trainer),
+        cast(LightningModule, module),
+        {"id": ["sample"]},
+        0,
+    )
+    loss = (parameter.square()).sum()
+    loss.backward()
+    callback.on_after_backward(cast(Trainer, trainer), cast(LightningModule, module))
+    callback.on_before_optimizer_step(
+        cast(Trainer, trainer), cast(LightningModule, module), optimizer
+    )
+    optimizer.step()
+    callback.on_train_batch_end(
+        cast(Trainer, trainer), cast(LightningModule, module), None, {}, 0
+    )
+    callback.on_train_end(cast(Trainer, trainer), cast(LightningModule, module))
+
+    payload = json.loads(trace_path.read_text())
+    assert len(payload["records"]) == 1
+    assert payload["records"][0]["batch_ids"] == ["sample"]
+    assert payload["trainer_state"]["global_step"] == 1
 
 
 def test_processed_dataset_and_batch_collation(tmp_path: Path) -> None:

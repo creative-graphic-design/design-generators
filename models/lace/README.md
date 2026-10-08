@@ -172,11 +172,11 @@ print(out.bbox.shape)
 | RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | original-source-derived RICO13 mapping                   |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
-The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.
+The original LACE project trains on PubLayNet and RICO25 annotations prepared as max-25 layout sequences. RICO13 remains outside the package-local training claim because the approved archive has no authors' RICO13 checkpoint.
 
 ### Training Procedure
 
-Package-local training reproduction is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md); full-run statistical reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
+Package-local reproduction passes the asserted staged gates for PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical reproduction is not claimed. The commands and machine-written evidence are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md), and full-run reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
@@ -184,7 +184,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** package-local training and deterministic agreement checks are implemented; full-run statistical training is not claimed.
+- **Training regime:** package-local training and exact agreement checks pass through the full TEST evaluation path for PubLayNet and RICO25; full-run statistical training is not claimed.
 
 #### Speeds, Sizes, Times
 
