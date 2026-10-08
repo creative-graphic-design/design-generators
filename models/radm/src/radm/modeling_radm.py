@@ -1105,20 +1105,24 @@ def _apply_box_deltas(
     center_x = boxes_xyxy[..., 0] + 0.5 * widths
     center_y = boxes_xyxy[..., 1] + 0.5 * heights
     wx, wy, ww, wh = bbox_weights
-    dx, dy, dw, dh = deltas.unbind(dim=-1)
-    new_center_x = center_x + (dx / wx) * widths
-    new_center_y = center_y + (dy / wy) * heights
-    new_width = widths * (dw / ww).clamp(max=scale_clamp).exp()
-    new_height = heights * (dh / wh).clamp(max=scale_clamp).exp()
-    return torch.stack(
-        (
-            new_center_x - 0.5 * new_width,
-            new_center_y - 0.5 * new_height,
-            new_center_x + 0.5 * new_width,
-            new_center_y + 0.5 * new_height,
-        ),
-        dim=-1,
-    )
+    dx = deltas[:, 0::4] / wx
+    dy = deltas[:, 1::4] / wy
+    dw = deltas[:, 2::4] / ww
+    dh = deltas[:, 3::4] / wh
+    dw = torch.clamp(dw, max=scale_clamp)
+    dh = torch.clamp(dh, max=scale_clamp)
+
+    pred_ctr_x = dx * widths[:, None] + center_x[:, None]
+    pred_ctr_y = dy * heights[:, None] + center_y[:, None]
+    pred_w = torch.exp(dw) * widths[:, None]
+    pred_h = torch.exp(dh) * heights[:, None]
+
+    predicted = torch.zeros_like(deltas)
+    predicted[:, 0::4] = pred_ctr_x - 0.5 * pred_w
+    predicted[:, 1::4] = pred_ctr_y - 0.5 * pred_h
+    predicted[:, 2::4] = pred_ctr_x + 0.5 * pred_w
+    predicted[:, 3::4] = pred_ctr_y + 0.5 * pred_h
+    return predicted
 
 
 def _extract(

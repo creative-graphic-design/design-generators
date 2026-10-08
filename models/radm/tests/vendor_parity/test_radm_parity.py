@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import math
 from pathlib import Path
 import types
@@ -9,6 +10,7 @@ from typing import cast
 import pytest
 import torch
 from radm import RADMConfig
+from radm.modeling_radm import _apply_box_deltas
 from radm.training.lightning_module import _generalized_box_iou
 from torchvision.ops import batched_nms, box_area
 
@@ -95,6 +97,26 @@ def _load_vendor_box_ops() -> types.SimpleNamespace:
     )
 
 
+def _load_vendor_apply_deltas() -> Callable[..., torch.Tensor]:
+    source_path = _require_vendor_file("RADM/head.py")
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    rcnn_head = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "RCNNHead"
+    )
+    method = next(
+        node
+        for node in rcnn_head.body
+        if isinstance(node, ast.FunctionDef) and node.name == "apply_deltas"
+    )
+    module = ast.Module(body=[method], type_ignores=[])
+    ast.fix_missing_locations(module)
+    namespace: dict[str, object] = {"torch": torch}
+    exec(compile(module, str(source_path), "exec"), namespace)  # noqa: S102
+    return cast(Callable[..., torch.Tensor], namespace["apply_deltas"])
+
+
 @pytest.mark.vendor_parity
 def test_scheduler_cosine_and_forward_diffusion_match_vendor_source() -> None:
     vendor = _load_detector_symbols("cosine_beta_schedule", "extract")
@@ -177,6 +199,29 @@ def test_giou_keeps_vendor_operation_order() -> None:
         _generalized_box_iou(first, second),
         vendor.generalized_box_iou(first, second),
     )
+
+
+@pytest.mark.vendor_parity
+def test_box_delta_expression_matches_vendor_source() -> None:
+    """Pin bbox-delta arithmetic and indexed writes to the vendor path."""
+    vendor_apply_deltas = _load_vendor_apply_deltas()
+    boxes = torch.tensor(
+        [[0.125, 0.25, 0.875, 0.75], [0.2, 0.1, 0.6, 0.9]],
+        dtype=torch.float32,
+    )
+    deltas = torch.tensor(
+        [[0.03125, -0.0625, 0.125, -0.1875], [-0.25, 0.375, -0.5, 0.625]],
+        dtype=torch.float32,
+    )
+    vendor = types.SimpleNamespace(
+        bbox_weights=(2.0, 2.0, 1.0, 1.0),
+        scale_clamp=math.log(100000.0 / 16),
+    )
+
+    expected = vendor_apply_deltas(vendor, deltas, boxes)
+    actual = _apply_box_deltas(boxes, deltas)
+
+    assert torch.equal(actual, expected)
 
 
 @pytest.mark.vendor_parity
