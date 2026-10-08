@@ -22,7 +22,7 @@ training = [
     "traingen-parity",
 ]
 vendor = [
-    "apache-beam[tfrecord]>=2.70",
+    "apache-beam[tfrecord]==2.76.0",
     "pyyaml>=6",
     "tensorflow[and-cuda]==2.15.1",
     "traingen-parity",
@@ -37,7 +37,7 @@ traingen-parity = { workspace = true }
 framework = "transformers"
 task = "content-agnostic-layout-generation"
 conditions = ["unconditional"]
-datasets = ["rico25"]
+datasets = ["rico25", "crello"]
 vendor = "CyberAgentAILab/canvas-vae"
 paper = "https://arxiv.org/abs/2108.01249"
 
