@@ -8,7 +8,7 @@ from typing import TypedDict
 import torch
 import torch.nn.functional as F
 from jaxtyping import Bool, Float, Int, Shaped
-from torchvision.ops import box_iou
+from torchvision.ops import box_area, box_iou
 
 from ..configuration_radm import RADMConfig
 from ..modeling_radm import RADMDenoiser, RADMDenoiserOutput
@@ -121,6 +121,7 @@ class RADMTrainingModule(LightningModule):
         noises: list[Float[torch.Tensor, "proposals 4"]] = []
         timesteps: list[Int[torch.Tensor, "1"]] = []
         targets: list[RADMTarget] = []
+        absolute_boxes_batch = batch.get("absolute_boxes_xyxy")
         for index in range(batch_size):
             valid = batch["mask"][index]
             labels = batch["labels"][index][valid]
@@ -133,7 +134,11 @@ class RADMTrainingModule(LightningModule):
             boxes_xyxy = batch["boxes_xyxy"][index][valid]
             boxes_cxcywh = _xyxy_to_cxcywh(boxes_xyxy)
             image_size_xyxy = batch["image_scales"][index]
-            boxes_xyxy_absolute = boxes_xyxy * image_size_xyxy
+            boxes_xyxy_absolute = (
+                boxes_xyxy * image_size_xyxy
+                if absolute_boxes_batch is None
+                else absolute_boxes_batch[index][valid]
+            )
             diffused, noise, timestep = self.model.prepare_diffusion_concat(
                 boxes_cxcywh
             )
@@ -404,14 +409,13 @@ def _box_losses(
             if selected.any()
         ]
     )
-    l1 = (
-        F.l1_loss(normalized_predicted, normalized_expected_xyxy, reduction="sum")
-        / normalized_predicted.shape[0]
+    loss_bbox = F.l1_loss(
+        normalized_predicted, normalized_expected_xyxy, reduction="none"
     )
+    l1 = loss_bbox.sum() / normalized_predicted.shape[0]
     absolute_predicted = torch.cat(predicted)
-    giou = (
-        1 - torch.diag(_generalized_box_iou(absolute_predicted, expected_boxes))
-    ).mean()
+    loss_giou = 1 - torch.diag(_generalized_box_iou(absolute_predicted, expected_boxes))
+    giou = loss_giou.sum() / absolute_predicted.shape[0]
     return l1, giou
 
 
@@ -442,30 +446,24 @@ def _generalized_box_iou(
     first: Float[torch.Tensor, "first 4"],
     second: Float[torch.Tensor, "second 4"],
 ) -> Float[torch.Tensor, "first second"]:
-    """Compute pairwise generalized IoU for normalized xyxy boxes."""
-    intersection_left = torch.maximum(first[:, None, 0], second[None, :, 0])
-    intersection_top = torch.maximum(first[:, None, 1], second[None, :, 1])
-    intersection_right = torch.minimum(first[:, None, 2], second[None, :, 2])
-    intersection_bottom = torch.minimum(first[:, None, 3], second[None, :, 3])
-    intersection = (intersection_right - intersection_left).clamp_min(0) * (
-        intersection_bottom - intersection_top
-    ).clamp_min(0)
-    first_area = (first[:, 2] - first[:, 0]).clamp_min(0) * (
-        first[:, 3] - first[:, 1]
-    ).clamp_min(0)
-    second_area = (second[:, 2] - second[:, 0]).clamp_min(0) * (
-        second[:, 3] - second[:, 1]
-    ).clamp_min(0)
-    union = first_area[:, None] + second_area[None, :] - intersection
-    iou = intersection / union.clamp_min(1e-7)
-    enclosing_left = torch.minimum(first[:, None, 0], second[None, :, 0])
-    enclosing_top = torch.minimum(first[:, None, 1], second[None, :, 1])
-    enclosing_right = torch.maximum(first[:, None, 2], second[None, :, 2])
-    enclosing_bottom = torch.maximum(first[:, None, 3], second[None, :, 3])
-    enclosing = (enclosing_right - enclosing_left).clamp_min(0) * (
-        enclosing_bottom - enclosing_top
-    ).clamp_min(0)
-    return iou - (enclosing - union) / enclosing.clamp_min(1e-7)
+    """Compute pairwise generalized IoU with the checked operation order."""
+    first_area = box_area(first)
+    second_area = box_area(second)
+    intersection_left_top = torch.max(first[:, None, :2], second[:, :2])
+    intersection_right_bottom = torch.min(first[:, None, 2:], second[:, 2:])
+    intersection_width_height = (
+        intersection_right_bottom - intersection_left_top
+    ).clamp(min=0)
+    intersection = (
+        intersection_width_height[:, :, 0] * intersection_width_height[:, :, 1]
+    )
+    union = first_area[:, None] + second_area - intersection
+    iou = intersection / union
+    enclosing_left_top = torch.min(first[:, None, :2], second[:, :2])
+    enclosing_right_bottom = torch.max(first[:, None, 2:], second[:, 2:])
+    enclosing_width_height = (enclosing_right_bottom - enclosing_left_top).clamp(min=0)
+    enclosing_area = enclosing_width_height[:, :, 0] * enclosing_width_height[:, :, 1]
+    return iou - (enclosing_area - union) / enclosing_area
 
 
 def _xyxy_to_cxcywh(

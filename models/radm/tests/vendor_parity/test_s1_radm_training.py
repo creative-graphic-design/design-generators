@@ -279,6 +279,7 @@ def _build_source_fixture(
             (images.tensor.shape[-2], images.tensor.shape[-1])
         ).repeat(1, 2),
         "boxes_xyxy": normalized_boxes.unsqueeze(0),
+        "absolute_boxes_xyxy": absolute_boxes.unsqueeze(0),
         "labels": labels.unsqueeze(0),
         "mask": torch.ones(1, labels.numel(), dtype=torch.bool),
         "text_features": text_features,
@@ -1040,12 +1041,13 @@ def _package_targets(batch: dict[str, torch.Tensor]) -> list[dict[str, torch.Ten
 
     valid = batch["mask"][0]
     boxes = batch["boxes_xyxy"][0][valid]
+    absolute_boxes = batch["absolute_boxes_xyxy"][0][valid]
     scale = batch["image_scales"][0]
     return [
         {
             "labels": batch["labels"][0][valid],
             "boxes": _xyxy_to_cxcywh(boxes),
-            "boxes_xyxy": boxes * scale,
+            "boxes_xyxy": absolute_boxes,
             "image_size_xyxy": scale,
             "image_size_xyxy_tgt": scale.expand(boxes.shape[0], -1),
         }

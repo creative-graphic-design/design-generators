@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 import numpy as np
 import torch
+from PIL import Image
 
 from radm import RADMConfig, RADMDenoiser
 from radm.training.config import effective_radm_config
@@ -598,6 +599,7 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
         {
             "image": torch.zeros(3, 32, 48),
             "boxes_xyxy": torch.zeros(1, 4),
+            "absolute_boxes_xyxy": torch.zeros(1, 4),
             "labels": torch.tensor([0]),
             "text_features": torch.ones(20, 768),
             "text_mask": torch.ones(20, 1, dtype=torch.bool),
@@ -610,6 +612,7 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
         {
             "image": torch.zeros(3, 64, 32),
             "boxes_xyxy": torch.zeros(0, 4),
+            "absolute_boxes_xyxy": torch.zeros(0, 4),
             "labels": torch.zeros(0, dtype=torch.long),
             "text_features": torch.full((20, 768), 2.0),
             "text_mask": torch.zeros(20, 1, dtype=torch.bool),
@@ -662,6 +665,52 @@ def test_s0_resize_matches_vendor_integer_target_coordinates() -> None:
     torch.testing.assert_close(
         transformed,
         torch.trunc(boxes * torch.tensor([[4.8, 4.8, 4.8, 4.8]])),
+    )
+
+
+def test_s0_dataset_preserves_transformed_absolute_targets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Keep mapper-transformed absolute boxes beside their normalized encoding."""
+    monkeypatch.setattr(np.random, "random", lambda: 1.0)
+    monkeypatch.setattr(np.random, "choice", lambda values: 480)
+    image_root = tmp_path / "images"
+    image_root.mkdir()
+    Image.fromarray(np.zeros((100, 200, 3), dtype=np.uint8)).save(
+        image_root / "sample.png"
+    )
+    annotation_path = tmp_path / "annotations.json"
+    annotation_path.write_text(
+        json.dumps(
+            {
+                "images": [
+                    {"id": 1, "file_name": "sample.png", "width": 200, "height": 100}
+                ],
+                "annotations": [
+                    {"image_id": 1, "bbox": [20, 20, 60, 60], "category_id": 1}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    dataset = RADMCOCODataset(
+        annotation_path=annotation_path,
+        image_root=image_root,
+        text_feature_root=tmp_path / "features",
+        effective=effective_radm_config(),
+        train=True,
+        read_text_features=False,
+    )
+
+    example = dataset[0]
+
+    torch.testing.assert_close(
+        example["absolute_boxes_xyxy"],
+        torch.tensor([[96.0, 96.0, 384.0, 384.0]]),
+    )
+    torch.testing.assert_close(
+        example["boxes_xyxy"],
+        torch.tensor([[0.1, 0.2, 0.4, 0.8]]),
     )
 
 

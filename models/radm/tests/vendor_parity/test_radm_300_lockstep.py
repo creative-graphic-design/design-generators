@@ -67,6 +67,9 @@ _LOCKSTEP_CODE_PATHS = (
     "models/radm/tests/vendor_parity/test_radm_300_lockstep.py",
     "models/radm/tests/vendor_parity/test_s1_radm_training.py",
     "models/radm/tests/vendor_parity/reference_adapter.py",
+    "models/radm/src/radm/modeling_radm.py",
+    "models/radm/src/radm/training/dataset.py",
+    "models/radm/src/radm/training/lightning_module.py",
 )
 _STEP1_HEAD_SURFACE_ORDER = (
     "head_inputs.text_features",
@@ -1568,7 +1571,7 @@ def _package_targets_for_sidecar(
             {
                 "labels": package_batch["labels"][index][valid],
                 "boxes": boxes_cxcywh,
-                "boxes_xyxy": normalized_boxes * scale,
+                "boxes_xyxy": package_batch["absolute_boxes_xyxy"][index][valid],
                 "image_size_xyxy": scale,
                 "image_size_xyxy_tgt": scale.expand(boxes_cxcywh.shape[0], -1),
             }
@@ -2000,6 +2003,7 @@ def _package_batch(
     device = images.tensor.device
     batch_size = len(source_batch)
     boxes = image_scales.new_zeros(batch_size, effective.num_proposals, 4)
+    absolute_boxes = image_scales.new_zeros(batch_size, effective.num_proposals, 4)
     labels = torch.zeros(
         batch_size, effective.num_proposals, dtype=torch.long, device=device
     )
@@ -2031,6 +2035,7 @@ def _package_batch(
         count = min(len(instances), effective.num_proposals)
         if count:
             absolute = instances.gt_boxes.tensor[:count].to(dtype=images.tensor.dtype)
+            absolute_boxes[index, :count] = absolute
             boxes[index, :count] = absolute / image_scales[index]
             labels[index, :count] = instances.gt_classes[:count]
             mask[index, :count] = True
@@ -2039,6 +2044,7 @@ def _package_batch(
         "image_scales": image_scales,
         "forward_image_scales": forward_image_scales,
         "boxes_xyxy": boxes,
+        "absolute_boxes_xyxy": absolute_boxes,
         "labels": labels,
         "mask": mask,
         "text_features": text_features,
@@ -2094,6 +2100,9 @@ def test_package_batch_uses_width_height_image_scales() -> None:
     )
     assert torch.equal(
         batch["boxes_xyxy"][0, 0], torch.tensor([0.25, 1 / 3, 0.75, 2 / 3])
+    )
+    assert torch.equal(
+        batch["absolute_boxes_xyxy"][0, 0], torch.tensor([1.0, 2.0, 3.0, 4.0])
     )
 
 

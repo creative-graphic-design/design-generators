@@ -9,7 +9,8 @@ from typing import cast
 import pytest
 import torch
 from radm import RADMConfig
-from torchvision.ops import batched_nms
+from radm.training.lightning_module import _generalized_box_iou
+from torchvision.ops import batched_nms, box_area
 
 from laygen.common.testing import skip_or_fail_vendor_parity
 from radm import RADMDenoiser
@@ -70,6 +71,28 @@ def _load_vendor_sinusoidal_position_embeddings() -> type[torch.nn.Module]:
     namespace: dict[str, object] = {"math": math, "nn": torch.nn, "torch": torch}
     exec(compile(module, str(source_path), "exec"), namespace)  # noqa: S102
     return cast(type[torch.nn.Module], namespace["SinusoidalPositionEmbeddings"])
+
+
+def _load_vendor_box_ops() -> types.SimpleNamespace:
+    source_path = _require_vendor_file("RADM/util/box_ops.py")
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    selected = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name in {"box_iou", "generalized_box_iou"}
+    ]
+    module = ast.Module(
+        body=[cast(ast.stmt, node) for node in selected], type_ignores=[]
+    )
+    ast.fix_missing_locations(module)
+    namespace: dict[str, object] = {"box_area": box_area, "torch": torch}
+    exec(compile(module, str(source_path), "exec"), namespace)  # noqa: S102
+    return types.SimpleNamespace(
+        box_iou=namespace["box_iou"],
+        generalized_box_iou=namespace["generalized_box_iou"],
+    )
 
 
 @pytest.mark.vendor_parity
@@ -137,6 +160,23 @@ def test_time_embedding_keeps_vendor_integer_timestep_path() -> None:
     assert len(captured) == 1
     assert captured[0].dtype is torch.float32
     assert torch.equal(captured[0], vendor_embedding(timesteps))
+
+
+@pytest.mark.vendor_parity
+def test_giou_keeps_vendor_operation_order() -> None:
+    """Pin the package GIoU graph to the vendor implementation bitwise."""
+    vendor = _load_vendor_box_ops()
+    first = torch.tensor(
+        [[0.1, 0.2, 0.8, 0.9], [0.0, 0.0, 0.4, 0.6]], dtype=torch.float32
+    )
+    second = torch.tensor(
+        [[0.2, 0.1, 0.7, 0.75], [0.1, 0.3, 0.5, 0.8]], dtype=torch.float32
+    )
+
+    assert torch.equal(
+        _generalized_box_iou(first, second),
+        vendor.generalized_box_iou(first, second),
+    )
 
 
 @pytest.mark.vendor_parity

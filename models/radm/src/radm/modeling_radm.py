@@ -592,9 +592,9 @@ class RADMRelationBlock(nn.Module):
             self.dropout(self.activation(self.linear1(object_features)))
         )
         object_features = self.norm3(object_features + self.dropout3(feed_forward))
-        scale, shift = self.block_time_mlp(time_embedding).chunk(2, dim=1)
-        scale = torch.repeat_interleave(scale, proposals, dim=0)
-        shift = torch.repeat_interleave(shift, proposals, dim=0)
+        scale_shift = self.block_time_mlp(time_embedding)
+        scale_shift = torch.repeat_interleave(scale_shift, proposals, dim=0)
+        scale, shift = scale_shift.chunk(2, dim=1)
         fused = object_features.transpose(0, 1).reshape(batch * proposals, -1)
         fused = fused * (scale + 1) + shift
         if self.with_vtram:

@@ -31,6 +31,7 @@ class RADMTrainingExample(TypedDict):
 
     image: Float[torch.Tensor, "channels height width"]
     boxes_xyxy: Float[torch.Tensor, "elements 4"]
+    absolute_boxes_xyxy: Float[torch.Tensor, "elements 4"]
     labels: Int[torch.Tensor, "elements"]
     text_features: Float[torch.Tensor, "text text_dim"]
     text_mask: Bool[torch.Tensor, "text 1"]
@@ -169,6 +170,7 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             transform_metadata = {"flipped": False, "min_size": 800}
 
         transformed_height, transformed_width = image_tensor.shape[-2:]
+        absolute_box_tensor = box_tensor.clone()
         box_tensor = box_tensor / image_tensor.new_tensor(
             (
                 transformed_width,
@@ -197,6 +199,7 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
         return {
             "image": image_tensor,
             "boxes_xyxy": box_tensor,
+            "absolute_boxes_xyxy": absolute_box_tensor,
             "labels": torch.tensor(labels, dtype=torch.long),
             "text_features": text_features,
             "text_mask": text_mask,
@@ -254,6 +257,7 @@ class RADMDataCollator:
 
         batch = len(examples)
         boxes = images.new_zeros(batch, self.effective.num_proposals, 4)
+        absolute_boxes = images.new_zeros(batch, self.effective.num_proposals, 4)
         labels = torch.zeros(batch, self.effective.num_proposals, dtype=torch.long)
         mask = torch.zeros(batch, self.effective.num_proposals, dtype=torch.bool)
         text_mask = torch.zeros(batch, self.effective.max_text_num, 1, dtype=torch.bool)
@@ -262,6 +266,9 @@ class RADMDataCollator:
                 example["boxes_xyxy"].shape[0], self.effective.num_proposals
             )
             boxes[index, :element_count] = example["boxes_xyxy"][:element_count]
+            absolute_boxes[index, :element_count] = example["absolute_boxes_xyxy"][
+                :element_count
+            ]
             labels[index, :element_count] = example["labels"][:element_count]
             mask[index, :element_count] = True
             text_mask[index] = example["text_mask"]
@@ -289,6 +296,7 @@ class RADMDataCollator:
             ),
             "forward_image_scales": forward_image_scales,
             "boxes_xyxy": boxes,
+            "absolute_boxes_xyxy": absolute_boxes,
             "labels": labels,
             "mask": mask,
             "text_features": text_features,
