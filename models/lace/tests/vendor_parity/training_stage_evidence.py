@@ -134,6 +134,7 @@ def _state_dict_sha256(state: Mapping[str, torch.Tensor]) -> str:
 def _fid_provenance(
     fid_root: Path, dataset: str, vendor_commit: str
 ) -> dict[str, object]:
+    fid_root = fid_root.resolve()
     metadata_path = fid_root / "provenance.json"
     provenance = json.loads(metadata_path.read_text())
     if not isinstance(provenance, dict):
@@ -2127,6 +2128,8 @@ def _evaluation_parity(
         raise ValueError(
             "evaluation-path parity must use the vendor default batch size 256"
         )
+    if fid_root is not None:
+        fid_root = fid_root.resolve()
     checkpoint = checkpoint.resolve()
     device = torch.device(device_name)
     output_root = output_root.resolve()
