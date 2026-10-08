@@ -80,6 +80,7 @@ ROOT_VENUE_BADGE_COLORS = {
     "CVPR 2023": "0076a8",
     "CVPR 2024": "0076a8",
     "CVPR 2025": "0076a8",
+    "CIKM 2023": "6b7280",
     "ECCV 2020": "009688",
     "ECCV 2024": "009688",
     "ICCV 2019": "0066cc",
@@ -88,6 +89,9 @@ ROOT_VENUE_BADGE_COLORS = {
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
+}
+MODEL_VENUE_BADGE_COLORS = {
+    "CIKM 2023": "6b7280",
 }
 ROOT_TASK_BADGE_COLORS = {
     "task-agnostic": "2f80ed",
@@ -151,6 +155,7 @@ PAPER_LINKS = {
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
     ("arXiv", "2305.15393"): "https://arxiv.org/abs/2305.15393",
+    ("arXiv", "2306.09086"): "https://arxiv.org/abs/2306.09086",
     ("arXiv", "2308.12700"): "https://arxiv.org/abs/2308.12700",
     ("arXiv", "2311.06495"): "https://arxiv.org/abs/2311.06495",
     ("arXiv", "2311.13602"): "https://arxiv.org/abs/2311.13602",
@@ -350,12 +355,15 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     if label == "venue":
         if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
             return ROOT_VENUE_BADGE_COLORS[message]
+        if message in MODEL_VENUE_BADGE_COLORS:
+            return MODEL_VENUE_BADGE_COLORS[message]
+
         return "purple"
 
     if label == "models":
         return "purple"
 
-    if label == "vendor-parity" and message == "not-run":
+    if label == "vendor-parity" and message in {"not-run", "not-verified"}:
         return "lightgrey"
 
     if label == "core" or label == "vendor-parity":

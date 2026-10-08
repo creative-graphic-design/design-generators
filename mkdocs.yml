@@ -89,6 +89,7 @@ nav:
           - posterllama: api/models/posterllama.md
           - posterllava: api/models/posterllava.md
           - postero: api/models/postero.md
+          - radm: api/models/radm.md
           - ralf: api/models/ralf.md
           - smarttext: api/models/smarttext.md
 

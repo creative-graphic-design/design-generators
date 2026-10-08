@@ -46,6 +46,7 @@ MODEL_CONDITIONING_ORDER = (
     "label_size",
     "completion",
     "refinement",
+    "content_image",
     "text",
     "relation",
     "hierarchical",
@@ -294,6 +295,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/CGL-Dataset",
         ],
     },
+    "radm": {
+        "license": "other",
+        "datasets": ["creative-graphic-design/CGL-Dataset"],
+    },
     "ralf": {
         "license": "apache-2.0",
         "datasets": [
@@ -332,6 +337,7 @@ EXPECTED_MODEL_NAMES = {
     "posterllama": "PosterLlama",
     "posterllava": "PosterLLaVA",
     "postero": "PosterO",
+    "radm": "RADM",
     "ralf": "RALF",
     "smarttext": "SmartText",
     "basnet": "BASNet",
@@ -350,6 +356,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
+    "radm": "https://github.com/JD-GenX/RADM",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
     "dlt": "https://github.com/wix-incubator/DLT",

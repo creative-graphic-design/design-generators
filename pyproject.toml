@@ -215,6 +215,7 @@ omit = [
     "models/layout-dm/src/layout_dm/training/*",
     "models/layout-flow/src/layout_flow/training/*",
     "models/layoutdiffusion/src/layoutdiffusion/training/*",
+    "models/radm/src/radm/training/*",
     "scripts/*",
     "scripts/**/*",
     "vendor/*",
