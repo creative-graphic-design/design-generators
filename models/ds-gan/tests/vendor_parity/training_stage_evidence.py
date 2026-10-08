@@ -3112,10 +3112,7 @@ def run_s3_production_wiring() -> Path:
             {
                 "path": str(checkpoint.relative_to(ROOT)),
                 "count": len(scheduler_states),
-                "last_epochs": [
-                    state.get("state_dict", {}).get("last_epoch")
-                    for state in scheduler_states
-                ],
+                "last_epochs": [state.get("last_epoch") for state in scheduler_states],
             }
         )
     scheduler_advanced = bool(checkpoint_scheduler_counts) and all(
