@@ -219,6 +219,7 @@ def _repair_fid_provenance(args: argparse.Namespace) -> Path:
         evaluation_test_split = cast(dict[str, object], evaluation["test_split"])
         fid_metadata = _fid_provenance(fid_root, dataset, vendor_commit)
         evaluation_test_split["fid"] = fid_metadata
+        evaluation["fid"] = fid_metadata
         _write_json(evaluation_path.parent, evaluation_path.name, evaluation)
         summary_evaluation = cast(dict[str, object], evaluations[dataset])
         summary_test_split = cast(dict[str, object], summary_evaluation["test_split"])
