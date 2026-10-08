@@ -894,6 +894,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
                 "backbone_freeze_at": config.backbone_freeze_at,
                 "num_train_timesteps": config.num_train_timesteps,
                 "snr_scale": config.snr_scale,
+                "sample_step": config.sample_step,
             }
         )
         if config.backbone_depth not in (18, 50):
