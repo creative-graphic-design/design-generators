@@ -50,13 +50,11 @@ LACE_CHECKPOINT_SOURCE_URL = (
 FID_EVALUATOR_ACQUISITION_COMMAND = (
     'mkdir -p "$LACE_FID_ROOT/fid" && '
     'curl --fail --location --output "$LACE_FID_ROOT/fid/model.py" '
-    '"https://raw.githubusercontent.com/CyberAgentAILab/layout-dm/'
-    '873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py"'
+    '"https://raw.githubusercontent.com/CyberAgentAILab/layout-dm/873b5eebe4c61862e5c08a10859accf65a168dfd/src/trainer/trainer/fid/model.py"'
 )
 FIDNET_V3_ACQUISITION_COMMAND = (
     "curl --fail --location --output .cache/lace/original/layoutdm_starter.zip "
-    "https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/"
-    "layoutdm_starter.zip && unzip -o "
+    "https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip && unzip -o "
     ".cache/lace/original/layoutdm_starter.zip "
     "'download/fid_weights/FIDNetV3/*/model_best.pth.tar' -d "
     ".cache/lace/original/layoutdm-unpacked && cp -a "
