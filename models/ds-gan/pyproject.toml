@@ -28,6 +28,7 @@ hub = [
     "huggingface-hub>=1.0.0",
 ]
 vendor = [
+    "opencv-python-headless>=4.8",
     "pandas>=1.4",
     "torchvision>=0.16",
 ]
