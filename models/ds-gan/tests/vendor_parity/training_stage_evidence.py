@@ -18,6 +18,7 @@ import shutil
 from statistics import median
 import subprocess
 import sys
+import time
 from tempfile import TemporaryDirectory
 from typing import Any, Iterator, cast  # noqa: TID251 - vendor adapter boundary is heterogeneous
 import warnings
@@ -3090,6 +3091,7 @@ def run_s3_production_wiring() -> Path:
         "--data.num_workers=0",
         "--trainer.enable_progress_bar=false",
     ]
+    run_started_ns = time.time_ns()
     result = subprocess.run(
         command,
         cwd=ROOT,
@@ -3102,7 +3104,11 @@ def run_s3_production_wiring() -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(result.stdout)
     checkpoint_root = CACHE / "training-runs" / "pku_posterlayout" / "checkpoints"
-    checkpoints = sorted(checkpoint_root.glob("*.ckpt"))
+    checkpoints = sorted(
+        path
+        for path in checkpoint_root.glob("*.ckpt")
+        if path.stat().st_mtime_ns >= run_started_ns
+    )
     logger_root = CACHE / "training-runs" / "pku_posterlayout"
     checkpoint_scheduler_counts: list[dict[str, Any]] = []
     for checkpoint in checkpoints:
@@ -3142,6 +3148,7 @@ def run_s3_production_wiring() -> Path:
             "output_sha256": _sha256(output_path),
             "logger_root": str(logger_root.relative_to(ROOT)),
             "checkpoint_root": str(checkpoint_root.relative_to(ROOT)),
+            "checkpoint_scan_started_ns": run_started_ns,
             "checkpoint_files": [str(path.relative_to(ROOT)) for path in checkpoints],
             "checkpoint_scheduler_counts": checkpoint_scheduler_counts,
             "scheduler_advanced": scheduler_advanced,
