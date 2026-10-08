@@ -16,6 +16,8 @@ flags:
     carryforward: true
   canvas-vae:
     carryforward: true
+  pixel-vae:
+    carryforward: true
   coarse-to-fine:
     carryforward: true
   ds-gan:
