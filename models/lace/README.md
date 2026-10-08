@@ -176,7 +176,7 @@ The original LACE project trains on PubLayNet and RICO25 annotations prepared as
 
 ### Training Procedure
 
-Package-local reproduction passes the asserted staged gates for PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical reproduction is not claimed. The commands and machine-written evidence are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md), and full-run reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
+Package-local reproduction passes the asserted staged gates for PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical reproduction is not claimed. The final-head commands and machine-written evidence are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md), and full-run reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
