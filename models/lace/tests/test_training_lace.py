@@ -34,7 +34,7 @@ from lace.training.losses import (
 from lace.training.seed import apply_lace_seed_mode
 from lace.training.trace import (
     LaceTrainingTraceCallback,
-    _gradient_norm,
+    gradient_norm,
     _mapping_l2_norm,
     _tensor_hashes,
 )
@@ -189,14 +189,13 @@ def test_training_trace_summaries_use_shared_helpers() -> None:
         name: tensor_sha256(value) for name, value in values.items()
     }
     assert _mapping_l2_norm(values) == expected_norm
-    assert _gradient_norm(parameters) == expected_norm
+    assert gradient_norm(parameters) == expected_norm
 
 
 def test_training_trace_callback_records_optimizer_boundary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     trace_path = tmp_path / "trace.json"
-    monkeypatch.setenv("LACE_TRAINING_TRACE_PATH", str(trace_path))
     parameter = nn.Parameter(torch.tensor([1.0]))
     optimizer = torch.optim.Adam([parameter], lr=1e-5)
 
@@ -224,6 +223,8 @@ def test_training_trace_callback_records_optimizer_boundary(
     module = FakeModule()
     trainer = FakeTrainer()
     callback = LaceTrainingTraceCallback()
+    monkeypatch.setenv("LACE_TRAINING_TRACE_PATH", str(trace_path))
+    callback.setup(cast(Trainer, trainer), cast(LightningModule, module), stage="fit")
     callback.on_train_batch_start(
         cast(Trainer, trainer),
         cast(LightningModule, module),

@@ -19,7 +19,8 @@ def _tensor_hashes(values: Mapping[str, Shaped[torch.Tensor, "..."]]) -> dict[st
     return {name: tensor_sha256(value) for name, value in sorted(values.items())}
 
 
-def _gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
+def gradient_norm(parameters: Mapping[str, nn.Parameter]) -> float:
+    """Return the shared float64 gradient norm for named parameters."""
     total = torch.zeros((), dtype=torch.float64)
     for name in sorted(parameters):
         parameter = parameters[name]
@@ -59,14 +60,21 @@ class LaceTrainingTraceCallback(Callback):
     """Write optimizer-boundary records when a trace path is configured."""
 
     def __init__(self) -> None:
-        """Enable recording only when the caller supplies a trace path."""
-        trace_path = os.environ.get("LACE_TRAINING_TRACE_PATH")
-        self.trace_path = Path(trace_path) if trace_path else None
+        """Initialize callback state without reading process configuration."""
+        self.trace_path: Path | None = None
         self._batch_ids: list[str] = []
         self._record: dict[str, object] | None = None
         self._pre_clip_hashes: dict[str, str] = {}
         self._pre_clip_norm = 0.0
         self.records: list[dict[str, object]] = []
+
+    def setup(
+        self, trainer: Trainer, pl_module: LightningModule, stage: str | None = None
+    ) -> None:
+        """Read the opt-in trace path when Lightning attaches the callback."""
+        del trainer, pl_module, stage
+        trace_path = os.environ.get("LACE_TRAINING_TRACE_PATH")
+        self.trace_path = Path(trace_path) if trace_path else None
 
     def on_train_batch_start(
         self,
@@ -101,7 +109,7 @@ class LaceTrainingTraceCallback(Callback):
                 if parameter.grad is not None
             }
         )
-        self._pre_clip_norm = _gradient_norm(parameters)
+        self._pre_clip_norm = gradient_norm(parameters)
 
     def on_before_optimizer_step(
         self,
@@ -153,7 +161,7 @@ class LaceTrainingTraceCallback(Callback):
         self._record.update(
             {
                 "clipped_gradient_hashes": _tensor_hashes(gradients),
-                "clipped_gradient_norm": _gradient_norm(parameters),
+                "clipped_gradient_norm": gradient_norm(parameters),
                 "optimizer_state_hashes": _tensor_hashes(optimizer_state),
                 "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
                 "parameter_l2_norm": _mapping_l2_norm(model.state_dict()),

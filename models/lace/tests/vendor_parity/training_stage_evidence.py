@@ -76,7 +76,7 @@ from lace.training.dataset import LaceProcessedDataset, collate_lace_batch  # no
 from lace.training.ema import LaceEMA  # noqa: E402
 from lace.training.lightning_module import LaceTrainingModule  # noqa: E402
 from lace.training.trace import (  # noqa: E402
-    _gradient_norm as _production_gradient_norm,
+    gradient_norm as _production_gradient_norm,
     _mapping_l2_norm as _production_mapping_l2_norm,
     _tensor_hashes as _production_tensor_hashes,
 )
@@ -630,6 +630,24 @@ def _compatibility(
     }
 
 
+def _source_stream_compatibility(
+    compatibility: Mapping[str, Mapping[str, object]],
+) -> bool:
+    for dataset, dataset_result in compatibility.items():
+        splits = cast(Mapping[str, Mapping[str, object]], dataset_result["splits"])
+        for split, split_result in splits.items():
+            if dataset == "rico25" and split == "train":
+                if not bool(dataset_result["rico_train_repeated_stream_equal"]):
+                    return False
+                continue
+            if not (
+                bool(split_result["record_ids_equal"])
+                and bool(split_result["element_tuples_equal"])
+            ):
+                return False
+    return True
+
+
 def _source_provenance(dataset: str) -> dict[str, str]:
     constructor = PubLayNetDataset if dataset == "publaynet" else Rico25Dataset
     return {
@@ -667,6 +685,12 @@ def run_s0(args: argparse.Namespace) -> Path:
     vendor_ema = VendorEMA(mu=0.9999)
     vendor_ema.register(vendor.model)
     package_ema = target.ema_helper
+    data_compatibility = {
+        name: _compatibility(
+            Path(args.lace_data_root), Path(args.layoutdm_data_root), name
+        )
+        for name in ("publaynet", "rico25")
+    }
     gate_checks = {
         "state_key_set_equal": set(vendor_state) == set(package_state),
         "state_shapes_equal": shape_equal,
@@ -681,6 +705,9 @@ def run_s0(args: argparse.Namespace) -> Path:
         == len(package_optimizer.param_groups[0]["params"]),
         "ema_mu_equal": vendor_ema.mu == package_ema.mu == 0.9999,
         "ema_state_key_set_equal": set(vendor_ema.shadow) == set(package_ema.shadow),
+        "source_stream_compatibility_equal": _source_stream_compatibility(
+            data_compatibility
+        ),
     }
     payload: dict[str, object] = {
         "stage": "S0",
@@ -742,12 +769,7 @@ def run_s0(args: argparse.Namespace) -> Path:
         },
         "gate_verdict": "pass" if all(gate_checks.values()) else "fail",
         "gate_checks": gate_checks,
-        "data_compatibility": {
-            name: _compatibility(
-                Path(args.lace_data_root), Path(args.layoutdm_data_root), name
-            )
-            for name in ("publaynet", "rico25")
-        },
+        "data_compatibility": data_compatibility,
     }
     return _write_json(output, "summary.json", payload)
 
@@ -1148,6 +1170,8 @@ def _traingen_command(
         str(steps),
         "--trainer.default_root_dir",
         str(run_root.relative_to(ROOT)),
+        "--trainer.callbacks+=",
+        "lace.training.trace.LaceTrainingTraceCallback",
     ]
 
 
@@ -2512,6 +2536,7 @@ def _evaluation_parity(
         "vendor_evaluation_entry": _source_entrypoint(vendor_test.test_layout_cond),
         "package_evaluation_entry": _source_entrypoint(package.__call__),
         "runtime": _runtime_metadata(output_root),
+        "fid": fid_metadata,
         "test_split": test_check,
     }
     _write_json(evaluation_root, "evaluation.json", evaluation_payload)
