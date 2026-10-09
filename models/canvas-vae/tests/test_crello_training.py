@@ -26,6 +26,11 @@ from canvas_vae.modeling_canvas_vae import CanvasVAECrelloModel
 from canvas_vae.configuration_canvas_vae import CanvasVAECrelloConfig
 from canvas_vae.training.datamodule import CanvasVAECrelloDataModule
 from canvas_vae.training.lightning_module import CanvasVAECrelloTrainingModule
+from canvas_vae.training.parity import (
+    ZERO_GRADIENT_LIMIT,
+    check_zero_gradient,
+    split_attention_key_biases,
+)
 
 
 TYPE_VALUES = [
@@ -36,6 +41,37 @@ TYPE_VALUES = [
     "maskElement",
     "otherElement",
 ]
+
+
+def test_attention_key_biases_use_shared_absolute_zero_gradient_rule():
+    parameters = {
+        "encoder.blocks.0.attention.k_proj.bias": object(),
+        "decoder.blocks.1.attention.k_proj.bias": object(),
+        "encoder.blocks.0.attention.q_proj.weight": object(),
+    }
+
+    relative, zero_gradient = split_attention_key_biases(parameters)
+    check = check_zero_gradient(
+        torch.tensor([0.0, 8e-7]), np.array([2e-7, 0.0], dtype=np.float32)
+    )
+    exceeded = check_zero_gradient(
+        torch.tensor([1.1e-6]), np.array([0.0], dtype=np.float32)
+    )
+    vendor_exceeded = check_zero_gradient(
+        torch.tensor([0.0]), np.array([1.1e-6], dtype=np.float32)
+    )
+
+    assert list(relative) == ["encoder.blocks.0.attention.q_proj.weight"]
+    assert list(zero_gradient) == [
+        "encoder.blocks.0.attention.k_proj.bias",
+        "decoder.blocks.1.attention.k_proj.bias",
+    ]
+    assert ZERO_GRADIENT_LIMIT == 1e-6
+    assert check.package_max_abs == pytest.approx(8e-7)
+    assert check.vendor_max_abs == pytest.approx(2e-7)
+    assert check.within_limit
+    assert not exceeded.within_limit
+    assert not vendor_exceeded.within_limit
 
 
 def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
@@ -111,6 +147,46 @@ def test_crello_calibration_registers_two_ulp_floor_for_bounded_metric_scores():
     assert result["s1_layout_metrics/layout_miou"]["limit"] == 1.5e-7
     assert result["s1_reconstruction_losses"]["L"] == 0.0
     assert result["s1_reconstruction_losses"]["limit"] == 0.0
+
+
+def test_crello_report_names_largest_relative_tensor_for_every_s2_group():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    comparison_type = namespace["_Comparison"]
+    summarize = cast(
+        Callable[..., dict[str, object]], namespace["_largest_s2_relative_tensors"]
+    )
+    groups = (
+        "s2_gradients",
+        "s2_clipped_gradients",
+        "s2_first_moments",
+        "s2_second_moments",
+        "s2_updated_parameters",
+    )
+    records = [
+        comparison_type(group, name, 2, "norm_rel", value, [4], [4], True)
+        for group in groups
+        for name, value in (
+            ("encoder.blocks.0.attention.q_proj.weight", 0.2),
+            ("decoder.blocks.0.attention.q_proj.weight", 0.4),
+        )
+    ]
+
+    result = summarize(records)
+
+    assert set(result) == set(groups)
+    assert all(
+        result[group]
+        == {
+            "tensor": "decoder.blocks.0.attention.q_proj.weight",
+            "batch": 2,
+            "metric": "norm_rel",
+            "relative_error": 0.4,
+        }
+        for group in groups
+    )
 
 
 def test_crello_parity_report_serializes_numpy_scalars(tmp_path):

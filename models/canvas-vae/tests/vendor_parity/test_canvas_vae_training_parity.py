@@ -44,6 +44,11 @@ from canvas_vae.training import (
     sequential_batches,
     wrapping_batches,
 )
+from canvas_vae.training.parity import (
+    ZERO_GRADIENT_LIMIT,
+    check_zero_gradient,
+    split_attention_key_biases,
+)
 from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
 
@@ -133,7 +138,6 @@ S3_ADAM_RULE_LIMIT = 5.1e-4
 S3_WELL_CONDITIONED_LIMIT = 6.1e-3
 # One float64 error bound applies to both one-step and synchronized checks.
 ROUNDING_LIMIT = 4.1e-3
-ZERO_GRADIENT_LIMIT = 1e-6
 WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
 # Counts of direct and float64-arbitrated comparisons remain report-only.
@@ -951,23 +955,25 @@ def test_s2_one_optimizer_step(
     model = fresh_model(initial_state, original_vocabularies)
     output, penalty, _, _ = run_traced_step(model, batches, step0)
     (output.loss + penalty).backward()
-    sources = trainable_sources(model.config)
+    all_sources = trainable_sources(model.config)
+    sources, zero_gradient_sources = split_attention_key_biases(all_sources)
     parameters = dict(model.named_parameters())
     measured: dict[str, dict[str, float]] = {}
-    grad_types = {str(step0[f"grad_type/{source}"]) for source, _ in sources.values()}
+    grad_types = {
+        str(step0[f"grad_type/{source}"]) for source, _ in all_sources.values()
+    }
     zero_gradient = {}
-    for key in [key for key in sources if key.endswith("attention.k_proj.bias")]:
-        source, _ = sources.pop(key)
-        zero_gradient[key] = (
-            float(parameters[key].grad.abs().max()),
-            float(np.abs(step0[f"grad/{source}"]).max()),
-        )
+    for key, (source, _) in zero_gradient_sources.items():
+        package_gradient = parameters[key].grad
+        assert package_gradient is not None
+        check = check_zero_gradient(package_gradient, step0[f"grad/{source}"])
+        zero_gradient[key] = (check.package_max_abs, check.vendor_max_abs)
         measured[f"zero_gradient/{key}"] = {
-            "package_max_abs": zero_gradient[key][0],
-            "original_max_abs": zero_gradient[key][1],
+            "package_max_abs": check.package_max_abs,
+            "original_max_abs": check.vendor_max_abs,
             "max_abs": max(zero_gradient[key]),
             "limit": ZERO_GRADIENT_LIMIT,
-            "within": max(zero_gradient[key]) <= ZERO_GRADIENT_LIMIT,
+            "within": check.within_limit,
             "ignore_limit_in_calibration": True,
         }
 
@@ -1345,11 +1351,7 @@ def test_s3_synchronized_steps(
     config = make_config(original_vocabularies, 0.0)
     model = fresh_model(initial_state, original_vocabularies)
     optimizer = KerasAdam(model.parameters())
-    sources = {
-        key: value
-        for key, value in trainable_sources(config).items()
-        if not key.endswith("attention.k_proj.bias")
-    }
+    sources, _ = split_attention_key_biases(trainable_sources(config))
     parameters = dict(model.named_parameters())
     measured: dict[str, dict[str, float]] = {}
     for step in range(1, steps):
