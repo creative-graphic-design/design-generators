@@ -70,10 +70,10 @@ COMPLETION_REQUIREMENTS = (
         justification_label="a reason",
     ),
     CompletionRequirement(
-        name="pre-PR adversarial review",
+        name="independent adversarial review",
         prefix=(
-            "Pre-PR adversarial review completed "
-            "(reviewer spawned before opening the PR; findings resolved)"
+            "Independent adversarial review completed before ready for review "
+            "(reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
         allowed_justification=None,
         justification_label=None,

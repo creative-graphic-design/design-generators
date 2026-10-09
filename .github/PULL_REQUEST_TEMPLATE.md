@@ -37,11 +37,11 @@ Full checklist: see [docs/implementation-checklist.md](https://github.com/creati
 
 ## Completion Gate
 
-<!-- Draft PRs may leave these pending. Ready-for-review PRs must either satisfy each item, or keep an actionable blocker/reason in the item text. -->
+<!-- Draft PRs may leave these pending. Ready-for-review PRs must satisfy each item. Independent adversarial review must be checked; the other items allow the reasons stated in their wording. -->
 
 - [ ] Vendor parity verified, or gated-pending: <independent rerun, cases, criterion, and artifact scope; or state why parity is not applicable; otherwise name the blocker>.
 - [ ] Training S5 reproduction complete, or N/A: <claimed datasets and training/evaluation seed scope, with S0-S4 evidence cited before S5; or N/A with reason>. Infrastructure-only work must state that full-run reproduction is not claimed.
-- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
+- [ ] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)
 
 <!-- Optional for complete PRs that must remain draft:
 ## Draft Reason
