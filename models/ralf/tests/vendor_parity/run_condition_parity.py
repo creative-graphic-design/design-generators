@@ -648,12 +648,13 @@ def vendor_prediction_dir(
     *, args: argparse.Namespace, input_root: Path, output_root: Path
 ) -> Path:
     root = output_root / "vendor-inference"
+    expected_seed = INFERENCE_SEEDS[0]
     if args.skip_vendor_inference:
         root.mkdir(parents=True, exist_ok=True)
-        candidates = sorted(root.rglob("test_0.pkl"))
+        candidates = sorted(root.rglob(f"test_{expected_seed}.pkl"))
         if not candidates:
             raise FileNotFoundError(
-                "--skip-vendor-inference requires an existing test_0.pkl"
+                f"--skip-vendor-inference requires an existing test_{expected_seed}.pkl"
             )
         return candidates[0].parent
     if root.exists():
@@ -733,9 +734,11 @@ def vendor_prediction_dir(
         env=environment,
         check=True,
     )
-    candidates = sorted(root.rglob("test_0.pkl"))
+    candidates = sorted(root.rglob(f"test_{expected_seed}.pkl"))
     if not candidates:
-        raise FileNotFoundError("vendor inference produced no test_0.pkl")
+        raise FileNotFoundError(
+            f"vendor inference produced no test_{expected_seed}.pkl"
+        )
     selected = candidates[0].parent
     for path in selected.glob("test_*.pkl"):
         sanitize_vendor_pickle(path, input_root)
@@ -1058,7 +1061,7 @@ def artifact(
     package_predictions = load_results(output_root / "package-pipeline")
     vendor_prediction_root = next(
         path.parent
-        for path in output_root.rglob("test_0.pkl")
+        for path in output_root.rglob(f"test_{INFERENCE_SEEDS[0]}.pkl")
         if "vendor-inference" in path.parts
     )
     vendor_predictions = load_results(vendor_prediction_root)
@@ -1106,7 +1109,7 @@ def artifact(
                 for path in sorted(
                     next(
                         path.parent
-                        for path in output_root.rglob("test_0.pkl")
+                        for path in output_root.rglob(f"test_{INFERENCE_SEEDS[0]}.pkl")
                         if "vendor-inference" in path.parts
                     ).glob("test_*.pkl")
                 )
@@ -1301,6 +1304,7 @@ def main() -> None:
         args.output_root, args.runtime_python, args.runtime_freeze_path
     )
     if args.refresh_existing:
+        expected_seed = INFERENCE_SEEDS[0]
         input_root = require_file(
             args.output_root
             / "input"
@@ -1309,13 +1313,13 @@ def main() -> None:
             "prepared test dataset",
         ).parent
         package_predictions = require_file(
-            args.output_root / "package-pipeline" / "test_0.pkl",
+            args.output_root / "package-pipeline" / f"test_{expected_seed}.pkl",
             "existing package predictions",
         ).parent
         vendor_predictions = require_file(
             next(
                 path
-                for path in args.output_root.rglob("test_0.pkl")
+                for path in args.output_root.rglob(f"test_{expected_seed}.pkl")
                 if "vendor-inference" in path.parts
             ),
             "existing vendor predictions",
