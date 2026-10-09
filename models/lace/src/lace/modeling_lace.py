@@ -84,8 +84,6 @@ class LaceTransformerModel(ModelMixin, ConfigMixin):
 
     config_name = "model_config.json"
 
-    pos_embed: Float[torch.Tensor, "max_seq_length dim_transformer"]
-
     @register_to_config
     def __init__(
         self,
@@ -106,8 +104,6 @@ class LaceTransformerModel(ModelMixin, ConfigMixin):
         self.seq_dim = seq_dim
         self.max_seq_length = max_seq_length
         self.pos_encoder = SinusoidalPosEmb(max_seq_length, dim_transformer)
-        pos_i = torch.arange(max_seq_length)
-        self.register_buffer("pos_embed", self.pos_encoder(pos_i), persistent=False)
         self.layer_in = nn.Linear(seq_dim, dim_transformer)
         encoder_layer = Block(
             d_model=dim_transformer,
@@ -140,7 +136,7 @@ class LaceTransformerModel(ModelMixin, ConfigMixin):
         """
         output = F.softplus(self.layer_in(sample))
         pos_i = torch.arange(output.shape[1], device=output.device)
-        output = output + self.pos_encoder(pos_i).to(output)
+        output = output + self.pos_encoder(pos_i)
         key_padding_mask = None if attention_mask is None else ~attention_mask.bool()
         for i, layer in enumerate(self.layers):
             output = layer(

@@ -143,6 +143,13 @@ print(out.id2label[int(out.labels[out.mask][0])])
 print(out.mask.any().item())
 ```
 
+```text
+torch.Size([1, 25, 4])
+torch.Size([1, 25])
+text
+True
+```
+
 ```python
 out = pipe(
     condition_type="label_size",
@@ -165,11 +172,11 @@ print(out.bbox.shape)
 | RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | original-source-derived RICO13 mapping                   |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
-The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.
+The original LACE project trains on PubLayNet and RICO25 annotations prepared as max-25 layout sequences. RICO13 remains outside the package-local training claim because the approved archive has no authors' RICO13 checkpoint.
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Package-local reproduction passes the asserted staged gates for PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical reproduction is not claimed. The final-head commands and machine-written evidence are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md), and full-run reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
@@ -177,7 +184,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** package-local training and exact agreement checks pass through the full TEST evaluation path for PubLayNet and RICO25; full-run statistical training is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -214,7 +221,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+Package-local training support exists, but this PR did not perform full-run model training. Conversion, agreement checks, and any future training costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
