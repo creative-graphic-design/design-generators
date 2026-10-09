@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), a variational autoencoder for vector graphic documents, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for training and layout generation. RICO full-run parity is confirmed: an independent, from-scratch held-out run in normal mode passed all five staged checks under calibrated limits, from static initialization through training outputs and optimizer updates to production-loader replay ([S0–S4](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md)). The three-seed RICO evaluation comparison also passes all three primary metrics. Crello remains blocked and unclaimed.
+This package ports [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), a variational autoencoder for vector graphic documents, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for training and layout generation. RICO full-run parity is confirmed: an independent, from-scratch held-out run in normal mode passed all five staged checks under calibrated limits, from static initialization through training outputs and optimizer updates to production-loader replay ([S0–S4](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md)). The three-seed RICO evaluation comparison also passes all three primary metrics. Crello model, training, and evaluation support is implemented, but Crello vendor parity and full-run training have not been run, and no trained Crello checkpoint or quality result is claimed.
 
 The original and package each completed three 500-epoch RICO runs and pass the predeclared comparison rule on 5,623 test layouts for the reconstruction score (Sreconst, mean BLEU-1 across fields and test layouts), layout mIoU (mean class intersection-over-union on rasterized component maps), and generated-layout score (Sgen, mean histogram intersection for generated-layout field and element-count distributions against RICO); each Sgen value averages three evaluation seeds. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) gives per-run results, the comparison rule, evaluation scope, calibration, and reproduction commands.
 
@@ -46,7 +46,7 @@ The original and package each completed three 500-epoch RICO runs and pass the p
 
 ### Model Description
 
-CanvasVAE encodes a layout, meaning a sequence of up to 50 UI elements, into a 256-dimensional latent code with a transformer encoder, and decodes a latent code back into the element count and every element field in one pass. Each RICO element has a position and size discretized into 64 bins over the canvas, a `component` label, an `icon` class, a `text_button` class, and a `clickable` flag. Sampling the latent code from a standard normal prior generates new layouts. The pipeline returns normalized center `xywh` boxes in `[0, 1]`, `component` ids as `labels`, a valid-element `mask`, and `id2label`.
+CanvasVAE encodes a layout, meaning a sequence of up to 50 UI elements, into a latent code with a transformer encoder, and decodes the element count and fields in one pass. The RICO model uses a 256-dimensional latent code; each element has geometry discretized into 64 bins, a `component` label, `icon` and `text_button` classes, and a `clickable` flag. Its pipeline returns normalized center `xywh` boxes in `[0, 1]`, `component` ids as `labels`, a valid-element `mask`, and `id2label`. The Crello model uses a 512-dimensional latent code, categorical context and element fields, a three-channel color head, and 256-dimensional image embeddings. It uses the same transformer blocks but has a separate config and model class.
 
 - **Developed by:** Kota Yamaguchi.
 - **Shared by:** creative-graphic-design.
@@ -62,17 +62,18 @@ CanvasVAE encodes a layout, meaning a sequence of up to 50 UI elements, into a 2
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID                                    | Status        |
-| ---------- | ----------------------------------------- | ------------- |
-| RICO       | `creative-graphic-design/canvas-vae-rico` | not-published |
+| Checkpoint | Hub ID                                    | Status                |
+| ---------- | ----------------------------------------- | --------------------- |
+| RICO       | `creative-graphic-design/canvas-vae-rico` | not-published         |
+| Crello     | —                                         | no trained checkpoint |
 
-RICO full-run parity is complete: an independent held-out normal-mode run passed the calibrated S0–S4 checks, and the three-seed S5 comparison passed all primary metrics. The corrected package checkpoints passed the final-epoch gate at epoch 499 and global step 22,500; all package outputs from before that correction are excluded. Model weights are not published. Crello remains blocked and unclaimed because it requires a separately trained image encoder. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for the full evidence.
+RICO full-run parity is complete: an independent held-out normal-mode run passed the calibrated S0–S4 checks, and the three-seed full-run comparison passed all primary metrics. The corrected package checkpoints passed the final-epoch gate at epoch 499 and global step 22,500; all package outputs from before that correction are excluded. Neither dataset has published weights. The Crello implementation requires prepared data and the verified 256-dimensional embedding fixture; its CPU S0–S3 harness is documented, but vendor parity and full-run training remain unverified. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for the evidence and run status.
 
 ## Uses
 
 ### Direct Use
 
-Use this package to train CanvasVAE on RICO, to generate UI layouts from the prior, and to reconstruct layouts through `CanvasVAEModel`.
+Use this package to train CanvasVAE on RICO or Crello. `CanvasVAEPipeline` generates and reconstructs RICO layouts; `CanvasVAECrelloModel` trains, reconstructs, and decodes Crello layouts from latent vectors. Crello requires the prepared data and embedding fixture described in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md).
 
 | `condition_type`                                                                                                    | Required inputs | Effect                                   |
 | ------------------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------- |
@@ -137,9 +138,10 @@ Modal
 
 ### Training Data
 
-| Dataset | Dataset ID                                                                                     | Notes                                                                                                                                                                                                                                                        |
-| ------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| RICO    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | Training reads the original [semantic-annotation archive](https://storage.googleapis.com/crowdstf-rico-uiuc-4540/rico_dataset_v0.1/semantic_annotations.zip) because its content-hash split and `textButtonClass` field are not in the hosted configuration. |
+| Dataset | Dataset ID / source                                                                                        | Notes                                                                                                                                                                                                                                                        |
+| ------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| RICO    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)             | Training reads the original [semantic-annotation archive](https://storage.googleapis.com/crowdstf-rico-uiuc-4540/rico_dataset_v0.1/semantic_annotations.zip) because its content-hash split and `textButtonClass` field are not in the hosted configuration. |
+| Crello  | [Original Crello v1 archive](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip) | Training uses the canonical prepared splits and a verified posterior-mean fixture for every referenced image; the archive and derived assets stay private.                                                                                                   |
 
 ### Training Procedure
 
@@ -175,7 +177,7 @@ Training agreement compares forward activations, losses, gradients, optimizer st
 
 ### Parity Results
 
-The table keeps reference and calibration-set maxima as historical measurements and adds the independent held-out normal-mode results. The held-out run used a fresh clone, initialized its submodule, downloaded and prepared RICO, and regenerated references on an Intel Xeon CPU at 2.20 GHz without AVX-512. All five S0–S4 commands passed; the documented full suite reported 10 passed and 3 warnings in 3,591.26 seconds (59 minutes 51 seconds). The read-back evidence bundle contained all 208 manifest entries. See the [held-out evidence comment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6052063572). A later documentation/comment-only update did not change executable checks or limits. The full-run reproduction claim covers RICO only; Crello remains blocked and unclaimed.
+The table keeps RICO reference and calibration maxima separate from its independent held-out results. The held-out run used a fresh clone, initialized its submodule, prepared RICO, and regenerated references on an Intel Xeon CPU at 2.20 GHz without AVX-512. All five RICO S0–S4 commands passed; the documented suite reported 10 passed and 3 warnings in 3,591.26 seconds. See the [held-out evidence comment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6052063572). Crello CPU unit tests pass and an S0–S3 parity harness is available, but its vendor comparison and full-run training have not been run.
 
 | Check                                                                | Cases                                                                                                      | Criterion                                                                                                                                                                        | Historical calibration maximum                                                                                                                                                                                                                         | Held-out normal-mode result                                                                                                                                                                                                                         |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -190,7 +192,7 @@ The table keeps reference and calibration-set maxima as historical measurements 
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for commands to prepare RICO, generate original-code references, run agreement checks, convert checkpoints, and smoke-test loading. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the completed RICO S0–S4 held-out pass, historical calibration measurements, S5 results, and package-local LightningCLI training. Full-run reproduction is claimed for RICO only; Crello remains unclaimed.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for commands to prepare RICO and Crello, generate original-code references, run the agreement checks, convert checkpoints, and load local models. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the completed RICO S0–S5 evidence and the Crello package recipe and parity-run status. Full-run reproduction is claimed for RICO only.
 
 ## Environmental Impact
 

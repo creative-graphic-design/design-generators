@@ -14,5 +14,11 @@ from .sampling import (
 )
 
 if _find_spec("lightning") is not None:
-    from .datamodule import CanvasVAEDataModule as CanvasVAEDataModule
-    from .lightning_module import CanvasVAETrainingModule as CanvasVAETrainingModule
+    from .datamodule import (
+        CanvasVAECrelloDataModule as CanvasVAECrelloDataModule,
+        CanvasVAEDataModule as CanvasVAEDataModule,
+    )
+    from .lightning_module import (
+        CanvasVAECrelloTrainingModule as CanvasVAECrelloTrainingModule,
+        CanvasVAETrainingModule as CanvasVAETrainingModule,
+    )
