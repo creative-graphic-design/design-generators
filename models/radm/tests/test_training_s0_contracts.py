@@ -25,7 +25,11 @@ from radm.training.dataset import (
 )
 from radm.training.datamodule import RADMAspectRatioBatchSampler
 from radm.training.optim import build_radm_optimizer, build_radm_scheduler
-from radm.modeling_radm import RADMProposalHead, RADMDenoiserOutput
+from radm.modeling_radm import (
+    RADMGeometryRelationAwareModule,
+    RADMProposalHead,
+    RADMDenoiserOutput,
+)
 from radm.training.topology import (
     assert_radm_package_topology,
     assert_forward_parity,
@@ -481,6 +485,18 @@ def test_roi_index_put_preserves_channels_last_layout_on_cpu() -> None:
     assert pooled.shape == (2, 256, 7, 7)
     assert pooled.is_contiguous(memory_format=torch.channels_last)
     assert pooled.stride() == (12544, 1, 1792, 256)
+
+
+def test_geometry_relation_handles_channels_last_roi_output() -> None:
+    torch.manual_seed(0)
+    module = RADMGeometryRelationAwareModule(pooled_dim=8, output_dim=4)
+    boxes = torch.tensor([[[0.0, 0.0, 8.0, 8.0], [1.0, 1.0, 7.0, 7.0]]])
+    pooled = torch.randn(2, 2, 2, 2).contiguous(memory_format=torch.channels_last)
+
+    channels_last_output = module(boxes, pooled)
+    contiguous_output = module(boxes, pooled.contiguous())
+
+    assert torch.equal(channels_last_output, contiguous_output)
 
 
 def test_s0_repeated_heads_detach_only_the_next_head_boxes() -> None:

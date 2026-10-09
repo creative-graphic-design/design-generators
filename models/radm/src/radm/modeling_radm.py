@@ -374,7 +374,9 @@ class RADMGeometryRelationAwareModule(nn.Module):
             ),
             dim=1,
         )
-        transformed = self.linear2(pooled_features.view(pooled_features.shape[0], -1))
+        transformed = self.linear2(
+            pooled_features.reshape(pooled_features.shape[0], -1)
+        )
         topology = transformed.new_zeros((boxes_with_batch.shape[0], self.topo_out_dim))
         for batch_index in range(batch):
             selected = boxes_with_batch[:, 0] == batch_index
