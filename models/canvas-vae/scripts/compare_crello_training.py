@@ -44,6 +44,7 @@ from canvas_vae.data import (
     load_crello_vocabularies,
     load_embedding_fixture,
 )
+from canvas_vae.metrics import crello_reconstruction_scores
 from canvas_vae.modeling_canvas_vae import (
     CanvasVAECrelloModel,
     CanvasVAECrelloModelOutput,
@@ -82,12 +83,6 @@ CALIBRATION_SELECTION: Final = (
     "indices [0,1024), [1024,2048), [2048,3072)"
 )
 CALIBRATION_FORMULA: Final = "limit=max(L,ceil2(1.5*M)); L=0; M=max(per-metric maxima from three independent processes)"
-VENDOR_METRIC_NOTE: Final = (
-    "VectorMetricLayer and LayoutMetricLayer are bypassed in parity model calls "
-    "because the vendor VectorMetricLayer cannot concatenate Crello's "
-    "three-channel color scores with its non-sequence score tensors; the encoder, "
-    "decoder, and training LossLayer still follow the vendor call path."
-)
 
 
 class _Comparison(NamedTuple):
@@ -272,26 +267,9 @@ def _crello_model(tf, data_dir: Path, *, dropout: float):
     from canvasvae.data.spec import DataSpec
     from canvasvae.models.vae import VAE
 
-    # Vendor metrics cannot build Crello outputs with the 3-channel color field.
-    class CrelloParityVAE(VAE):
-        def call(self, inputs, training=False, sampling=False):
-            z = self.encoder(
-                inputs,
-                training=training,
-                sampling=training or sampling,
-            )
-            if training:
-                z = (z, inputs)
-
-            outputs = self.decoder(z, training=training)
-            if training:
-                self.loss_layer((inputs, outputs))
-
-            return outputs
-
     dataspec = DataSpec("crello-document", str(data_dir), batch_size=BATCH_SIZE)
     columns = dataspec.make_input_columns()
-    model = CrelloParityVAE(
+    model = VAE(
         columns,
         latent_dim=LATENT_DIM,
         decoder_type="oneshot",
@@ -518,6 +496,39 @@ def _compare_outputs(
 
         records.append(
             _comparison(group, key, batch_index, actual, expected, "max_rel_to_max")
+        )
+
+
+def _compare_metric_mappings(
+    records: list[_Comparison],
+    group: str,
+    batch_index: int,
+    package_metrics: Mapping[str, Shaped[torch.Tensor, "..."]],
+    vendor_metrics: Mapping[str, Shaped[np.ndarray, "..."]],
+) -> None:
+    for name in sorted(package_metrics.keys() | vendor_metrics.keys()):
+        metric_group = f"{group}/{name}"
+        actual = package_metrics.get(name)
+        expected = vendor_metrics.get(name)
+        if actual is None or expected is None:
+            records.append(
+                _Comparison(
+                    metric_group,
+                    name,
+                    batch_index,
+                    "max_rel_to_max",
+                    None,
+                    list(actual.shape) if actual is not None else [],
+                    list(expected.shape) if expected is not None else [],
+                    False,
+                )
+            )
+            continue
+
+        records.append(
+            _comparison(
+                metric_group, name, batch_index, actual, expected, "max_rel_to_max"
+            )
         )
 
 
@@ -1074,7 +1085,6 @@ def _run_s0(
     report: dict[str, JSONValue] = {
         **report_context,
         "phase": "s0",
-        "vendor_metric_compatibility": VENDOR_METRIC_NOTE,
         "metadata": {
             "count_json_sha256": _sha256_file(data_dir / "count.json"),
             "vocabulary_json_sha256": _sha256_file(data_dir / "vocabulary.json"),
@@ -1417,6 +1427,34 @@ def _run(
             eval_output,
             {key: value.numpy() for key, value in eval_reference.items()},
         )
+        vendor_reconstruction_metrics = vendor_model.vector_metric(
+            (tf_batch, eval_reference), training=False
+        )
+        package_metrics = crello_reconstruction_scores(batch, eval_output, config)
+        _compare_metric_mappings(
+            records,
+            "s1_reconstruction_metrics",
+            batch_index,
+            {
+                key: value
+                for key, value in package_metrics.items()
+                if key not in {"layout_acc", "layout_miou"}
+            },
+            {
+                key: value.numpy()
+                for key, value in vendor_reconstruction_metrics.items()
+            },
+        )
+        vendor_layout_metrics = vendor_model.layout_metric(
+            (tf_batch, eval_reference), training=False
+        )
+        _compare_metric_mappings(
+            records,
+            "s1_layout_metrics",
+            batch_index,
+            {key: package_metrics[key] for key in ("layout_acc", "layout_miou")},
+            {key: value.numpy() for key, value in vendor_layout_metrics.items()},
+        )
         package_mean, _ = package_model.encoder(batch)
         tf_mean = vendor_model.encoder(tf_batch, training=False)
         records.append(
@@ -1454,7 +1492,6 @@ def _run(
     report: dict[str, JSONValue] = {
         **report_context,
         "phase": report_phase,
-        "vendor_metric_compatibility": VENDOR_METRIC_NOTE,
         "fixture_archive_sha256": fixture_archive_sha256,
         "batch_index": batch_index,
         "initial_state_sha256": initial_state_hash,

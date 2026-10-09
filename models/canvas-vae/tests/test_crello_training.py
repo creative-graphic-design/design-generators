@@ -131,6 +131,48 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
     assert (tmp_path / "limits.json").is_file()
 
 
+def test_crello_metric_comparison_records_color_total_and_layout_scores():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    compare_metrics = cast(Callable[..., None], namespace["_compare_metric_mappings"])
+    records = []
+
+    compare_metrics(
+        records,
+        "s1_reconstruction_metrics",
+        4,
+        {
+            "color": torch.tensor([[0.2, 0.5, 0.8]]),
+            "total": torch.tensor([[0.6]]),
+        },
+        {
+            "color": np.array([[0.2, 0.5, 0.8]], dtype=np.float32),
+            "total": np.array([[0.6]], dtype=np.float32),
+        },
+    )
+    compare_metrics(
+        records,
+        "s1_layout_metrics",
+        4,
+        {"layout_acc": torch.tensor([0.7]), "layout_miou": torch.tensor([0.4])},
+        {
+            "layout_acc": np.array([0.7], dtype=np.float32),
+            "layout_miou": np.array([0.4], dtype=np.float32),
+        },
+    )
+
+    assert {(row.group, row.name) for row in records} == {
+        ("s1_reconstruction_metrics/color", "color"),
+        ("s1_reconstruction_metrics/total", "total"),
+        ("s1_layout_metrics/layout_acc", "layout_acc"),
+        ("s1_layout_metrics/layout_miou", "layout_miou"),
+    }
+    assert next(row for row in records if row.name == "color").actual_shape == [1, 3]
+    assert all(row.shape_match and row.value == 0.0 for row in records)
+
+
 def test_crello_hub_location_parser_accepts_model_and_dataset_resolve_urls():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
