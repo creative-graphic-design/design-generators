@@ -1197,7 +1197,12 @@ def test_selection_plans_cover_calibration_repeats_and_heldout(
 
     all_images = _select_images("train", 100, filter_training_types=False)
     training_images = _select_images("train", 100, filter_training_types=True)
-    assert len(all_images) == 34
+    # 7 docs x 5 types = 35; six textElement byte duplicates and one imageElement
+    # duplicate leave 28 document PNGs. Training types give 7 x 3 - 1 = 20.
+    # The document-stage pool supplies 2/2/2 unique PNGs; filtered training
+    # supplies 6/6/6. Per-type counts are 7/6/7/7/1; (r-1) % n wraps only
+    # textElement at r=2,3.
+    assert len(all_images) == 28
     assert len(training_images) == 20
     assert all(example.element_type in TRAINING_TYPES for example in training_images)
     assert len({example.image_id for example in all_images}) == len(all_images)
