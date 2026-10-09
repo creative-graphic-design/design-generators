@@ -10,6 +10,8 @@ The PixelVAE package owns PNG decoding into model input tensors, posterior-mean 
 
 Each Crello document-stage `image_bytes` value is a PNG preview of one visual element, of any element type. The source dataset guide describes these previews as 256 × 256 pixels. The original document transform decodes every element's PNG with `tf.io.decode_png(image_bytes, channels=4)`, producing an RGBA `uint8` image. The original encoder then applies `tf.image.convert_image_dtype(image, tf.float32)`, which maps byte values to float32 values in `[0, 1]` before MobileNetV2. The model's configured input shape is `(256, 256, 4)`.
 
+The pinned Crello v1 archive audit found no invalid or non-256 × 256 document PNGs; `textElement` PNGs have one unique SHA-256 per split and the same digest across train, val, and test.
+
 The package processor must preserve every decoded channel value, use RGBA channel order, and avoid resizing, cropping, alpha compositing, or other normalization. It must reject decoded images whose shape is not 256 × 256 × 4 with a clear error. Acceptance requires pixel-for-pixel equality with TensorFlow's decode for the parity fixtures. This validation applies to every document-stage element, including types whose embedding loss is masked later.
 
 The package model receives batched float32 tensors in `[0, 1]` with shape `[batch, 4, 256, 256]`. This channels-first package interface is transposed from the original TensorFlow `[batch, 256, 256, 4]` tensor without changing values.
