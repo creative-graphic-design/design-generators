@@ -1,0 +1,35 @@
+seed_everything: 42975
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  benchmark: false
+  max_epochs: 1
+  limit_train_batches: 2
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+  gradient_clip_val: 1.0
+model:
+  class_path: lace.training.LaceTrainingModule
+  init_args:
+    dataset_name: rico25
+    learning_rate: 1.0e-5
+    batch_size: 256
+    sample_t_max: 999
+    feature_dim: 2048
+    dim_transformer: 1024
+    nhead: 16
+    num_layers: 4
+    ema_mu: 0.9999
+    seed_mode: deterministic
+    seed: 42975
+data:
+  class_path: lace.training.LaceDataModule
+  init_args:
+    processed_data_dir: .cache/lace/data/rico25-max25/processed
+    dataset_name: rico25
+    batch_size: 256
+    max_seq_length: 25
+    num_workers: 0
+    pin_memory: false
