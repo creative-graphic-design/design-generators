@@ -1981,6 +1981,33 @@ def _named_parameters(module: nn.Module, prefix: str) -> dict[str, torch.Tensor]
     }
 
 
+def _named_buffers(module: nn.Module, prefix: str) -> dict[str, torch.Tensor]:
+    return {
+        f"{prefix}.{name}": buffer.detach().clone()
+        for name, buffer in module.named_buffers()
+    }
+
+
+def _state_dict_name_map(
+    vendor: nn.Module, package: nn.Module, prefix: str
+) -> dict[str, Any]:
+    vendor_names = tuple(vendor.state_dict())
+    package_names = tuple(package.state_dict())
+    vendor_set = set(vendor_names)
+    package_set = set(package_names)
+    missing = sorted(vendor_set - package_set)
+    unexpected = sorted(package_set - vendor_set)
+    allowlisted_extra: list[str] = []
+    return {
+        "prefix": prefix,
+        "vendor_to_package": {name: name for name in vendor_names},
+        "missing_package_keys": missing,
+        "unexpected_package_keys": unexpected,
+        "allowlisted_extra_keys": allowlisted_extra,
+        "passed": not missing and not (set(unexpected) - set(allowlisted_extra)),
+    }
+
+
 def _named_gradients(module: nn.Module, prefix: str) -> dict[str, torch.Tensor]:
     return {
         f"{prefix}.{name}": parameter.grad.detach().clone()
@@ -2089,6 +2116,225 @@ def _fixed_batch(
     )
 
 
+def _s0_topology_gate(
+    vendor_generator: nn.Module,
+    vendor_discriminator: nn.Module,
+    package_generator: nn.Module,
+    package_discriminator: nn.Module,
+    generator_config: Any,
+    discriminator_config: Any,
+    package_module: Any,
+) -> dict[str, Any]:
+    generator_name_map = _state_dict_name_map(
+        vendor_generator, package_generator, "generator"
+    )
+    discriminator_name_map = _state_dict_name_map(
+        vendor_discriminator, package_discriminator, "discriminator"
+    )
+    generator_count_vendor = sum(
+        parameter.numel() for parameter in vendor_generator.parameters()
+    )
+    generator_count_package = sum(
+        parameter.numel() for parameter in package_generator.parameters()
+    )
+    discriminator_count_vendor = sum(
+        parameter.numel() for parameter in vendor_discriminator.parameters()
+    )
+    discriminator_count_package = sum(
+        parameter.numel() for parameter in package_discriminator.parameters()
+    )
+    vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
+    vendor_schedulers = _schedulers(vendor_optimizers)
+    package_optimizers, package_schedulers, package_scheduler_configs = (
+        _package_optimizers_and_schedulers(package_module)
+    )
+    generator_buffer_comparison = _state_compare(
+        _named_buffers(vendor_generator, "generator"),
+        _named_buffers(package_generator, "generator"),
+    )
+    discriminator_buffer_comparison = _state_compare(
+        _named_buffers(vendor_discriminator, "discriminator"),
+        _named_buffers(package_discriminator, "discriminator"),
+    )
+    generator_parameter_comparison = _state_compare(
+        _named_parameters(vendor_generator, "generator"),
+        _named_parameters(package_generator, "generator"),
+    )
+    discriminator_parameter_comparison = _state_compare(
+        _named_parameters(vendor_discriminator, "discriminator"),
+        _named_parameters(package_discriminator, "discriminator"),
+    )
+    optimizer_static = {
+        "vendor": [_optimizer_static(optimizer) for optimizer in vendor_optimizers],
+        "package": [_optimizer_static(optimizer) for optimizer in package_optimizers],
+    }
+    scheduler_static = {
+        "vendor": [_scheduler_static(scheduler) for scheduler in vendor_schedulers],
+        "package": [_scheduler_static(scheduler) for scheduler in package_schedulers],
+    }
+    optimizer_static_equal = optimizer_static["vendor"] == optimizer_static["package"]
+    scheduler_static_equal = scheduler_static["vendor"] == scheduler_static["package"]
+    vendor_batch, package_batch, initial_layout, batch_meta = _fixed_batch(
+        SEED, torch.device("cpu")
+    )
+    _copy_module_state(package_generator, vendor_generator)
+    _copy_module_state(package_discriminator, vendor_discriminator)
+    vendor_generator.eval()
+    package_generator.eval()
+    vendor_discriminator.eval()
+    package_discriminator.eval()
+    with torch.no_grad():
+        vendor_generator_output = vendor_generator(
+            vendor_batch["pixel_values"], initial_layout
+        )
+        package_generator_output = package_generator(
+            package_batch["pixel_values"], initial_layout
+        )
+    if package_generator_output.bbox is None:
+        raise RuntimeError("package generator did not produce bounding boxes")
+    generator_forward_comparison = _trace_compare(
+        {
+            "class_probs": vendor_generator_output[0],
+            "bbox": vendor_generator_output[1],
+        },
+        {
+            "class_probs": package_generator_output.class_probs,
+            "bbox": package_generator_output.bbox,
+        },
+    )
+    with torch.no_grad():
+        vendor_discriminator_output = vendor_discriminator(
+            vendor_batch["pixel_values"],
+            torch.stack(
+                (vendor_generator_output[0], vendor_generator_output[1]), dim=2
+            ),
+        )
+        package_discriminator_output = package_discriminator(
+            package_batch["pixel_values"],
+            torch.stack(
+                (
+                    package_generator_output.class_probs,
+                    package_generator_output.bbox,
+                ),
+                dim=2,
+            ),
+        )
+    discriminator_forward_comparison = _trace_compare(
+        {"score": vendor_discriminator_output},
+        {"score": package_discriminator_output},
+    )
+    dataset_comparison = _trace_compare(
+        {key: value for key, value in vendor_batch.items()},
+        {key: value for key, value in package_batch.items()},
+    )
+    sampler_static = {
+        "vendor": {
+            "branch": "DataLoader shuffle=True uses global-RNG RandomSampler",
+            "batch_size": TRAINING_BATCH_SIZE,
+        },
+        "package": {
+            "branch": "DSGANDataModule._VendorRandomSampler uses seeded CPU generator",
+            "batch_size": TRAINING_BATCH_SIZE,
+        },
+        "equivalent_seeded_stream": batch_meta["batch_stream"]["passed"],
+    }
+    tokenizer_static = {
+        "present": False,
+        "passed": True,
+        "reason": "DS-GAN has no tokenizer or sequence vocabulary",
+    }
+    schedule_and_buffer = {
+        "scheduler_configs": [
+            {
+                "interval": config["interval"],
+                "frequency": config["frequency"],
+            }
+            for config in package_scheduler_configs
+        ],
+        "scheduler_static": scheduler_static,
+        "scheduler_static_equal": scheduler_static_equal,
+        "generator_buffers": generator_buffer_comparison,
+        "discriminator_buffers": discriminator_buffer_comparison,
+        "passed": (
+            scheduler_static_equal
+            and generator_buffer_comparison["passed"]
+            and discriminator_buffer_comparison["passed"]
+        ),
+    }
+    parameter_counts = {
+        "generator_vendor": generator_count_vendor,
+        "generator_package": generator_count_package,
+        "discriminator_vendor": discriminator_count_vendor,
+        "discriminator_package": discriminator_count_package,
+        "passed": (
+            generator_count_vendor == generator_count_package
+            and discriminator_count_vendor == discriminator_count_package
+        ),
+    }
+    initial_parameter_state = {
+        "generator": generator_parameter_comparison,
+        "discriminator": discriminator_parameter_comparison,
+        "passed": (
+            generator_parameter_comparison["passed"]
+            and discriminator_parameter_comparison["passed"]
+        ),
+    }
+    same_seed_forward = {
+        "generator": generator_forward_comparison,
+        "discriminator": discriminator_forward_comparison,
+        "passed": (
+            generator_forward_comparison["passed"]
+            and discriminator_forward_comparison["passed"]
+        ),
+        "input": "same fixed train batch and same global-RNG-derived initial layout",
+    }
+    state_name_maps = {
+        "generator": generator_name_map,
+        "discriminator": discriminator_name_map,
+        "passed": generator_name_map["passed"] and discriminator_name_map["passed"],
+    }
+    optimizer_sampler = {
+        "optimizer_static": optimizer_static,
+        "optimizer_static_equal": optimizer_static_equal,
+        "sampler_static": sampler_static,
+        "ema": {
+            "present": False,
+            "passed": True,
+            "reason": "DS-GAN has no EMA state",
+        },
+        "passed": (
+            optimizer_static_equal and sampler_static["equivalent_seeded_stream"]
+        ),
+    }
+    dataset_static = {
+        "comparison": dataset_comparison,
+        "batch": batch_meta,
+        "tokenizer": tokenizer_static,
+        "passed": dataset_comparison["passed"] and tokenizer_static["passed"],
+    }
+    passed = all(
+        (
+            parameter_counts["passed"],
+            state_name_maps["passed"],
+            initial_parameter_state["passed"],
+            schedule_and_buffer["passed"],
+            same_seed_forward["passed"],
+            optimizer_sampler["passed"],
+            dataset_static["passed"],
+        )
+    )
+    return {
+        "parameter_counts": parameter_counts,
+        "state_dict_name_maps": state_name_maps,
+        "initial_parameter_state_equality": initial_parameter_state,
+        "schedule_and_derived_buffer_equality": schedule_and_buffer,
+        "same_seed_copied_weight_forward_equality": same_seed_forward,
+        "optimizer_ema_sampler_static_equality": optimizer_sampler,
+        "dataset_tokenizer_static_equality": dataset_static,
+        "passed": passed,
+    }
+
+
 def run_s0() -> Path:
     _set_determinism(SEED)
     pre_model_rng = _rng_digest(capture_rng_state())
@@ -2109,42 +2355,15 @@ def run_s0() -> Path:
         generator=package_generator,
         discriminator=package_discriminator,
     )
-    generator_keys_equal = set(vendor_generator.state_dict()) == set(
-        package_generator.state_dict()
+    s0_gate = _s0_topology_gate(
+        vendor_generator,
+        vendor_discriminator,
+        package_generator,
+        package_discriminator,
+        generator_config,
+        discriminator_config,
+        package_module,
     )
-    discriminator_keys_equal = set(vendor_discriminator.state_dict()) == set(
-        package_discriminator.state_dict()
-    )
-    generator_count_vendor = sum(
-        parameter.numel() for parameter in vendor_generator.parameters()
-    )
-    generator_count_package = sum(
-        parameter.numel() for parameter in package_generator.parameters()
-    )
-    discriminator_count_vendor = sum(
-        parameter.numel() for parameter in vendor_discriminator.parameters()
-    )
-    discriminator_count_package = sum(
-        parameter.numel() for parameter in package_discriminator.parameters()
-    )
-    vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
-    vendor_schedulers = _schedulers(vendor_optimizers)
-    package_optimizers, package_schedulers, package_scheduler_configs = (
-        _package_optimizers_and_schedulers(package_module)
-    )
-    generator_initial_comparison = _state_compare(
-        _named_parameters(vendor_generator, "generator"),
-        _named_parameters(package_generator, "generator"),
-    )
-    discriminator_initial_comparison = _state_compare(
-        _named_parameters(vendor_discriminator, "discriminator"),
-        _named_parameters(package_discriminator, "discriminator"),
-    )
-    optimizer_static = {
-        "vendor": [_optimizer_static(optimizer) for optimizer in vendor_optimizers],
-        "package": [_optimizer_static(optimizer) for optimizer in package_optimizers],
-    }
-    optimizer_static_equal = optimizer_static["vendor"] == optimizer_static["package"]
     import hashlib
 
     def state_hash(module: nn.Module) -> str:
@@ -2162,27 +2381,14 @@ def run_s0() -> Path:
         "vendor": state_hash(vendor_discriminator),
         "package": state_hash(package_discriminator),
     }
-    vendor_batch, package_batch, _, batch_meta = _fixed_batch(SEED, torch.device("cpu"))
+    batch_meta = cast(
+        dict[str, Any], s0_gate["dataset_tokenizer_static_equality"]["batch"]
+    )
     batch_meta["model_rng"] = {
         "pre_model": pre_model_rng,
         "post_model": post_model_rng,
     }
-    dataset_comparison = _trace_compare(
-        {key: value for key, value in vendor_batch.items()},
-        {key: value for key, value in package_batch.items()},
-    )
-    topology_pass = all(
-        (
-            generator_keys_equal,
-            discriminator_keys_equal,
-            generator_count_vendor == generator_count_package,
-            discriminator_count_vendor == discriminator_count_package,
-            generator_initial_comparison["passed"],
-            discriminator_initial_comparison["passed"],
-            optimizer_static_equal,
-            dataset_comparison["passed"],
-        )
-    )
+    topology_pass = s0_gate["passed"]
     return _write(
         "s0-static",
         {
@@ -2190,36 +2396,16 @@ def run_s0() -> Path:
             "stage": "S0",
             "result": "PASS" if topology_pass else "FAIL",
             "topology": {
-                "generator_state_keys_equal": generator_keys_equal,
-                "discriminator_state_keys_equal": discriminator_keys_equal,
-                "generator_parameter_count_equal": generator_count_vendor
-                == generator_count_package,
-                "discriminator_parameter_count_equal": discriminator_count_vendor
-                == discriminator_count_package,
-                "generator_parameter_count_vendor": generator_count_vendor,
-                "generator_parameter_count_package": generator_count_package,
-                "discriminator_parameter_count_vendor": discriminator_count_vendor,
-                "discriminator_parameter_count_package": discriminator_count_package,
-                "generator_initial_state": generator_initial_comparison,
-                "discriminator_initial_state": discriminator_initial_comparison,
+                "s0_named_test": "test_s0_ds_gan_topology_guard",
+                "s0_gate": s0_gate,
                 "generator_initial_state_sha256": generator_initial_hashes,
                 "discriminator_initial_state_sha256": discriminator_initial_hashes,
-                "optimizer_static": optimizer_static,
-                "optimizer_static_equal": optimizer_static_equal,
-                "scheduler_static": {
-                    "vendor": [
-                        _scheduler_static(scheduler) for scheduler in vendor_schedulers
-                    ],
-                    "package": [
-                        _scheduler_static(scheduler) for scheduler in package_schedulers
-                    ],
-                },
                 "config": {
                     "generator": generator_config.to_dict(),
                     "discriminator": discriminator_config.to_dict(),
                 },
             },
-            "dataset_static": {"comparison": dataset_comparison, "batch": batch_meta},
+            "dataset_static": s0_gate["dataset_tokenizer_static_equality"],
         },
     )
 
@@ -4246,6 +4432,157 @@ def _module_state_hash(module: nn.Module) -> str:
     return digest.hexdigest()
 
 
+def _loader_stream_record(
+    vendor_loader: DataLoader[Any],
+    package_loader: DataLoader[Any],
+    *,
+    split: str,
+    required_fields: tuple[str, ...],
+    pad_to: int | None = None,
+) -> dict[str, Any]:
+    if split == "train":
+        vendor_iterator, package_iterator, iterator_alignment = (
+            _paired_training_iterators(vendor_loader, package_loader)
+        )
+    else:
+        vendor_iterator = iter(vendor_loader)
+        package_iterator = iter(package_loader)
+        iterator_alignment = None
+    batches: list[dict[str, Any]] = []
+    vendor_order: list[str] = []
+    package_order: list[str] = []
+    actual_rows = 0
+    padded_rows = 0
+    while True:
+        try:
+            vendor_raw = next(vendor_iterator)
+            vendor_done = False
+        except StopIteration:
+            vendor_raw = None
+            vendor_done = True
+        try:
+            package_raw = next(package_iterator)
+            package_done = False
+        except StopIteration:
+            package_raw = None
+            package_done = True
+        if vendor_done or package_done:
+            if vendor_done and package_done:
+                break
+
+            batches.append(
+                {
+                    "batch_index": len(batches),
+                    "passed": False,
+                    "first_mismatch": "loader_length",
+                    "vendor_done": vendor_done,
+                    "package_done": package_done,
+                }
+            )
+            break
+        assert vendor_raw is not None
+        assert package_raw is not None
+        if split == "train":
+            vendor_fields = _vendor_batch(vendor_raw, torch.device("cpu"))
+        else:
+            if not isinstance(vendor_raw, torch.Tensor):
+                raise TypeError("vendor evaluation loader must return image tensors")
+            vendor_fields = {"pixel_values": vendor_raw}
+        if not isinstance(package_raw, dict):
+            raise TypeError("package loader must return a mapping of tensors")
+        package_fields = _package_batch(package_raw, torch.device("cpu"))
+        vendor_rows = int(vendor_fields["pixel_values"].shape[0])
+        package_rows = int(package_fields["pixel_values"].shape[0])
+        actual_batch_rows = min(vendor_rows, package_rows)
+        actual_rows += actual_batch_rows
+        if pad_to is not None:
+            if package_rows < pad_to:
+                package_fields = {
+                    key: torch.cat(
+                        (
+                            value,
+                            value[:1].expand(pad_to - package_rows, *value.shape[1:]),
+                        )
+                    )
+                    for key, value in package_fields.items()
+                }
+            if vendor_rows < pad_to:
+                vendor_fields = {
+                    key: torch.cat(
+                        (
+                            value,
+                            value[:1].expand(pad_to - vendor_rows, *value.shape[1:]),
+                        )
+                    )
+                    for key, value in vendor_fields.items()
+                }
+            padded_rows += max(0, pad_to - actual_batch_rows)
+        vendor_order.extend(
+            _sample_ids(vendor_fields["pixel_values"][:actual_batch_rows])
+        )
+        package_order.extend(
+            _sample_ids(package_fields["pixel_values"][:actual_batch_rows])
+        )
+        comparison = _trace_compare(
+            {key: vendor_fields[key] for key in required_fields},
+            {key: package_fields[key] for key in required_fields},
+        )
+        batch_passed = comparison["passed"] and (
+            (pad_to is None and vendor_rows == package_rows)
+            or (pad_to is not None and vendor_rows == pad_to and package_rows <= pad_to)
+        )
+        batches.append(
+            {
+                "batch_index": len(batches),
+                "vendor_rows": vendor_rows,
+                "package_rows": package_rows,
+                "actual_rows": actual_batch_rows,
+                "padded_rows": max(
+                    0, max(vendor_rows, package_rows) - actual_batch_rows
+                ),
+                "vendor_sample_ids": _sample_ids(
+                    vendor_fields["pixel_values"][:actual_batch_rows]
+                ),
+                "package_sample_ids": _sample_ids(
+                    package_fields["pixel_values"][:actual_batch_rows]
+                ),
+                "vendor_tensor_digests": {
+                    key: tensor_sha256(vendor_fields[key]) for key in required_fields
+                },
+                "package_tensor_digests": {
+                    key: tensor_sha256(package_fields[key]) for key in required_fields
+                },
+                "comparison": comparison,
+                "passed": batch_passed,
+            }
+        )
+    passed = bool(batches) and all(batch["passed"] for batch in batches)
+    first_mismatch = next(
+        (
+            batch.get("comparison", {}).get("first_difference")
+            or batch.get("first_mismatch")
+            for batch in batches
+            if not batch["passed"]
+        ),
+        None,
+    )
+    return {
+        "split": split,
+        "required_fields": list(required_fields),
+        "passed": passed,
+        "batches": len(batches),
+        "rows": actual_rows,
+        "padded_rows": padded_rows,
+        "padding_batch_size": pad_to,
+        "order_equal": vendor_order == package_order,
+        "vendor_order_sample_ids": vendor_order,
+        "package_order_sample_ids": package_order,
+        "first_mismatch": first_mismatch,
+        "iterator_alignment": iterator_alignment,
+        "batch_records": batches,
+    }
+
+
 def run_s4_bridge() -> Path:
     manifest = _materialize_bridge()
     paths = _bridge_paths()
@@ -4344,10 +4681,29 @@ def run_s4() -> Path:
     vendor_root = EVIDENCE / "s4-evaluation" / "vendor-overlay"
     vendor_root.mkdir(parents=True, exist_ok=True)
     (vendor_root / "output").mkdir(parents=True, exist_ok=True)
-    _, vendor_eval_loader = _vendor_loaders(SEED, overlay_root=vendor_root)
+    _set_determinism(SEED)
+    vendor_train_loader, vendor_eval_loader = _vendor_loaders(
+        SEED, overlay_root=vendor_root
+    )
     names = list(torch.load(vendor_root / "test_order.pt", weights_only=False))
-    _, package_loader = _package_loaders(SEED)
+    _set_determinism(SEED)
+    package_train_loader, package_loader = _package_loaders(SEED)
+    train_stream = _loader_stream_record(
+        vendor_train_loader,
+        package_train_loader,
+        split="train",
+        required_fields=("pixel_values", "layout", "labels", "boxes", "mask"),
+    )
+    _set_determinism(SEED)
     _, vendor_stream_loader = _vendor_loaders(SEED)
+    _, package_stream_loader = _package_loaders(SEED)
+    test_stream = _loader_stream_record(
+        vendor_stream_loader,
+        package_stream_loader,
+        split="test",
+        required_fields=("pixel_values",),
+        pad_to=TEST_BATCH_SIZE,
+    )
     with redirect_stdout(io.StringIO()) as output:
         sys.path.insert(0, str(VENDOR))
         import infer as vendor_infer
@@ -4405,8 +4761,6 @@ def run_s4() -> Path:
     package_boxes: list[np.ndarray] = []
     package_classes_raw: list[np.ndarray] = []
     package_boxes_raw: list[np.ndarray] = []
-    stream_rows: list[dict[str, Any]] = []
-    vendor_stream_iterator = iter(vendor_stream_loader)
     for index, batch in enumerate(package_loader):
         start = index * TEST_BATCH_SIZE
         valid = min(TEST_BATCH_SIZE, len(names) - start)
@@ -4418,12 +4772,6 @@ def run_s4() -> Path:
                     package_inputs[:1].expand(TEST_BATCH_SIZE - valid, -1, -1, -1),
                 )
             )
-        vendor_stream_batch = next(vendor_stream_iterator)
-        _, stream_summary = _batch_stream_report(
-            {"pixel_values": package_inputs},
-            {"pixel_values": vendor_stream_batch},
-        )
-        stream_rows.append(stream_summary)
         with torch.no_grad():
             result = pipeline(
                 pixel_values=package_inputs.to(device),
@@ -4519,7 +4867,11 @@ def run_s4() -> Path:
         vendor_summary["prediction_count"] == package_summary["prediction_count"]
         and vendor_summary["prediction_count"] > 0
     )
-    test_stream_passed = all(row["passed"] for row in stream_rows)
+    train_stream_passed = bool(train_stream["passed"] and train_stream["order_equal"])
+    test_stream_passed = bool(test_stream["passed"] and test_stream["order_equal"])
+    validation_present = "validation" in manifest["source"].get("split_counts", {})
+    if validation_present:
+        raise RuntimeError("validation split is present but has no parity stream")
     vendor_entry_point = (
         f"{Path(vendor_infer.__file__).resolve().relative_to(ROOT)}:"
         f"{vendor_infer.test.__qualname__};"
@@ -4542,9 +4894,13 @@ def run_s4() -> Path:
             "vendor": vendor_weight_hash,
             "package": package_weight_hash,
         },
-        "same_inputs": test_stream_passed,
+        "same_inputs": train_stream_passed and test_stream_passed,
         "input_bridge_manifest_sha256": _sha256(paths["manifest"]),
         "evaluator_settings": {
+            "train_split": "TRAIN",
+            "train_rows": train_stream["rows"],
+            "train_batches": train_stream["batches"],
+            "train_required_fields": train_stream["required_fields"],
             "test_split": "TEST",
             "rows": len(names),
             "raw_inference_rows": int(len(vendor_classes_full)),
@@ -4608,6 +4964,7 @@ def run_s4() -> Path:
     passed = (
         prediction_equal
         and count_equal_nonzero
+        and train_stream_passed
         and test_stream_passed
         and metrics_equal
     )
@@ -4623,22 +4980,24 @@ def run_s4() -> Path:
             "source_artifact_hashes_verified": source_hashes_verified,
             "bridge_artifact_hashes": bridge_hashes,
             "bridge_artifact_hashes_verified": bridge_hashes_verified,
+            "train_stream": train_stream,
             "test_stream": {
                 "split": "TEST",
                 "rows": len(names),
                 "loader": "vendor canvas/DataLoader semantics with package DSGANDataModule comparison",
+                "required_fields": test_stream["required_fields"],
                 "comparison": {
                     "passed": test_stream_passed,
-                    "batches": len(stream_rows),
-                    "first_mismatch": next(
-                        (
-                            row["first_mismatch"]
-                            for row in stream_rows
-                            if not row["passed"]
-                        ),
-                        None,
-                    ),
+                    "batches": test_stream["batches"],
+                    "padded_rows": test_stream["padded_rows"],
+                    "order_equal": test_stream["order_equal"],
+                    "first_mismatch": test_stream["first_mismatch"],
                 },
+            },
+            "validation_stream": {
+                "present": validation_present,
+                "checked": False,
+                "reason": "approved PKU PosterLayout source exposes TRAIN and TEST only",
             },
             "evaluation_path": evaluation,
         },
