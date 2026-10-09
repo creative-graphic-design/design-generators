@@ -337,6 +337,32 @@ def test_crello_metric_diagnostic_records_bleu_steps_and_float64_scores():
     )
 
 
+def test_crello_metric_diagnostic_recomputes_scaled_cosine_in_float64():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    diagnose_cosine = cast(
+        Callable[..., dict[str, object]], namespace["_scaled_cosine_diagnostic"]
+    )
+    report = diagnose_cosine(
+        np.array([[[1.0, 0.0], [99.0, 99.0]]], dtype=np.float32),
+        np.array([[True, False]]),
+        np.array([[[-1.0, 0.0], [99.0, 99.0], [99.0, 99.0]]], dtype=np.float32),
+        np.array([[True, False, False]]),
+    )
+
+    assert report["target_count"] == [1.0]
+    assert report["prediction_count"] == [1.0]
+    assert report["target_mean_l2_norm"] == pytest.approx([1.0])
+    assert report["prediction_mean_l2_norm"] == pytest.approx([1.0])
+    assert report["tensorflow_cosine_similarity"] == pytest.approx([-1.0])
+    assert report["torch_cosine_similarity"] == pytest.approx([-1.0])
+    assert report["length_penalty"] == [1.0]
+    assert report["tensorflow_score"] == [0.0]
+    assert report["torch_score"] == [0.0]
+
+
 def test_crello_metric_diagnostic_reports_signed_float32_ulp_delta():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
