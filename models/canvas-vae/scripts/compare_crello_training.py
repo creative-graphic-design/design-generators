@@ -53,6 +53,11 @@ from canvas_vae.modeling_canvas_vae import (
     CanvasVAECrelloModelOutput,
 )
 from canvas_vae.training.optim import KerasAdam, clip_gradients_by_norm, l2_penalty
+from canvas_vae.training.parity import (
+    ZERO_GRADIENT_LIMIT,
+    check_zero_gradient,
+    split_attention_key_biases,
+)
 from canvas_vae.training.sampling import sequential_batches
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
@@ -1204,6 +1209,8 @@ def _train_step(
     noise: Float[np.ndarray, "batch latent"],
     batch_index: int,
     records: list[_Comparison],
+    zero_gradient_checks: list[dict[str, JSONValue]],
+    static_errors: list[str],
 ) -> None:
     tf_inputs = _reference_inputs(tf, batch, vendor_model.input_columns)
     noise_box = [noise]
@@ -1329,8 +1336,49 @@ def _train_step(
 
     package_loss.backward()
     mapping = tensorflow_crello_key_map(package_model.config)
+    relative_mapping, zero_gradient_mapping = split_attention_key_biases(mapping)
     package_parameters = dict(package_model.named_parameters())
-    for state_key, source in mapping.items():
+    if not zero_gradient_mapping:
+        static_errors.append("no attention key-projection biases were checked")
+
+    for state_key, source in zero_gradient_mapping.items():
+        package_parameter = package_parameters.get(state_key)
+        tf_gradient = gradients_by_path.get(source.key)
+        if (
+            package_parameter is None
+            or package_parameter.grad is None
+            or tf_gradient is None
+        ):
+            zero_gradient_checks.append(
+                {
+                    "tensor": state_key,
+                    "batch": batch_index,
+                    "package_max_abs": None,
+                    "vendor_max_abs": None,
+                    "limit": ZERO_GRADIENT_LIMIT,
+                    "within": False,
+                }
+            )
+            static_errors.append(f"zero-gradient tensor {state_key} has no gradient")
+            continue
+
+        check = check_zero_gradient(package_parameter.grad, tf_gradient.numpy())
+        zero_gradient_checks.append(
+            {
+                "tensor": state_key,
+                "batch": batch_index,
+                "package_max_abs": check.package_max_abs,
+                "vendor_max_abs": check.vendor_max_abs,
+                "limit": ZERO_GRADIENT_LIMIT,
+                "within": check.within_limit,
+            }
+        )
+        if not check.within_limit:
+            static_errors.append(
+                f"zero-gradient tensor {state_key} exceeds the {ZERO_GRADIENT_LIMIT:g} absolute limit"
+            )
+
+    for state_key, source in relative_mapping.items():
         if state_key not in package_parameters:
             continue
 
@@ -1385,7 +1433,7 @@ def _train_step(
         if gradient is not None
     }
     clip_gradients_by_norm(package_model.parameters(), CLIP_NORM)
-    for state_key, source in mapping.items():
+    for state_key, source in relative_mapping.items():
         if state_key not in package_parameters:
             continue
 
@@ -1420,7 +1468,7 @@ def _train_step(
         zip(vendor_gradients, vendor_model.trainable_variables, strict=True)
     )
     optimizer.step()
-    for state_key, source in mapping.items():
+    for state_key, source in relative_mapping.items():
         if state_key not in package_parameters:
             continue
 
@@ -1521,6 +1569,31 @@ def _record_payload(record: _Comparison) -> dict[str, JSONValue]:
 
 def _has_shape_errors(records: Sequence[_Comparison]) -> bool:
     return any(not row.shape_match for row in records)
+
+
+def _largest_s2_relative_tensors(
+    records: Sequence[_Comparison],
+) -> dict[str, JSONValue]:
+    summary: dict[str, JSONValue] = {}
+    groups = sorted({row.group for row in records if row.group.startswith("s2_")})
+    for group in groups:
+        candidates = [
+            row
+            for row in records
+            if row.group == group and row.metric == "norm_rel" and row.value is not None
+        ]
+        if not candidates:
+            continue
+
+        largest = max(candidates, key=lambda row: row.value or 0.0)
+        summary[group] = {
+            "tensor": largest.name,
+            "batch": largest.batch,
+            "metric": largest.metric,
+            "relative_error": largest.value,
+        }
+
+    return summary
 
 
 def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
@@ -1872,6 +1945,7 @@ def _calibrate(
     static_errors: list[str] = []
     process_reports: list[dict[str, JSONValue]] = []
     batch_digests: list[str] = []
+    zero_gradient_checks: list[dict[str, JSONValue]] = []
     initial_state_hashes: list[str] = []
     initial_mismatch_keys: list[str] = []
     script = Path(__file__).resolve()
@@ -1927,6 +2001,12 @@ def _calibrate(
 
         child_errors = cast(list[str], child["static_errors"])
         static_errors.extend(child_errors)
+        zero_gradient_checks.extend(
+            cast(
+                list[dict[str, JSONValue]],
+                child.get("zero_gradient_checks", []),
+            )
+        )
         child_digests = cast(list[str], child["batch_digests"])
         if len(child_digests) != 1:
             static_errors.append(
@@ -1996,6 +2076,8 @@ def _calibrate(
         "static_errors": static_errors,
         "initial_state_mismatch_keys": initial_mismatch_keys,
         "measurements": [_record_payload(row) for row in records],
+        "zero_gradient_checks": zero_gradient_checks,
+        "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "calibration_formula": CALIBRATION_FORMULA,
         "limits": _limits(records),
     }
@@ -2073,6 +2155,7 @@ def _heldout(
     initial_state_hashes: list[str] = []
     initial_mismatch_keys: list[str] = []
     batch_digests: list[str] = []
+    zero_gradient_checks: list[dict[str, JSONValue]] = []
     process_reports: list[dict[str, JSONValue]] = []
     script = Path(__file__).resolve()
     calibration_report = cast(
@@ -2129,6 +2212,12 @@ def _heldout(
             )
 
         static_errors.extend(cast(list[str], child["static_errors"]))
+        zero_gradient_checks.extend(
+            cast(
+                list[dict[str, JSONValue]],
+                child.get("zero_gradient_checks", []),
+            )
+        )
         child_digests = cast(list[str], child["batch_digests"])
         if len(child_digests) != 1:
             static_errors.append(
@@ -2210,6 +2299,8 @@ def _heldout(
         "static_errors": static_errors,
         "initial_state_mismatch_keys": initial_mismatch_keys,
         "measurements": [_record_payload(row) for row in records],
+        "zero_gradient_checks": zero_gradient_checks,
+        "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "frozen_limits_sha256": hashlib.sha256(frozen_bytes).hexdigest(),
         "heldout_errors": heldout_errors,
     }
@@ -2314,6 +2405,7 @@ def _run(
 
     records: list[_Comparison] = []
     metric_diagnostics: list[dict[str, JSONValue]] = []
+    zero_gradient_checks: list[dict[str, JSONValue]] = []
     static_errors = _common(vendor_model, package_model)
     initial_errors = []
     for key, package_value in package_model.state_dict().items():
@@ -2412,6 +2504,8 @@ def _run(
             noise,
             batch_index,
             records,
+            zero_gradient_checks,
+            static_errors,
         )
 
     report_phase = (
@@ -2448,6 +2542,8 @@ def _run(
         "static_errors": static_errors,
         "initial_state_mismatch_keys": initial_errors,
         "measurements": [_record_payload(row) for row in records],
+        "zero_gradient_checks": zero_gradient_checks,
+        "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
     }
     if phase == "metric-diagnostic":
         report.update(
