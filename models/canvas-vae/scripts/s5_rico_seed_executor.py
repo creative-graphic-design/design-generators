@@ -158,6 +158,7 @@ def hub_python(
 
 def verify_checkpoint_on_hub(
     token_path: Path,
+    hub_repository: str,
     checkpoint_hub_path: str,
     system: str,
 ) -> None:
@@ -167,7 +168,8 @@ def verify_checkpoint_on_hub(
             "from pathlib import Path",
             "from huggingface_hub import HfApi",
             "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
-            "files = HfApi(token=token).list_repo_files('shunk031/colab-jobs', repo_type='model')",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "files = HfApi(token=token).list_repo_files(repository, repo_type='model')",
             "prefix = os.environ['S5_CHECKPOINT_HUB_PATH']",
             "print(json.dumps([path for path in files if path == prefix or path.startswith(prefix + '.')]))",
         ]
@@ -177,7 +179,10 @@ def verify_checkpoint_on_hub(
             token_path,
             source,
             Path(temporary),
-            {"S5_CHECKPOINT_HUB_PATH": checkpoint_hub_path},
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_CHECKPOINT_HUB_PATH": checkpoint_hub_path,
+            },
         )
     try:
         files = json.loads(output)
@@ -202,6 +207,7 @@ def verify_checkpoint_on_hub(
 
 def verify_hub_paths(
     token_path: Path,
+    hub_repository: str,
     expected_paths: list[str],
     description: str,
 ) -> None:
@@ -211,7 +217,8 @@ def verify_hub_paths(
             "from pathlib import Path",
             "from huggingface_hub import HfApi",
             "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
-            "files = HfApi(token=token).list_repo_files('shunk031/colab-jobs', repo_type='model')",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "files = HfApi(token=token).list_repo_files(repository, repo_type='model')",
             "expected = json.loads(os.environ['S5_EXPECTED_HUB_PATHS'])",
             "print(json.dumps([path for path in expected if path in files]))",
         ]
@@ -221,7 +228,10 @@ def verify_hub_paths(
             token_path,
             source,
             Path(temporary),
-            {"S5_EXPECTED_HUB_PATHS": json.dumps(expected_paths)},
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_EXPECTED_HUB_PATHS": json.dumps(expected_paths),
+            },
         )
     try:
         present_paths = json.loads(output)
@@ -234,14 +244,20 @@ def verify_hub_paths(
         raise ExecutorError(f"private Hub {description} is missing: {missing}")
 
 
-def upload_smoke_result(token_path: Path, result_path: Path, hub_path: str) -> None:
+def upload_smoke_result(
+    token_path: Path,
+    hub_repository: str,
+    result_path: Path,
+    hub_path: str,
+) -> None:
     source = "\n".join(
         [
             "import os",
             "from pathlib import Path",
             "from huggingface_hub import HfApi",
             "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
-            "HfApi(token=token).upload_file(path_or_fileobj=os.environ['S5_SMOKE_RESULT_PATH'], path_in_repo=os.environ['S5_SMOKE_HUB_PATH'], repo_id='shunk031/colab-jobs', repo_type='model', commit_message='Record CanvasVAE S5 executor CPU smoke')",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "HfApi(token=token).upload_file(path_or_fileobj=os.environ['S5_SMOKE_RESULT_PATH'], path_in_repo=os.environ['S5_SMOKE_HUB_PATH'], repo_id=repository, repo_type='model', commit_message='Record CanvasVAE S5 executor CPU smoke')",
         ]
     )
     with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-smoke-result-") as temporary:
@@ -250,22 +266,24 @@ def upload_smoke_result(token_path: Path, result_path: Path, hub_path: str) -> N
             source,
             Path(temporary),
             {
+                "S5_HF_REPOSITORY": hub_repository,
                 "S5_SMOKE_RESULT_PATH": str(result_path),
                 "S5_SMOKE_HUB_PATH": hub_path,
             },
         )
 
-    verify_hub_paths(token_path, [hub_path], "CPU smoke result")
+    verify_hub_paths(token_path, hub_repository, [hub_path], "CPU smoke result")
 
 
-def read_hub_exit_code(token_path: Path, hub_path: str) -> int:
+def read_hub_exit_code(token_path: Path, hub_repository: str, hub_path: str) -> int:
     source = "\n".join(
         [
             "import os",
             "from pathlib import Path",
             "from huggingface_hub import hf_hub_download",
             "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
-            "artifact = hf_hub_download(repo_id='shunk031/colab-jobs', filename=os.environ['S5_EXIT_CODE_HUB_PATH'], repo_type='model', revision='main', token=token, local_dir=os.environ['S5_HF_TEMP_DIR'])",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "artifact = hf_hub_download(repo_id=repository, filename=os.environ['S5_EXIT_CODE_HUB_PATH'], repo_type='model', revision='main', token=token, local_dir=os.environ['S5_HF_TEMP_DIR'])",
             "print(Path(artifact).read_text().strip())",
         ]
     )
@@ -274,7 +292,10 @@ def read_hub_exit_code(token_path: Path, hub_path: str) -> int:
             token_path,
             source,
             Path(temporary),
-            {"S5_EXIT_CODE_HUB_PATH": hub_path},
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_EXIT_CODE_HUB_PATH": hub_path,
+            },
         )
     try:
         exit_code = int(output)
@@ -891,6 +912,7 @@ def cpu_smoke_training_config(run_id: str, segment_id: str) -> str:
 
 def make_wrapper_cell(
     job_name: str,
+    hub_repository: str,
     hub_prefix: str,
     ttl: str,
     run_command: str,
@@ -902,7 +924,7 @@ def make_wrapper_cell(
         "--job",
         job_name,
         "--hub-repo",
-        "shunk031/colab-jobs",
+        hub_repository,
         "--hub-prefix",
         hub_prefix,
         "--hub-token-file",
@@ -938,6 +960,7 @@ def run_named_session(
     sync_paths: tuple[str, ...],
     run_env: Path,
     output_capture: Path,
+    hub_repository: str,
     resume_checkpoint: Path | None = None,
     download_inputs: bool = True,
     additional_uploads: tuple[tuple[Path, str], ...] = (),
@@ -999,7 +1022,14 @@ def run_named_session(
 
         launch_cell = preflight_path.with_name("launch-cell.py")
         launch_cell.write_text(
-            make_wrapper_cell(job_name, hub_prefix, ttl, run_command, list(sync_paths)),
+            make_wrapper_cell(
+                job_name,
+                hub_repository,
+                hub_prefix,
+                ttl,
+                run_command,
+                list(sync_paths),
+            ),
             encoding="utf-8",
         )
         wrapper_started = True
@@ -1027,7 +1057,7 @@ def run_named_session(
         raise
 
     exit_code = read_hub_exit_code(
-        token_path, f"{hub_prefix}/logs/{job_name}/exit_code"
+        token_path, hub_repository, f"{hub_prefix}/logs/{job_name}/exit_code"
     )
     sessions = colab("sessions", capture=True)
     if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
@@ -1046,6 +1076,7 @@ def execute_run(
     manifest_path: Path,
     run_id: str,
     segment_id: str,
+    hub_repository: str,
     resume_checkpoint: Path | None,
 ) -> None:
     manifest = load_json(manifest_path)
@@ -1344,7 +1375,7 @@ def execute_run(
                 "checkpoint Hub path must name this run's epoch-500 artifact"
             )
         checkpoint_download: JsonObject = {
-            "hub_repository": "shunk031/colab-jobs",
+            "hub_repository": hub_repository,
             "revision": "main",
             "hub_prefix": checkpoint_hub_path,
             "hub_glob": checkpoint_hub_path
@@ -1415,6 +1446,7 @@ def execute_run(
             ),
             run_env,
             capture_path,
+            hub_repository,
             resume_checkpoint,
             additional_uploads=additional_training_uploads,
         )
@@ -1431,7 +1463,9 @@ def execute_run(
             raise ExecutorError(
                 f"training wrapper failed with Hub exit code {training_exit_code}"
             )
-        verify_checkpoint_on_hub(token_path, checkpoint_hub_path, system)
+        verify_checkpoint_on_hub(
+            token_path, hub_repository, checkpoint_hub_path, system
+        )
         postprocess_exit_code = run_named_session(
             cpu_session_name,
             None,
@@ -1451,6 +1485,7 @@ def execute_run(
             ),
             cpu_env,
             cpu_capture_path,
+            hub_repository,
         )
         if cpu_runtime_smoke:
             record_smoke_exit_code(
@@ -1467,6 +1502,7 @@ def execute_run(
             )
         verify_hub_paths(
             token_path,
+            hub_repository,
             [
                 f"{postprocess_prefix}/results/{run_id}/{segment_id}/evaluation.json",
                 f"{postprocess_prefix}/results/{run_id}/{segment_id}/artifact-hashes.txt",
@@ -1475,7 +1511,9 @@ def execute_run(
         )
 
 
-def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
+def execute_cpu_smoke(
+    session_name: str, source_commit: str, hub_repository: str
+) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
         raise ExecutorError("CPU smoke requires a valid smoke identifier")
     if not COMMIT_PATTERN.fullmatch(source_commit):
@@ -1682,6 +1720,8 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
                 "--manifest",
                 str(manifest_path),
                 "--launch",
+                "--hub-repo",
+                hub_repository,
             ],
             cwd=REPOSITORY_ROOT,
             check=False,
@@ -1799,7 +1839,7 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
     result["status"] = "passed"
     result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     hub_result_path = f"{hub_prefix}/smoke-result.json"
-    upload_smoke_result(token_path, result_path, hub_result_path)
+    upload_smoke_result(token_path, hub_repository, result_path, hub_result_path)
     print(
         json.dumps(
             {
@@ -1816,6 +1856,7 @@ def execute_cpu_smoke(session_name: str, source_commit: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--hub-repo", required=True)
     parser.add_argument("--run-id")
     parser.add_argument("--segment-id", default="segment-001")
     parser.add_argument("--resume-checkpoint", type=Path)
@@ -1823,7 +1864,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cpu-smoke", action="store_true")
     parser.add_argument("--session-name")
     parser.add_argument("--source-commit")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.hub_repo.strip():
+        parser.error("--hub-repo must not be empty")
+
+    return args
 
 
 def main() -> int:
@@ -1937,7 +1982,7 @@ def main() -> int:
                 raise ExecutorError(
                     "CPU smoke requires --session-name and --source-commit"
                 )
-            execute_cpu_smoke(args.session_name, args.source_commit)
+            execute_cpu_smoke(args.session_name, args.source_commit, args.hub_repo)
         else:
             if args.run_id is None:
                 raise ExecutorError("--run-id is required for a queue run")
@@ -1945,6 +1990,7 @@ def main() -> int:
                 args.manifest.resolve(),
                 args.run_id,
                 args.segment_id,
+                args.hub_repo,
                 args.resume_checkpoint,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
