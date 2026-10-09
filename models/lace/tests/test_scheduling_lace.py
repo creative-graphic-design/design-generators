@@ -30,6 +30,19 @@ def test_beta_schedules_accept_enum_and_reject_unknown() -> None:
         normalize_beta_schedule("bad")
 
 
+def test_training_cumulative_alphas_use_requested_device() -> None:
+    scheduler = LaceScheduler(num_train_timesteps=8, ddim_num_steps=4)
+    cumulative = scheduler.alphas_cumprod_for_device(torch.device("cpu"))
+
+    assert cumulative.device == torch.device("cpu")
+    torch.testing.assert_close(
+        cumulative,
+        scheduler.alphas_cumprod,
+        rtol=0,
+        atol=0,
+    )
+
+
 def test_ddim_discretization_accepts_enum_and_rejects_unknown() -> None:
     assert np.array_equal(
         make_ddim_timesteps(DDIMDiscretization.quad, 4, 100),
