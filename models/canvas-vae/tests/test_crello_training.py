@@ -5,7 +5,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from types import SimpleNamespace
+from types import FunctionType, SimpleNamespace
 from typing import cast
 
 import numpy as np
@@ -89,6 +89,106 @@ def test_crello_heldout_batches_follow_sequential_index_batches():
     assert [len(rows) for _, rows in batches] == [1024, 1]
     assert batches[0][1] == documents[:-1]
     assert batches[1][1] == documents[-1:]
+
+
+def test_crello_heldout_batches_start_in_fresh_processes_from_frozen_limits(
+    tmp_path, monkeypatch
+):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    heldout_function = cast(FunctionType, namespace["_heldout"])
+    heldout = cast(Callable[..., dict[str, object]], heldout_function)
+    parity_globals = heldout_function.__globals__
+    documents: list[CrelloDocument] = [
+        {
+            "split": CrelloSplit.test.value,
+            "document_id": f"crello-v1/test/{index}",
+            "context": {},
+            "elements": [],
+        }
+        for index in range(1025)
+    ]
+    monkeypatch.setitem(parity_globals, "load_crello_split", lambda *_: documents)
+    monkeypatch.setitem(
+        parity_globals,
+        "_cpu_report_context",
+        lambda: {"commit": "test-commit", "device": "cpu"},
+    )
+    calibration_bytes = json.dumps(
+        {"initial_state_sha256": "same-initial-state"}
+    ).encode()
+    (tmp_path / "calibrate.json").write_bytes(calibration_bytes)
+    limits = {
+        "commit": "test-commit",
+        "calibration_sha256": hashlib.sha256(calibration_bytes).hexdigest(),
+        "selection": "three distinct batches",
+        "formula": "test formula",
+        "limits": {
+            "s1_eval_outputs": {
+                "metric": "max_rel_to_max",
+                "L": 0.0,
+                "calibration_batch_maxima": [0.1, 0.1, 0.1],
+                "max_calibration_error": 0.1,
+                "limit": 1.0,
+            }
+        },
+    }
+    limits_bytes = json.dumps(limits).encode()
+    (tmp_path / "limits.json").write_bytes(limits_bytes)
+    (tmp_path / "limits.sha256").write_text(
+        hashlib.sha256(limits_bytes).hexdigest(), encoding="ascii"
+    )
+
+    commands: list[list[str]] = []
+    plan_visible_at_launch: list[bool] = []
+
+    def run(command, **kwargs):
+        assert command[1] == str(script)
+        assert command[2] == "heldout-batch"
+        commands.append(command)
+        batch_index = int(command[command.index("--batch-index") + 1])
+        report_dir = Path(command[command.index("--report-dir") + 1])
+        plan_visible_at_launch.append((report_dir / "heldout-plan.json").is_file())
+        child = {
+            "static_errors": [],
+            "batch_digests": [
+                hashlib.sha256(f"test-{batch_index}".encode()).hexdigest()
+            ],
+            "initial_state_sha256": "same-initial-state",
+            "initial_state_mismatch_keys": [],
+            "measurements": [
+                {
+                    "group": "s1_eval_outputs",
+                    "name": "output",
+                    "batch": batch_index,
+                    "metric": "max_rel_to_max",
+                    "value": 0.1,
+                    "actual_shape": [1],
+                    "expected_shape": [1],
+                    "shape_match": True,
+                }
+            ],
+        }
+        (report_dir / f"heldout-batch-{batch_index}.json").write_text(
+            json.dumps(child), encoding="utf-8"
+        )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    report = heldout(report_dir=tmp_path)
+
+    assert [
+        int(command[command.index("--batch-index") + 1]) for command in commands
+    ] == [
+        0,
+        1,
+    ]
+    assert plan_visible_at_launch == [True, True]
+    assert report["initial_state_sha256"] == "same-initial-state"
+    assert report["heldout_errors"] == []
+    assert (tmp_path / "heldout.json").is_file()
 
 
 def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
