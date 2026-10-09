@@ -48,14 +48,14 @@ For a provided original checkpoint, add `--checkpoint <local-checkpoint-prefix>`
 
 ## Run CPU diagnostics, calibration, and held-out parity
 
-The runner first runs the PixelVAE and `traingen` member tests with coverage, downloads and audits the pinned Crello v1 archive, then performs one report-only diagnostic, three fresh calibration processes using fixed distinct train input groups, freezes limits, and starts a fresh held-out process. The selection rule and per-metric lower bounds are fixed in [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md).
+The runner first exercises the input selectors on a synthetic TFRecord archive, then runs the PixelVAE and `traingen` member tests with coverage, downloads and audits the pinned Crello v1 archive, and plans every diagnostic, calibration, and held-out input selection before constructing a model. The plan step writes the input sidecars and exits on any short list or missing per-type occurrence. The runner then performs one report-only diagnostic, three fresh calibration processes using fixed distinct train input groups, freezes limits, and starts a fresh held-out process. The selection rule and per-metric lower bounds are fixed in [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md).
 
 ```bash
 PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-commit-sha> \
   bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 ```
 
-The runner stores the archive audit, diagnostic report, three pre-comparison input selections, calibration records, frozen limits, and held-out report beneath the selected parity directory. The limit utility checks each input-selection sidecar against its metric record and rejects repeated S1 or training IDs, unexpected indexes, mismatched source-state digests, differing configurations or TensorFlow versions, and records from the same process. Held-out validation uses the fixed canonical test inputs and requires the frozen limits.
+The runner stores the archive audit, plan manifest, diagnostic report, three pre-comparison input selections, calibration records, frozen limits, and held-out report beneath the selected parity directory. The limit utility checks each input-selection sidecar against its metric record and rejects repeated S1 or training IDs, unexpected indexes, mismatched source-state digests, differing configurations or TensorFlow versions, and records from the same process. Held-out validation uses the fixed canonical test inputs and requires the frozen limits.
 
 ## Run package unit tests and load the encoder
 

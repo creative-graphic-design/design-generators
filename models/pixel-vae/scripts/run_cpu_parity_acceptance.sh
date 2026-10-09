@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # @file models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
-# @brief Run PixelVAE diagnostics, distinct-input calibration, and a fresh held-out CPU check.
-# @description Runs member coverage tests and the pinned archive audit, then report-only S1 diagnostics, three separate calibration processes, limit freezing, and held-out parity.
+# @brief Preflight PixelVAE input selections, then run the distinct-input CPU acceptance sequence.
+# @description Runs selector tests, member coverage tests, and the pinned archive audit, then records every real input selection before report-only S1 diagnostics, calibration, limit freezing, and held-out parity.
 # @example
 #   PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<sha> bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 
@@ -25,6 +25,12 @@ if [[ -e "$PIXELVAE_PARITY_DIR" || -e "$archive_path" || -e "$tfrecord_dir" ]]; 
     "$PIXELVAE_PARITY_DIR" "$archive_path" "$tfrecord_dir" >&2
   exit 2
 fi
+
+selection_test_command=(
+  uv run --package pixel-vae --extra vendor --extra parity --with pytest
+  pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q -k 'selection or plan_mode'
+)
+"${selection_test_command[@]}"
 
 scripts/run_member_tests.sh models/pixel-vae
 scripts/run_member_tests.sh lib/traingen
@@ -59,6 +65,8 @@ parity_command=(
   uv run --package pixel-vae --extra vendor --extra parity --with pytest
   pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q
 )
+
+PIXELVAE_PARITY_MODE=plan "${parity_command[@]}" -k test_pixel_vae_cpu_stages
 
 PIXELVAE_PARITY_MODE=diagnostic "${parity_command[@]}"
 

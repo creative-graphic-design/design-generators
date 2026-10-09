@@ -6,7 +6,7 @@ import json
 import os
 import struct
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -74,6 +74,15 @@ class ImageExample:
     image_bytes: bytes
 
 
+@dataclass(frozen=True)
+class ParityInputSelection:
+    document_images: list[ImageExample]
+    training_images: list[ImageExample]
+    type_examples: list[ImageExample]
+    diagnostic_pairs: list[tuple[str, list[ImageExample]]]
+    record: dict[str, JSONValue]
+
+
 def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     """Compare stages while keeping diagnostic-only failures non-blocking."""
     if os.environ.get("PIXELVAE_PARITY_MODE", "heldout") == "diagnostic":
@@ -98,9 +107,9 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     mode = os.environ.get("PIXELVAE_PARITY_MODE", "heldout")
     repeat = int(os.environ.get("PIXELVAE_PARITY_REPEAT", "0"))
     required = os.environ.get("PARITY_REQUIRE") == "1"
-    if mode not in {"calibration", "heldout", "diagnostic"}:
+    if mode not in {"calibration", "heldout", "diagnostic", "plan"}:
         raise ValueError(
-            "PIXELVAE_PARITY_MODE must be calibration, heldout, or diagnostic"
+            "PIXELVAE_PARITY_MODE must be calibration, heldout, diagnostic, or plan"
         )
     if mode == "calibration" and repeat not in {1, 2, 3}:
         raise ValueError("PIXELVAE_PARITY_REPEAT must be 1, 2, or 3")
@@ -111,6 +120,25 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         if required:
             raise FileNotFoundError(message)
         pytest.skip(message)
+
+    if mode == "plan":
+        _write_complete_input_plan()
+        return
+
+    selection = _select_parity_inputs(mode, repeat=repeat)
+    document_images = selection.document_images
+    training_images = selection.training_images
+    calibration_selection = (
+        {
+            key: value
+            for key, value in selection.record.items()
+            if key not in {"mode", "repeat"}
+        }
+        if mode == "calibration"
+        else None
+    )
+    diagnostic_pairs = selection.diagnostic_pairs
+    _write_input_selection(selection)
 
     import tensorflow as tf
 
@@ -127,53 +155,10 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     torch.use_deterministic_algorithms(True)
 
     diagnostic = mode == "diagnostic"
-    test_document_images = _select_images("test", 6, filter_training_types=False)
-    test_training_images = _select_images("test", 6, filter_training_types=True)
     calibration = mode == "calibration"
-
-    calibration_selection: dict[str, object] | None = None
-    if diagnostic:
-        train_document_images = _select_images(
-            "train",
-            DIAGNOSTIC_TRAIN_PAIR_COUNT * 2,
-            filter_training_types=False,
-        )
-        document_images = train_document_images
-        training_images = _select_images("train", 6, filter_training_types=True)
-    elif calibration:
-        train_document_images = _select_images("train", 6, filter_training_types=False)
-        train_training_images = _select_images("train", 18, filter_training_types=True)
-        document_start = (repeat - 1) * 2
-        training_start = (repeat - 1) * 6
-        document_indices = list(range(document_start, document_start + 2))
-        training_indices = list(range(training_start, training_start + 6))
-        document_images = [train_document_images[index] for index in document_indices]
-        training_images = [train_training_images[index] for index in training_indices]
-        calibration_selection = {
-            "rule": CALIBRATION_SELECTION_RULE,
-            "document_png_indices": document_indices,
-            "training_png_indices": training_indices,
-            "s1_image_ids": [example.image_id for example in document_images],
-            "training_image_ids": [example.image_id for example in training_images],
-        }
-    else:
-        document_images = test_document_images
-        training_images = test_training_images
-
-    diagnostic_pairs: list[tuple[str, list[ImageExample]]] = []
     diagnostic_report: dict[str, JSONValue] | None = None
     diagnostic_path = PARITY_DIR / "diagnostic" / "s1-diagnostic.json"
     if diagnostic:
-        diagnostic_pairs = [
-            ("heldout", test_document_images[:2]),
-            *[
-                (
-                    f"train-{pair_index + 1:02d}",
-                    document_images[pair_index * 2 : pair_index * 2 + 2],
-                )
-                for pair_index in range(DIAGNOSTIC_TRAIN_PAIR_COUNT)
-            ],
-        ]
         input_image_ids = {
             pair_name: [example.image_id for example in examples]
             for pair_name, examples in diagnostic_pairs
@@ -190,38 +175,6 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
         diagnostic_path.write_text(
             json.dumps(diagnostic_report, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-
-    required_document_count = DIAGNOSTIC_TRAIN_PAIR_COUNT * 2 if diagnostic else 2
-    if len(document_images) < required_document_count or len(training_images) < 6:
-        raise AssertionError(
-            "canonical v1 source stream did not provide the required unique images"
-        )
-
-    calibration_type_examples: list[ImageExample] | None = None
-    if calibration:
-        assert calibration_selection is not None
-        calibration_type_examples = _select_one_per_element_type(
-            "train", occurrence=repeat - 1
-        )
-        calibration_selection["s4_element_type_occurrence"] = repeat - 1
-        calibration_selection["s4_image_ids"] = [
-            example.image_id for example in calibration_type_examples
-        ]
-        selection_path = PARITY_DIR / "calibration" / f"repeat-{repeat}.inputs.json"
-        selection_path.parent.mkdir(parents=True, exist_ok=True)
-        if selection_path.exists():
-            raise FileExistsError(
-                f"refusing to overwrite calibration input selection: {selection_path}"
-            )
-        selection_path.write_text(
-            json.dumps(
-                {"mode": mode, "repeat": repeat, **calibration_selection},
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
             encoding="utf-8",
         )
 
@@ -490,11 +443,7 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
             "Crello v1 contains non-256x256 or invalid PNGs by element type: "
             f"non_256_examples={non_256}, invalid_png_counts={invalid_pngs}"
         )
-    if calibration:
-        assert calibration_type_examples is not None
-        type_examples = calibration_type_examples
-    else:
-        type_examples = _select_one_per_element_type("test")
+    type_examples = selection.type_examples
     if {example.element_type.decode("utf-8") for example in type_examples} != set(
         audit["dimensions_by_element_type"]
     ):
@@ -930,6 +879,178 @@ def _run_s1_diagnostic(
         )
 
 
+def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection:
+    if mode == "calibration":
+        if repeat not in {1, 2, 3}:
+            raise ValueError("calibration repeat must be 1, 2, or 3")
+        document_pool = _select_images("train", 6, filter_training_types=False)
+        training_pool = _select_images("train", 18, filter_training_types=True)
+        document_indices = list(range((repeat - 1) * 2, repeat * 2))
+        training_indices = list(range((repeat - 1) * 6, repeat * 6))
+        _require_image_count(document_pool, 6, split="train", stage="calibration S1")
+        _require_image_count(
+            training_pool, 18, split="train", stage="calibration S2/S3"
+        )
+        document_images = [document_pool[index] for index in document_indices]
+        training_images = [training_pool[index] for index in training_indices]
+        type_examples = _select_one_per_element_type("train", occurrence=repeat - 1)
+        _require_audit_type_coverage(type_examples)
+        record: dict[str, JSONValue] = {
+            "mode": mode,
+            "repeat": repeat,
+            "rule": CALIBRATION_SELECTION_RULE,
+            "document_png_indices": document_indices,
+            "training_png_indices": training_indices,
+            "s1_image_ids": [example.image_id for example in document_images],
+            "training_image_ids": [example.image_id for example in training_images],
+            "s4_element_type_occurrence": repeat - 1,
+            "s4_image_ids": [example.image_id for example in type_examples],
+        }
+        return ParityInputSelection(
+            document_images, training_images, type_examples, [], record
+        )
+
+    if mode == "heldout":
+        document_images = _select_images("test", 6, filter_training_types=False)
+        training_images = _select_images("test", 6, filter_training_types=True)
+        _require_image_count(document_images, 6, split="test", stage="held-out S1")
+        _require_image_count(training_images, 6, split="test", stage="held-out S2/S3")
+        type_examples = _select_one_per_element_type("test")
+        _require_audit_type_coverage(type_examples)
+        record: dict[str, JSONValue] = {
+            "mode": mode,
+            "selection_rule": "first canonical test PNGs by document and source element order",
+            "s1_image_ids": [example.image_id for example in document_images[:2]],
+            "s2_image_ids": [example.image_id for example in training_images[:2]],
+            "s3_image_ids": [example.image_id for example in training_images[:6]],
+            "s4_image_ids": [example.image_id for example in type_examples],
+        }
+        return ParityInputSelection(
+            document_images, training_images, type_examples, [], record
+        )
+
+    if mode == "diagnostic":
+        heldout_documents = _select_images("test", 6, filter_training_types=False)
+        train_documents = _select_images(
+            "train", DIAGNOSTIC_TRAIN_PAIR_COUNT * 2, filter_training_types=False
+        )
+        training_images = _select_images("train", 6, filter_training_types=True)
+        _require_image_count(
+            heldout_documents, 6, split="test", stage="diagnostic held-out S1"
+        )
+        _require_image_count(
+            train_documents,
+            DIAGNOSTIC_TRAIN_PAIR_COUNT * 2,
+            split="train",
+            stage="diagnostic train S1",
+        )
+        _require_image_count(
+            training_images, 6, split="train", stage="diagnostic training"
+        )
+        pairs = [
+            ("heldout", heldout_documents[:2]),
+            *[
+                (
+                    f"train-{pair_index + 1:02d}",
+                    train_documents[pair_index * 2 : pair_index * 2 + 2],
+                )
+                for pair_index in range(DIAGNOSTIC_TRAIN_PAIR_COUNT)
+            ],
+        ]
+        record: dict[str, JSONValue] = {
+            "mode": mode,
+            "diagnostic_only": True,
+            "input_image_ids": {
+                pair_name: [example.image_id for example in examples]
+                for pair_name, examples in pairs
+            },
+        }
+        return ParityInputSelection(train_documents, training_images, [], pairs, record)
+
+    raise ValueError(f"no input-selection rule exists for mode {mode!r}")
+
+
+def _require_image_count(
+    examples: list[ImageExample], count: int, *, split: str, stage: str
+) -> None:
+    if len(examples) < count:
+        raise ValueError(
+            f"{split} {stage} requires {count} unique PNGs; found {len(examples)}"
+        )
+
+
+def _require_audit_type_coverage(examples: list[ImageExample]) -> None:
+    audit = json.loads(AUDIT_PATH.read_text(encoding="utf-8"))
+    selected_types = {example.element_type.decode("utf-8") for example in examples}
+    expected_types = set(audit["dimensions_by_element_type"])
+    if selected_types != expected_types:
+        raise ValueError(
+            "input selection does not cover every audited element type: "
+            f"selected={sorted(selected_types)}, expected={sorted(expected_types)}"
+        )
+
+
+def _write_complete_input_plan() -> None:
+    selections = []
+    errors = []
+    for mode, repeat in (
+        ("diagnostic", 0),
+        ("calibration", 1),
+        ("calibration", 2),
+        ("calibration", 3),
+        ("heldout", 0),
+    ):
+        try:
+            selections.append(_select_parity_inputs(mode, repeat=repeat))
+        except Exception as error:
+            errors.append({"mode": mode, "repeat": repeat or None, "error": str(error)})
+
+    for selection in selections:
+        _write_input_selection(selection)
+    plan = {
+        "mode": "plan",
+        "selection_files": [
+            str(_selection_path(selection)) for selection in selections
+        ],
+        "selection_errors": errors,
+    }
+    plan_path = PARITY_DIR / "input-selection-plan.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_selection_record(plan_path, plan)
+    print(f"INPUT_SELECTION_PLAN={plan_path}")
+    if errors:
+        raise ValueError(
+            "input-selection plan found invalid stages: "
+            + json.dumps(errors, sort_keys=True)
+        )
+
+
+def _selection_path(selection: ParityInputSelection) -> Path:
+    if selection.record["mode"] == "calibration":
+        return (
+            PARITY_DIR
+            / "calibration"
+            / f"repeat-{selection.record['repeat']}.inputs.json"
+        )
+    if selection.record["mode"] == "heldout":
+        return PARITY_DIR / "heldout.inputs.json"
+    return PARITY_DIR / "diagnostic" / "inputs.json"
+
+
+def _write_input_selection(selection: ParityInputSelection) -> None:
+    _write_selection_record(_selection_path(selection), selection.record)
+
+
+def _write_selection_record(path: Path, record: Mapping[str, object]) -> None:
+    serialized = json.dumps(record, indent=2, sort_keys=True) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if path.read_text(encoding="utf-8") != serialized:
+            raise FileExistsError(f"refusing to replace input selection: {path}")
+        return
+    path.write_text(serialized, encoding="utf-8")
+
+
 def _select_images(
     split: str,
     count: int,
@@ -969,6 +1090,9 @@ def _select_images(
 def _select_one_per_element_type(
     split: str, *, occurrence: int = 0
 ) -> list[ImageExample]:
+    if occurrence < 0:
+        raise ValueError("element-type occurrence must be nonnegative")
+
     import tensorflow as tf
 
     examples: dict[bytes, list[ImageExample]] = {}
@@ -993,13 +1117,19 @@ def _select_one_per_element_type(
                 ImageExample(image_id, document_id, index, kind, png_bytes)
             )
 
-    try:
-        return [examples_by_type[occurrence] for examples_by_type in examples.values()]
-    except IndexError as error:
+    if not examples:
         raise ValueError(
-            f"split {split} has an element type with fewer than "
-            f"{occurrence + 1} unique examples"
-        ) from error
+            f"split {split} has no unique PNGs for an element-type selection"
+        )
+    for element_type, examples_by_type in examples.items():
+        if len(examples_by_type) <= occurrence:
+            raise ValueError(
+                f"split {split} element type {element_type.decode('utf-8')!r} has "
+                f"{len(examples_by_type)} unique PNGs; occurrence {occurrence} "
+                f"requires at least {occurrence + 1}"
+            )
+
+    return [examples_by_type[occurrence] for examples_by_type in examples.values()]
 
 
 def _record_index(split: str) -> Iterator[tuple[bytes, str, Path, int, int]]:
@@ -1023,6 +1153,244 @@ def _record_index(split: str) -> Iterator[tuple[bytes, str, Path, int, int]]:
                 )
                 sort_key = f"crello-v1/{split}/{document_id}".encode("utf-8")
                 yield sort_key, document_id, path, payload_offset, payload_length
+
+
+def test_selection_plans_cover_calibration_repeats_and_heldout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_synthetic_archive(tmp_path, monkeypatch)
+
+    all_images = _select_images("train", 100, filter_training_types=False)
+    training_images = _select_images("train", 100, filter_training_types=True)
+    assert len(all_images) == 34
+    assert len(training_images) == 20
+    assert all(example.element_type in TRAINING_TYPES for example in training_images)
+    assert len({example.image_id for example in all_images}) == len(all_images)
+
+    calibration = [
+        _select_parity_inputs("calibration", repeat=repeat) for repeat in (1, 2, 3)
+    ]
+    assert [selection.record["document_png_indices"] for selection in calibration] == [
+        [0, 1],
+        [2, 3],
+        [4, 5],
+    ]
+    assert [selection.record["training_png_indices"] for selection in calibration] == [
+        [0, 1, 2, 3, 4, 5],
+        [6, 7, 8, 9, 10, 11],
+        [12, 13, 14, 15, 16, 17],
+    ]
+    for field in ("s1_image_ids", "training_image_ids"):
+        repeated_ids = [
+            set(_record_string_ids(selection.record, field))
+            for selection in calibration
+        ]
+        assert all(
+            first.isdisjoint(second)
+            for index, first in enumerate(repeated_ids)
+            for second in repeated_ids[index + 1 :]
+        )
+    s4_ids = [
+        set(_record_string_ids(selection.record, "s4_image_ids"))
+        for selection in calibration
+    ]
+    assert all(
+        first.isdisjoint(second)
+        for index, first in enumerate(s4_ids)
+        for second in s4_ids[index + 1 :]
+    )
+
+    heldout = _select_parity_inputs("heldout")
+    assert len(heldout.document_images) == 6
+    assert len(heldout.training_images) == 6
+    assert len(heldout.type_examples) == 5
+    assert heldout.record["s1_image_ids"] == [
+        example.image_id for example in heldout.document_images[:2]
+    ]
+    assert heldout.record["s2_image_ids"] == [
+        example.image_id for example in heldout.training_images[:2]
+    ]
+    assert heldout.record["s3_image_ids"] == [
+        example.image_id for example in heldout.training_images[:6]
+    ]
+
+    diagnostic = _select_parity_inputs("diagnostic")
+    assert len(diagnostic.diagnostic_pairs) == DIAGNOSTIC_TRAIN_PAIR_COUNT + 1
+    assert len(diagnostic.diagnostic_pairs[0][1]) == 2
+    assert all(len(pair[1]) == 2 for pair in diagnostic.diagnostic_pairs[1:])
+    train_pair_ids = [
+        {example.image_id for example in pair}
+        for _pair_name, pair in diagnostic.diagnostic_pairs[1:]
+    ]
+    assert all(
+        first.isdisjoint(second)
+        for index, first in enumerate(train_pair_ids)
+        for second in train_pair_ids[index + 1 :]
+    )
+
+
+def test_selection_plan_reports_short_lists_and_sparse_element_types(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    short_root = tmp_path / "short-tfrecords"
+    short_root.mkdir()
+    _write_synthetic_split(
+        short_root,
+        "test",
+        [
+            ("test-doc-0", [(b"imageElement", b"same-png")]),
+            ("test-doc-1", [(b"imageElement", b"same-png")]),
+        ],
+    )
+    monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", short_root)
+    assert len(_select_images("test", 6, filter_training_types=True)) == 1
+    with pytest.raises(ValueError, match="held-out S1 requires 6 unique PNGs; found 1"):
+        _select_parity_inputs("heldout")
+
+    calibration_short_root = tmp_path / "calibration-short-tfrecords"
+    calibration_short_root.mkdir()
+    _write_synthetic_split(
+        calibration_short_root,
+        "train",
+        [("train-doc-0", [(b"imageElement", b"one-png")])],
+    )
+    monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", calibration_short_root)
+    with pytest.raises(
+        ValueError, match="calibration S1 requires 6 unique PNGs; found 1"
+    ):
+        _select_parity_inputs("calibration", repeat=1)
+
+    sparse_root = tmp_path / "sparse-tfrecords"
+    sparse_root.mkdir()
+    _write_synthetic_split(
+        sparse_root,
+        "train",
+        [
+            ("train-doc-0", [(b"imageElement", b"same-png")]),
+            ("train-doc-1", [(b"imageElement", b"same-png")]),
+        ],
+    )
+    monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", sparse_root)
+    with pytest.raises(
+        ValueError,
+        match="element type 'imageElement' has 1 unique PNGs; occurrence 1 requires at least 2",
+    ):
+        _select_one_per_element_type("train", occurrence=1)
+
+
+def test_plan_mode_writes_all_input_selections_without_model_compute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_synthetic_archive(tmp_path, monkeypatch)
+    monkeypatch.setenv("PIXELVAE_PARITY_MODE", "plan")
+    monkeypatch.setenv("PARITY_REQUIRE", "1")
+
+    _run_pixel_vae_cpu_stages(tmp_path / "model-output")
+
+    output_dir = tmp_path / "parity"
+    expected = [
+        output_dir / "diagnostic" / "inputs.json",
+        output_dir / "calibration" / "repeat-1.inputs.json",
+        output_dir / "calibration" / "repeat-2.inputs.json",
+        output_dir / "calibration" / "repeat-3.inputs.json",
+        output_dir / "heldout.inputs.json",
+        output_dir / "input-selection-plan.json",
+    ]
+    assert all(path.is_file() for path in expected)
+    assert not (tmp_path / "model-output" / "full-model").exists()
+    assert not (output_dir / "calibration" / "repeat-1.json").exists()
+    assert (
+        json.loads(expected[-1].read_text(encoding="utf-8"))["selection_errors"] == []
+    )
+
+
+def _install_synthetic_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    record_dir = tmp_path / "tfrecords"
+    record_dir.mkdir()
+    for split, count in (("train", 7), ("test", 6)):
+        _write_synthetic_split(record_dir, split, _synthetic_documents(split, count))
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(
+        json.dumps(
+            {
+                "dimensions_by_element_type": {
+                    element_type.decode("utf-8"): [256, 256]
+                    for element_type in (
+                        b"coloredBackground",
+                        b"imageElement",
+                        b"maskElement",
+                        b"svgElement",
+                        b"textElement",
+                    )
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", record_dir)
+    monkeypatch.setattr(sys.modules[__name__], "AUDIT_PATH", audit_path)
+    monkeypatch.setattr(sys.modules[__name__], "PARITY_DIR", tmp_path / "parity")
+
+
+def _record_string_ids(record: Mapping[str, JSONValue], key: str) -> list[str]:
+    value = record[key]
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise AssertionError(f"selection record {key!r} is not a string list")
+    return [item for item in value if isinstance(item, str)]
+
+
+def _synthetic_documents(
+    split: str, count: int
+) -> list[tuple[str, list[tuple[bytes, bytes]]]]:
+    element_types = (
+        b"coloredBackground",
+        b"imageElement",
+        b"maskElement",
+        b"svgElement",
+        b"textElement",
+    )
+    documents = []
+    for document_index in range(count):
+        document_id = f"{split}-doc-{document_index:03d}"
+        elements = []
+        for element_type in element_types:
+            source_document = (
+                0
+                if split == "train"
+                and document_index == 1
+                and element_type == b"imageElement"
+                else document_index
+            )
+            image_bytes = (
+                f"{split}/{source_document}/{element_type.decode('utf-8')}".encode()
+            )
+            elements.append((element_type, image_bytes))
+        documents.append((document_id, elements))
+    return documents
+
+
+def _write_synthetic_split(
+    root: Path,
+    split: str,
+    documents: list[tuple[str, list[tuple[bytes, bytes]]]],
+) -> None:
+    import tensorflow as tf
+
+    path = root / f"{split}-00000.tfrecord"
+    with tf.io.TFRecordWriter(str(path)) as writer:
+        for document_id, elements in documents:
+            sequence = tf.train.SequenceExample()
+            sequence.context.feature["id"].bytes_list.value.append(
+                document_id.encode("utf-8")
+            )
+            for element_type, image_bytes in elements:
+                sequence.feature_lists.feature_list[
+                    "type"
+                ].feature.add().bytes_list.value.append(element_type)
+                sequence.feature_lists.feature_list[
+                    "image_bytes"
+                ].feature.add().bytes_list.value.append(image_bytes)
+            writer.write(sequence.SerializeToString())
 
 
 def _tensorflow_rgba(examples: list[ImageExample]) -> tf.Tensor:
