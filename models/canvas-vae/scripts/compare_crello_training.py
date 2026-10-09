@@ -1256,6 +1256,10 @@ def _load_frozen_limits(report_dir: Path, commit: str) -> tuple[bytes, _FrozenLi
     if limits["commit"] != commit:
         raise ValueError("held-out run must use the exact calibration commit")
 
+    calibration_bytes = (report_dir / "calibrate.json").read_bytes()
+    if hashlib.sha256(calibration_bytes).hexdigest() != limits["calibration_sha256"]:
+        raise ValueError("frozen Crello calibration report SHA-256 mismatch")
+
     return limits_bytes, limits
 
 
@@ -1459,6 +1463,208 @@ def _calibrate(
     return report
 
 
+def _heldout(
+    *,
+    data_dir: Path = DATA_DIR,
+    fixture_dir: Path = FIXTURE_DIR,
+    report_dir: Path = REPORT_DIR,
+    fixture_array_sha256: str | None = None,
+    fixture_manifest_sha256: str | None = None,
+) -> dict[str, JSONValue]:
+    report_context = _cpu_report_context()
+    frozen_bytes, frozen = _load_frozen_limits(
+        report_dir, str(report_context["commit"])
+    )
+    documents = load_crello_split(data_dir, CrelloSplit.test)
+    batches = _heldout_test_batches(documents)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    output_path = report_dir / "heldout.json"
+    plan_path = report_dir / "heldout-plan.json"
+    for path in (
+        output_path,
+        plan_path,
+        *(report_dir / f"heldout-batch-{index}.json" for index, _ in batches),
+    ):
+        path.unlink(missing_ok=True)
+
+    plan = {
+        **report_context,
+        "phase": "heldout_plan",
+        "input_selection": (
+            "all canonical test.jsonl documents in sequential 1,024-document batches; "
+            "each batch starts from the prescribed initial state"
+        ),
+        "frozen_limits_sha256": hashlib.sha256(frozen_bytes).hexdigest(),
+        "batches": [
+            {
+                "batch_index": index,
+                "split": "test",
+                "start": index * BATCH_SIZE,
+                "stop": index * BATCH_SIZE + len(rows),
+            }
+            for index, rows in batches
+        ],
+    }
+    plan_bytes = _write_json(plan_path, plan)
+
+    records: list[_Comparison] = []
+    static_errors: list[str] = []
+    initial_state_hashes: list[str] = []
+    initial_mismatch_keys: list[str] = []
+    batch_digests: list[str] = []
+    process_reports: list[dict[str, JSONValue]] = []
+    script = Path(__file__).resolve()
+    calibration_report = cast(
+        dict[str, JSONValue], json.loads((report_dir / "calibrate.json").read_bytes())
+    )
+    for batch_index, _ in batches:
+        child_report_path = report_dir / f"heldout-batch-{batch_index}.json"
+        command = [
+            sys.executable,
+            str(script),
+            "heldout-batch",
+            "--batch-index",
+            str(batch_index),
+            "--data-dir",
+            str(data_dir),
+            "--fixture-dir",
+            str(fixture_dir),
+            "--report-dir",
+            str(report_dir),
+        ]
+        if fixture_array_sha256 is not None:
+            command.extend(("--fixture-array-sha256", fixture_array_sha256))
+        if fixture_manifest_sha256 is not None:
+            command.extend(("--fixture-manifest-sha256", fixture_manifest_sha256))
+
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            env={**os.environ, "CUDA_VISIBLE_DEVICES": ""},
+        )
+        process_report: dict[str, JSONValue] = {
+            "batch_index": batch_index,
+            "returncode": completed.returncode,
+            "report_file": child_report_path.name,
+            "report_sha256": None,
+        }
+        if not child_report_path.exists():
+            static_errors.append(
+                f"held-out process {batch_index} did not write its report"
+            )
+            process_reports.append(process_report)
+            continue
+
+        child_bytes = child_report_path.read_bytes()
+        child = cast(dict[str, JSONValue], json.loads(child_bytes))
+        process_report["report_sha256"] = hashlib.sha256(child_bytes).hexdigest()
+        process_reports.append(process_report)
+        if completed.returncode != 0:
+            static_errors.append(
+                f"held-out process {batch_index} exited with {completed.returncode}"
+            )
+
+        static_errors.extend(cast(list[str], child["static_errors"]))
+        child_digests = cast(list[str], child["batch_digests"])
+        if len(child_digests) != 1:
+            static_errors.append(
+                f"held-out process {batch_index} did not use exactly one batch"
+            )
+        batch_digests.extend(child_digests)
+        initial_state_hashes.append(cast(str, child["initial_state_sha256"]))
+        initial_mismatch_keys.extend(
+            cast(list[str], child["initial_state_mismatch_keys"])
+        )
+        for measurement in cast(list[dict[str, JSONValue]], child["measurements"]):
+            records.append(
+                _Comparison(
+                    group=cast(str, measurement["group"]),
+                    name=cast(str, measurement["name"]),
+                    batch=cast(int, measurement["batch"]),
+                    metric=cast(str, measurement["metric"]),
+                    value=cast(float | None, measurement["value"]),
+                    actual_shape=cast(list[int], measurement["actual_shape"]),
+                    expected_shape=cast(list[int], measurement["expected_shape"]),
+                    shape_match=cast(bool, measurement["shape_match"]),
+                )
+            )
+
+    if len(initial_state_hashes) != len(batches) or len(set(initial_state_hashes)) != 1:
+        static_errors.append(
+            "held-out processes did not share the prescribed initial state"
+        )
+    if initial_state_hashes and any(
+        value != calibration_report["initial_state_sha256"]
+        for value in initial_state_hashes
+    ):
+        static_errors.append(
+            "held-out processes differed from the calibration initial state"
+        )
+    if len(process_reports) != len(batches):
+        static_errors.append("held-out process reports are incomplete")
+
+    groups_by_batch = {
+        index: {
+            row.group for row in records if row.batch == index and row.value is not None
+        }
+        for index, _ in batches
+    }
+    for index, groups in groups_by_batch.items():
+        missing_groups = set(frozen["limits"]) - groups
+        if missing_groups:
+            static_errors.append(
+                f"held-out batch {index} is missing metrics: {', '.join(sorted(missing_groups))}"
+            )
+
+    heldout_errors: list[dict[str, JSONValue]] = []
+    for row in records:
+        limit = frozen["limits"].get(row.group)
+        if limit is None or row.value is None or row.value > limit["limit"]:
+            heldout_errors.append(
+                {
+                    "group": row.group,
+                    "name": row.name,
+                    "batch": row.batch,
+                    "value": row.value,
+                    "limit": None if limit is None else limit["limit"],
+                    "shape_match": row.shape_match,
+                }
+            )
+
+    report: dict[str, JSONValue] = {
+        **report_context,
+        "phase": "heldout",
+        "heldout_plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+        "fixture_array_sha256": fixture_array_sha256,
+        "fixture_manifest_sha256": fixture_manifest_sha256,
+        "input_selection": plan["input_selection"],
+        "batch_digests": batch_digests,
+        "initial_state_sha256": initial_state_hashes[0]
+        if initial_state_hashes
+        else None,
+        "heldout_processes": process_reports,
+        "static_errors": static_errors,
+        "initial_state_mismatch_keys": initial_mismatch_keys,
+        "measurements": [_record_payload(row) for row in records],
+        "frozen_limits_sha256": hashlib.sha256(frozen_bytes).hexdigest(),
+        "heldout_errors": heldout_errors,
+    }
+    _write_json(output_path, report)
+    if (
+        static_errors
+        or initial_mismatch_keys
+        or _has_shape_errors(records)
+        or heldout_errors
+        or not records
+    ):
+        raise AssertionError(f"held-out checks failed; report written to {output_path}")
+
+    return report
+
+
 def _run(
     phase: str,
     *,
@@ -1480,29 +1686,34 @@ def _run(
     torch.manual_seed(0)
     torch.set_num_threads(min(8, os.cpu_count() or 1))
     report_context = _cpu_report_context()
-    frozen_bytes = None
-    frozen = None
-    if phase == "heldout":
-        frozen_bytes, frozen = _load_frozen_limits(
-            report_dir, str(report_context["commit"])
+    if phase == "heldout-batch":
+        _load_frozen_limits(report_dir, str(report_context["commit"]))
+    elif phase == "calibration-batch":
+        if batch_index is None:
+            raise ValueError("calibration process requires a batch index")
+        if batch_index not in range(len(CALIBRATION_SLICES)):
+            raise ValueError("calibration process requires batch index 0, 1, or 2")
+    else:
+        raise ValueError(
+            "Crello parity phase must be heldout-batch or calibration-batch"
         )
-    elif phase != "calibration-batch" or batch_index not in range(
-        len(CALIBRATION_SLICES)
-    ):
-        raise ValueError("Crello parity phase must be heldout or one calibration batch")
 
     documents = {split: load_crello_split(data_dir, split) for split in CrelloSplit}
     if phase == "calibration-batch":
-        if batch_index is None:
-            raise ValueError("a calibration process needs a batch index")
-
-        start, stop = CALIBRATION_SLICES[batch_index]
+        calibration_index = cast(int, batch_index)
+        start, stop = CALIBRATION_SLICES[calibration_index]
         if len(documents[CrelloSplit.train]) < stop:
             raise ValueError("Crello calibration requires three full train batches")
 
-        selected = [(batch_index, documents[CrelloSplit.train][start:stop])]
+        selected = [(calibration_index, documents[CrelloSplit.train][start:stop])]
     else:
-        selected = _heldout_test_batches(documents[CrelloSplit.test])
+        heldout_batches = _heldout_test_batches(documents[CrelloSplit.test])
+        if batch_index is None:
+            raise ValueError("held-out process requires a canonical test batch index")
+        if batch_index not in range(len(heldout_batches)):
+            raise ValueError("held-out process requires a canonical test batch index")
+
+        selected = [heldout_batches[batch_index]]
 
     ordered = [row for split in CrelloSplit for row in documents[split]]
     embeddings = load_embedding_fixture(fixture_dir, fixture_image_ids(ordered))
@@ -1604,7 +1815,7 @@ def _run(
     output_name = (
         f"calibration-batch-{batch_index}.json"
         if phase == "calibration-batch"
-        else "heldout.json"
+        else f"heldout-batch-{batch_index}.json"
     )
     output_path = report_dir / output_name
     report: dict[str, JSONValue] = {
@@ -1625,39 +1836,11 @@ def _run(
         "measurements": [_record_payload(row) for row in records],
     }
 
-    if phase == "calibration-batch":
-        _write_json(output_path, report)
-        if _has_shape_errors(records) or static_errors or initial_errors:
-            raise AssertionError(
-                f"calibration batch checks failed; report written to {output_path}"
-            )
-
-        return report
-
-    if frozen_bytes is None or frozen is None:
-        raise RuntimeError("held-out parity did not load frozen calibration limits")
-
-    limits = frozen["limits"]
-    heldout_errors: list[dict[str, JSONValue]] = []
-    for row in records:
-        limit = limits.get(row.group)
-        if limit is None or row.value is None or row.value > limit["limit"]:
-            heldout_errors.append(
-                {
-                    "group": row.group,
-                    "name": row.name,
-                    "batch": row.batch,
-                    "value": row.value,
-                    "limit": None if limit is None else limit["limit"],
-                    "shape_match": row.shape_match,
-                }
-            )
-
-    report["frozen_limits_sha256"] = hashlib.sha256(frozen_bytes).hexdigest()
-    report["heldout_errors"] = heldout_errors
     _write_json(output_path, report)
-    if _has_shape_errors(records) or static_errors or initial_errors or heldout_errors:
-        raise AssertionError(f"held-out checks failed; report written to {output_path}")
+    if _has_shape_errors(records) or static_errors or initial_errors:
+        raise AssertionError(
+            f"{report_phase} checks failed; report written to {output_path}"
+        )
 
     return report
 
@@ -1666,7 +1849,15 @@ def main() -> None:
     """Run fixture-independent configuration checks or the calibrated model checks."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "phase", choices=("s0", "calibrate", "calibration-batch", "heldout", "run")
+        "phase",
+        choices=(
+            "s0",
+            "calibrate",
+            "calibration-batch",
+            "heldout-batch",
+            "heldout",
+            "run",
+        ),
     )
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--fixture-dir", type=Path, default=FIXTURE_DIR)
@@ -1720,8 +1911,7 @@ def main() -> None:
                 fixture_array_sha256=args.fixture_array_sha256.lower(),
                 fixture_manifest_sha256=args.fixture_manifest_sha256.lower(),
             )
-            heldout = _run(
-                "heldout",
+            heldout = _heldout(
                 data_dir=args.data_dir,
                 fixture_dir=fixture_dir,
                 report_dir=args.report_dir,
@@ -1749,12 +1939,20 @@ def main() -> None:
             fixture_array_sha256=args.fixture_array_sha256,
             fixture_manifest_sha256=args.fixture_manifest_sha256,
         )
-    elif args.phase == "calibration-batch":
-        if args.batch_index not in range(len(CALIBRATION_SLICES)):
-            parser.error("calibration-batch requires --batch-index 0, 1, or 2")
+    elif args.phase == "heldout":
+        report = _heldout(
+            data_dir=args.data_dir,
+            fixture_dir=args.fixture_dir,
+            report_dir=args.report_dir,
+            fixture_array_sha256=args.fixture_array_sha256,
+            fixture_manifest_sha256=args.fixture_manifest_sha256,
+        )
+    elif args.phase in ("calibration-batch", "heldout-batch"):
+        if args.batch_index is None or args.batch_index < 0:
+            parser.error(f"{args.phase} requires a non-negative --batch-index")
 
         report = _run(
-            "calibration-batch",
+            args.phase,
             data_dir=args.data_dir,
             fixture_dir=args.fixture_dir,
             report_dir=args.report_dir,
@@ -1763,14 +1961,7 @@ def main() -> None:
             batch_index=args.batch_index,
         )
     else:
-        report = _run(
-            args.phase,
-            data_dir=args.data_dir,
-            fixture_dir=args.fixture_dir,
-            report_dir=args.report_dir,
-            fixture_array_sha256=args.fixture_array_sha256,
-            fixture_manifest_sha256=args.fixture_manifest_sha256,
-        )
+        raise ValueError(f"unsupported Crello parity phase {args.phase!r}")
 
     print(
         json.dumps({"phase": report["phase"], "report": str(args.report_dir)}, indent=1)
