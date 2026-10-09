@@ -141,13 +141,13 @@ Full checklist: see [docs/implementation-checklist.md](https://github.com/creati
 
 ## Completion Gate
 
-- [ ] Vendor parity verified, or gated-pending: <independent rerun, cases, criterion, and artifact scope; or state why parity is not applicable; otherwise name the blocker>.
-- [ ] Training S5 reproduction complete, or N/A: <claimed datasets and training/evaluation seed scope, with S0-S4 evidence cited before S5; or N/A with reason>. Infrastructure-only work must state that full-run reproduction is not claimed.
-- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
+- [x] Vendor parity verified, or gated-pending: independent rerun of the claimed condition artifacts, with bitwise prediction agreement on the full TEST population, recorded metrics, settings, and hash audit.
+- [x] Training S5 reproduction complete, or N/A: the claimed dataset and condition seed scopes are recorded with S0-S4 evidence cited before S5; this PR claims the completed full-run reproduction.
+- [x] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)
 
 ## Draft Reason
 
-Keep PR 270 draft pending the independent pre-PR reviewer and maintainer review. The resolution trigger is a truthful reviewer verdict on this final head; the bot must not approve its own PR. Badge rendering still reports external Codecov TLS and Simple Icons failures, while the repository badge contract checker passes.
+Keep PR 270 draft pending maintainer review. The independent pre-PR reviewer accepted the final pushed head; the bot must not approve its own PR. Badge rendering still reports external Codecov TLS and Simple Icons failures, while the repository badge contract checker passes.
 
 ## Deviations / Follow-ups
 
