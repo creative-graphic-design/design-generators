@@ -3,7 +3,7 @@ import hashlib
 import runpy
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -62,6 +62,33 @@ def test_crello_parity_report_serializes_numpy_scalars(tmp_path):
     write_json(path, {"vendor_value": np.float32(0.5)})
 
     assert json.loads(path.read_text(encoding="utf-8")) == {"vendor_value": 0.5}
+
+
+def test_crello_heldout_batches_follow_sequential_index_batches():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    heldout_batches = cast(
+        Callable[[Sequence[CrelloDocument]], list[tuple[int, list[CrelloDocument]]]],
+        namespace["_heldout_test_batches"],
+    )
+    documents: list[CrelloDocument] = [
+        {
+            "split": CrelloSplit.test.value,
+            "document_id": f"crello-v1/test/{index}",
+            "context": {},
+            "elements": [],
+        }
+        for index in range(1025)
+    ]
+
+    batches = heldout_batches(documents)
+
+    assert [index for index, _ in batches] == [0, 1]
+    assert [len(rows) for _, rows in batches] == [1024, 1]
+    assert batches[0][1] == documents[:-1]
+    assert batches[1][1] == documents[-1:]
 
 
 def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
