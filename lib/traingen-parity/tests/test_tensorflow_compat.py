@@ -5,6 +5,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 from traingen_parity.tensorflow_compat import (
+    install_assert_all_finite_compat,
     install_keras_preprocessing_compat,
     normalize_lookup_kwargs,
 )
@@ -76,3 +77,21 @@ def test_install_keras_preprocessing_compat_registers_lookup_layers(
     assert integer_lookup.kwargs == {"mask_token": None}
     assert string_lookup.vocab_size() == 3
     assert integer_lookup.vocab_size() == 3
+
+
+def test_install_assert_all_finite_compat_preserves_non_finite_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tf = pytest.importorskip("tensorflow")
+    original_assert_all_finite = tf.debugging.assert_all_finite
+    monkeypatch.setattr(tf.debugging, "assert_all_finite", original_assert_all_finite)
+
+    with pytest.raises(TypeError):
+        tf.debugging.assert_all_finite(tf.constant([1.0]))
+
+    install_assert_all_finite_compat()
+
+    finite = tf.debugging.assert_all_finite(tf.constant([1.0]))
+    assert finite.numpy().tolist() == [1.0]
+    with pytest.raises(tf.errors.InvalidArgumentError):
+        tf.debugging.assert_all_finite(tf.constant([float("nan")]))

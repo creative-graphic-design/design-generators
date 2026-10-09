@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from canvas_vae.data import CRELLO_V1_SHA256
+from traingen_parity.tensorflow_compat import install_assert_all_finite_compat
 
 
 def main() -> None:
@@ -29,6 +30,9 @@ def main() -> None:
     import apache_beam as beam
     import tensorflow as tf
     from apache_beam.runners.portability.fn_api_runner import FnApiRunner
+
+    install_assert_all_finite_compat()
+
     from preprocess.transforms import create_transform
 
     if tf.config.list_physical_devices("GPU"):
