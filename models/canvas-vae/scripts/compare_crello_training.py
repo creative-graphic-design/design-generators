@@ -44,7 +44,10 @@ from canvas_vae.data import (
     load_crello_vocabularies,
     load_embedding_fixture,
 )
-from canvas_vae.metrics import crello_reconstruction_scores
+from canvas_vae.metrics import (
+    _allowed_type_mask,
+    crello_reconstruction_scores,
+)
 from canvas_vae.modeling_canvas_vae import (
     CanvasVAECrelloModel,
     CanvasVAECrelloModelOutput,
@@ -110,6 +113,33 @@ class _TensorFlowModule(Protocol):
     def convert_to_tensor(
         self, value: Shaped[np.ndarray, "..."]
     ) -> _TensorFlowTensor: ...
+
+
+class _VendorColumn(TypedDict, total=False):
+    type: str
+    is_sequence: bool
+
+
+class _VendorVectorMetric(Protocol):
+    def _get_masks(
+        self,
+        y_true: Mapping[str, _TensorFlowTensor],
+        y_pred: Mapping[str, _TensorFlowTensor],
+        training: bool,
+    ) -> tuple[_TensorFlowTensor, _TensorFlowTensor]: ...
+
+    def _conditional_mask(
+        self,
+        column: _VendorColumn,
+        y_true: Mapping[str, _TensorFlowTensor],
+        y_pred: Mapping[str, _TensorFlowTensor],
+        mask_true: _TensorFlowTensor,
+        mask_pred: _TensorFlowTensor,
+    ) -> tuple[_TensorFlowTensor, _TensorFlowTensor]: ...
+
+
+class _VendorModelMetrics(Protocol):
+    vector_metric: _VendorVectorMetric
 
 
 class _TrainingTrace(TypedDict):
@@ -622,6 +652,335 @@ def _compare_metric_mappings(
                 metric_group, name, batch_index, actual, expected, "max_rel_to_max"
             )
         )
+
+
+def _as_numpy(
+    value: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | _TensorFlowTensor,
+) -> Shaped[np.ndarray, "..."]:
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().numpy()
+
+    if isinstance(value, np.ndarray):
+        return value
+
+    return cast(_TensorFlowTensor, value).numpy()
+
+
+def _float32_ulp_delta(
+    actual: Shaped[np.ndarray, "..."], expected: Shaped[np.ndarray, "..."]
+) -> Shaped[np.ndarray, "..."]:
+    actual32 = np.ascontiguousarray(actual, dtype=np.float32)
+    expected32 = np.ascontiguousarray(expected, dtype=np.float32)
+    if np.any(actual32 < 0) or np.any(expected32 < 0):
+        raise ValueError("reconstruction scores must be non-negative for ULP distance")
+
+    actual_bits = actual32.view(np.uint32).astype(np.int64)
+    expected_bits = expected32.view(np.uint32).astype(np.int64)
+    return actual_bits - expected_bits
+
+
+def _normalized_category_ids(
+    target_ids: Shaped[np.ndarray, "..."], predicted_ids: Shaped[np.ndarray, "..."]
+) -> tuple[Shaped[np.ndarray, "..."], Shaped[np.ndarray, "..."]]:
+    if target_ids.ndim == predicted_ids.ndim + 1 and target_ids.shape[-1] == 1:
+        target_ids = target_ids[..., 0]
+
+    if predicted_ids.ndim == target_ids.ndim + 1 and predicted_ids.shape[-1] == 1:
+        predicted_ids = predicted_ids[..., 0]
+
+    if target_ids.ndim == 2:
+        target_ids = target_ids[..., np.newaxis]
+        predicted_ids = predicted_ids[..., np.newaxis]
+
+    if target_ids.shape != predicted_ids.shape or target_ids.ndim != 3:
+        raise ValueError(
+            "categorical diagnostic ids must share [batch, elements, channels]"
+        )
+
+    return target_ids.astype(np.int64), predicted_ids.astype(np.int64)
+
+
+def _bleu_diagnostic(
+    target_ids: Shaped[np.ndarray, "..."],
+    target_mask: Shaped[np.ndarray, "..."],
+    predicted_ids: Shaped[np.ndarray, "..."],
+    predicted_mask: Shaped[np.ndarray, "..."],
+    num_classes: int,
+) -> dict[str, JSONValue]:
+    target_ids, predicted_ids = _normalized_category_ids(target_ids, predicted_ids)
+    target_mask = np.asarray(target_mask, dtype=np.bool_)
+    predicted_mask = np.asarray(predicted_mask, dtype=np.bool_)
+    if target_ids.shape[0] != predicted_ids.shape[0]:
+        raise ValueError("BLEU diagnostic batch sizes differ")
+
+    if target_ids.shape[1] != target_mask.shape[1]:
+        raise ValueError("BLEU target ids and mask lengths differ")
+
+    if predicted_ids.shape[1] != predicted_mask.shape[1]:
+        raise ValueError("BLEU prediction ids and mask lengths differ")
+
+    batch_size, _, channels = target_ids.shape
+    matches = np.zeros((batch_size, channels), dtype=np.int64)
+    target_count = target_mask.sum(axis=1, dtype=np.int64)
+    predicted_count = predicted_mask.sum(axis=1, dtype=np.int64)
+    for row in range(batch_size):
+        for channel in range(channels):
+            target_bow = np.bincount(
+                target_ids[row, target_mask[row], channel], minlength=num_classes
+            )
+            predicted_bow = np.bincount(
+                predicted_ids[row, predicted_mask[row], channel], minlength=num_classes
+            )
+            matches[row, channel] = np.minimum(target_bow, predicted_bow).sum()
+
+    def score_dtype(
+        float_type: type[np.float32] | type[np.float64],
+    ) -> Shaped[np.ndarray, "batch channels"]:
+        target_length = target_count.astype(float_type) + float_type(1e-9)
+        predicted_length = predicted_count.astype(float_type) + float_type(1e-9)
+        precision = matches.astype(float_type) / predicted_length[:, np.newaxis]
+        ratio = (
+            float_type(1.0)
+            - target_length[:, np.newaxis] / predicted_length[:, np.newaxis]
+        )
+        brevity_exponent = np.minimum(float_type(0.0), ratio)
+        score = np.exp(brevity_exponent) * np.sqrt(precision)
+        return np.clip(score, 0.0, 1.0)
+
+    target_length32 = target_count.astype(np.float32) + np.float32(1e-9)
+    predicted_length32 = predicted_count.astype(np.float32) + np.float32(1e-9)
+    precision32 = matches.astype(np.float32) / predicted_length32[:, np.newaxis]
+    ratio32 = (
+        np.float32(1.0)
+        - target_length32[:, np.newaxis] / predicted_length32[:, np.newaxis]
+    )
+    exponent32 = np.minimum(np.float32(0.0), ratio32)
+    brevity32 = np.exp(exponent32)
+    root32 = np.sqrt(precision32)
+    raw32 = brevity32 * root32
+    return {
+        "float32_intermediates": {
+            "target_token_count": np.repeat(
+                target_count[:, None], channels, axis=1
+            ).tolist(),
+            "predicted_token_count": np.repeat(
+                predicted_count[:, None], channels, axis=1
+            ).tolist(),
+            "matching_token_count": matches.tolist(),
+            "target_length_with_epsilon": np.repeat(
+                target_length32[:, None], channels, axis=1
+            ).tolist(),
+            "predicted_length_with_epsilon": np.repeat(
+                predicted_length32[:, None], channels, axis=1
+            ).tolist(),
+            "precision": precision32.tolist(),
+            "length_ratio": ratio32.tolist(),
+            "brevity_exponent": exponent32.tolist(),
+            "brevity_factor": brevity32.tolist(),
+            "sqrt_precision": root32.tolist(),
+            "unclipped_score": raw32.tolist(),
+            "clipped_score": np.clip(raw32, 0.0, 1.0).tolist(),
+        },
+        "float64_scores": score_dtype(np.float64).tolist(),
+    }
+
+
+def _metric_diagnostic_report(
+    batch: CrelloBatch,
+    package_output: CanvasVAECrelloModelOutput,
+    vendor_inputs: Mapping[str, _TensorFlowTensor],
+    vendor_output: Mapping[str, _TensorFlowTensor],
+    columns: Mapping[str, _VendorColumn],
+    package_metrics: Mapping[str, Shaped[torch.Tensor, "..."]],
+    vendor_metrics: Mapping[str, _TensorFlowTensor],
+    config: CanvasVAECrelloConfig,
+    vendor_model: _VendorModelMetrics,
+) -> dict[str, JSONValue]:
+    if package_output.context_logits is None or package_output.sequence_logits is None:
+        raise ValueError("metric diagnosis requires decoded categorical logits")
+
+    if package_output.mask is None or package_output.numerical_predictions is None:
+        raise ValueError("metric diagnosis requires decoded masks and numeric outputs")
+
+    vendor_metric = vendor_model.vector_metric
+    vendor_true_mask, vendor_pred_mask = vendor_metric._get_masks(
+        vendor_inputs, vendor_output, training=False
+    )
+    package_type = package_output.sequence_logits["type"].argmax(dim=-1)
+    package_fields = cast(Mapping[str, Shaped[torch.Tensor, "..."]], batch)
+    field_reports: dict[str, JSONValue] = {}
+
+    for field in sorted(package_metrics.keys() & vendor_metrics.keys()):
+        if field in {"total", "layout_acc", "layout_miou"}:
+            continue
+
+        column = columns[field]
+        is_sequence = column["is_sequence"]
+        package_target = _as_numpy(package_fields[field])
+        vendor_target = _as_numpy(vendor_inputs[field])
+        package_true: Shaped[np.ndarray, "..."] | None = None
+        vendor_true: Shaped[np.ndarray, "..."] | None = None
+        package_pred: Shaped[np.ndarray, "..."] | None = None
+        vendor_pred: Shaped[np.ndarray, "..."] | None = None
+        package_mask_equal: bool | None = None
+        if is_sequence:
+            package_true_mask = package_fields["element_mask"]
+            package_pred_mask = package_output.mask
+            if field in config.conditional_types:
+                package_true_mask = package_fields[f"{field}_mask"]
+                package_pred_mask = package_pred_mask & _allowed_type_mask(
+                    package_type, config.conditional_type_ids(field)
+                )
+
+            vendor_true_tensor, vendor_pred_tensor = vendor_metric._conditional_mask(
+                column,
+                vendor_inputs,
+                vendor_output,
+                vendor_true_mask,
+                vendor_pred_mask,
+            )
+            package_true = _as_numpy(package_true_mask)
+            package_pred = _as_numpy(package_pred_mask)
+            vendor_true = _as_numpy(vendor_true_tensor)
+            vendor_pred = _as_numpy(vendor_pred_tensor)
+            package_mask_equal = np.array_equal(
+                package_true, vendor_true
+            ) and np.array_equal(package_pred, vendor_pred)
+
+        is_categorical = column["type"] == "categorical"
+        package_bleu: dict[str, JSONValue] | None = None
+        vendor_bleu: dict[str, JSONValue] | None = None
+        metric_inputs_equal: bool | None = None
+        float64_equal: bool | None = None
+        if is_sequence and is_categorical:
+            package_logits = package_output.sequence_logits[field]
+            vendor_logits = vendor_output[field]
+            package_ids = package_logits.argmax(dim=-1).detach().cpu().numpy()
+            vendor_ids = np.asarray(vendor_logits.numpy()).argmax(axis=-1)
+            vendor_depth = vendor_logits.shape.as_list()[-1]
+            if vendor_depth is None:
+                raise ValueError(f"vendor logits for {field!r} have no class dimension")
+
+            package_ids, package_predicted_ids = _normalized_category_ids(
+                package_target, package_ids
+            )
+            vendor_ids, vendor_predicted_ids = _normalized_category_ids(
+                vendor_target, vendor_ids
+            )
+            num_classes = int(package_logits.shape[-1])
+            package_bleu = _bleu_diagnostic(
+                package_ids,
+                cast(Shaped[np.ndarray, "..."], package_true),
+                package_predicted_ids,
+                cast(Shaped[np.ndarray, "..."], package_pred),
+                num_classes,
+            )
+            vendor_bleu = _bleu_diagnostic(
+                vendor_ids,
+                cast(Shaped[np.ndarray, "..."], vendor_true),
+                vendor_predicted_ids,
+                cast(Shaped[np.ndarray, "..."], vendor_pred),
+                vendor_depth,
+            )
+            metric_inputs_equal = (
+                np.array_equal(package_ids, vendor_ids)
+                and np.array_equal(package_predicted_ids, vendor_predicted_ids)
+                and package_mask_equal is True
+            )
+        elif is_sequence:
+            package_prediction = _as_numpy(package_output.numerical_predictions[field])
+            vendor_prediction = _as_numpy(vendor_output[field])
+            metric_inputs_equal = (
+                np.array_equal(package_target, vendor_target)
+                and np.array_equal(package_prediction, vendor_prediction)
+                and package_mask_equal is True
+            )
+        else:
+            package_logits = package_output.context_logits[field]
+            vendor_logits = vendor_output[field]
+            package_pred_ids = package_logits.argmax(dim=-1).detach().cpu().numpy()
+            vendor_pred_ids = np.asarray(vendor_logits.numpy()).argmax(axis=-1)
+            metric_inputs_equal = np.array_equal(
+                package_target, vendor_target
+            ) and np.array_equal(package_pred_ids, vendor_pred_ids)
+
+        actual = np.asarray(_as_numpy(package_metrics[field]), dtype=np.float32)
+        expected = np.asarray(_as_numpy(vendor_metrics[field]), dtype=np.float32)
+        ulp_delta = (
+            _float32_ulp_delta(actual, expected)
+            if actual.shape == expected.shape
+            else None
+        )
+        if package_bleu is not None and vendor_bleu is not None:
+            package_double = np.asarray(
+                package_bleu["float64_scores"], dtype=np.float64
+            )
+            vendor_double = np.asarray(vendor_bleu["float64_scores"], dtype=np.float64)
+            float64_equal = np.array_equal(package_double, vendor_double)
+            bleu_intermediates: JSONValue = {
+                "package": package_bleu["float32_intermediates"],
+                "vendor": vendor_bleu["float32_intermediates"],
+            }
+            float64_scores: JSONValue = {
+                "package": package_bleu["float64_scores"],
+                "vendor": vendor_bleu["float64_scores"],
+            }
+            if not metric_inputs_equal:
+                diagnosis = "semantic metric inputs differ"
+            elif not float64_equal:
+                diagnosis = "same discrete inputs but float64 scores differ; inspect formula semantics"
+            elif ulp_delta is not None and np.any(ulp_delta):
+                diagnosis = "same metric inputs and float64 scores; observed discrepancy is float32 rounding"
+            else:
+                diagnosis = "same metric inputs and scores"
+        else:
+            diagnosis = None
+            bleu_intermediates = None
+            float64_scores = None
+
+        field_reports[field] = {
+            "actual_package_scores": actual.tolist(),
+            "expected_vendor_scores": expected.tolist(),
+            "float32_ulp_delta_from_expected": (
+                ulp_delta.tolist() if ulp_delta is not None else None
+            ),
+            "max_absolute_float32_ulp_distance": (
+                int(np.max(np.abs(ulp_delta), initial=0))
+                if ulp_delta is not None
+                else None
+            ),
+            "package_vendor_metric_inputs_equal": metric_inputs_equal,
+            "package_vendor_masks_equal": package_mask_equal,
+            "diagnosis": diagnosis,
+            "bleu_intermediates": bleu_intermediates,
+            "float64_scores": float64_scores,
+            "float64_scores_equal": float64_equal,
+        }
+
+    actual_total = np.asarray(_as_numpy(package_metrics["total"]), dtype=np.float32)
+    expected_total = np.asarray(_as_numpy(vendor_metrics["total"]), dtype=np.float32)
+    total_ulp_delta = (
+        _float32_ulp_delta(actual_total, expected_total)
+        if actual_total.shape == expected_total.shape
+        else None
+    )
+    field_reports["total"] = {
+        "actual_package_scores": actual_total.tolist(),
+        "expected_vendor_scores": expected_total.tolist(),
+        "float32_ulp_delta_from_expected": (
+            total_ulp_delta.tolist() if total_ulp_delta is not None else None
+        ),
+        "max_absolute_float32_ulp_distance": (
+            int(np.max(np.abs(total_ulp_delta), initial=0))
+            if total_ulp_delta is not None
+            else None
+        ),
+    }
+
+    return {
+        "fields": field_reports,
+        "float64_method": "BLEU formulas recomputed from each side's observed ids and masks; vendor/package metric layers remain unchanged.",
+    }
 
 
 def _compare_state_tensor(
@@ -1674,6 +2033,7 @@ def _run(
     fixture_array_sha256: str | None = None,
     fixture_manifest_sha256: str | None = None,
     batch_index: int | None = None,
+    diagnostic_split: str | None = None,
 ) -> dict[str, JSONValue]:
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
     import tensorflow as tf
@@ -1693,13 +2053,26 @@ def _run(
             raise ValueError("calibration process requires a batch index")
         if batch_index not in range(len(CALIBRATION_SLICES)):
             raise ValueError("calibration process requires batch index 0, 1, or 2")
+    elif phase == "metric-diagnostic":
+        if diagnostic_split not in {"calibration", "heldout"}:
+            raise ValueError("metric diagnosis requires calibration or heldout split")
+        if batch_index is None or batch_index < 0:
+            raise ValueError("metric diagnosis requires a non-negative batch index")
+        if diagnostic_split == "calibration" and batch_index not in range(
+            len(CALIBRATION_SLICES)
+        ):
+            raise ValueError(
+                "calibration metric diagnosis requires batch index 0, 1, or 2"
+            )
     else:
         raise ValueError(
-            "Crello parity phase must be heldout-batch or calibration-batch"
+            "Crello parity phase must be heldout-batch, calibration-batch, or metric-diagnostic"
         )
 
     documents = {split: load_crello_split(data_dir, split) for split in CrelloSplit}
-    if phase == "calibration-batch":
+    if phase == "calibration-batch" or (
+        phase == "metric-diagnostic" and diagnostic_split == "calibration"
+    ):
         calibration_index = cast(int, batch_index)
         start, stop = CALIBRATION_SLICES[calibration_index]
         if len(documents[CrelloSplit.train]) < stop:
@@ -1731,9 +2104,14 @@ def _run(
     package_model = CanvasVAECrelloModel(config)
     package_model.load_state_dict(state, strict=True)
     initial_state_hash = _torch_state_sha256(package_model.state_dict())
-    optimizer = KerasAdam(package_model.parameters(), lr=LEARNING_RATE)
+    optimizer = (
+        None
+        if phase == "metric-diagnostic"
+        else KerasAdam(package_model.parameters(), lr=LEARNING_RATE)
+    )
 
     records: list[_Comparison] = []
+    metric_diagnostics: list[dict[str, JSONValue]] = []
     static_errors = _common(vendor_model, package_model)
     initial_errors = []
     for key, package_value in package_model.state_dict().items():
@@ -1774,6 +2152,26 @@ def _run(
                 for key, value in vendor_reconstruction_metrics.items()
             },
         )
+        if phase == "metric-diagnostic":
+            metric_diagnostics.append(
+                _metric_diagnostic_report(
+                    batch,
+                    eval_output,
+                    tf_batch,
+                    eval_reference,
+                    cast(Mapping[str, _VendorColumn], columns),
+                    {
+                        key: value
+                        for key, value in package_metrics.items()
+                        if key not in {"layout_acc", "layout_miou"}
+                    },
+                    vendor_reconstruction_metrics,
+                    config,
+                    cast(_VendorModelMetrics, vendor_model),
+                )
+            )
+            continue
+
         vendor_layout_metrics = vendor_model.layout_metric(
             (tf_batch, eval_reference), training=False
         )
@@ -1800,6 +2198,9 @@ def _run(
         noise = np.random.default_rng(batch_index).standard_normal(
             (len(rows), LATENT_DIM), dtype=np.float32
         )
+        if optimizer is None:
+            raise RuntimeError("training parity requires an optimizer")
+
         _train_step(
             tf,
             vendor_model,
@@ -1811,12 +2212,19 @@ def _run(
             records,
         )
 
-    report_phase = "calibration_batch" if phase == "calibration-batch" else phase
-    output_name = (
-        f"calibration-batch-{batch_index}.json"
+    report_phase = (
+        "metric_diagnostic"
+        if phase == "metric-diagnostic"
+        else "calibration_batch"
         if phase == "calibration-batch"
-        else f"heldout-batch-{batch_index}.json"
+        else phase
     )
+    if phase == "metric-diagnostic":
+        output_name = f"metric-diagnostic-{diagnostic_split}-{batch_index}.json"
+    elif phase == "calibration-batch":
+        output_name = f"calibration-batch-{batch_index}.json"
+    else:
+        output_name = f"heldout-batch-{batch_index}.json"
     output_path = report_dir / output_name
     report: dict[str, JSONValue] = {
         **report_context,
@@ -1827,17 +2235,33 @@ def _run(
         "initial_state_sha256": initial_state_hash,
         "input_selection": (
             f"canonical train.jsonl indices {CALIBRATION_SLICES[batch_index][0]}:{CALIBRATION_SLICES[batch_index][1]}"
-            if phase == "calibration-batch" and batch_index is not None
-            else "all canonical test documents in sequential 1,024-document batches"
+            if (
+                phase == "calibration-batch"
+                or (phase == "metric-diagnostic" and diagnostic_split == "calibration")
+            )
+            and batch_index is not None
+            else f"canonical test.jsonl batch {batch_index}, sequential 1,024-document batches"
         ),
         "batch_digests": batch_digests,
         "static_errors": static_errors,
         "initial_state_mismatch_keys": initial_errors,
         "measurements": [_record_payload(row) for row in records],
     }
+    if phase == "metric-diagnostic":
+        report.update(
+            {
+                "report_only": True,
+                "limits_modified": False,
+                "tolerance_assertions_run": False,
+                "training_step_run": False,
+                "metric_diagnostics": metric_diagnostics,
+            }
+        )
 
     _write_json(output_path, report)
-    if _has_shape_errors(records) or static_errors or initial_errors:
+    if phase != "metric-diagnostic" and (
+        _has_shape_errors(records) or static_errors or initial_errors
+    ):
         raise AssertionError(
             f"{report_phase} checks failed; report written to {output_path}"
         )
@@ -1855,6 +2279,7 @@ def main() -> None:
             "calibrate",
             "calibration-batch",
             "heldout-batch",
+            "metric-diagnostic",
             "heldout",
             "run",
         ),
@@ -1867,6 +2292,7 @@ def main() -> None:
     parser.add_argument("--fixture-manifest-sha256")
     parser.add_argument("--fixture-token-file", type=Path)
     parser.add_argument("--batch-index", type=int)
+    parser.add_argument("--diagnostic-split", choices=("calibration", "heldout"))
     args = parser.parse_args()
     if args.phase == "s0":
         report = _run_s0(data_dir=args.data_dir, report_dir=args.report_dir)
@@ -1947,9 +2373,11 @@ def main() -> None:
             fixture_array_sha256=args.fixture_array_sha256,
             fixture_manifest_sha256=args.fixture_manifest_sha256,
         )
-    elif args.phase in ("calibration-batch", "heldout-batch"):
+    elif args.phase in ("calibration-batch", "heldout-batch", "metric-diagnostic"):
         if args.batch_index is None or args.batch_index < 0:
             parser.error(f"{args.phase} requires a non-negative --batch-index")
+        if args.phase == "metric-diagnostic" and args.diagnostic_split is None:
+            parser.error("metric-diagnostic requires --diagnostic-split")
 
         report = _run(
             args.phase,
@@ -1959,6 +2387,7 @@ def main() -> None:
             fixture_array_sha256=args.fixture_array_sha256,
             fixture_manifest_sha256=args.fixture_manifest_sha256,
             batch_index=args.batch_index,
+            diagnostic_split=args.diagnostic_split,
         )
     else:
         raise ValueError(f"unsupported Crello parity phase {args.phase!r}")

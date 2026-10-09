@@ -299,6 +299,66 @@ def test_crello_metric_comparison_records_color_total_and_layout_scores():
     assert all(row.shape_match and row.value == 0.0 for row in records)
 
 
+def test_crello_metric_diagnostic_records_bleu_steps_and_float64_scores():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    diagnose_bleu = cast(
+        Callable[..., dict[str, object]], namespace["_bleu_diagnostic"]
+    )
+    target_ids = np.array([[[1], [2], [2], [0]]], dtype=np.int64)
+    target_mask = np.array([[True, True, True, False]])
+    predicted_ids = np.array([[[2], [3], [0], [0]]], dtype=np.int64)
+    predicted_mask = np.array([[True, True, False, False]])
+
+    report = diagnose_bleu(target_ids, target_mask, predicted_ids, predicted_mask, 4)
+    float32 = cast(dict[str, list[list[float]]], report["float32_intermediates"])
+
+    assert float32["target_token_count"] == [[3.0]]
+    assert float32["predicted_token_count"] == [[2.0]]
+    assert float32["matching_token_count"] == [[1.0]]
+    assert float32["precision"] == [[0.5]]
+    assert float32["clipped_score"][0][0] < 1.0
+    assert cast(list[list[float]], report["float64_scores"])[0][0] < 1.0
+
+    color_report = diagnose_bleu(
+        np.repeat(target_ids, 3, axis=2),
+        target_mask,
+        np.repeat(predicted_ids, 3, axis=2),
+        predicted_mask,
+        4,
+    )
+    color_intermediates = cast(
+        dict[str, list[list[float]]], color_report["float32_intermediates"]
+    )
+    assert (
+        color_intermediates["clipped_score"][0] == [float32["clipped_score"][0][0]] * 3
+    )
+
+
+def test_crello_metric_diagnostic_reports_signed_float32_ulp_delta():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    ulp_delta = cast(Callable[..., np.ndarray], namespace["_float32_ulp_delta"])
+    expected = np.array([[1.0, 0.5, 0.0]], dtype=np.float32)
+    actual = np.array(
+        [
+            [
+                np.nextafter(np.float32(1.0), np.float32(2.0)),
+                np.nextafter(np.float32(0.5), np.float32(1.0)),
+                0.0,
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+    assert ulp_delta(actual, expected).tolist() == [[1, 1, 0]]
+    assert ulp_delta(expected, actual).tolist() == [[-1, -1, 0]]
+
+
 def test_crello_hub_location_parser_accepts_model_and_dataset_tree_urls():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
