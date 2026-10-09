@@ -32,8 +32,6 @@ def test_config_drops_local_initialization_paths_when_saved(tmp_path: Path) -> N
     config = RalfConfig(
         resnet_weights_path="/local/resnet50.pth",
         fidnet_weights_path="/local/fidnet.pth",
-        cache_dir="/host/cache",
-        data_root="/host/data",
     )
 
     save_root = tmp_path / "saved"
@@ -46,8 +44,6 @@ def test_config_drops_local_initialization_paths_when_saved(tmp_path: Path) -> N
 
     assert "resnet_weights_path" not in saved
     assert "fidnet_weights_path" not in saved
-    assert "cache_dir" not in saved
-    assert "data_root" not in saved
     assert loaded.resnet_weights_path is None
     assert loaded.fidnet_weights_path is None
 

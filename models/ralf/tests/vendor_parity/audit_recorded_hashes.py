@@ -24,6 +24,25 @@ MANIFEST_PATHS = (
 )
 PARITY_ROOT = Path(".cache/ralf/training-reproduction/evaluation-path-parity-003")
 DIGEST_CACHE: dict[Path, str] = {}
+VALUE_DIGEST_MARKERS = (
+    "canonical stream",
+    "stream sha-256",
+    "state sha-256",
+    "initial-state sha-256",
+    "condition and pad-mask hashes",
+    "relation-sequence sha-256",
+    "pad-mask sha-256",
+    "loader sha-256",
+    "vector payload sha-256",
+)
+HISTORICAL_FILE_MARKERS = (
+    "evaluation ledger sha-256",
+    "comparison sha-256",
+    "comparison json sha-256",
+    "analysis script sha-256",
+    "probe log sha-256",
+    "trace sha-256",
+)
 
 
 def digest(path: Path) -> str:
@@ -146,6 +165,15 @@ def report_hash(
             f"MISMATCH {source}:{line} expected={recorded} actual={actual} path={label}"
         )
         counts["mismatch"] += 1
+
+
+def classify_unresolved_document_hash(line: str) -> str | None:
+    lowered = line.lower()
+    if any(marker in lowered for marker in VALUE_DIGEST_MARKERS):
+        return "VALUE_DIGEST"
+    if any(marker in lowered for marker in HISTORICAL_FILE_MARKERS):
+        return "HISTORICAL_FILE_NOT_RETAINED"
+    return None
 
 
 def audit_json(
@@ -274,6 +302,12 @@ def audit_document_text(
                 roots=roots,
                 recorded=recorded,
             )
+            if target is None:
+                classification = classify_unresolved_document_hash(line)
+                if classification is not None:
+                    print(f"{classification} {source}:{line_number} value={recorded}")
+                    counts[classification] += 1
+                    continue
             report_hash(
                 source=source,
                 line=line_number,
@@ -359,6 +393,15 @@ def document_target(
     nearest = candidates[-1]
     between = line[nearest.end() : match.start()]
     compact_between = between.strip(" `|,;:()")
+    if (
+        "|" in line
+        and match.start() - nearest.end() < 180
+        and nearest.group(1).endswith((".json", ".py", ".yaml", ".yml", ".txt"))
+        and re.search(r"(?:—|--|:)", between)
+    ):
+        target = resolve_document(nearest.group(1))
+        if target is not None:
+            return target
     if not compact_between or (
         "sha-256" in between.lower() and len(compact_between) <= 12
     ):
@@ -429,7 +472,14 @@ def main() -> None:
             for item in [root, *sorted(root.glob("ralf-*"))]
         ]
     )
-    counts = {"checked": 0, "mismatch": 0, "invalid": 0, "unresolved": 0}
+    counts = {
+        "checked": 0,
+        "mismatch": 0,
+        "invalid": 0,
+        "unresolved": 0,
+        "VALUE_DIGEST": 0,
+        "HISTORICAL_FILE_NOT_RETAINED": 0,
+    }
 
     if args.fix_documents:
         fixed = sum(
@@ -452,7 +502,8 @@ def main() -> None:
 
     print(
         "SUMMARY checked={checked} mismatches={mismatch} invalid={invalid} "
-        "unresolved={unresolved}".format(**counts)
+        "unresolved={unresolved} value_digests={VALUE_DIGEST} "
+        "historical_file_not_retained={HISTORICAL_FILE_NOT_RETAINED}".format(**counts)
     )
     raise SystemExit(1 if counts["mismatch"] or counts["invalid"] else 0)
 
