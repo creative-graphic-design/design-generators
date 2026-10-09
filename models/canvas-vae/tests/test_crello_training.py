@@ -51,6 +51,68 @@ def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
     assert ceil_two_significant_digits(0.0) == 0.0
 
 
+def test_crello_calibration_registers_two_ulp_floor_for_bounded_metric_scores():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    comparison_type = namespace["_Comparison"]
+    limits = cast(Callable[..., dict[str, dict[str, object]]], namespace["_limits"])
+    records = [
+        comparison_type(
+            "s1_reconstruction_metrics/opacity",
+            "opacity",
+            0,
+            "opacity",
+            0.0,
+            [],
+            [],
+            True,
+        ),
+        comparison_type(
+            "s1_layout_metrics/layout_acc",
+            "layout_acc",
+            0,
+            "layout_acc",
+            0.0,
+            [],
+            [],
+            True,
+        ),
+        comparison_type(
+            "s1_layout_metrics/layout_miou",
+            "layout_miou",
+            0,
+            "layout_miou",
+            1e-7,
+            [],
+            [],
+            True,
+        ),
+        comparison_type(
+            "s1_reconstruction_losses",
+            "reconstruction_loss",
+            0,
+            "reconstruction_loss",
+            0.0,
+            [],
+            [],
+            True,
+        ),
+    ]
+
+    result = limits(records)
+    floor = 2 * 2**-24
+
+    assert result["s1_reconstruction_metrics/opacity"]["L"] == floor
+    assert result["s1_reconstruction_metrics/opacity"]["limit"] == floor
+    assert result["s1_layout_metrics/layout_acc"]["L"] == floor
+    assert result["s1_layout_metrics/layout_acc"]["limit"] == floor
+    assert result["s1_layout_metrics/layout_miou"]["limit"] == 1.5e-7
+    assert result["s1_reconstruction_losses"]["L"] == 0.0
+    assert result["s1_reconstruction_losses"]["limit"] == 0.0
+
+
 def test_crello_parity_report_serializes_numpy_scalars(tmp_path):
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"

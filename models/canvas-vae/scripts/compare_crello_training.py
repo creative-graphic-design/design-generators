@@ -85,7 +85,11 @@ CALIBRATION_SELECTION: Final = (
     "first three non-overlapping 1,024-document slices of canonical train.jsonl: "
     "indices [0,1024), [1024,2048), [2048,3072)"
 )
-CALIBRATION_FORMULA: Final = "limit=max(L,ceil2(1.5*M)); L=0; M=max(per-metric maxima from three independent processes)"
+METRIC_SCORE_FLOOR: Final = 2 * 2**-24
+CALIBRATION_FORMULA: Final = (
+    "limit=max(L,ceil2(1.5*M)); L=2*2^-24 for reconstruction/layout scores, "
+    "otherwise 0; M=max(per-metric maxima from three independent processes)"
+)
 
 
 class _Comparison(NamedTuple):
@@ -1529,6 +1533,11 @@ def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
 
     limits: dict[str, _FrozenLimit] = {}
     for group, batches in grouped.items():
+        registered_floor = (
+            METRIC_SCORE_FLOOR
+            if group.startswith(("s1_reconstruction_metrics/", "s1_layout_metrics/"))
+            else 0.0
+        )
         batch_maxima = [
             max(batches.get(index, ()), default=0.0)
             for index in range(len(CALIBRATION_SLICES))
@@ -1536,10 +1545,10 @@ def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
         maximum = max(batch_maxima, default=0.0)
         limits[group] = {
             "metric": metrics[group],
-            "L": 0.0,
+            "L": registered_floor,
             "calibration_batch_maxima": batch_maxima,
             "max_calibration_error": maximum,
-            "limit": max(0.0, _ceil_two_significant_digits(1.5 * maximum)),
+            "limit": max(registered_floor, _ceil_two_significant_digits(1.5 * maximum)),
         }
 
     return limits
