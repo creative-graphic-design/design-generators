@@ -18,20 +18,30 @@ Run commands from the repository root. Generated data, logs, checkpoints, runtim
 UV_FROZEN=1 uv sync --package lace --extra training --extra vendor
 ```
 
-The verified CUDA runtime is selected through `LACE_AUDIT_VENV=<your audit venv>` and one selected device through `CUDA_VISIBLE_DEVICES=<gpu>`. The recorded audited freeze is `.cache/lace/stage-evidence/314a625da0dffe43ea6d60d91461cf4edb80c88c-s4-fid-refresh/s4-loader-evaluation/runtime/pip-freeze.txt` with SHA-256 `90bace448bc88abf9a1683fd625e83f73d8f19239d2f2f8eec2348a331418332`. It contains editable `lace`, `laygen`, `traingen`, and `traingen-parity` installs, torch `2.8.0+cu128`, and torchvision `0.23.0+cu128`. The same freeze also contains editable `ds_gan` and `posgen` from another worktree; they are present in the freeze, not imported by LACE.
+The verified CUDA runtime is selected through `LACE_AUDIT_VENV=<your audit venv>` and one selected device through `CUDA_VISIBLE_DEVICES=<gpu>`. The cited audited freeze is `.cache/lace/stage-evidence/314a625da0dffe43ea6d60d91461cf4edb80c88c-s4-fid-refresh/s4-loader-evaluation/runtime/pip-freeze.txt` with SHA-256 `90bace448bc88abf9a1683fd625e83f73d8f19239d2f2f8eec2348a331418332`. It contains editable `lace`, `laygen`, `traingen`, and `traingen-parity` installs, torch `2.8.0+cu128`, and torchvision `0.23.0+cu128`. It also contains editable `ds_gan` and `posgen` from another worktree; they are present in the cited freeze, not imported by LACE.
 
-Recreate the audited runtime with the commands used for the fresh proof. The frozen distribution input includes `imageio` and the CUDA `nvidia-*` distributions; the hash-checked local-wheel input enforces the recorded torch and torchvision wheels. The recorded wheel SHA-256 values are torch `039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed` and torchvision `93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb`.
+Recreate the audited runtime with [`rebuild_audit_runtime.sh`](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/scripts/rebuild_audit_runtime.sh). The script reads the cited freeze, writes `recorded-runtime-requirements.txt` from its exact pinned distributions while omitting editable and torch/torchvision wheel lines, and writes `wheel-hash-requirements.txt` from `<wheel-root>` with the recorded torch and torchvision hashes. The frozen distribution input therefore includes `imageio` and the CUDA `nvidia-*` distributions; the hash-checked local-wheel input enforces torch SHA-256 `039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed` and torchvision SHA-256 `93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb`.
 
 ```bash
 export LACE_AUDIT_VENV="<your audit venv>"
-UV_FROZEN=1 uv venv "$LACE_AUDIT_VENV" --python 3.11
-UV_FROZEN=1 uv pip sync --python "$LACE_AUDIT_VENV/bin/python" .cache/lace/runtime/recorded-runtime-requirements.txt
-UV_FROZEN=1 uv pip install --python "$LACE_AUDIT_VENV/bin/python" --require-hashes --no-deps -r .cache/lace/runtime/wheel-hash-requirements.txt
-UV_FROZEN=1 uv pip install --python "$LACE_AUDIT_VENV/bin/python" --no-deps -e models/lace -e lib/laygen -e lib/traingen -e lib/traingen-parity
-UV_FROZEN=1 uv pip freeze --python "$LACE_AUDIT_VENV/bin/python" > .cache/lace/runtime/pip-freeze.txt
+bash models/lace/scripts/rebuild_audit_runtime.sh \
+  .cache/lace/stage-evidence/314a625da0dffe43ea6d60d91461cf4edb80c88c-s4-fid-refresh/s4-loader-evaluation/runtime/pip-freeze.txt \
+  "<wheel-root>" \
+  "$LACE_AUDIT_VENV" \
+  .cache/lace/runtime/rebuild-20261009
 ```
 
-The fresh proof used this recipe, then ran both S0 and S1 on CPU. Its freeze SHA-256 is `90bace448bc88abf9a1683fd625e83f73d8f19239d2f2f8eec2348a331418332`; the distribution diff against the cited freeze is empty. The freeze also contains editable `ds_gan` and `posgen` from another worktree; they are present in the freeze, not imported by LACE.
+After generating the inputs, the script runs these exact install and freeze commands:
+
+```bash
+UV_NO_CONFIG=1 UV_FROZEN=1 uv venv "$LACE_AUDIT_VENV" --python 3.11 --clear
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip sync --python "$LACE_AUDIT_VENV/bin/python" .cache/lace/runtime/rebuild-20261009/recorded-runtime-requirements.txt
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip install --python "$LACE_AUDIT_VENV/bin/python" --require-hashes --no-deps -r .cache/lace/runtime/rebuild-20261009/wheel-hash-requirements.txt
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip install --python "$LACE_AUDIT_VENV/bin/python" --no-deps -e models/lace -e lib/laygen -e lib/traingen -e lib/traingen-parity
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip freeze --python "$LACE_AUDIT_VENV/bin/python" > .cache/lace/runtime/rebuild-20261009/pip-freeze.txt
+```
+
+The measured command transcript is [`runtime_rebuild_log.txt`](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/tests/vendor_parity/runtime_rebuild_log.txt). Its generated input hashes are `f8196235d8c4e073449a65055c8e6312b3801835c8212fe4632955f4c7bdff16` for `recorded-runtime-requirements.txt` and `c5b9a53084773e73680305768e71a5593ab819910da70461d080dd2f9ae31afb` for `wheel-hash-requirements.txt`. The resulting freeze is `.cache/lace/runtime/rebuild-20261009/pip-freeze.txt` with SHA-256 `7fc45d8710e05650c7dff7926815f7cfcf2f397e9f3a0e5a195bb1558b35d6e7`; its distribution diff is `.cache/lace/runtime/rebuild-20261009/distribution-diff.txt` with SHA-256 `3b6b454c06319fe4d4d3a6422985fab74afd6871d916d28c254e7c8ef07aebdc` and contains exactly `ds_gan (editable)` and `posgen (editable)` only in the cited freeze, with no rebuilt-only distributions. The existing final S0/S1 records are reused without rerunning because their cited freeze is the same `90bace448bc88abf9a1683fd625e83f73d8f19239d2f2f8eec2348a331418332` freeze and the new rebuild differs from it only by those two unused editables.
 
 ```bash
 export LACE_AUDIT_VENV="<your audit venv>"
