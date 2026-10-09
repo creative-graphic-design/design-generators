@@ -1,10 +1,8 @@
 import json
 import hashlib
-import io
 import runpy
 import subprocess
 import sys
-import tarfile
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +18,7 @@ from canvas_vae.data import (
     CrelloSplit,
     document_id,
     fixture_image_ids,
+    load_embedding_fixture,
     write_embedding_fixture,
     load_crello_vocabularies,
 )
@@ -173,7 +172,7 @@ def test_crello_metric_comparison_records_color_total_and_layout_scores():
     assert all(row.shape_match and row.value == 0.0 for row in records)
 
 
-def test_crello_hub_location_parser_accepts_model_and_dataset_resolve_urls():
+def test_crello_hub_location_parser_accepts_model_and_dataset_tree_urls():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
     )
@@ -184,92 +183,111 @@ def test_crello_hub_location_parser_accepts_model_and_dataset_resolve_urls():
     )
 
     assert parse_hub_location(
-        "https://huggingface.co/owner/model/resolve/main/path/fixture.tar"
-    ) == ("owner/model", None, "main", "path/fixture.tar")
+        "https://huggingface.co/owner/model/tree/main/path/fixture"
+    ) == ("owner/model", None, "main", "path/fixture")
     assert parse_hub_location(
-        "https://huggingface.co/datasets/owner/data/resolve/main/fixture.tar"
-    ) == ("owner/data", "dataset", "main", "fixture.tar")
-    with pytest.raises(ValueError, match="HTTPS Hugging Face resolve URL"):
-        parse_hub_location("http://huggingface.co/owner/model/resolve/main/fixture.tar")
+        "https://huggingface.co/datasets/owner/data/tree/main/fixture"
+    ) == ("owner/data", "dataset", "main", "fixture")
+    with pytest.raises(ValueError, match="HTTPS Hugging Face tree URL"):
+        parse_hub_location("http://huggingface.co/owner/model/tree/main/fixture")
 
 
-def test_crello_fixture_archive_extracts_only_expected_root_files(tmp_path):
-    script = (
-        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
-    )
-    namespace = runpy.run_path(str(script))
-    extract_fixture_archive = cast(
-        Callable[[Path, Path], None], namespace["_extract_fixture_archive"]
-    )
-    archive = tmp_path / "fixture.tar"
-    entries = {
-        "manifest.json": b"{}\n",
-        "manifest.sha256": b"fixture-manifest-hash\n",
-        "posterior_means.npy": b"fixture-array",
-    }
-    with tarfile.open(archive, mode="w") as bundle:
-        for name, payload in entries.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(payload)
-            bundle.addfile(info, io.BytesIO(payload))
-
-    fixture_dir = tmp_path / "fixture"
-    extract_fixture_archive(archive, fixture_dir)
-    assert {path.name: path.read_bytes() for path in fixture_dir.iterdir()} == entries
-
-    unsafe_archive = tmp_path / "unsafe.tar"
-    with tarfile.open(unsafe_archive, mode="w") as bundle:
-        info = tarfile.TarInfo("../escape")
-        info.size = 1
-        bundle.addfile(info, io.BytesIO(b"x"))
-    with pytest.raises(ValueError, match="unsafe path"):
-        extract_fixture_archive(unsafe_archive, tmp_path / "unsafe")
-
-
-def test_crello_fixture_download_checks_hash_and_deletes_token_file(
+def test_crello_fixture_download_verifies_hashes_and_loads_manifest_ids(
     tmp_path, monkeypatch
 ):
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
     )
     namespace = runpy.run_path(str(script))
-    download_fixture_archive = cast(
-        Callable[[str, str, Path, Path | None], None],
-        namespace["_download_fixture_archive"],
+    download_fixture = cast(
+        Callable[[str, str, str, Path, Path | None], None],
+        namespace["_download_embedding_fixture"],
     )
-    cached_file = tmp_path / "cached.tar"
-    cached_file.write_bytes(b"fixture archive")
+    source_dir = tmp_path / "source"
+    image_ids = ["crello-v1/train/first", "crello-v1/val/second"]
+    values = np.arange(512, dtype=np.float32).reshape(2, 256)
+    write_embedding_fixture(
+        source_dir,
+        image_ids,
+        values,
+        encoder_state_sha256="a" * 64,
+    )
+    cached_files = {
+        name: source_dir / name
+        for name in ("manifest.json", "manifest.sha256", "posterior_means.npy")
+    }
     token_file = tmp_path / "hf-token"
     token_file.write_text("hf_private_token\n")
     token_file.chmod(0o600)
 
     import huggingface_hub
 
-    monkeypatch.setattr(
-        huggingface_hub, "hf_hub_download", lambda **_: str(cached_file)
-    )
-    destination = tmp_path / "download.tar"
-    digest = hashlib.sha256(cached_file.read_bytes()).hexdigest()
-    download_fixture_archive(
-        "https://huggingface.co/owner/model/resolve/main/fixture.tar",
-        digest,
-        destination,
+    calls: list[dict[str, object]] = []
+
+    def download(**kwargs: object) -> str:
+        calls.append(kwargs)
+        filename = cast(str, kwargs["filename"])
+        return str(cached_files[Path(filename).name])
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+    manifest_sha256 = hashlib.sha256(
+        cached_files["manifest.json"].read_bytes()
+    ).hexdigest()
+    array_sha256 = hashlib.sha256(
+        cached_files["posterior_means.npy"].read_bytes()
+    ).hexdigest()
+    fixture_dir = tmp_path / "fixture"
+    download_fixture(
+        "https://huggingface.co/owner/model/tree/main/path/fixture",
+        array_sha256,
+        manifest_sha256,
+        fixture_dir,
         token_file,
     )
 
-    assert destination.read_bytes() == cached_file.read_bytes()
     assert not token_file.exists()
+    assert [Path(cast(str, call["filename"])).name for call in calls] == [
+        "manifest.json",
+        "manifest.sha256",
+        "posterior_means.npy",
+    ]
+    loaded = load_embedding_fixture(fixture_dir)
+    assert list(loaded) == image_ids
+    assert all(
+        np.array_equal(loaded[key], values[index])
+        for index, key in enumerate(image_ids)
+    )
+
+    with pytest.raises(ValueError, match="manifest SHA-256 mismatch"):
+        download_fixture(
+            "https://huggingface.co/owner/model/tree/main/path/fixture",
+            array_sha256,
+            "0" * 64,
+            tmp_path / "bad-manifest",
+            None,
+        )
+
+    with pytest.raises(ValueError, match="array SHA-256 mismatch"):
+        download_fixture(
+            "https://huggingface.co/owner/model/tree/main/path/fixture",
+            "0" * 64,
+            manifest_sha256,
+            tmp_path / "bad-array",
+            None,
+        )
 
     bad_token_file = tmp_path / "bad-token"
     bad_token_file.write_text("hf_private_token\n")
     bad_token_file.chmod(0o644)
     with pytest.raises(PermissionError, match="mode 0600"):
-        download_fixture_archive(
-            "https://huggingface.co/owner/model/resolve/main/fixture.tar",
-            digest,
-            destination,
+        download_fixture(
+            "https://huggingface.co/owner/model/tree/main/path/fixture",
+            array_sha256,
+            manifest_sha256,
+            tmp_path / "bad-token",
             bad_token_file,
         )
+    assert not bad_token_file.exists()
 
 
 def make_document(split: CrelloSplit, index: int) -> CrelloDocument:

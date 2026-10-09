@@ -10,7 +10,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -134,11 +133,11 @@ class _FrozenLimits(TypedDict):
     limits: dict[str, _FrozenLimit]
 
 
-class _HubFile(NamedTuple):
+class _HubDirectory(NamedTuple):
     repo_id: str
     repo_type: str | None
     revision: str
-    filename: str
+    path: str
 
 
 JSONValue: TypeAlias = (
@@ -392,12 +391,10 @@ def _crello_model(
     return dataspec, columns, model
 
 
-def _parse_hub_location(location: str) -> _HubFile:
+def _parse_hub_location(location: str) -> _HubDirectory:
     parsed = urlsplit(location)
     if parsed.scheme != "https" or parsed.hostname != "huggingface.co":
-        raise ValueError(
-            "fixture Hub location must be an HTTPS Hugging Face resolve URL"
-        )
+        raise ValueError("fixture Hub location must be an HTTPS Hugging Face tree URL")
 
     if (
         parsed.username is not None
@@ -414,17 +411,22 @@ def _parse_hub_location(location: str) -> _HubFile:
     if parts and parts[0] in {"datasets", "spaces"}:
         repo_type = parts.pop(0)[:-1]
 
-    if len(parts) < 5 or parts[2] != "resolve":
+    if len(parts) < 5 or parts[2] != "tree":
         raise ValueError(
-            "fixture Hub location must name a file under /resolve/<revision>/"
+            "fixture Hub location must name a directory under /tree/<revision>/"
         )
 
-    owner, repository, _, revision, *filename_parts = parts
-    filename = PurePosixPath(*filename_parts)
-    if not revision or filename.is_absolute() or ".." in filename.parts:
-        raise ValueError("fixture Hub location contains an unsafe revision or filename")
+    owner, repository, _, revision, *path_parts = parts
+    path = PurePosixPath(*path_parts)
+    if (
+        not revision
+        or not path_parts
+        or path.is_absolute()
+        or any(part in {".", ".."} or "/" in part for part in path_parts)
+    ):
+        raise ValueError("fixture Hub location contains an unsafe revision or path")
 
-    return _HubFile(f"{owner}/{repository}", repo_type, revision, filename.as_posix())
+    return _HubDirectory(f"{owner}/{repository}", repo_type, revision, path.as_posix())
 
 
 def _sha256_file(path: Path) -> str:
@@ -432,62 +434,25 @@ def _sha256_file(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
-def _extract_fixture_archive(archive: Path, fixture_dir: Path) -> None:
-    expected_files = {"manifest.json", "manifest.sha256", "posterior_means.npy"}
-    fixture_dir.mkdir(parents=True)
-    extracted: set[str] = set()
-    with tarfile.open(archive, mode="r:*") as bundle:
-        for member in bundle:
-            relative = PurePosixPath(member.name)
-            if relative.is_absolute() or ".." in relative.parts:
-                raise ValueError(
-                    f"unsafe path in Crello fixture archive: {member.name!r}"
-                )
-
-            if not relative.parts and member.isdir():
-                continue
-
-            if len(relative.parts) != 1:
-                raise ValueError("Crello fixture archive files must be at its root")
-
-            name = relative.name
-            if member.isdir() and name == ".":
-                continue
-
-            if not member.isfile() or name not in expected_files or name in extracted:
-                raise ValueError(
-                    f"unexpected entry in Crello fixture archive: {member.name!r}"
-                )
-
-            source = bundle.extractfile(member)
-            if source is None:
-                raise ValueError(f"cannot read Crello fixture archive entry: {name!r}")
-
-            destination = fixture_dir / name
-            with source, destination.open("xb") as output:
-                shutil.copyfileobj(source, output)
-            extracted.add(name)
-
-    if extracted != expected_files:
+def _validate_sha256(value: str, description: str) -> None:
+    if len(value) != 64 or any(char not in "0123456789abcdefABCDEF" for char in value):
         raise ValueError(
-            f"Crello fixture archive is missing files: {sorted(expected_files - extracted)}"
+            f"{description} SHA-256 must contain 64 hexadecimal characters"
         )
 
 
-def _download_fixture_archive(
+def _download_embedding_fixture(
     location: str,
-    expected_sha256: str,
-    destination: Path,
+    expected_array_sha256: str,
+    expected_manifest_sha256: str,
+    fixture_dir: Path,
     token_file: Path | None,
 ) -> None:
-    if len(expected_sha256) != 64 or any(
-        char not in "0123456789abcdefABCDEF" for char in expected_sha256
-    ):
-        raise ValueError("fixture SHA-256 must contain 64 hexadecimal characters")
-
-    hub_file = _parse_hub_location(location)
+    _validate_sha256(expected_array_sha256, "fixture array")
+    _validate_sha256(expected_manifest_sha256, "fixture manifest")
     token = None
     try:
+        hub_directory = _parse_hub_location(location)
         if token_file is not None:
             if token_file.stat().st_mode & 0o077:
                 raise PermissionError("fixture token file must have mode 0600")
@@ -498,21 +463,43 @@ def _download_fixture_archive(
 
         from huggingface_hub import hf_hub_download
 
-        cached_path = hf_hub_download(
-            repo_id=hub_file.repo_id,
-            filename=hub_file.filename,
-            repo_type=hub_file.repo_type,
-            revision=hub_file.revision,
-            token=token,
-        )
-        shutil.copyfile(cached_path, destination)
+        fixture_dir.mkdir(parents=True, exist_ok=False)
+        for filename in ("manifest.json", "manifest.sha256", "posterior_means.npy"):
+            cached_path = hf_hub_download(
+                repo_id=hub_directory.repo_id,
+                filename=f"{hub_directory.path}/{filename}",
+                repo_type=hub_directory.repo_type,
+                revision=hub_directory.revision,
+                token=token,
+            )
+            shutil.copyfile(cached_path, fixture_dir / filename)
     finally:
         if token_file is not None:
             token_file.unlink(missing_ok=True)
 
-    actual_sha256 = _sha256_file(destination)
-    if actual_sha256.lower() != expected_sha256.lower():
-        raise ValueError(f"Crello fixture archive SHA-256 mismatch: {actual_sha256}")
+    manifest_path = fixture_dir / "manifest.json"
+    actual_manifest_sha256 = _sha256_file(manifest_path)
+    if actual_manifest_sha256.lower() != expected_manifest_sha256.lower():
+        raise ValueError(
+            f"Crello fixture manifest SHA-256 mismatch: {actual_manifest_sha256}"
+        )
+
+    sidecar_sha256 = (fixture_dir / "manifest.sha256").read_text("ascii").strip()
+    if sidecar_sha256.lower() != expected_manifest_sha256.lower():
+        raise ValueError("Crello fixture manifest sidecar SHA-256 mismatch")
+
+    actual_array_sha256 = _sha256_file(fixture_dir / "posterior_means.npy")
+    if actual_array_sha256.lower() != expected_array_sha256.lower():
+        raise ValueError(
+            f"Crello fixture array SHA-256 mismatch: {actual_array_sha256}"
+        )
+
+    manifest = cast(dict[str, JSONValue], json.loads(manifest_path.read_text("utf-8")))
+    if (
+        manifest.get("array_file") != "posterior_means.npy"
+        or manifest.get("array_sha256") != expected_array_sha256.lower()
+    ):
+        raise ValueError("Crello fixture manifest does not match the supplied array")
 
 
 def _install_fixed_noise_call(
@@ -1276,7 +1263,8 @@ def _calibrate(
     data_dir: Path = DATA_DIR,
     fixture_dir: Path = FIXTURE_DIR,
     report_dir: Path = REPORT_DIR,
-    fixture_archive_sha256: str | None = None,
+    fixture_array_sha256: str | None = None,
+    fixture_manifest_sha256: str | None = None,
 ) -> dict[str, JSONValue]:
     report_context = _cpu_report_context()
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -1325,8 +1313,10 @@ def _calibrate(
             "--report-dir",
             str(report_dir),
         ]
-        if fixture_archive_sha256 is not None:
-            command.extend(("--fixture-archive-sha256", fixture_archive_sha256))
+        if fixture_array_sha256 is not None:
+            command.extend(("--fixture-array-sha256", fixture_array_sha256))
+        if fixture_manifest_sha256 is not None:
+            command.extend(("--fixture-manifest-sha256", fixture_manifest_sha256))
 
         completed = subprocess.run(
             command,
@@ -1417,7 +1407,8 @@ def _calibrate(
         **report_context,
         "phase": "calibrate",
         "calibration_plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
-        "fixture_archive_sha256": fixture_archive_sha256,
+        "fixture_array_sha256": fixture_array_sha256,
+        "fixture_manifest_sha256": fixture_manifest_sha256,
         "input_selection": CALIBRATION_SELECTION,
         "calibration_processes": process_reports,
         "batch_digests": batch_digests,
@@ -1462,7 +1453,8 @@ def _run(
     data_dir: Path = DATA_DIR,
     fixture_dir: Path = FIXTURE_DIR,
     report_dir: Path = REPORT_DIR,
-    fixture_archive_sha256: str | None = None,
+    fixture_array_sha256: str | None = None,
+    fixture_manifest_sha256: str | None = None,
     batch_index: int | None = None,
 ) -> dict[str, JSONValue]:
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -1611,7 +1603,8 @@ def _run(
     report: dict[str, JSONValue] = {
         **report_context,
         "phase": report_phase,
-        "fixture_archive_sha256": fixture_archive_sha256,
+        "fixture_array_sha256": fixture_array_sha256,
+        "fixture_manifest_sha256": fixture_manifest_sha256,
         "batch_index": batch_index,
         "initial_state_sha256": initial_state_hash,
         "input_selection": (
@@ -1672,9 +1665,9 @@ def main() -> None:
     parser.add_argument("--fixture-dir", type=Path, default=FIXTURE_DIR)
     parser.add_argument("--report-dir", type=Path, default=REPORT_DIR)
     parser.add_argument("--fixture-hub-location")
-    parser.add_argument("--fixture-sha256")
+    parser.add_argument("--fixture-array-sha256")
+    parser.add_argument("--fixture-manifest-sha256")
     parser.add_argument("--fixture-token-file", type=Path)
-    parser.add_argument("--fixture-archive-sha256")
     parser.add_argument("--batch-index", type=int)
     args = parser.parse_args()
     if args.phase == "s0":
@@ -1687,8 +1680,15 @@ def main() -> None:
         return
 
     if args.phase == "run":
-        if not args.fixture_hub_location or not args.fixture_sha256:
-            parser.error("run requires --fixture-hub-location and --fixture-sha256")
+        if (
+            not args.fixture_hub_location
+            or not args.fixture_array_sha256
+            or not args.fixture_manifest_sha256
+        ):
+            parser.error(
+                "run requires --fixture-hub-location, --fixture-array-sha256, "
+                "and --fixture-manifest-sha256"
+            )
 
         token_file = args.fixture_token_file
         if token_file is None and os.environ.get("CANVAS_VAE_FIXTURE_TOKEN_FILE"):
@@ -1698,27 +1698,28 @@ def main() -> None:
             prefix="canvas-vae-crello-parity-"
         ) as temporary:
             temporary_dir = Path(temporary)
-            archive = temporary_dir / "fixture.tar"
-            _download_fixture_archive(
+            fixture_dir = temporary_dir / "fixture"
+            _download_embedding_fixture(
                 args.fixture_hub_location,
-                args.fixture_sha256,
-                archive,
+                args.fixture_array_sha256,
+                args.fixture_manifest_sha256,
+                fixture_dir,
                 token_file,
             )
-            fixture_dir = temporary_dir / "fixture"
-            _extract_fixture_archive(archive, fixture_dir)
             calibration = _calibrate(
                 data_dir=args.data_dir,
                 fixture_dir=fixture_dir,
                 report_dir=args.report_dir,
-                fixture_archive_sha256=args.fixture_sha256.lower(),
+                fixture_array_sha256=args.fixture_array_sha256.lower(),
+                fixture_manifest_sha256=args.fixture_manifest_sha256.lower(),
             )
             heldout = _run(
                 "heldout",
                 data_dir=args.data_dir,
                 fixture_dir=fixture_dir,
                 report_dir=args.report_dir,
-                fixture_archive_sha256=args.fixture_sha256.lower(),
+                fixture_array_sha256=args.fixture_array_sha256.lower(),
+                fixture_manifest_sha256=args.fixture_manifest_sha256.lower(),
             )
         print(
             json.dumps(
@@ -1738,6 +1739,8 @@ def main() -> None:
             data_dir=args.data_dir,
             fixture_dir=args.fixture_dir,
             report_dir=args.report_dir,
+            fixture_array_sha256=args.fixture_array_sha256,
+            fixture_manifest_sha256=args.fixture_manifest_sha256,
         )
     elif args.phase == "calibration-batch":
         if args.batch_index not in range(len(CALIBRATION_SLICES)):
@@ -1748,7 +1751,8 @@ def main() -> None:
             data_dir=args.data_dir,
             fixture_dir=args.fixture_dir,
             report_dir=args.report_dir,
-            fixture_archive_sha256=args.fixture_archive_sha256,
+            fixture_array_sha256=args.fixture_array_sha256,
+            fixture_manifest_sha256=args.fixture_manifest_sha256,
             batch_index=args.batch_index,
         )
     else:
@@ -1757,7 +1761,8 @@ def main() -> None:
             data_dir=args.data_dir,
             fixture_dir=args.fixture_dir,
             report_dir=args.report_dir,
-            fixture_archive_sha256=args.fixture_archive_sha256,
+            fixture_array_sha256=args.fixture_array_sha256,
+            fixture_manifest_sha256=args.fixture_manifest_sha256,
         )
 
     print(
