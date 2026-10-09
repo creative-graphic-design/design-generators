@@ -172,7 +172,7 @@ def is_rerunnable_command(value: str) -> bool:
     if command.startswith(COMMAND_STARTERS):
         return True
 
-    return bool(re.match(r"""["'](?:\$|\./|/)[^"']*["'](?:\s|$)""", command))
+    return bool(re.match(r"""["']\$[^"']*["'](?:\s|$)""", command))
 
 
 def is_artifact_path(value: str) -> bool:
@@ -287,13 +287,20 @@ def has_s5_claim(text: str) -> bool:
 
 def _parse_stage_evidence_lines(
     lines: list[str],
-) -> tuple[dict[str, StageEvidence], set[str]]:
-    """Parse one machine-readable Stage Evidence table."""
-    for index, line in enumerate(lines):
+) -> list[tuple[dict[str, StageEvidence], set[str]]]:
+    """Parse every machine-readable Stage Evidence table in a section."""
+    required_headers = {"stage", "command", "artifact", "result"}
+    tables = []
+
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         if not line.lstrip().startswith("|"):
+            index += 1
             continue
         headers = [normalize_header(cell) for cell in split_markdown_row(line)]
-        if not {"stage", "command", "artifact", "result"}.issubset(headers):
+        if not required_headers.issubset(headers):
+            index += 1
             continue
         row_start = index + 1
         if row_start < len(lines) and is_table_delimiter(lines[row_start]):
@@ -305,18 +312,27 @@ def _parse_stage_evidence_lines(
         evidence: dict[str, StageEvidence] = {}
         duplicates: set[str] = set()
 
-        for row in lines[row_start:]:
+        row_index = row_start
+        while row_index < len(lines):
+            row = lines[row_index]
             if not row.lstrip().startswith("|"):
+                break
+            if required_headers.issubset(
+                normalize_header(cell) for cell in split_markdown_row(row)
+            ):
                 break
 
             if is_table_delimiter(row):
+                row_index += 1
                 continue
             cells = split_markdown_row(row)
             if len(cells) < len(headers):
+                row_index += 1
                 continue
 
             stage = cells[positions["stage"]].strip().upper()
             if stage not in STAGES:
+                row_index += 1
                 continue
 
             if stage in evidence:
@@ -328,8 +344,11 @@ def _parse_stage_evidence_lines(
                 artifact=cells[positions["artifact"]],
                 result=cells[positions["result"]],
             )
-        return evidence, duplicates
-    return {}, set()
+            row_index += 1
+        tables.append((evidence, duplicates))
+        index = row_index
+
+    return tables
 
 
 def parse_stage_evidence_sections(
@@ -340,8 +359,8 @@ def parse_stage_evidence_sections(
     for heading, lines in iter_heading_sections(text):
         if heading.lower() != "stage evidence":
             continue
-        evidence, duplicates = _parse_stage_evidence_lines(lines)
-        sections.append((heading, evidence, duplicates))
+        for evidence, duplicates in _parse_stage_evidence_lines(lines):
+            sections.append((heading, evidence, duplicates))
 
     return sections
 

@@ -89,6 +89,42 @@ Package training reproduction is achieved with training-seed n=3.
     }
 
 
+def test_s5_claim_checks_multiple_tables_under_one_stage_evidence_heading(
+    tmp_path: Path,
+) -> None:
+    second_table = (
+        complete_stage_evidence_table()
+        .replace("## Stage Evidence\n\n", "")
+        .replace(
+            "| S3 | `uv run pytest s3` | `.cache/pkg/s3/metrics.csv` | Multi-batch deterministic run passed. |",
+            "| S3 | `uv run pytest s3` | `.cache/pkg/s3/metrics.csv` | TODO |",
+        )
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+## Stage Evidence
+
+{complete_stage_evidence_table()}
+
+Additional condition evidence follows.
+
+{second_table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
 def test_stage_evidence_heading_suffix_is_not_a_stage_table(tmp_path: Path) -> None:
     write_training_md(
         tmp_path,
@@ -120,6 +156,12 @@ def test_stage_evidence_accepts_assignment_prefixed_commands() -> None:
     )
     assert check_training_stage_evidence.is_rerunnable_command(
         'CUDA_VISIBLE_DEVICES=<gpu-index> "$PACKAGE_VENV/bin/python" check.py'
+    )
+    assert not check_training_stage_evidence.is_rerunnable_command(
+        '"/opt/conda/bin/python" check.py'
+    )
+    assert not check_training_stage_evidence.is_rerunnable_command(
+        '"./.venv/bin/python" check.py'
     )
 
 
