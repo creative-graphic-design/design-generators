@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 if TYPE_CHECKING:
     import tensorflow as tf
@@ -32,13 +33,18 @@ from pixel_vae.conversion import (
     tensorflow_state_sha256,
 )
 from pixel_vae.image_processing_pixel_vae import decode_pixelvae_png
-from pixel_vae.testing import assert_within_limits, max_absolute_difference
+from pixel_vae.testing import (
+    assert_within_limits,
+    float32_difference_summary,
+    max_absolute_difference,
+)
 from laygen.common.vendor import vendor_root
 
 pytestmark = pytest.mark.vendor_parity
 
 SOURCE_BYTES = 2_989_732_284
 SOURCE_SHA256 = "f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e"
+SOURCE_COMMIT = "bc1e2072ba3a253f1b099e8b0c604f6051e787da"
 PARITY_DIR = Path(os.environ.get("PIXELVAE_PARITY_DIR", ".cache/pixel-vae/parity"))
 TFRECORD_DIR = Path(
     os.environ.get("CRELLO_V1_TFRECORD_DIR", ".cache/pixel-vae/crello-v1-tfrecords")
@@ -48,6 +54,12 @@ AUDIT_PATH = Path(
 )
 TRAINING_TYPES = {b"imageElement", b"maskElement", b"svgElement"}
 EXPECTED_DOCUMENTS = {"train": 18_768, "val": 2_315, "test": 2_278}
+DIAGNOSTIC_TRAIN_PAIR_COUNT = 8
+CALIBRATION_SELECTION_RULE = (
+    "deduplicated canonical train PNGs in UTF-8 document_id/source element order; "
+    "repeat r uses document-stage indexes [2(r-1), 2r) and filtered training-stage "
+    "indexes [6(r-1), 6r)"
+)
 
 
 @dataclass(frozen=True)
@@ -64,8 +76,10 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     mode = os.environ.get("PIXELVAE_PARITY_MODE", "heldout")
     repeat = int(os.environ.get("PIXELVAE_PARITY_REPEAT", "0"))
     required = os.environ.get("PARITY_REQUIRE") == "1"
-    if mode not in {"calibration", "heldout"}:
-        raise ValueError("PIXELVAE_PARITY_MODE must be calibration or heldout")
+    if mode not in {"calibration", "heldout", "diagnostic"}:
+        raise ValueError(
+            "PIXELVAE_PARITY_MODE must be calibration, heldout, or diagnostic"
+        )
     if mode == "calibration" and repeat not in {1, 2, 3}:
         raise ValueError("PIXELVAE_PARITY_REPEAT must be 1, 2, or 3")
 
@@ -90,16 +104,70 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True)
 
-    train_document_images = _select_images("train", 6, filter_training_types=False)
-    train_training_images = _select_images("train", 6, filter_training_types=True)
+    diagnostic = mode == "diagnostic"
     test_document_images = _select_images("test", 6, filter_training_types=False)
     test_training_images = _select_images("test", 6, filter_training_types=True)
     calibration = mode == "calibration"
-    document_images = train_document_images if calibration else test_document_images
-    training_images = train_training_images if calibration else test_training_images
-    if min(map(len, (document_images, training_images))) < 6:
+
+    calibration_selection: dict[str, object] | None = None
+    if diagnostic:
+        train_document_images = _select_images(
+            "train",
+            DIAGNOSTIC_TRAIN_PAIR_COUNT * 2,
+            filter_training_types=False,
+        )
+        document_images = train_document_images
+        training_images = _select_images("train", 6, filter_training_types=True)
+    elif calibration:
+        train_document_images = _select_images("train", 6, filter_training_types=False)
+        train_training_images = _select_images("train", 18, filter_training_types=True)
+        document_start = (repeat - 1) * 2
+        training_start = (repeat - 1) * 6
+        document_indices = list(range(document_start, document_start + 2))
+        training_indices = list(range(training_start, training_start + 6))
+        document_images = [train_document_images[index] for index in document_indices]
+        training_images = [train_training_images[index] for index in training_indices]
+        calibration_selection = {
+            "rule": CALIBRATION_SELECTION_RULE,
+            "document_png_indices": document_indices,
+            "training_png_indices": training_indices,
+            "s1_image_ids": [example.image_id for example in document_images],
+            "training_image_ids": [example.image_id for example in training_images],
+        }
+    else:
+        document_images = test_document_images
+        training_images = test_training_images
+
+    required_document_count = DIAGNOSTIC_TRAIN_PAIR_COUNT * 2 if diagnostic else 2
+    if len(document_images) < required_document_count or len(training_images) < 6:
         raise AssertionError(
-            "canonical v1 source stream did not provide six unique images"
+            "canonical v1 source stream did not provide the required unique images"
+        )
+
+    calibration_type_examples: list[ImageExample] | None = None
+    if calibration:
+        assert calibration_selection is not None
+        calibration_type_examples = _select_one_per_element_type(
+            "train", occurrence=repeat - 1
+        )
+        calibration_selection["s4_element_type_occurrence"] = repeat - 1
+        calibration_selection["s4_image_ids"] = [
+            example.image_id for example in calibration_type_examples
+        ]
+        selection_path = PARITY_DIR / "calibration" / f"repeat-{repeat}.inputs.json"
+        selection_path.parent.mkdir(parents=True, exist_ok=True)
+        if selection_path.exists():
+            raise FileExistsError(
+                f"refusing to overwrite calibration input selection: {selection_path}"
+            )
+        selection_path.write_text(
+            json.dumps(
+                {"mode": mode, "repeat": repeat, **calibration_selection},
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
         )
 
     reference = PixelVAE(latent_dim=256, kl=100.0, l2=1e-6)
@@ -134,9 +202,29 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         )
 
     # Compare image decoding, posterior statistics, logits, and objective.
+    processor = PixelVAEImageProcessor()
+    if diagnostic:
+        _run_s1_diagnostic(
+            reference,
+            model,
+            processor,
+            [
+                ("heldout", test_document_images[:2]),
+                *[
+                    (
+                        f"train-{pair_index + 1:02d}",
+                        document_images[pair_index * 2 : pair_index * 2 + 2],
+                    )
+                    for pair_index in range(DIAGNOSTIC_TRAIN_PAIR_COUNT)
+                ],
+            ],
+            state_digest=state_digest,
+            source_commit=SOURCE_COMMIT,
+        )
+        return
+
     s1_examples = document_images[:2]
     tensorflow_images = _tensorflow_rgba(s1_examples)
-    processor = PixelVAEImageProcessor()
     processed = processor([example.image_bytes for example in s1_examples])
     package_rgba = np.stack(
         [decode_pixelvae_png(example.image_bytes) for example in s1_examples]
@@ -174,26 +262,36 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     assert output.reconstruction_loss is not None
     assert output.kl_divergence is not None
     assert output.loss is not None
-    metrics = {
-        "s1.posterior_mean.max_abs": max_absolute_difference(
-            source_means.numpy(), output.posterior_mean.numpy()
+    s1_output_pairs = {
+        "s1.posterior_mean.max_abs": (
+            source_means.numpy(),
+            output.posterior_mean.numpy(),
         ),
-        "s1.posterior_log_variance.max_abs": max_absolute_difference(
-            source_log_variances.numpy(), output.posterior_log_variance.numpy()
+        "s1.posterior_log_variance.max_abs": (
+            source_log_variances.numpy(),
+            output.posterior_log_variance.numpy(),
         ),
-        "s1.decoder_logits.max_abs": max_absolute_difference(
-            source_logits.numpy(), output.logits.numpy()
-        ),
-        "s1.reconstruction_loss.abs": max_absolute_difference(
+        "s1.decoder_logits.max_abs": (source_logits.numpy(), output.logits.numpy()),
+        "s1.reconstruction_loss.abs": (
             np.asarray(source_reconstruction_loss.numpy()),
             np.asarray(output.reconstruction_loss.numpy()),
         ),
-        "s1.kl_loss.abs": max_absolute_difference(
-            np.asarray(source_kl_loss.numpy()), np.asarray(output.kl_divergence.numpy())
+        "s1.kl_loss.abs": (
+            np.asarray(source_kl_loss.numpy()),
+            np.asarray(output.kl_divergence.numpy()),
         ),
-        "s1.total_loss.abs": max_absolute_difference(
-            np.asarray(source_total_loss.numpy()), np.asarray(output.loss.numpy())
+        "s1.total_loss.abs": (
+            np.asarray(source_total_loss.numpy()),
+            np.asarray(output.loss.numpy()),
         ),
+    }
+    s1_output_comparisons = {
+        name: float32_difference_summary(reference_values, package_values)
+        for name, (reference_values, package_values) in s1_output_pairs.items()
+    }
+    metrics = {
+        name: comparison["max_abs_diff"]
+        for name, comparison in s1_output_comparisons.items()
     }
 
     # Compare gradients, Keras Adam slots, and one updated parameter state.
@@ -339,7 +437,11 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
             "Crello v1 contains non-256x256 or invalid PNGs by element type: "
             f"non_256_examples={non_256}, invalid_png_counts={invalid_pngs}"
         )
-    type_examples = _select_one_per_element_type("test")
+    if calibration:
+        assert calibration_type_examples is not None
+        type_examples = calibration_type_examples
+    else:
+        type_examples = _select_one_per_element_type("test")
     if {example.element_type.decode("utf-8") for example in type_examples} != set(
         audit["dimensions_by_element_type"]
     ):
@@ -391,11 +493,12 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         "process_id": os.getpid(),
         "seed": 0,
         "tensorflow_version": tf.__version__,
-        "source_commit": "bc1e2072ba3a253f1b099e8b0c604f6051e787da",
+        "source_commit": SOURCE_COMMIT,
         "encoder_state_sha256": state_digest,
         "configuration": model.config.to_dict(),
         "s0_assigned_tensors": conversion.assigned_tensors,
         "s1_image_ids": [example.image_id for example in s1_examples],
+        "calibration_selection": calibration_selection,
         "s2_image_ids": [example.image_id for example in training_images[:2]],
         "s3_image_ids": [example.image_id for example in training_images[:6]],
         "s4_element_types": [
@@ -408,6 +511,7 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         "s4_embedding_shape": list(original_embeddings.shape),
         "s4_embedding_dtype": str(original_embeddings.dtype),
         "metrics": metrics,
+        "s1_output_comparisons": s1_output_comparisons,
     }
     output_path = (
         PARITY_DIR / "calibration" / f"repeat-{repeat}.json"
@@ -415,6 +519,7 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         else PARITY_DIR / "heldout.json"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    limits: dict[str, float] = {}
     if not calibration:
         limits_path = PARITY_DIR / "calibration" / "limits.json"
         if not limits_path.is_file():
@@ -427,11 +532,348 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
                 "held-out encoder state differs from the calibrated state"
             )
         limits = limits_record["limits"]
-        assert_within_limits(metrics, limits)
         result["calibrated_limits"] = limits
     output_path.write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    if not calibration:
+        assert_within_limits(metrics, limits)
+
+
+def _run_s1_diagnostic(
+    reference: tf.keras.Model,
+    model: PixelVAEModel,
+    processor: PixelVAEImageProcessor,
+    image_pairs: list[tuple[str, list[ImageExample]]],
+    *,
+    state_digest: str,
+    source_commit: str,
+) -> None:
+    import tensorflow as tf
+    from pixelvae.model import reconstruction_loss_fn
+
+    cnn = reference.encoder.cnn
+    source_layer_types = (
+        tf.keras.layers.Conv2D,
+        tf.keras.layers.DepthwiseConv2D,
+        tf.keras.layers.BatchNormalization,
+        tf.keras.layers.ZeroPadding2D,
+        tf.keras.layers.ReLU,
+        tf.keras.layers.Add,
+        tf.keras.layers.GlobalAveragePooling2D,
+    )
+    source_layers = [
+        layer
+        for layer in cnn.layers
+        if not isinstance(layer, tf.keras.layers.InputLayer)
+    ]
+    unsupported_layers = [
+        layer.name
+        for layer in source_layers
+        if not isinstance(layer, source_layer_types)
+    ]
+    if unsupported_layers:
+        raise ValueError(
+            f"unmapped TensorFlow MobileNetV2 layers: {unsupported_layers}"
+        )
+    source_trace_model = tf.keras.Model(
+        inputs=cnn.input,
+        outputs=[layer.output for layer in source_layers],
+    )
+    backbone = model.encoder.backbone
+    target_modules: dict[str, torch.nn.Module] = {}
+    padded_layer_targets: dict[str, str] = {}
+    added_layer_targets: dict[str, str] = {}
+    for index, layer in enumerate(source_layers):
+        if isinstance(layer, tf.keras.layers.GlobalAveragePooling2D):
+            target_modules[layer.name] = backbone
+            continue
+
+        if isinstance(layer, (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D)):
+            target_modules[layer.name] = backbone.layers[layer.name]
+            continue
+
+        if isinstance(layer, tf.keras.layers.BatchNormalization):
+            target_modules[layer.name] = backbone.layers[layer.name]
+            continue
+
+        next_convolution = next(
+            (
+                candidate
+                for candidate in source_layers[index + 1 :]
+                if isinstance(
+                    candidate,
+                    (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D),
+                )
+            ),
+            None,
+        )
+        if next_convolution is None:
+            raise ValueError(
+                f"TensorFlow layer has no matching next convolution: {layer.name}"
+            )
+        if isinstance(layer, tf.keras.layers.ZeroPadding2D):
+            padded_layer_targets[layer.name] = next_convolution.name
+        elif isinstance(layer, tf.keras.layers.Add):
+            added_layer_targets[layer.name] = next_convolution.name
+    target_modules["z_mean"] = model.encoder.z_mean
+    target_modules["z_log_sigma"] = model.encoder.z_log_variance
+    layer_names = [layer.name for layer in source_layers] + [
+        "z_mean",
+        "z_log_sigma",
+    ]
+
+    pair_records = []
+    for pair_name, examples in image_pairs:
+        if len(examples) != 2 or len({example.image_id for example in examples}) != 2:
+            raise ValueError(
+                f"diagnostic pair must contain two unique IDs: {pair_name}"
+            )
+
+        tensorflow_images = _tensorflow_rgba(examples)
+        package_rgba = np.stack(
+            [decode_pixelvae_png(example.image_bytes) for example in examples]
+        )
+        tensorflow_inputs = tf.image.convert_image_dtype(tensorflow_images, tf.float32)
+        processed = processor([example.image_bytes for example in examples])
+        tensorflow_preprocessed = tensorflow_inputs.numpy().transpose(0, 3, 1, 2)
+        decode_matches = bool(np.array_equal(package_rgba, tensorflow_images.numpy()))
+        preprocessing_matches = bool(
+            np.array_equal(processed.pixel_values.numpy(), tensorflow_preprocessed)
+        )
+
+        source_trace_values = source_trace_model(tensorflow_inputs, training=False)
+        if not isinstance(source_trace_values, (list, tuple)):
+            source_trace_values = [source_trace_values]
+        source_layer_values = {
+            layer.name: np.asarray(value.numpy())
+            for layer, value in zip(source_layers, source_trace_values, strict=True)
+        }
+        source_global_average = next(
+            layer
+            for layer in source_layers
+            if isinstance(layer, tf.keras.layers.GlobalAveragePooling2D)
+        )
+        source_features = tf.convert_to_tensor(
+            source_layer_values[source_global_average.name]
+        )
+        source_means, source_log_variances = reference.encoder.head(source_features)
+        source_latents = reference.sampling(
+            (source_means, source_log_variances), training=False
+        )
+        source_logits = reference.decoder(source_latents, training=False)
+        source_reconstruction_loss = reconstruction_loss_fn(
+            tf.bitwise.right_shift(tensorflow_images, 4), source_logits
+        )
+        source_kl_loss = -0.5 * (
+            1
+            + source_log_variances
+            - tf.square(source_means)
+            - tf.exp(source_log_variances)
+        )
+        source_kl_loss = tf.reduce_mean(source_kl_loss)
+        source_total_loss = tf.add_n(reference.losses)
+        source_layer_values["z_mean"] = np.asarray(source_means.numpy())
+        source_layer_values["z_log_sigma"] = np.asarray(source_log_variances.numpy())
+
+        package_layer_values: dict[str, np.ndarray] = {}
+        package_preconvolution_values: dict[str, np.ndarray] = {}
+
+        def channels_last(values: torch.Tensor) -> np.ndarray:
+            array = values.detach().cpu().numpy()
+            if array.ndim == 4:
+                array = array.transpose(0, 2, 3, 1)
+            return np.asarray(array)
+
+        def capture_layer(name: str):
+            def hook(
+                _module: torch.nn.Module,
+                _inputs: tuple[torch.Tensor, ...],
+                output: torch.Tensor,
+            ) -> None:
+                package_layer_values[name] = channels_last(output)
+
+            return hook
+
+        def capture_padded_layer(name: str):
+            def hook(
+                _module: torch.nn.Module,
+                inputs: tuple[torch.Tensor, ...],
+            ) -> None:
+                package_layer_values[name] = channels_last(inputs[0])
+
+            return hook
+
+        def capture_relu_layer(name: str):
+            def capture(inputs: torch.Tensor) -> torch.Tensor:
+                output = original_relu6(inputs)
+                package_layer_values[name] = channels_last(output)
+                return output
+
+            return capture
+
+        handles = [
+            module.register_forward_hook(capture_layer(name))
+            for name, module in target_modules.items()
+        ]
+        handles.extend(
+            backbone.layers[target_name].register_forward_pre_hook(
+                capture_padded_layer(source_name)
+            )
+            for source_name, target_name in padded_layer_targets.items()
+        )
+        relu_names = [
+            layer.name
+            for layer in source_layers
+            if isinstance(layer, tf.keras.layers.ReLU)
+        ]
+        import pixel_vae.modeling_pixel_vae as modeling_pixel_vae
+
+        original_relu6 = modeling_pixel_vae.F.relu6
+        original_apply_conv = backbone._apply_conv
+        relu_capture = iter(relu_names)
+
+        def capture_relu6(inputs: torch.Tensor) -> torch.Tensor:
+            return capture_relu_layer(next(relu_capture))(inputs)
+
+        def capture_preconvolution(name: str, inputs: torch.Tensor) -> torch.Tensor:
+            package_preconvolution_values[name] = channels_last(inputs)
+            return original_apply_conv(name, inputs)
+
+        try:
+            with (
+                patch.object(
+                    modeling_pixel_vae.F,
+                    "relu6",
+                    side_effect=capture_relu6,
+                ),
+                patch.object(
+                    backbone, "_apply_conv", side_effect=capture_preconvolution
+                ),
+                torch.inference_mode(),
+            ):
+                output = model(processed.pixel_values, sample=False)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        for layer_name, convolution_name in added_layer_targets.items():
+            package_layer_values[layer_name] = package_preconvolution_values[
+                convolution_name
+            ]
+
+        if (
+            output.posterior_mean is None
+            or output.posterior_log_variance is None
+            or output.logits is None
+            or output.reconstruction_loss is None
+            or output.kl_divergence is None
+            or output.loss is None
+        ):
+            raise ValueError("PixelVAE diagnostic forward omitted an S1 output")
+
+        output_pairs = {
+            "s1.posterior_mean.max_abs": (
+                np.asarray(source_means.numpy()),
+                output.posterior_mean.numpy(),
+            ),
+            "s1.posterior_log_variance.max_abs": (
+                np.asarray(source_log_variances.numpy()),
+                output.posterior_log_variance.numpy(),
+            ),
+            "s1.decoder_logits.max_abs": (
+                np.asarray(source_logits.numpy()),
+                output.logits.numpy(),
+            ),
+            "s1.reconstruction_loss.abs": (
+                np.asarray(source_reconstruction_loss.numpy()),
+                np.asarray(output.reconstruction_loss.numpy()),
+            ),
+            "s1.kl_loss.abs": (
+                np.asarray(source_kl_loss.numpy()),
+                np.asarray(output.kl_divergence.numpy()),
+            ),
+            "s1.total_loss.abs": (
+                np.asarray(source_total_loss.numpy()),
+                np.asarray(output.loss.numpy()),
+            ),
+        }
+        output_comparisons = {
+            name: float32_difference_summary(reference_values, package_values)
+            for name, (reference_values, package_values) in output_pairs.items()
+        }
+        layer_comparisons = []
+        first_differing_layer = None
+        for name in layer_names:
+            comparison = float32_difference_summary(
+                source_layer_values[name], package_layer_values[name]
+            )
+            if first_differing_layer is None and comparison["max_abs_diff"] > 0:
+                first_differing_layer = name
+            layer_comparisons.append({"layer": name, **comparison})
+        metrics = {
+            name: comparison["max_abs_diff"]
+            for name, comparison in output_comparisons.items()
+        }
+        pair_records.append(
+            {
+                "pair_id": pair_name,
+                "image_ids": [example.image_id for example in examples],
+                "decode_matches_tensorflow": decode_matches,
+                "preprocessing_matches_tensorflow": preprocessing_matches,
+                "metrics": metrics,
+                "output_comparisons": output_comparisons,
+                "first_differing_layer": first_differing_layer,
+                "layer_comparisons": layer_comparisons,
+            }
+        )
+
+    train_ids = [
+        image_id
+        for pair_name, examples in image_pairs
+        if pair_name != "heldout"
+        for image_id in (example.image_id for example in examples)
+    ]
+    if len(train_ids) != DIAGNOSTIC_TRAIN_PAIR_COUNT * 2 or len(set(train_ids)) != len(
+        train_ids
+    ):
+        raise ValueError("diagnostic train pairs must use distinct image IDs")
+
+    report = {
+        "mode": "diagnostic",
+        "diagnostic_only": True,
+        "limits_applied": False,
+        "seed": 0,
+        "process_id": os.getpid(),
+        "tensorflow_version": tf.__version__,
+        "torch_version": torch.__version__,
+        "source_commit": source_commit,
+        "encoder_state_sha256": state_digest,
+        "configuration": model.config.to_dict(),
+        "comparison_dtype": "float32",
+        "relative_difference_definition": "max_abs_diff / reference_max_abs",
+        "ulp_definition": "ordered IEEE-754 binary32 integer distance at max_abs_diff index",
+        "train_pair_count": DIAGNOSTIC_TRAIN_PAIR_COUNT,
+        "pairs": pair_records,
+    }
+    output_path = PARITY_DIR / "diagnostic" / "s1-diagnostic.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(f"DIAGNOSTIC_REPORT={output_path}")
+
+    failed_exact_checks = [
+        record["pair_id"]
+        for record in pair_records
+        if not record["decode_matches_tensorflow"]
+        or not record["preprocessing_matches_tensorflow"]
+    ]
+    if failed_exact_checks:
+        raise AssertionError(
+            "diagnostic PNG decode or preprocessing differs for pairs: "
+            f"{failed_exact_checks}"
+        )
 
 
 def _select_images(
@@ -470,10 +912,12 @@ def _select_images(
     return examples
 
 
-def _select_one_per_element_type(split: str) -> list[ImageExample]:
+def _select_one_per_element_type(
+    split: str, *, occurrence: int = 0
+) -> list[ImageExample]:
     import tensorflow as tf
 
-    examples: dict[bytes, ImageExample] = {}
+    examples: dict[bytes, list[ImageExample]] = {}
     records = sorted(_record_index(split))
     for _document_key, document_id, path, payload_offset, payload_length in records:
         with path.open("rb") as stream:
@@ -484,14 +928,24 @@ def _select_one_per_element_type(split: str) -> list[ImageExample]:
         images = sequence.feature_lists.feature_list["image_bytes"].feature
         for index, (element_type, image) in enumerate(zip(types, images, strict=True)):
             kind = element_type.bytes_list.value[0]
-            if kind not in examples:
-                png_bytes = image.bytes_list.value[0]
-                image_id = f"crello-v1/{split}/{hashlib.sha256(png_bytes).hexdigest()}"
-                examples[kind] = ImageExample(
-                    image_id, document_id, index, kind, png_bytes
-                )
+            examples.setdefault(kind, [])
+            if len(examples[kind]) > occurrence:
+                continue
+            png_bytes = image.bytes_list.value[0]
+            image_id = f"crello-v1/{split}/{hashlib.sha256(png_bytes).hexdigest()}"
+            if any(example.image_id == image_id for example in examples[kind]):
+                continue
+            examples[kind].append(
+                ImageExample(image_id, document_id, index, kind, png_bytes)
+            )
 
-    return list(examples.values())
+    try:
+        return [examples_by_type[occurrence] for examples_by_type in examples.values()]
+    except IndexError as error:
+        raise ValueError(
+            f"split {split} has an element type with fewer than "
+            f"{occurrence + 1} unique examples"
+        ) from error
 
 
 def _record_index(split: str) -> Iterator[tuple[bytes, str, Path, int, int]]:

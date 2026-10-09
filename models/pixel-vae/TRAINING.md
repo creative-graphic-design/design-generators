@@ -47,14 +47,14 @@ The only seed scope in this change is deterministic TensorFlow initialization se
 
 ## Stage Evidence
 
-| Stage | Command                                                                                                                                                                                                             | Artifact                                                                            | Result                                                                                            |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| S0    | `PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT=1 uv run --package pixel-vae --extra vendor --extra parity --with pytest pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q` | `.cache/pixel-vae/parity/calibration/repeat-1.json`                                 | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S1    | `PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT=1 uv run --package pixel-vae --extra vendor --extra parity --with pytest pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q` | `.cache/pixel-vae/parity/calibration/repeat-1.json`                                 | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S2    | `PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT=1 uv run --package pixel-vae --extra vendor --extra parity --with pytest pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q` | `.cache/pixel-vae/parity/calibration/repeat-1.json`                                 | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S3    | `PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT=1 uv run --package pixel-vae --extra vendor --extra parity --with pytest pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q` | `.cache/pixel-vae/parity/calibration/repeat-1.json`                                 | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S4    | `PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=heldout uv run --package pixel-vae --extra vendor --extra parity --with pytest pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q`                              | `.cache/pixel-vae/parity/heldout.json`                                              | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S5    | not run by user scope                                                                                                                                                                                               | [issue #31](https://github.com/creative-graphic-design/design-generators/issues/31) | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| Stage | Command                                                                                                                 | Artifact                                                                             | Result                                                                                            |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| S0    | `PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-sha> bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh` | `calibration/repeat-1..3.inputs.json`, `calibration/repeat-1..3.json`                | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| S1    | Same ordered CPU acceptance command                                                                                     | `diagnostic/s1-diagnostic.json`, S0 input selections, `calibration/repeat-1..3.json` | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| S2    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| S3    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| S4    | Same ordered CPU acceptance command                                                                                     | `heldout.json`                                                                       | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| S5    | not run by user scope                                                                                                   | [issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)  | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
 
 ## Reproduction Results
 
@@ -86,26 +86,11 @@ The original archive SHA-256, source commit, seed, input IDs, TensorFlow version
 
 ## Training Commands
 
-Run the three independent CPU calibration processes and freeze their per-metric limits.
+Run the report-only diagnostic, three distinct-input CPU calibration processes, limit freeze, and fresh held-out check in one named CPU job.
 
 ```bash
-for repeat in 1 2 3; do
-  CUDA_VISIBLE_DEVICES="" TF_ENABLE_ONEDNN_OPTS=0 \
-    PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT="$repeat" \
-    uv run --package pixel-vae --extra vendor --extra parity --with pytest \
-    pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q
-done
-uv run --package pixel-vae --extra parity \
-  models/pixel-vae/scripts/calibrate_cpu_limits.py
-```
-
-Run the fresh held-out CPU check.
-
-```bash
-CUDA_VISIBLE_DEVICES="" TF_ENABLE_ONEDNN_OPTS=0 \
-  PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=heldout \
-  uv run --package pixel-vae --extra vendor --extra parity --with pytest \
-  pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q
+PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-sha> \
+  bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 ```
 
 Convert an original TensorFlow checkpoint or the deterministic untrained initialization.

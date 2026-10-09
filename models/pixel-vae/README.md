@@ -160,7 +160,7 @@ Decode every document-stage `image_bytes` PNG to RGBA at its original 256 × 256
 
 #### Testing Data
 
-CPU parity uses a fixed set of six unique train IDs for calibration and six unique test IDs for held-out validation, selected from the pinned Crello v1 archive in canonical order. The full archive audit checks PNG validity and dimensions by element type without writing image data into the repository.
+CPU parity starts with a report-only diagnostic, then uses three fixed, distinct canonical train input pairs for calibration and the canonical test inputs for a fresh held-out check. The full archive audit checks PNG validity and dimensions by element type without writing image data into the repository.
 
 #### Factors
 
@@ -168,19 +168,19 @@ The source and package receive identical PNG bytes decoded to RGBA uint8 values,
 
 #### Metrics
 
-Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes and freezes `ceil2(1.5 × max)` per metric, rounding upward to two significant figures. The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
+Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric, rounding upward to two significant figures while preserving the registered limit `L` as a floor. The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
 
 ### Parity Results
 
 not run: the calibrated CPU comparison has not yet been executed. Replace this table with measured maxima, frozen bounds, and pass counts before the pull request is ready for review.
 
-| Check                                 |                                Cases | Criterion                                     | Result  |
-| ------------------------------------- | -----------------------------------: | --------------------------------------------- | ------- |
-| S0 state mapping                      |                              pending | exact transformed TensorFlow state            | pending |
-| S1 forward and losses                 |                            6 metrics | calibrated per-metric bound                   | pending |
-| S2 gradients and optimizer            |                            5 metrics | calibrated per-metric bound                   | pending |
-| S3 three-step trace                   |                            3 metrics | calibrated per-metric bound                   | pending |
-| S4 archive, decode, and serialization | full archive plus encoder round trip | exact source dimensions and output round trip | pending |
+| Check                                 |                                Cases | Criterion                                 | Result  |
+| ------------------------------------- | -----------------------------------: | ----------------------------------------- | ------- |
+| S0 state mapping                      |                              pending | exact transformed TensorFlow state        | pending |
+| S1 forward and losses                 |                            6 metrics | calibrated per-metric bound               | pending |
+| S2 gradients and optimizer            |                            6 metrics | calibrated per-metric bound               | pending |
+| S3 three-step trace                   |                            4 metrics | calibrated per-metric bound               | pending |
+| S4 archive, decode, and serialization | full archive plus encoder round trip | calibrated output bound plus exact checks | pending |
 
 ## Reproducibility
 

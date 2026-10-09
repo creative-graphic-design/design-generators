@@ -46,33 +46,16 @@ CUDA_VISIBLE_DEVICES="" TF_ENABLE_ONEDNN_OPTS=0 \
 
 For a provided original checkpoint, add `--checkpoint <local-checkpoint-prefix>`. The script writes `conversion.json`, `config.json`, and safetensors weights under `.cache/pixel-vae/converted/`; encoder-only files are under `.cache/pixel-vae/converted/encoder/`.
 
-## Calibrate three independent CPU runs
+## Run CPU diagnostics, calibration, and held-out parity
 
-Each command below starts a fresh pytest process. The source state, seed, input IDs, and metrics are fixed by [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md).
-
-```bash
-for repeat in 1 2 3; do
-  CUDA_VISIBLE_DEVICES="" TF_ENABLE_ONEDNN_OPTS=0 \
-    PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=calibration PIXELVAE_PARITY_REPEAT="$repeat" \
-    uv run --package pixel-vae --extra vendor --extra parity --with pytest \
-    pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q
-done
-uv run --package pixel-vae --extra parity \
-  models/pixel-vae/scripts/calibrate_cpu_limits.py
-```
-
-Calibration writes three raw JSON records and the frozen `ceil2(1.5 × max)` bounds under `.cache/pixel-vae/parity/calibration/`. The limit utility rejects missing metrics, mismatched source-state digests or input IDs, differing configurations or TensorFlow versions, and repeats from the same process.
-
-## Run the fresh held-out CPU check
+The runner first runs the PixelVAE and `traingen` member tests with coverage, downloads and audits the pinned Crello v1 archive, then performs one report-only diagnostic, three fresh calibration processes using fixed distinct train input groups, freezes limits, and starts a fresh held-out process. The selection rule and per-metric lower bounds are fixed in [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md).
 
 ```bash
-CUDA_VISIBLE_DEVICES="" TF_ENABLE_ONEDNN_OPTS=0 \
-  PARITY_REQUIRE=1 PIXELVAE_PARITY_MODE=heldout \
-  uv run --package pixel-vae --extra vendor --extra parity --with pytest \
-  pytest models/pixel-vae/tests/vendor_parity -m vendor_parity -q
+PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-commit-sha> \
+  bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 ```
 
-The test uses held-out test IDs, requires the frozen calibration file, and writes `.cache/pixel-vae/parity/heldout.json`. It checks strict state conversion, TensorFlow/PyTorch forward and update traces, every Crello v1 image type, exact PNG preprocessing, the encoder contract shape and dtype, and local serialization.
+The runner stores the archive audit, diagnostic report, three pre-comparison input selections, calibration records, frozen limits, and held-out report beneath the selected parity directory. The limit utility checks each input-selection sidecar against its metric record and rejects repeated S1 or training IDs, unexpected indexes, mismatched source-state digests, differing configurations or TensorFlow versions, and records from the same process. Held-out validation uses the fixed canonical test inputs and requires the frozen limits.
 
 ## Run package unit tests and load the encoder
 

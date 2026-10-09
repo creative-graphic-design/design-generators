@@ -1,0 +1,45 @@
+{
+  "source": "Originally registered floor, not a limit frozen by failed held-out runs 2b0c16e or b755f92",
+  "historical_calibration": {
+    "input_image_count": 2,
+    "repeat_count": 3,
+    "s1.posterior_mean.max_abs": 6.355e-11,
+    "s1.posterior_log_variance.max_abs": 5.270e-11,
+    "identical_repeats": true
+  },
+  "historical_failed_heldout": [
+    {
+      "commit": "2b0c16e",
+      "s1.posterior_mean.max_abs": 9.879e-11,
+      "s1.posterior_mean.limit": 9.6e-11,
+      "s1.posterior_log_variance.max_abs": 8.310e-11,
+      "s1.posterior_log_variance.limit": 8.0e-11
+    },
+    {
+      "commit": "b755f92",
+      "s1.posterior_mean.max_abs": 9.879e-11,
+      "s1.posterior_mean.limit": 9.6e-11,
+      "s1.posterior_log_variance.max_abs": 8.310e-11,
+      "s1.posterior_log_variance.limit": 8.0e-11
+    }
+  ],
+  "limits": {
+    "s1.decoder_logits.max_abs": 1.9e-13,
+    "s1.kl_loss.abs": 0.0,
+    "s1.posterior_log_variance.max_abs": 8e-11,
+    "s1.posterior_mean.max_abs": 9.6e-11,
+    "s1.reconstruction_loss.abs": 0.00037,
+    "s1.total_loss.abs": 0.00037,
+    "s2.adam_first_moment.max_abs": 270.0,
+    "s2.adam_second_moment.max_abs": 5700.0,
+    "s2.batch_norm_state.max_abs": 0.0026,
+    "s2.gradients.max_abs": 2700.0,
+    "s2.loss.abs": 1.6,
+    "s2.parameters.max_abs": 0.00031,
+    "s3.batch_norm_state.max_abs": 0.0079,
+    "s3.parameters.max_abs": 0.00091,
+    "s3.posterior_means.max_abs": 0.89,
+    "s3.step_losses.max_abs": 4.9,
+    "s4.posterior_means.max_abs": 1.5e-10
+  }
+}
