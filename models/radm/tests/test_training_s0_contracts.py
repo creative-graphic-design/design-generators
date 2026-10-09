@@ -449,6 +449,40 @@ def test_s0_roi_pooler_uses_detectron2_canonical_fpn_levels() -> None:
     assert levels.tolist() == [[0, 1, 2, 3]]
 
 
+def test_roi_index_put_preserves_channels_last_layout_on_cpu() -> None:
+    config = RADMConfig(
+        num_classes=2,
+        num_proposals=2,
+        hidden_dim=256,
+        text_feature_dim=4,
+        num_heads=1,
+        with_vtram=False,
+        with_gram=False,
+    )
+    head = RADMProposalHead(config)
+    features = {
+        name: torch.zeros(
+            1,
+            256,
+            height,
+            width,
+        ).contiguous(memory_format=torch.channels_last)
+        for name, height, width in (
+            ("p2", 56, 56),
+            ("p3", 28, 28),
+            ("p4", 14, 14),
+            ("p5", 7, 7),
+        )
+    }
+    boxes = torch.tensor([[[0.0, 0.0, 32.0, 32.0], [0.0, 0.0, 224.0, 224.0]]])
+
+    pooled = head._roi_features(features, boxes)
+
+    assert pooled.shape == (2, 256, 7, 7)
+    assert pooled.is_contiguous(memory_format=torch.channels_last)
+    assert pooled.stride() == (12544, 1, 1792, 256)
+
+
 def test_s0_repeated_heads_detach_only_the_next_head_boxes() -> None:
     config = RADMConfig(
         num_classes=2,

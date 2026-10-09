@@ -61,3 +61,23 @@ def test_pipeline_save_pretrained_round_trip() -> None:
         loaded = RADMPipeline.from_pretrained(tmp)
         out = cast(LayoutGenerationOutput, loaded(image, seed=0, num_inference_steps=2))
     assert_layout_output_schema(out, batch_size=1)
+
+
+def test_denoiser_save_pretrained_round_trips_sample_step() -> None:
+    config = RADMConfig(
+        num_proposals=2,
+        hidden_dim=8,
+        text_feature_dim=4,
+        image_size=32,
+        num_train_timesteps=10,
+        inference_steps=2,
+        sample_step=7,
+        backbone_depth=18,
+    )
+    denoiser = RADMDenoiser(config=config)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        denoiser.save_pretrained(tmp)
+        loaded = RADMDenoiser.from_pretrained(tmp)
+
+    assert loaded.config.sample_step == 7

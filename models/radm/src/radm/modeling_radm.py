@@ -743,12 +743,17 @@ class RADMProposalHead(nn.Module):
             ],
             dim=-1,
         ).reshape(-1, 5)
-        pooled = features["p2"].new_zeros(
-            boxes_xyxy.shape[0] * boxes_xyxy.shape[1],
-            self.hidden_dim,
-            self.roi_resolution,
-            self.roi_resolution,
-        )
+        pooled = torch.empty(
+            (
+                boxes_xyxy.shape[0] * boxes_xyxy.shape[1],
+                self.hidden_dim,
+                self.roi_resolution,
+                self.roi_resolution,
+            ),
+            dtype=features["p2"].dtype,
+            device=features["p2"].device,
+            memory_format=torch.channels_last,
+        ).zero_()
         levels = self._assign_pooler_levels(absolute_boxes)
         for level, (name, stride) in enumerate(
             zip(
