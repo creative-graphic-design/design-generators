@@ -793,6 +793,96 @@ def _bleu_diagnostic(
     }
 
 
+def _scaled_cosine_diagnostic(
+    target: Shaped[np.ndarray, "batch target_elements features"],
+    target_mask: Shaped[np.ndarray, "batch target_elements"],
+    prediction: Shaped[np.ndarray, "batch predicted_elements features"],
+    prediction_mask: Shaped[np.ndarray, "batch predicted_elements"],
+) -> dict[str, JSONValue]:
+    target = np.asarray(target, dtype=np.float64)
+    prediction = np.asarray(prediction, dtype=np.float64)
+    target_mask = np.asarray(target_mask, dtype=np.bool_)
+    prediction_mask = np.asarray(prediction_mask, dtype=np.bool_)
+    if (
+        target.ndim != 3
+        or prediction.ndim != 3
+        or target.shape[0] != prediction.shape[0]
+        or target.shape[2] != prediction.shape[2]
+        or target.shape[:2] != target_mask.shape
+        or prediction.shape[:2] != prediction_mask.shape
+    ):
+        raise ValueError("cosine diagnostic inputs have incompatible shapes")
+
+    target_count = target_mask.sum(axis=1, dtype=np.float64)
+    prediction_count = prediction_mask.sum(axis=1, dtype=np.float64)
+    target_length = target_count + 1e-9
+    prediction_length = prediction_count + 1e-9
+    target_mean = (
+        np.sum(target * target_mask[:, :, np.newaxis], axis=1)
+        / target_length[:, np.newaxis]
+    )
+    prediction_mean = (
+        np.sum(prediction * prediction_mask[:, :, np.newaxis], axis=1)
+        / prediction_length[:, np.newaxis]
+    )
+    target_norm_squared = np.sum(np.square(target_mean), axis=1)
+    prediction_norm_squared = np.sum(np.square(prediction_mean), axis=1)
+    target_norm = np.sqrt(target_norm_squared)
+    prediction_norm = np.sqrt(prediction_norm_squared)
+    target_normalized = (
+        target_mean / np.sqrt(np.maximum(target_norm_squared, 1e-12))[:, np.newaxis]
+    )
+    prediction_normalized = (
+        prediction_mean
+        / np.sqrt(np.maximum(prediction_norm_squared, 1e-12))[:, np.newaxis]
+    )
+    tensorflow_cosine = np.sum(target_normalized * prediction_normalized, axis=1)
+    torch_cosine = np.sum(target_mean * prediction_mean, axis=1) / (
+        np.maximum(target_norm, 1e-8) * np.maximum(prediction_norm, 1e-8)
+    )
+    length_penalty = np.exp(np.minimum(0.0, 1.0 - target_length / prediction_length))
+    return {
+        "target_count": target_count.tolist(),
+        "prediction_count": prediction_count.tolist(),
+        "target_mean_l2_norm": target_norm.tolist(),
+        "prediction_mean_l2_norm": prediction_norm.tolist(),
+        "tensorflow_cosine_similarity": tensorflow_cosine.tolist(),
+        "torch_cosine_similarity": torch_cosine.tolist(),
+        "length_penalty": length_penalty.tolist(),
+        "tensorflow_score": np.clip(
+            length_penalty * tensorflow_cosine, 0.0, 1.0
+        ).tolist(),
+        "torch_score": np.clip(length_penalty * torch_cosine, 0.0, 1.0).tolist(),
+    }
+
+
+def _array_delta_summary(
+    actual: Shaped[np.ndarray, "..."], expected: Shaped[np.ndarray, "..."]
+) -> dict[str, JSONValue]:
+    actual = np.asarray(actual)
+    expected = np.asarray(expected)
+    if actual.shape != expected.shape:
+        return {
+            "equal": False,
+            "actual_shape": list(actual.shape),
+            "expected_shape": list(expected.shape),
+        }
+
+    delta = np.abs(actual.astype(np.float64) - expected.astype(np.float64))
+    return {
+        "equal": bool(np.array_equal(actual, expected)),
+        "shape": list(actual.shape),
+        "different_values": int(np.count_nonzero(delta)),
+        "max_absolute_difference": float(np.max(delta, initial=0.0)),
+        "max_relative_difference": float(
+            np.max(
+                delta / np.maximum(np.abs(expected.astype(np.float64)), 1e-30),
+                initial=0.0,
+            )
+        ),
+    }
+
+
 def _metric_diagnostic_report(
     batch: CrelloBatch,
     package_output: CanvasVAECrelloModelOutput,
@@ -858,6 +948,10 @@ def _metric_diagnostic_report(
         is_categorical = column["type"] == "categorical"
         package_bleu: dict[str, JSONValue] | None = None
         vendor_bleu: dict[str, JSONValue] | None = None
+        package_cosine: dict[str, JSONValue] | None = None
+        vendor_cosine: dict[str, JSONValue] | None = None
+        numeric_input_differences: dict[str, JSONValue] | None = None
+        same_input_formula_scores_equal: dict[str, bool] | None = None
         metric_inputs_equal: bool | None = None
         float64_equal: bool | None = None
         if is_sequence and is_categorical:
@@ -898,6 +992,32 @@ def _metric_diagnostic_report(
         elif is_sequence:
             package_prediction = _as_numpy(package_output.numerical_predictions[field])
             vendor_prediction = _as_numpy(vendor_output[field])
+            package_cosine = _scaled_cosine_diagnostic(
+                package_target,
+                cast(Shaped[np.ndarray, "batch elements"], package_true),
+                package_prediction,
+                cast(Shaped[np.ndarray, "batch elements"], package_pred),
+            )
+            vendor_cosine = _scaled_cosine_diagnostic(
+                vendor_target,
+                cast(Shaped[np.ndarray, "batch elements"], vendor_true),
+                vendor_prediction,
+                cast(Shaped[np.ndarray, "batch elements"], vendor_pred),
+            )
+            numeric_input_differences = {
+                "target": _array_delta_summary(package_target, vendor_target),
+                "prediction": _array_delta_summary(
+                    package_prediction, vendor_prediction
+                ),
+                "target_mask": _array_delta_summary(
+                    cast(Shaped[np.ndarray, "..."], package_true),
+                    cast(Shaped[np.ndarray, "..."], vendor_true),
+                ),
+                "prediction_mask": _array_delta_summary(
+                    cast(Shaped[np.ndarray, "..."], package_pred),
+                    cast(Shaped[np.ndarray, "..."], vendor_pred),
+                ),
+            }
             metric_inputs_equal = (
                 np.array_equal(package_target, vendor_target)
                 and np.array_equal(package_prediction, vendor_prediction)
@@ -929,16 +1049,75 @@ def _metric_diagnostic_report(
                 "package": package_bleu["float32_intermediates"],
                 "vendor": vendor_bleu["float32_intermediates"],
             }
+            effective_intermediates_equal = (
+                package_bleu["float32_intermediates"]
+                == vendor_bleu["float32_intermediates"]
+            )
             float64_scores: JSONValue = {
                 "package": package_bleu["float64_scores"],
                 "vendor": vendor_bleu["float64_scores"],
             }
-            if not metric_inputs_equal:
-                diagnosis = "semantic metric inputs differ"
+            if package_mask_equal is not True or not effective_intermediates_equal:
+                diagnosis = "effective BLEU inputs differ"
             elif not float64_equal:
-                diagnosis = "same discrete inputs but float64 scores differ; inspect formula semantics"
+                diagnosis = "same effective BLEU inputs but float64 scores differ; inspect formula semantics"
             elif ulp_delta is not None and np.any(ulp_delta):
-                diagnosis = "same metric inputs and float64 scores; observed discrepancy is float32 rounding"
+                diagnosis = "same effective BLEU inputs and float64 scores; observed discrepancy is float32 rounding"
+            else:
+                diagnosis = "same effective BLEU inputs and scores"
+        elif package_cosine is not None and vendor_cosine is not None:
+            package_double = np.asarray(package_cosine["torch_score"], dtype=np.float64)
+            vendor_double = np.asarray(
+                vendor_cosine["tensorflow_score"], dtype=np.float64
+            )
+            float64_equal = bool(
+                np.allclose(package_double, vendor_double, rtol=1e-14, atol=1e-15)
+            )
+            float64_scores = {"package": package_cosine, "vendor": vendor_cosine}
+            bleu_intermediates = None
+            package_torch_scores = np.asarray(
+                package_cosine["torch_score"], dtype=np.float64
+            )
+            package_tensorflow_scores = np.asarray(
+                package_cosine["tensorflow_score"], dtype=np.float64
+            )
+            vendor_torch_scores = np.asarray(
+                vendor_cosine["torch_score"], dtype=np.float64
+            )
+            vendor_tensorflow_scores = np.asarray(
+                vendor_cosine["tensorflow_score"], dtype=np.float64
+            )
+            same_input_formula_scores_equal = {
+                "package_inputs": bool(
+                    np.allclose(
+                        package_torch_scores,
+                        package_tensorflow_scores,
+                        rtol=1e-14,
+                        atol=1e-15,
+                    )
+                ),
+                "vendor_inputs": bool(
+                    np.allclose(
+                        vendor_torch_scores,
+                        vendor_tensorflow_scores,
+                        rtol=1e-14,
+                        atol=1e-15,
+                    )
+                ),
+            }
+            if package_mask_equal is not True:
+                diagnosis = "conditional metric masks differ"
+            elif not float64_equal and metric_inputs_equal:
+                diagnosis = "identical metric inputs but float64 scores differ; inspect formula semantics"
+            elif not float64_equal:
+                if all(same_input_formula_scores_equal.values()):
+                    diagnosis = "float64 formulas agree per side; scores differ because package/vendor metric inputs differ"
+                else:
+                    diagnosis = "metric inputs differ and float64 package/vendor formula scores differ; inspect both"
+            elif ulp_delta is not None and np.any(ulp_delta):
+                diagnosis = (
+                    "same float64 scores; observed discrepancy is float32 rounding"
+                )
             else:
                 diagnosis = "same metric inputs and scores"
         else:
@@ -961,6 +1140,8 @@ def _metric_diagnostic_report(
             "package_vendor_masks_equal": package_mask_equal,
             "diagnosis": diagnosis,
             "bleu_intermediates": bleu_intermediates,
+            "numeric_metric_input_differences": numeric_input_differences,
+            "same_input_float64_formula_scores_equal": same_input_formula_scores_equal,
             "float64_scores": float64_scores,
             "float64_scores_equal": float64_equal,
         }
@@ -987,7 +1168,7 @@ def _metric_diagnostic_report(
 
     return {
         "fields": field_reports,
-        "float64_method": "BLEU formulas recomputed from each side's observed ids and masks; vendor/package metric layers remain unchanged.",
+        "float64_method": "BLEU and scaled cosine formulas recomputed from each side's observed inputs and masks in NumPy float64; vendor/package metric layers remain unchanged. Cosine results include package torch cosine_similarity (eps 1e-8) and vendor TensorFlow l2_normalize (squared-norm epsilon 1e-12).",
     }
 
 
