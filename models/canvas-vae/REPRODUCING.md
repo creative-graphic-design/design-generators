@@ -87,11 +87,21 @@ For a Lightning checkpoint from `traingen fit`, run the same converter with `uv 
 
 These CPU-only checks compare the package Crello model with the pinned TensorFlow vendor on the prepared splits and shared posterior-mean fixture above. They cover model configuration, forward outputs and losses, gradients, optimizer state, and batch-normalization statistics; they do not rerun the Crello data comparison or full training. Vendor parity and full-run Crello results are not claimed until these checks and any later training evaluation have been run.
 
-Run the test from the repository root after the data checks have produced `package-run-1` and `fixture`. It selects three distinct, non-overlapping batches fixed before calibration: canonical training documents `[0, 1024)`, `[1024, 2048)`, and `[2048, 3072)`. For each comparison group, the limit is `max(L, ceil2(1.5 × maximum calibration error))` with `L = 0`; `ceil2` rounds upward to two significant digits. The calibration report is written before checks, then its limits and commit SHA are frozen. The held-out check runs only after that freeze and evaluates all canonical test documents in ordered batches of 1,024. Both reports and the frozen limits remain under `.cache/canvas-vae/reference/crello-model/`.
+S0 needs only the `count.json` and `vocabulary.json` files from the original run-1 small reports; it does not need document splits or the embedding fixture. It compares vendor and package vocabularies, field shapes and class counts, type-conditioned masks, parameter mapping and counts, and the package state after copying the vendor's seeded initialization. Run it from the repository root after initializing `vendor/canvas-vae`:
+
+```bash
+CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra convert models/canvas-vae/scripts/compare_crello_training.py s0 --data-dir .cache/canvas-vae/crello/original-run-1/document --report-dir .cache/canvas-vae/reference/crello-model
+```
+
+For the S1–S3 CPU comparison, make the prepared canonical splits available under `package-run-1` and publish the three fixture files (`manifest.json`, `manifest.sha256`, and `posterior_means.npy`) as one tar archive. Pass its Hugging Face `resolve` URL and archive SHA-256 to one command; the runner downloads only that file, verifies the hash, safely extracts the three root files, writes `calibration-plan.json` with the fixed batch selection and limit formula before starting three independent calibration processes from the same seeded initial state, freezes each metric's maximum-derived limit, and then runs the canonical test batches. Reports are written before assertions. An optional restricted token file can be supplied with `--fixture-token-file`, or its path can be passed through `CANVAS_VAE_FIXTURE_TOKEN_FILE`; the runner reads and deletes that file after the Hub download.
+
+```bash
+CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra convert models/canvas-vae/scripts/compare_crello_training.py run --data-dir .cache/canvas-vae/crello/package-run-1 --fixture-hub-location "$CRELLO_FIXTURE_HUB_LOCATION" --fixture-sha256 "$CRELLO_FIXTURE_SHA256" --report-dir .cache/canvas-vae/reference/crello-model
+```
+
+The job runs on CPU, evaluates the held-out set only after calibration limits are frozen, and does not run S4 or S5. To rerun the individual phases with an already downloaded fixture, use the marked `vendor_parity` test below; it requires local prepared splits and fixture files.
 
 ```bash
 uv sync --package canvas-vae --extra training --extra convert
 PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra training --extra convert --with pytest pytest models/canvas-vae/tests/vendor_parity/test_canvas_vae_crello_training_parity.py -m "vendor_parity and training" -k crello_s0_s3 -rs
 ```
-
-The command runs calibration before held-out evaluation in the same test session. It requires the data and fixture files created by the preceding Crello data checks, and it does not run S5 or use a GPU.

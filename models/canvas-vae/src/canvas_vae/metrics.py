@@ -180,7 +180,7 @@ def layout_scores(
             grid_size=grid_size,
             background_id=background_id,
         )
-        accuracy, mean_iou = _grid_scores(target, predicted, grid_size, num_labels)
+        accuracy, mean_iou = _grid_scores(target, predicted, num_labels)
         accuracies.append(accuracy)
         mean_ious.append(mean_iou)
 
@@ -191,15 +191,14 @@ def layout_scores(
 
 
 def _grid_scores(
-    target: Int[torch.Tensor, "grid grid"],
-    predicted: Int[torch.Tensor, "grid grid"],
-    grid_size: int,
+    target: Int[torch.Tensor, "rows columns"],
+    predicted: Int[torch.Tensor, "rows columns"],
     num_labels: int,
 ) -> tuple[Float[torch.Tensor, ""], Float[torch.Tensor, ""]]:
     confusion = torch.zeros(num_labels, num_labels)
     confusion.index_put_(
         (predicted.flatten(), target.flatten()),
-        torch.ones(grid_size * grid_size),
+        torch.ones(target.numel()),
         accumulate=True,
     )
     intersection = confusion.diagonal()
@@ -416,21 +415,28 @@ def _crello_layout_scores(
     }
     accuracies = []
     mean_ious = []
+    grid_width = config.sequence_field_sizes["left"]
+    grid_height = config.sequence_field_sizes["top"]
     for index in range(batch["num_elements"].shape[0]):
         target_grid = _type_grid(
             true,
             batch["element_mask"],
             index,
-            config.max_length,
+            grid_height,
+            grid_width,
             config.primary_label_id,
         )
         predicted_grid = _type_grid(
-            predicted, output.mask, index, config.max_length, config.primary_label_id
+            predicted,
+            output.mask,
+            index,
+            grid_height,
+            grid_width,
+            config.primary_label_id,
         )
         accuracy, mean_iou = _grid_scores(
             target_grid,
             predicted_grid,
-            config.max_length,
             len(config.vocabularies["type"]),
         )
         accuracies.append(accuracy)
@@ -446,10 +452,11 @@ def _type_grid(
     values: Mapping[str, Int[torch.Tensor, "batch elements"]],
     mask: Bool[torch.Tensor, "batch elements"],
     index: int,
-    grid_size: int,
+    grid_height: int,
+    grid_width: int,
     background_id: int,
-) -> Int[torch.Tensor, "grid grid"]:
-    grid = torch.full((grid_size, grid_size), background_id, dtype=torch.long)
+) -> Int[torch.Tensor, "rows columns"]:
+    grid = torch.full((grid_height, grid_width), background_id, dtype=torch.long)
     fields = torch.stack(
         [
             values[field][index][mask[index]]
@@ -458,8 +465,8 @@ def _type_grid(
         dim=-1,
     )
     for left, top, width, height, type_id in fields.tolist():
-        right = min(grid_size - 1, left + width)
-        bottom = min(grid_size - 1, top + height)
+        right = min(grid_width - 1, left + width)
+        bottom = min(grid_height - 1, top + height)
         if top >= bottom or left >= right:
             continue
 
@@ -600,9 +607,7 @@ def crello_histogram_scores(
     for field, target in reference.items():
         candidate = generated[field].to(target.device)
         if field == "image_embedding":
-            channel_scores = 0.5 - 0.5 * F.cosine_similarity(
-                target, candidate, dim=-1
-            ).clamp(0.0, 1.0)
+            channel_scores = 0.5 - 0.5 * F.cosine_similarity(target, candidate, dim=-1)
             values[field] = float(channel_scores.mean().item())
         else:
             channel_scores = torch.minimum(target, candidate).sum(dim=0)
