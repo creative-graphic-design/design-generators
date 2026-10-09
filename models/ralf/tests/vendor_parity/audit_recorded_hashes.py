@@ -145,12 +145,17 @@ def report_hash(
     recorded: str,
     target: Path | None,
     counts: dict[str, int],
+    historical_if_missing: bool = False,
 ) -> None:
     if len(recorded) != 64:
         print(f"INVALID {source}:{line} length={len(recorded)} value={recorded}")
         counts["invalid"] += 1
         return
     if target is None:
+        if historical_if_missing:
+            print(f"HISTORICAL_FILE_NOT_RETAINED {source}:{line} value={recorded}")
+            counts["HISTORICAL_FILE_NOT_RETAINED"] += 1
+            return
         print(f"UNRESOLVED {source}:{line} value={recorded}")
         counts["unresolved"] += 1
         return
@@ -183,7 +188,11 @@ def audit_json(
     dataset = payload.get("dataset") if isinstance(payload, dict) else None
     condition = payload.get("condition") if isinstance(payload, dict) else None
 
-    def walk(value: object, parent: dict[str, object] | None = None) -> None:
+    def walk(
+        value: object,
+        parent: dict[str, object] | None = None,
+        key: str | None = None,
+    ) -> None:
         if isinstance(value, dict):
             mapping = cast(dict[str, object], value)
             raw_path = mapping.get("path")
@@ -202,12 +211,15 @@ def audit_json(
                     recorded=recorded,
                     target=target,
                     counts=counts,
+                    historical_if_missing=(
+                        key == "checkpoint" and raw_path.startswith("campaign/")
+                    ),
                 )
-            for child in mapping.values():
-                walk(child, mapping)
+            for child_key, child in mapping.items():
+                walk(child, mapping, child_key)
         elif isinstance(value, list):
             for child in cast(list[object], value):
-                walk(child, parent)
+                walk(child, parent, key)
 
     walk(payload)
 
@@ -479,6 +491,8 @@ def main() -> None:
         "unresolved": 0,
         "VALUE_DIGEST": 0,
         "HISTORICAL_FILE_NOT_RETAINED": 0,
+        "SUPERSEDED": 0,
+        "INTERMEDIATE_SEED_LANE": 0,
     }
 
     if args.fix_documents:
@@ -494,6 +508,14 @@ def main() -> None:
         for path in MANIFEST_PATHS:
             audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
         for path in sorted(PARITY_ROOT.glob("**/evaluation-path-parity.json")):
+            if any(part.endswith(".superseded") for part in path.parts):
+                print(f"SUPERSEDED {path}")
+                counts["SUPERSEDED"] += 1
+                continue
+            if any(part.startswith("relation-seed-") for part in path.parts):
+                print(f"INTERMEDIATE_SEED_LANE {path}")
+                counts["INTERMEDIATE_SEED_LANE"] += 1
+                continue
             audit_json(path, repo_root=repo_root, roots=roots, counts=counts)
     if args.revision:
         audit_revision_documents(
@@ -503,7 +525,10 @@ def main() -> None:
     print(
         "SUMMARY checked={checked} mismatches={mismatch} invalid={invalid} "
         "unresolved={unresolved} value_digests={VALUE_DIGEST} "
-        "historical_file_not_retained={HISTORICAL_FILE_NOT_RETAINED}".format(**counts)
+        "historical_file_not_retained={HISTORICAL_FILE_NOT_RETAINED} "
+        "superseded={SUPERSEDED} intermediate_seed_lane={INTERMEDIATE_SEED_LANE}".format(
+            **counts
+        )
     )
     raise SystemExit(1 if counts["mismatch"] or counts["invalid"] else 0)
 

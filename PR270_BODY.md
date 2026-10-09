@@ -35,6 +35,8 @@ FID values in this table are rounded to three decimal places; the authoritative 
 
 ### Package fixes found by the evaluation-path parity prerequisite
 
+The package core import no longer eagerly imports the optional Lightning training modules. Core users can import `ralf` without the training extra; training users import `ralf.training` through the declared `training` extra. The focused core-only import regression test blocks Lightning during `import ralf` and passes without loading `ralf.training`.
+
 The relation parity prerequisite found that the package had no inference-only implementation of the vendor relation-condition preparation and decoder. This stack adds `models/ralf/src/ralf/relation_restriction.py` and routes only `ConditionType.relation` through it from `models/ralf/src/ralf/pipeline_ralf.py:293-310`. The component mirrors the vendor order at `task_preprocessor.py:498-507,568-585` and `helpers/relationships.py:110-145`, including construction-time table shuffling, per-edge draws, size-0/1 `randperm` calls, relation-record sampling, and relation decoding/backtracking. The package training path remains unchanged; the training-order mirror is proposed separately in [issue 447](https://github.com/creative-graphic-design/design-generators/issues/447), which has the `meta` label, the `v0.3: Ready (heavy)` milestone, and native Priority `Medium`.
 
 Focused relation restriction tests pass: `20 passed` in `models/ralf/tests/test_relation_restriction.py`; relation pipeline tests also pass in the member suite. The committed reachability check reports:
@@ -67,6 +69,7 @@ Both historical S5 systems used the vendor `inference.py`; the package relation 
 - `UV_FROZEN=1 CUDA_VISIBLE_DEVICES='' uv run --group docs zensical build --strict -f mkdocs.yml` → passed with `No issues found` in 103.35 seconds. The untracked generated API tree and `mkdocs.generated.yml` were removed because CI builds the tracked `mkdocs.yml`; the tracked API pages and navigation match `origin/main`, including the RALF-specific page.
 - `scripts/verify_badge_rendering.py` is not green in this environment: the repository-wide run reports external Codecov TLS reset and missing Simple Icons paths for existing badges. `scripts/check_readme_badges.py` itself passes, and no RALF badge was changed here.
 - Per-condition parity settings are read back from each artifact: full 1,000-row TEST, inference seeds `0/1/2`, top-k 5, temperature 1.0, zero inference workers, two evaluator workers, caller-created CUDA generator, evaluator commit `c51db6032acbd0bd0ce72433becce08317e7874d`, and the shared retained freeze above. The final verification records each condition's prediction count, metric count, bitwise result, OOB count, sampler status, artifact SHA-256, and any localized failure.
+- `python models/ralf/tests/vendor_parity/audit_recorded_hashes.py --search-root <retained-campaign-root> --search-root <repository-root>` → `checked=4500 mismatches=0 invalid=0 unresolved=0 value_digests=32 historical_file_not_retained=1 superseded=10 intermediate_seed_lane=5`; the document-only audit is also zero-mismatch and zero-unresolved. Superseded records and intermediate relation seed lanes are classified, not cited as active condition evidence.
 
 ### Per-condition provenance
 
