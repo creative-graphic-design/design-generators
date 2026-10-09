@@ -76,14 +76,17 @@ def test_stable_ids_are_split_scoped_and_hash_exact_bytes():
     assert image_id("train", png) != image_id("val", png)
 
 
-def test_population_ids_follow_canonical_first_occurrence():
+def test_fixture_ids_deduplicate_before_canonical_encoding():
     late = document(
         "z", [element("svgElement", "repeat"), element("textElement", "other")]
     )
     early = document(
         "a", [element("otherElement", "other"), element("imageElement", "first")]
     )
-    assert fixture_image_ids([late, early]) == ["other", "first", "repeat"]
+    ids = fixture_image_ids([late, early])
+    assert ids == ["other", "first", "repeat"]
+    assert len(ids) == len(set(ids))
+    assert ids.count("other") == 1
     assert training_image_ids([late, early]) == ["first", "repeat"]
     assert CRELLO_IMAGE_TYPES == frozenset(
         ("imageElement", "maskElement", "svgElement")

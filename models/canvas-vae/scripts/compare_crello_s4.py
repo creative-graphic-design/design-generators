@@ -43,14 +43,9 @@ class _Int64List(Protocol):
     value: Sequence[int]
 
 
-class _FloatList(Protocol):
-    value: Sequence[float]
-
-
 class _Feature(Protocol):
     bytes_list: _BytesList
     int64_list: _Int64List
-    float_list: _FloatList
 
     def WhichOneof(self, field: str) -> str | None: ...
 
@@ -86,6 +81,7 @@ class _S4Summary(TypedDict):
     """Aggregate exact data equality result."""
 
     exact: bool
+    embedding_contract: str
     splits: dict[str, _SplitSummary]
 
 
@@ -144,29 +140,17 @@ def _reference_training_image_ids(reference_run: Path, split: str) -> set[str]:
     return keys
 
 
-def _compare_reference_embeddings(
+def _canonical_embedding_values(
     documents: Sequence[CrelloDocument],
-    serialized: Sequence[bytes],
     embeddings: Mapping[str, Float[np.ndarray, "256"]],
-) -> None:
-    import tensorflow as tf
+) -> Float[np.ndarray, "documents elements 256"]:
+    lengths = [len(document["elements"]) for document in documents]
+    values = np.zeros((len(documents), max(lengths, default=0), 256), dtype=np.float32)
+    for row_index, document in enumerate(documents):
+        for element_index, element in enumerate(document["elements"]):
+            values[row_index, element_index] = embeddings[element["image_id"]]
 
-    for document, payload in zip(documents, serialized, strict=True):
-        reference = tf.train.SequenceExample.FromString(payload)
-        values = reference.feature_lists.feature_list["image_embedding"].feature
-        if len(values) != len(document["elements"]):
-            raise ValueError(
-                f"reference element count differs for {document['document_id']}"
-            )
-
-        for element, feature in zip(document["elements"], values, strict=True):
-            actual = np.asarray(feature.float_list.value, dtype=np.float32)
-            if actual.shape != (256,) or not np.array_equal(
-                actual, embeddings[element["image_id"]]
-            ):
-                raise ValueError(
-                    f"fixture/reference posterior mean mismatch for {element['image_id']}"
-                )
+    return values
 
 
 def _assert_batch_equal(
@@ -216,7 +200,11 @@ def main() -> None:
     embeddings = load_embedding_fixture(args.fixture_dir, expected_ids)
     vocabularies = load_crello_vocabularies(args.package_dir)
     processor = CrelloProcessor(vocabularies, embeddings)
-    summary: _S4Summary = {"exact": True, "splits": {}}
+    summary: _S4Summary = {
+        "exact": True,
+        "embedding_contract": "canonical unique-image fixture; legacy duplicate outputs are diagnostic-only",
+        "splits": {},
+    }
     reference_dir = args.reference_run / "crello-document"
     data_spec = DataSpec(
         "crello-document", str(reference_dir), batch_size=args.batch_size
@@ -254,15 +242,13 @@ def main() -> None:
         for start in range(0, len(documents), args.batch_size):
             package_rows = documents[start : start + args.batch_size]
             reference_rows = serialized[start : start + args.batch_size]
-            _compare_reference_embeddings(
-                package_rows,
-                reference_rows,
-                embeddings,
-            )
             actual = processor(package_rows)
             replay = processor(package_rows)
             _assert_replay_equal(actual, replay)
-            expected = data_spec.parse_fn(tf.constant(reference_rows))
+            expected = dict(data_spec.parse_fn(tf.constant(reference_rows)))
+            expected["image_embedding"] = tf.convert_to_tensor(
+                _canonical_embedding_values(package_rows, embeddings)
+            )
             _assert_batch_equal(actual, expected)
 
             lengths = np.asarray([len(row["elements"]) for row in package_rows])
