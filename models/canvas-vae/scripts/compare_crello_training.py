@@ -837,10 +837,14 @@ def _scaled_cosine_diagnostic(
         / np.sqrt(np.maximum(prediction_norm_squared, 1e-12))[:, np.newaxis]
     )
     tensorflow_cosine = np.sum(target_normalized * prediction_normalized, axis=1)
-    torch_cosine = np.sum(target_mean * prediction_mean, axis=1) / (
-        np.maximum(target_norm, 1e-8) * np.maximum(prediction_norm, 1e-8)
+    torch_normalized_target = target_mean / np.maximum(target_norm, 1e-6)[:, np.newaxis]
+    torch_normalized_prediction = (
+        prediction_mean / np.maximum(prediction_norm, 1e-6)[:, np.newaxis]
     )
+    torch_cosine = np.sum(torch_normalized_target * torch_normalized_prediction, axis=1)
     length_penalty = np.exp(np.minimum(0.0, 1.0 - target_length / prediction_length))
+    tensorflow_similarity = (1.0 + tensorflow_cosine) / 2.0
+    torch_similarity = (1.0 + torch_cosine) / 2.0
     return {
         "target_count": target_count.tolist(),
         "prediction_count": prediction_count.tolist(),
@@ -850,9 +854,9 @@ def _scaled_cosine_diagnostic(
         "torch_cosine_similarity": torch_cosine.tolist(),
         "length_penalty": length_penalty.tolist(),
         "tensorflow_score": np.clip(
-            length_penalty * tensorflow_cosine, 0.0, 1.0
+            length_penalty * tensorflow_similarity, 0.0, 1.0
         ).tolist(),
-        "torch_score": np.clip(length_penalty * torch_cosine, 0.0, 1.0).tolist(),
+        "torch_score": np.clip(length_penalty * torch_similarity, 0.0, 1.0).tolist(),
     }
 
 
@@ -1168,7 +1172,7 @@ def _metric_diagnostic_report(
 
     return {
         "fields": field_reports,
-        "float64_method": "BLEU and scaled cosine formulas recomputed from each side's observed inputs and masks in NumPy float64; vendor/package metric layers remain unchanged. Cosine results include package torch cosine_similarity (eps 1e-8) and vendor TensorFlow l2_normalize (squared-norm epsilon 1e-12).",
+        "float64_method": "BLEU and scaled cosine formulas recomputed from each side's observed inputs and masks in NumPy float64; vendor/package metric layers remain unchanged. Cosine normalization uses an effective norm epsilon of 1e-6, matching TensorFlow l2_normalize's squared-norm epsilon of 1e-12.",
     }
 
 
