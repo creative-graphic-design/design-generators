@@ -19,6 +19,9 @@ def main() -> None:
     parser.add_argument("--encoder-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--num-shards", type=int, default=8)
+    parser.add_argument(
+        "--run-indices", type=int, nargs="+", choices=(1, 2), default=(1, 2)
+    )
     args = parser.parse_args()
     marker = args.source_dir / ".crello-v1-sha256"
     if marker.read_text("ascii").strip() != CRELLO_V1_SHA256:
@@ -38,7 +41,7 @@ def main() -> None:
     if tf.config.list_physical_devices("GPU"):
         raise RuntimeError("Crello reference generation is CPU-only")
 
-    for run_index in (1, 2):
+    for run_index in args.run_indices:
         run_dir = args.output_dir / f"run-{run_index}"
         for name in ("crello-image", "crello-document"):
             transform = create_transform(name)(
