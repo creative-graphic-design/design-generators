@@ -20,12 +20,7 @@ from traingen_parity.compare import (
     compare_optimizer_step,
     compare_step_trace,
 )
-from traingen_parity.determinism import (
-    DeterminismConfig,
-    RNGState,
-    apply_determinism,
-    capture_rng_state,
-)
+from traingen_parity.determinism import RNGState, capture_rng_state
 from traingen_parity.trace import StepTrace, build_step_trace
 from traingen_parity.trace import tensor_sha256
 
@@ -137,54 +132,31 @@ class ProductionTraceCallback(Callback):
         self,
         *,
         trace_path: str,
-        initial_state_path: str,
         final_state_path: str,
-        seed: int,
+        trace_seed: int,
     ) -> None:
         """Initialize paths and buffers for one production training run.
 
         Args:
             trace_path: JSON output path for the per-step trace.
-            initial_state_path: State dictionary loaded before training.
             final_state_path: Output path for the final model state.
-            seed: Seed applied to the production training process.
+            trace_seed: Seed recorded for the production training process.
         """
         self.trace_path = Path(trace_path)
-        self.initial_state_path = Path(initial_state_path)
         self.final_state_path = Path(final_state_path)
-        self.seed = seed
+        self.trace_seed = trace_seed
         self.rows: list[dict[str, object]] = []
         self._batch_rng_digest: str | None = None
         self._batch_digest: dict[str, str] = {}
-        self._initial_cpu_rng_state: Shaped[torch.Tensor, "..."] | None = None
         self._pre_loader_rng_digest: str | None = None
         self._validation_executed = False
         self._validation_loss: float | None = None
 
-    def _restore_initial_cpu_rng(self, batch_idx: int) -> None:
-        """Undo Lightning's first iterator seed draw once per production run."""
-        if batch_idx == 0:
-            if self._initial_cpu_rng_state is None:
-                raise RuntimeError("production trace callback did not initialize RNG")
-
-            torch.set_rng_state(self._initial_cpu_rng_state)
-
     def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Load the paired initial state before the first production batch."""
+        """Record the production RNG state before the loader is iterated."""
         del trainer
-        initial_state = torch.load(
-            self.initial_state_path, map_location="cpu", weights_only=True
-        )
-        if not isinstance(initial_state, dict):
-            raise TypeError("the initial state artifact must be a state dictionary")
-
         module = cast(LayoutCorrectorTrainingModule, pl_module)
-        module.model.model.load_state_dict(initial_state, strict=True)
         module.train()
-        apply_determinism(
-            DeterminismConfig(seed=self.seed, deterministic_algorithms=False)
-        )
-        self._initial_cpu_rng_state = torch.get_rng_state()
         self._pre_loader_rng_digest = _rng_digest(capture_rng_state())
 
     def on_train_batch_start(
@@ -196,7 +168,7 @@ class ProductionTraceCallback(Callback):
     ) -> None:
         """Capture input and RNG digests at the production batch boundary."""
         del trainer, pl_module
-        self._restore_initial_cpu_rng(batch_idx)
+        del batch_idx
 
         self._batch_rng_digest = _rng_digest(capture_rng_state())
         self._batch_digest = {
@@ -259,8 +231,22 @@ class ProductionTraceCallback(Callback):
         self, trainer: Trainer, pl_module: LightningModule
     ) -> None:
         """Capture the validation metric consumed by the plateau scheduler."""
-        del pl_module
         metric = trainer.callback_metrics.get("val_loss")
+        if not isinstance(metric, torch.Tensor):
+            module = cast(LayoutCorrectorTrainingModule, pl_module)
+            metric = module.latest_validation_loss
+            if metric is None and module._validation_losses:
+                first_loss = module._validation_losses[0]
+                total = sum(
+                    float(loss.detach().cpu().item())
+                    for loss in module._validation_losses
+                )
+                metric = torch.tensor(
+                    total / len(module._validation_losses),
+                    device=first_loss.device,
+                    dtype=torch.float64,
+                )
+
         if not isinstance(metric, torch.Tensor):
             raise RuntimeError("production trace did not receive val_loss")
 
@@ -293,7 +279,7 @@ class ProductionTraceCallback(Callback):
                     "rows": self.rows,
                     "scheduler_class": scheduler_class,
                     "scheduler_state": scheduler_state,
-                    "trace_seed": self.seed,
+                    "trace_seed": self.trace_seed,
                     "pre_model_rng_digest": module.pre_model_rng_digest,
                     "pre_loader_rng_digest": self._pre_loader_rng_digest,
                     "scheduler_state_digest": _scheduler_state_digest(scheduler_state),

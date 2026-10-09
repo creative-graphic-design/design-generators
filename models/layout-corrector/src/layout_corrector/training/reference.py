@@ -105,7 +105,6 @@ class FrozenLayoutDMReference:
         scheduler = LayoutDMScheduler(
             num_timesteps=config.num_timesteps,
             q_type="constrained",
-            vocab_size=config.vocab_size,
             mask_token_id=config.mask_token_id,
             pad_token_id=config.pad_token_id,
             var_order=tuple(config.var_order.split("-")),
@@ -114,6 +113,7 @@ class FrozenLayoutDMReference:
             att_T=config.att_T,
             ctt_1=config.ctt_1,
             ctt_T=config.ctt_T,
+            vocab_size=config.vocab_size,
         )
         for key in tokenizer.var_names:
             scheduler.schedules[key] = tuple(

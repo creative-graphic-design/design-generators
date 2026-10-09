@@ -10,9 +10,7 @@ from layout_dm.scheduling_layout_dm import LayoutDMScheduler
 
 
 def test_scheduler_step_shape():
-    scheduler = LayoutDMScheduler(
-        vocab_size=10, mask_token_id=9, pad_token_id=8, token_mask=[[True] * 10] * 6
-    )
+    scheduler = LayoutDMScheduler(vocab_size=10, mask_token_id=9, pad_token_id=8)
     scheduler.set_timesteps(2)
     sample = scheduler.initial_sample(2, 6, device=torch.device("cpu"))
     logits = torch.zeros(2, 6, 10)
@@ -35,7 +33,6 @@ def test_scheduler_keeps_constrained_posterior_floor():
         pad_token_id=2,
         var_order=("x", "y"),
         per_var_full_ids=per_var_full_ids,
-        token_mask=[[True, False, True, True], [True, True, False, True]],
     )
     sample = scheduler.initial_sample(1, 2, device=torch.device("cpu"))
     logits = torch.zeros(1, 2, 4)
@@ -49,6 +46,20 @@ def test_scheduler_keeps_constrained_posterior_floor():
 
     assert out.model_log_prob is not None
     assert out.model_log_prob[0, 1, 0].item() == pytest.approx(math.log(1e-30))
+
+
+def test_scheduler_predict_start_softmaxes_vocab_axis_before_flattening() -> None:
+    scheduler = LayoutDMScheduler(vocab_size=4, mask_token_id=3, pad_token_id=2)
+    logits = torch.tensor([[[1.0, 2.0, 3.0, 9.0], [4.0, 5.0, 6.0, 9.0]]])
+
+    result = scheduler.predict_start(logits)
+    expected = torch.log_softmax(logits[:, :, :-1].permute(0, 2, 1).double(), dim=1)
+    expected = expected.float()
+    expected = torch.cat((expected, torch.full((1, 1, 2), -70.0)), dim=1).clamp(
+        -70.0, 0.0
+    )
+
+    assert torch.equal(result, expected)
 
 
 def test_scheduler_masks_weak_condition_tokens_at_initialization():

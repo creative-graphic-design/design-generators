@@ -47,7 +47,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         mask_token_id: Full vocabulary id used for mask tokens.
         pad_token_id: Full vocabulary id used for padding tokens.
         var_order: Per-element token variable order.
-        token_mask: Optional valid-token mask for each sequence position.
         per_var_full_ids: Optional constrained vocabulary ids per variable.
         att_1: Initial keep-probability schedule value.
         att_T: Final keep-probability schedule value.
@@ -73,7 +72,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         mask_token_id: int,
         pad_token_id: int,
         var_order: tuple[str, ...] = ("c", "x", "y", "w", "h"),
-        token_mask: list[list[bool]] | None = None,
         per_var_full_ids: dict[str, list[int]] | None = None,
         att_1: float = 0.99999,
         att_T: float = 0.000009,
@@ -87,9 +85,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         self.mask_token_id = mask_token_id
         self.pad_token_id = pad_token_id
         self.var_order = tuple(var_order)
-        self.token_mask = (
-            None if token_mask is None else torch.tensor(token_mask, dtype=torch.bool)
-        )
         self.per_var_full_ids = per_var_full_ids
         self.att_1 = att_1
         self.att_T = att_T

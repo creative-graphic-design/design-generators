@@ -221,9 +221,8 @@ def test_production_trace_accepts_stop_before_validation(tmp_path: Path) -> None
     trace_path = tmp_path / "trace.json"
     callback = parity_module.ProductionTraceCallback(
         trace_path=str(trace_path),
-        initial_state_path=str(tmp_path / "initial.pt"),
         final_state_path=str(tmp_path / "final.pt"),
-        seed=42975,
+        trace_seed=42975,
     )
     model = nn.Module()
     model.model = nn.Linear(1, 1)
@@ -244,6 +243,28 @@ def test_production_trace_accepts_stop_before_validation(tmp_path: Path) -> None
     assert record["validation_executed"] is False
     assert record["validation_loss"] is None
     assert record["scheduler_class"] is None
+
+
+def test_production_trace_reads_unweighted_validation_mean(
+    tmp_path: Path,
+) -> None:
+    callback = parity_module.ProductionTraceCallback(
+        trace_path=str(tmp_path / "trace.json"),
+        final_state_path=str(tmp_path / "final.pt"),
+        trace_seed=42975,
+    )
+    module = SimpleNamespace(
+        latest_validation_loss=None,
+        _validation_losses=[torch.tensor(2.0), torch.tensor(4.0)],
+    )
+    trainer = SimpleNamespace(callback_metrics={})
+
+    callback.on_validation_epoch_end(
+        cast(Trainer, trainer), cast(LightningModule, module)
+    )
+
+    assert callback._validation_executed is True
+    assert callback._validation_loss == 3.0
 
 
 class _FakeProcessedDataset(Dataset[dict[str, object]]):
@@ -312,18 +333,10 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     def capture_log(
         self: LayoutCorrectorTrainingModule, name: str, *args: object, **kwargs: object
     ) -> None:
-        del self, args
-        logged[name] = kwargs
+        del self
+        logged[name] = {"args": args, **kwargs}
 
     monkeypatch.setattr(LayoutCorrectorTrainingModule, "log", capture_log)
-    assert module.configure_callbacks() == []
-    monkeypatch.setenv("LAYOUT_CORRECTOR_TRACE_PATH", "trace.jsonl")
-    with pytest.raises(RuntimeError, match="requires all trace paths"):
-        module.configure_callbacks()
-    monkeypatch.setenv("LAYOUT_CORRECTOR_INITIAL_STATE_PATH", "initial.pt")
-    monkeypatch.setenv("LAYOUT_CORRECTOR_FINAL_STATE_PATH", "final.pt")
-    monkeypatch.setenv("LAYOUT_CORRECTOR_TRACE_SEED", "42975")
-    assert len(module.configure_callbacks()) == 1
     assert module.layout_dm_checkpoint_sha256 == "checkpoint-hash"
     assert module._reference_value() is reference
     assert module._reference_model_value() is reference.model
@@ -356,8 +369,22 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     loss = module.training_step(batch, 0)
     assert loss.ndim == 0
     assert "train_loss" in module.latest_step_trace
-    assert module.validation_step(batch, 0).ndim == 0
-    assert logged["val_loss"]["batch_size"] == 2
+    module.on_validation_epoch_start()
+    validation_losses = iter((torch.tensor(2.0), torch.tensor(4.0)))
+
+    def fake_corrector_loss(
+        prepared: dict[str, torch.Tensor],
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        del prepared
+        return next(validation_losses), {}
+
+    monkeypatch.setattr(module, "_corrector_loss", fake_corrector_loss)
+    module.validation_step(batch, 0)
+    module.validation_step({"input_ids": torch.tensor([[3] * 10])}, 1)
+    module.on_validation_epoch_end()
+    assert "batch_size" not in logged["val_loss"]
+    val_loss_args = cast(tuple[torch.Tensor, ...], logged["val_loss"]["args"])
+    assert val_loss_args[0].item() == 3.0
 
     loss.backward()
     module.configure_gradient_clipping(

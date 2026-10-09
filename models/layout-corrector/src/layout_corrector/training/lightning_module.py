@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import hashlib
-import os
 from pathlib import Path
 from typing import cast
 
@@ -12,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from jaxtyping import Float, Int, Shaped
 from laygen.common.randomness import multinomial, randint
-from lightning.pytorch import Callback, LightningModule
+from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import (
     LRSchedulerConfigType,
     OptimizerLRScheduler,
@@ -92,6 +91,7 @@ class LayoutCorrectorTrainingModule(LightningModule):
         torch.nn.Module.to(self.model, initialization_device)
         self.model.initialize_weights()
         self.initialization_device = str(initialization_device)
+
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.betas = betas
@@ -102,40 +102,8 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.scheduler_threshold = scheduler_threshold
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self.latest_gradient_norm: Shaped[torch.Tensor, ""] | None = None
-
-    def configure_callbacks(self) -> list[Callback]:
-        """Enable the opt-in production trace callback for parity evidence."""
-        callback_paths = {
-            name: os.environ.get(name)
-            for name in (
-                "LAYOUT_CORRECTOR_TRACE_PATH",
-                "LAYOUT_CORRECTOR_INITIAL_STATE_PATH",
-                "LAYOUT_CORRECTOR_FINAL_STATE_PATH",
-                "LAYOUT_CORRECTOR_TRACE_SEED",
-            )
-        }
-        if not any(callback_paths.values()):
-            return []
-
-        if not all(callback_paths.values()):
-            raise RuntimeError(
-                "Layout-Corrector production tracing requires all trace paths and seed"
-            )
-
-        from .parity import ProductionTraceCallback
-
-        return [
-            ProductionTraceCallback(
-                trace_path=cast(str, callback_paths["LAYOUT_CORRECTOR_TRACE_PATH"]),
-                initial_state_path=cast(
-                    str, callback_paths["LAYOUT_CORRECTOR_INITIAL_STATE_PATH"]
-                ),
-                final_state_path=cast(
-                    str, callback_paths["LAYOUT_CORRECTOR_FINAL_STATE_PATH"]
-                ),
-                seed=int(cast(str, callback_paths["LAYOUT_CORRECTOR_TRACE_SEED"])),
-            )
-        ]
+        self._validation_losses: list[Shaped[torch.Tensor, ""]] = []
+        self.latest_validation_loss: Shaped[torch.Tensor, ""] | None = None
 
     def _ensure_reference_device(self, device: torch.device) -> None:
         reference_model = self._reference_model_value()
@@ -390,12 +358,29 @@ class LayoutCorrectorTrainingModule(LightningModule):
         del batch_idx
         prepared = self.preprocess(batch)
         loss, _ = self._corrector_loss(prepared)
-        batch_size = int(cast(torch.Tensor, batch["input_ids"]).shape[0])
-        self.log(
-            "val_loss",
-            loss,
-            batch_size=batch_size,
-            prog_bar=True,
-            sync_dist=True,
-        )
+        self._validation_losses.append(loss.detach())
         return loss
+
+    def on_validation_epoch_start(self) -> None:
+        """Reset the per-batch values used by the reference-style reduction."""
+        self._validation_losses.clear()
+
+    def _validation_loss_mean(self) -> Shaped[torch.Tensor, ""]:
+        if not self._validation_losses:
+            raise RuntimeError("validation produced no batch losses")
+
+        first_loss = self._validation_losses[0]
+        total = sum(
+            float(loss.detach().cpu().item()) for loss in self._validation_losses
+        )
+        return torch.tensor(
+            total / len(self._validation_losses),
+            device=first_loss.device,
+            dtype=torch.float64,
+        )
+
+    def on_validation_epoch_end(self) -> None:
+        """Log the unweighted mean of validation-batch losses."""
+        validation_loss = self._validation_loss_mean()
+        self.latest_validation_loss = validation_loss.detach()
+        self.log("val_loss", validation_loss, prog_bar=True, sync_dist=True)

@@ -35,7 +35,6 @@ def tiny_layout_dm():
         vocab_size=config.vocab_size,
         mask_token_id=config.mask_token_id,
         pad_token_id=config.pad_token_id,
-        token_mask=tokenizer.token_mask().tolist(),
         per_var_full_ids=tokenizer.full_id_maps(),
     )
     denoiser = LayoutDMDenoiser(
