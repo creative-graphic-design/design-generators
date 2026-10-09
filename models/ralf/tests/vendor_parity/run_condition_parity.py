@@ -156,6 +156,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--precomputed-root", type=Path, default=None)
     parser.add_argument("--runtime-freeze-path", type=Path, default=None)
     parser.add_argument("--runtime-python", type=Path, default=Path(sys.executable))
+    parser.add_argument(
+        "--seed",
+        type=int,
+        choices=(0, 1, 2),
+        default=None,
+        help="run one inference seed in an isolated lane",
+    )
     parser.add_argument("--gpu", type=int, required=True)
     parser.add_argument("--test-count", type=int, default=TEST_LIMIT)
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
@@ -668,15 +675,27 @@ def vendor_prediction_dir(
             ]
         )
     elif args.condition == "relation":
-        relation_wrapper = (
-            "import random; random.seed(0); "
-            + (
-                "import torch; torch.backends.cudnn.enabled=False; "
-                if args.disable_cudnn
-                else ""
+        relation_wrapper = "import random; random.seed(0); "
+        if args.disable_cudnn:
+            relation_wrapper += "import torch; torch.backends.cudnn.enabled=False; "
+        if len(INFERENCE_SEEDS) == 1:
+            seed = INFERENCE_SEEDS[0]
+            relation_wrapper += (
+                "import importlib; "
+                "module=importlib.import_module('image2layout.train.inference'); "
+                "original_product=module.itertools.product; "
+                f"selected_seed={seed}; "
+                "module.itertools.product=lambda *values: "
+                "original_product(values[0], [selected_seed], *values[2:]) "
+                "if len(values) == 4 and list(values[1]) == [0] "
+                "else original_product(*values); "
+                "module.main()"
             )
-            + "import runpy; runpy.run_module('image2layout.train.inference', run_name='__main__')"
-        )
+        else:
+            relation_wrapper += (
+                "import runpy; "
+                "runpy.run_module('image2layout.train.inference', run_name='__main__')"
+            )
         command.extend(["-c", relation_wrapper])
     elif args.disable_cudnn:
         command.extend(["-c", module_wrapper])
@@ -696,7 +715,7 @@ def vendor_prediction_dir(
             f"cond_type={CONDITIONS[args.condition]}",
             "test_split=test",
             "+num_workers=0",
-            "num_seeds=3",
+            f"num_seeds={len(INFERENCE_SEEDS)}",
             "+run_on_local=True",
         ]
     )
@@ -842,7 +861,7 @@ def compare_predictions(
     return {
         "status": "bitwise_equal",
         "seeds": list(INFERENCE_SEEDS),
-        "predictions_per_seed": len(package[0]),
+        "predictions_per_seed": len(package[INFERENCE_SEEDS[0]]),
         "total_predictions": sum(len(rows) for rows in package.values()),
         "metrics_bitwise_equal": True,
         "metric_count": len(package_metrics),
@@ -1241,7 +1260,10 @@ def update_manifest_parity(*, args: argparse.Namespace, artifact_path: Path) -> 
 
 
 def main() -> None:
+    global INFERENCE_SEEDS
     args = parse_args()
+    if args.seed is not None:
+        INFERENCE_SEEDS = (args.seed,)
     if args.disable_cudnn:
         torch.backends.cudnn.enabled = False
     args.dataset_root = args.dataset_root.resolve()
