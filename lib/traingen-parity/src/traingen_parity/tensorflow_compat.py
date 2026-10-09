@@ -103,7 +103,7 @@ def install_sparse_categorical_accuracy_compat() -> None:
     https://github.com/tensorflow/tensorflow/blob/v2.3.0/tensorflow/python/keras/metrics.py#L3271-L3309
     The Keras 2.15 public wrapper also squeezes a trailing singleton from the
     metric output, which changes [batch, 1] to [batch]:
-    https://github.com/keras-team/tf-keras/blob/v2.15.0/tf_keras/metrics/accuracy_metrics.py#L1928-L1935
+    https://github.com/keras-team/tf-keras/blob/v2.15.0/tf_keras/metrics/accuracy_metrics.py#L433-L465
     """
     tf = import_module("tensorflow")
     original = tf.keras.metrics.sparse_categorical_accuracy
