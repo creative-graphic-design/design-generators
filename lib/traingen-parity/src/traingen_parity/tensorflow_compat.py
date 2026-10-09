@@ -12,8 +12,10 @@ import sys
 from collections.abc import Mapping, Sequence
 from importlib import import_module
 from types import ModuleType
+from typing import TypeVar
 
 KerasLookupKwarg = str | int | float | bool | None | Sequence[str]
+_Tensor = TypeVar("_Tensor")
 
 
 def normalize_lookup_kwargs(
@@ -69,3 +71,26 @@ def install_keras_preprocessing_compat() -> None:
     vars(experimental)["preprocessing"] = preprocessing
     sys.modules["tensorflow.keras.layers.experimental"] = experimental
     sys.modules["tensorflow.keras.layers.experimental.preprocessing"] = preprocessing
+
+
+def install_assert_all_finite_compat() -> None:
+    """Supply a default message for reference calls using the pre-2.15 form.
+
+    TensorFlow 2.15 requires ``message`` for ``assert_all_finite`` although
+    older reference code may omit it. The original TensorFlow assertion still
+    checks every value and returns the checked tensor.
+
+    Raises:
+        ImportError: If TensorFlow is not installed.
+    """
+    tf = import_module("tensorflow")
+    assert_all_finite = tf.debugging.assert_all_finite
+
+    def assert_all_finite_compat(
+        x: _Tensor,
+        message: str = "TensorFlow reference tensor must be finite",
+        name: str | None = None,
+    ) -> _Tensor:
+        return assert_all_finite(x, message, name=name)
+
+    tf.debugging.assert_all_finite = assert_all_finite_compat
