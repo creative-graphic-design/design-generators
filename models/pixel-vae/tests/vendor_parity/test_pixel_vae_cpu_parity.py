@@ -61,7 +61,9 @@ DIAGNOSTIC_TRAIN_PAIR_COUNT = 8
 CALIBRATION_SELECTION_RULE = (
     "deduplicated canonical train PNGs in UTF-8 document_id/source element order; "
     "repeat r uses document-stage indexes [2(r-1), 2r) and filtered training-stage "
-    "indexes [6(r-1), 6r)"
+    "indexes [6(r-1), 6r); each S4 type uses unique index (r-1) mod n, recording "
+    "its unique count and whether it wrapped; distinct S4 IDs are required only "
+    "when that type has at least three unique PNGs"
 )
 
 
@@ -75,10 +77,18 @@ class ImageExample:
 
 
 @dataclass(frozen=True)
+class ElementTypeSelection:
+    example: ImageExample
+    unique_png_index: int
+    unique_png_count: int
+    wrapped: bool
+
+
+@dataclass(frozen=True)
 class ParityInputSelection:
     document_images: list[ImageExample]
     training_images: list[ImageExample]
-    type_examples: list[ImageExample]
+    type_selections: list[ElementTypeSelection]
     diagnostic_pairs: list[tuple[str, list[ImageExample]]]
     record: dict[str, JSONValue]
 
@@ -443,7 +453,8 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
             "Crello v1 contains non-256x256 or invalid PNGs by element type: "
             f"non_256_examples={non_256}, invalid_png_counts={invalid_pngs}"
         )
-    type_examples = selection.type_examples
+    type_selections = selection.type_selections
+    type_examples = [selected.example for selected in type_selections]
     if {example.element_type.decode("utf-8") for example in type_examples} != set(
         audit["dimensions_by_element_type"]
     ):
@@ -507,6 +518,7 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
             example.element_type.decode("utf-8") for example in type_examples
         ],
         "s4_image_ids": [example.image_id for example in type_examples],
+        "s4_type_selections": _element_type_selection_records(type_selections),
         "s4_document_counts": audit["document_counts"],
         "s4_element_counts": audit["element_counts"],
         "s4_dimensions_by_element_type": audit["dimensions_by_element_type"],
@@ -893,8 +905,9 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
         )
         document_images = [document_pool[index] for index in document_indices]
         training_images = [training_pool[index] for index in training_indices]
-        type_examples = _select_one_per_element_type("train", occurrence=repeat - 1)
-        _require_audit_type_coverage(type_examples)
+        type_selections = _select_one_per_element_type("train", occurrence=repeat - 1)
+        _require_audit_type_coverage(type_selections)
+        type_examples = [selected.example for selected in type_selections]
         record: dict[str, JSONValue] = {
             "mode": mode,
             "repeat": repeat,
@@ -905,9 +918,10 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
             "training_image_ids": [example.image_id for example in training_images],
             "s4_element_type_occurrence": repeat - 1,
             "s4_image_ids": [example.image_id for example in type_examples],
+            "s4_type_selections": _element_type_selection_records(type_selections),
         }
         return ParityInputSelection(
-            document_images, training_images, type_examples, [], record
+            document_images, training_images, type_selections, [], record
         )
 
     if mode == "heldout":
@@ -915,8 +929,9 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
         training_images = _select_images("test", 6, filter_training_types=True)
         _require_image_count(document_images, 6, split="test", stage="held-out S1")
         _require_image_count(training_images, 6, split="test", stage="held-out S2/S3")
-        type_examples = _select_one_per_element_type("test")
-        _require_audit_type_coverage(type_examples)
+        type_selections = _select_one_per_element_type("test")
+        _require_audit_type_coverage(type_selections)
+        type_examples = [selected.example for selected in type_selections]
         record: dict[str, JSONValue] = {
             "mode": mode,
             "selection_rule": "first canonical test PNGs by document and source element order",
@@ -924,9 +939,10 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
             "s2_image_ids": [example.image_id for example in training_images[:2]],
             "s3_image_ids": [example.image_id for example in training_images[:6]],
             "s4_image_ids": [example.image_id for example in type_examples],
+            "s4_type_selections": _element_type_selection_records(type_selections),
         }
         return ParityInputSelection(
-            document_images, training_images, type_examples, [], record
+            document_images, training_images, type_selections, [], record
         )
 
     if mode == "diagnostic":
@@ -979,15 +995,32 @@ def _require_image_count(
         )
 
 
-def _require_audit_type_coverage(examples: list[ImageExample]) -> None:
+def _require_audit_type_coverage(selections: list[ElementTypeSelection]) -> None:
     audit = json.loads(AUDIT_PATH.read_text(encoding="utf-8"))
-    selected_types = {example.element_type.decode("utf-8") for example in examples}
+    selected_types = {
+        selection.example.element_type.decode("utf-8") for selection in selections
+    }
     expected_types = set(audit["dimensions_by_element_type"])
     if selected_types != expected_types:
         raise ValueError(
             "input selection does not cover every audited element type: "
             f"selected={sorted(selected_types)}, expected={sorted(expected_types)}"
         )
+
+
+def _element_type_selection_records(
+    selections: list[ElementTypeSelection],
+) -> list[dict[str, JSONValue]]:
+    return [
+        {
+            "element_type": selection.example.element_type.decode("utf-8"),
+            "image_id": selection.example.image_id,
+            "unique_png_index": selection.unique_png_index,
+            "unique_png_count": selection.unique_png_count,
+            "wrapped": selection.wrapped,
+        }
+        for selection in selections
+    ]
 
 
 def _write_complete_input_plan() -> None:
@@ -1089,13 +1122,14 @@ def _select_images(
 
 def _select_one_per_element_type(
     split: str, *, occurrence: int = 0
-) -> list[ImageExample]:
+) -> list[ElementTypeSelection]:
     if occurrence < 0:
         raise ValueError("element-type occurrence must be nonnegative")
 
     import tensorflow as tf
 
     examples: dict[bytes, list[ImageExample]] = {}
+    seen: dict[bytes, set[str]] = {}
     records = sorted(_record_index(split))
     for _document_key, document_id, path, payload_offset, payload_length in records:
         with path.open("rb") as stream:
@@ -1106,30 +1140,31 @@ def _select_one_per_element_type(
         images = sequence.feature_lists.feature_list["image_bytes"].feature
         for index, (element_type, image) in enumerate(zip(types, images, strict=True)):
             kind = element_type.bytes_list.value[0]
-            examples.setdefault(kind, [])
-            if len(examples[kind]) > occurrence:
-                continue
             png_bytes = image.bytes_list.value[0]
             image_id = f"crello-v1/{split}/{hashlib.sha256(png_bytes).hexdigest()}"
-            if any(example.image_id == image_id for example in examples[kind]):
+            seen.setdefault(kind, set())
+            examples.setdefault(kind, [])
+            if image_id in seen[kind]:
                 continue
-            examples[kind].append(
-                ImageExample(image_id, document_id, index, kind, png_bytes)
-            )
+            seen[kind].add(image_id)
+            if len(examples[kind]) <= occurrence:
+                examples[kind].append(
+                    ImageExample(image_id, document_id, index, kind, png_bytes)
+                )
 
-    if not examples:
+    if not seen:
         raise ValueError(
             f"split {split} has no unique PNGs for an element-type selection"
         )
-    for element_type, examples_by_type in examples.items():
-        if len(examples_by_type) <= occurrence:
-            raise ValueError(
-                f"split {split} element type {element_type.decode('utf-8')!r} has "
-                f"{len(examples_by_type)} unique PNGs; occurrence {occurrence} "
-                f"requires at least {occurrence + 1}"
-            )
-
-    return [examples_by_type[occurrence] for examples_by_type in examples.values()]
+    return [
+        ElementTypeSelection(
+            example=examples[element_type][occurrence % len(image_ids)],
+            unique_png_index=occurrence % len(image_ids),
+            unique_png_count=len(image_ids),
+            wrapped=occurrence >= len(image_ids),
+        )
+        for element_type, image_ids in seen.items()
+    ]
 
 
 def _record_index(split: str) -> Iterator[tuple[bytes, str, Path, int, int]]:
@@ -1190,20 +1225,33 @@ def test_selection_plans_cover_calibration_repeats_and_heldout(
             for index, first in enumerate(repeated_ids)
             for second in repeated_ids[index + 1 :]
         )
-    s4_ids = [
-        set(_record_string_ids(selection.record, "s4_image_ids"))
+    s4_by_type = [
+        {
+            selected.example.element_type.decode("utf-8"): selected
+            for selected in selection.type_selections
+        }
         for selection in calibration
     ]
-    assert all(
-        first.isdisjoint(second)
-        for index, first in enumerate(s4_ids)
-        for second in s4_ids[index + 1 :]
-    )
+    assert all(set(selection) == set(s4_by_type[0]) for selection in s4_by_type[1:])
+    for element_type in s4_by_type[0]:
+        selected = [selection[element_type] for selection in s4_by_type]
+        unique_counts = {item.unique_png_count for item in selected}
+        assert len(unique_counts) == 1
+        unique_count = selected[0].unique_png_count
+        if unique_count >= 3:
+            assert len({item.example.image_id for item in selected}) == 3
+        else:
+            assert [item.unique_png_index for item in selected] == [
+                repeat % unique_count for repeat in range(3)
+            ]
+            assert [item.wrapped for item in selected] == [
+                repeat >= unique_count for repeat in range(3)
+            ]
 
     heldout = _select_parity_inputs("heldout")
     assert len(heldout.document_images) == 6
     assert len(heldout.training_images) == 6
-    assert len(heldout.type_examples) == 5
+    assert len(heldout.type_selections) == 5
     assert heldout.record["s1_image_ids"] == [
         example.image_id for example in heldout.document_images[:2]
     ]
@@ -1271,11 +1319,12 @@ def test_selection_plan_reports_short_lists_and_sparse_element_types(
         ],
     )
     monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", sparse_root)
-    with pytest.raises(
-        ValueError,
-        match="element type 'imageElement' has 1 unique PNGs; occurrence 1 requires at least 2",
-    ):
-        _select_one_per_element_type("train", occurrence=1)
+    wrapped = _select_one_per_element_type("train", occurrence=1)
+    assert len(wrapped) == 1
+    assert wrapped[0].example.element_type == b"imageElement"
+    assert wrapped[0].unique_png_index == 0
+    assert wrapped[0].unique_png_count == 1
+    assert wrapped[0].wrapped
 
 
 def test_plan_mode_writes_all_input_selections_without_model_compute(
@@ -1302,6 +1351,21 @@ def test_plan_mode_writes_all_input_selections_without_model_compute(
     assert (
         json.loads(expected[-1].read_text(encoding="utf-8"))["selection_errors"] == []
     )
+    repeat_1 = json.loads(expected[1].read_text(encoding="utf-8"))
+    repeat_2 = json.loads(expected[2].read_text(encoding="utf-8"))
+    repeat_3 = json.loads(expected[3].read_text(encoding="utf-8"))
+    text_selections = [
+        next(
+            item
+            for item in repeat["s4_type_selections"]
+            if item["element_type"] == "textElement"
+        )
+        for repeat in (repeat_1, repeat_2, repeat_3)
+    ]
+    assert [item["unique_png_count"] for item in text_selections] == [1, 1, 1]
+    assert [item["unique_png_index"] for item in text_selections] == [0, 0, 0]
+    assert [item["wrapped"] for item in text_selections] == [False, True, True]
+    assert len({item["image_id"] for item in text_selections}) == 1
 
 
 def _install_synthetic_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1354,13 +1418,15 @@ def _synthetic_documents(
         document_id = f"{split}-doc-{document_index:03d}"
         elements = []
         for element_type in element_types:
-            source_document = (
-                0
-                if split == "train"
+            source_document = document_index
+            if split == "train" and element_type == b"textElement":
+                source_document = 0
+            elif (
+                split == "train"
                 and document_index == 1
                 and element_type == b"imageElement"
-                else document_index
-            )
+            ):
+                source_document = 0
             image_bytes = (
                 f"{split}/{source_document}/{element_type.decode('utf-8')}".encode()
             )

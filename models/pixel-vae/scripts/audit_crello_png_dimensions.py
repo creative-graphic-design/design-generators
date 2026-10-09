@@ -8,6 +8,7 @@ import json
 import struct
 import zipfile
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Final
 
@@ -72,6 +73,10 @@ def main() -> None:
     dimension_counts: dict[str, Counter[str]] = defaultdict(Counter)
     invalid_pngs: Counter[str] = Counter()
     non_256_examples: dict[str, list[dict[str, str | int]]] = defaultdict(list)
+    text_element_counts: Counter[str] = Counter()
+    text_element_hashes: dict[str, set[str]] = {
+        split: set() for split in EXPECTED_DOCUMENTS
+    }
 
     for split in ("train", "val", "test"):
         split_paths = sorted(
@@ -93,6 +98,11 @@ def main() -> None:
                 kind = element_type.bytes_list.value[0].decode("utf-8")
                 png_bytes = encoded.bytes_list.value[0]
                 type_counts[kind] += 1
+                if kind == "textElement":
+                    text_element_counts[split] += 1
+                    text_element_hashes[split].add(
+                        hashlib.sha256(png_bytes).hexdigest()
+                    )
                 try:
                     height, width = png_dimensions(png_bytes)
                     decoded = tf.io.decode_png(png_bytes, channels=4)
@@ -117,6 +127,9 @@ def main() -> None:
 
     if dict(document_counts) != EXPECTED_DOCUMENTS:
         raise ValueError(f"unexpected document counts: {dict(document_counts)}")
+    text_element_identity, all_splits_text_identical = (
+        summarize_text_element_png_identity(text_element_counts, text_element_hashes)
+    )
     report = {
         "source_url": SOURCE_URL,
         "source_bytes": SOURCE_BYTES,
@@ -129,6 +142,10 @@ def main() -> None:
         },
         "invalid_png_counts": dict(invalid_pngs),
         "non_256_examples": dict(non_256_examples),
+        "text_element_png_identity": {
+            "by_split": text_element_identity,
+            "across_splits_byte_identical": all_splits_text_identical,
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
@@ -149,6 +166,34 @@ def png_dimensions(png_bytes: bytes) -> tuple[int, int]:
     if width <= 0 or height <= 0:
         raise ValueError("PNG dimensions must be positive")
     return height, width
+
+
+def summarize_text_element_png_identity(
+    counts_by_split: Mapping[str, int],
+    hashes_by_split: Mapping[str, set[str]],
+) -> tuple[dict[str, dict[str, int | bool]], bool]:
+    """Summarize whether text-element PNG bytes are unique within and across splits."""
+    by_split = {
+        split: {
+            "element_count": counts_by_split.get(split, 0),
+            "unique_png_count": len(hashes_by_split.get(split, set())),
+            "within_split_byte_identical": counts_by_split.get(split, 0) > 0
+            and len(hashes_by_split.get(split, set())) == 1,
+        }
+        for split in EXPECTED_DOCUMENTS
+    }
+    all_hashes = set().union(
+        *(hashes_by_split.get(split, set()) for split in EXPECTED_DOCUMENTS)
+    )
+    across_splits = (
+        all(
+            counts_by_split.get(split, 0) > 0
+            and len(hashes_by_split.get(split, set())) == 1
+            for split in EXPECTED_DOCUMENTS
+        )
+        and len(all_hashes) == 1
+    )
+    return by_split, across_splits
 
 
 def _extract_tfrecords(archive_path: Path, output_dir: Path) -> list[Path]:

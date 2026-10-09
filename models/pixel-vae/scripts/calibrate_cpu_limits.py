@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from pixel_vae.testing import calibrate_limits
+if TYPE_CHECKING:
+    from pixel_vae.testing import JSONValue
 
 DEFAULT_INPUT_DIR: Final[Path] = Path(".cache/pixel-vae/parity/calibration")
 DEFAULT_OUTPUT: Final[Path] = DEFAULT_INPUT_DIR / "limits.json"
@@ -16,7 +18,9 @@ DEFAULT_LOWER_BOUNDS: Final[Path] = Path("models/pixel-vae/parity-limit-floors.j
 CALIBRATION_SELECTION_RULE: Final[str] = (
     "deduplicated canonical train PNGs in UTF-8 document_id/source element order; "
     "repeat r uses document-stage indexes [2(r-1), 2r) and filtered training-stage "
-    "indexes [6(r-1), 6r)"
+    "indexes [6(r-1), 6r); each S4 type uses unique index (r-1) mod n, recording "
+    "its unique count and whether it wrapped; distinct S4 IDs are required only "
+    "when that type has at least three unique PNGs"
 )
 LOWER_BOUNDS_SOURCE: Final[str] = (
     "Originally registered floor, not a limit frozen by failed held-out runs "
@@ -52,6 +56,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Validate repeat independence and write the frozen numeric limits."""
+    from pixel_vae.testing import calibrate_limits
+
     args = parse_args()
     if args.output.exists():
         raise FileExistsError(
@@ -60,6 +66,7 @@ def main() -> None:
 
     records = []
     input_selection_paths = []
+    s4_selections_by_repeat: list[dict[str, tuple[str, int]]] = []
     for repeat in range(1, 4):
         path = args.input_dir / f"repeat-{repeat}.json"
         record = json.loads(path.read_text(encoding="utf-8"))
@@ -97,12 +104,9 @@ def main() -> None:
             raise ValueError(
                 f"calibration S2 IDs differ from the selected inputs: {path}"
             )
-        if selection.get("s4_element_type_occurrence") != repeat - 1:
-            raise ValueError(f"unexpected S4 per-type input occurrence: {path}")
-        if selection.get("s4_image_ids") != record.get("s4_image_ids"):
-            raise ValueError(
-                f"calibration S4 IDs differ from the parity record: {path}"
-            )
+        s4_selections_by_repeat.append(
+            _validate_s4_type_selections(selection, record, repeat, path)
+        )
 
     s1_id_sets = [set(record["s1_image_ids"]) for _, record in records]
     training_id_sets = [
@@ -127,6 +131,16 @@ def main() -> None:
     }
     if len(s4_element_types) != 1:
         raise ValueError("calibration S4 checks do not cover the same element types")
+    for element_type in s4_selections_by_repeat[0]:
+        selections = [repeat[element_type] for repeat in s4_selections_by_repeat]
+        unique_counts = {selection[1] for selection in selections}
+        if len(unique_counts) != 1:
+            raise ValueError(f"calibration S4 unique counts differ for {element_type}")
+        unique_count = selections[0][1]
+        if unique_count >= 3 and len({selection[0] for selection in selections}) != 3:
+            raise ValueError(
+                f"calibration S4 inputs must be distinct for {element_type}"
+            )
 
     digests = {record.get("encoder_state_sha256") for _, record in records}
     process_ids = {record.get("process_id") for _, record in records}
@@ -175,6 +189,9 @@ def main() -> None:
                 "s1_image_ids": record["s1_image_ids"],
                 "training_image_ids": record["s3_image_ids"],
                 "s4_image_ids": record["s4_image_ids"],
+                "s4_type_selections": record["calibration_selection"][
+                    "s4_type_selections"
+                ],
             }
             for repeat, (_, record) in enumerate(records, start=1)
         },
@@ -195,6 +212,61 @@ def main() -> None:
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(json.dumps(result, indent=2, sort_keys=True))
+
+
+def _validate_s4_type_selections(
+    selection: Mapping[str, JSONValue],
+    record: Mapping[str, JSONValue],
+    repeat: int,
+    path: Path,
+) -> dict[str, tuple[str, int]]:
+    if selection.get("s4_element_type_occurrence") != repeat - 1:
+        raise ValueError(f"unexpected S4 per-type input occurrence: {path}")
+    if selection.get("s4_image_ids") != record.get("s4_image_ids"):
+        raise ValueError(f"calibration S4 IDs differ from the parity record: {path}")
+    type_selections = selection.get("s4_type_selections")
+    if not isinstance(type_selections, list) or not all(
+        isinstance(item, dict) for item in type_selections
+    ):
+        raise ValueError(f"calibration S4 type selection details are missing: {path}")
+
+    expected_types: list[str] = []
+    expected_ids: list[str] = []
+    per_type: dict[str, tuple[str, int]] = {}
+    for item in type_selections:
+        element_type = item.get("element_type")
+        image_id = item.get("image_id")
+        unique_index = item.get("unique_png_index")
+        unique_count = item.get("unique_png_count")
+        wrapped = item.get("wrapped")
+        if (
+            not isinstance(element_type, str)
+            or not isinstance(image_id, str)
+            or type(unique_index) is not int
+            or type(unique_count) is not int
+            or unique_count < 1
+            or not isinstance(wrapped, bool)
+        ):
+            raise ValueError(f"invalid S4 type selection details: {path}")
+        if element_type in per_type:
+            raise ValueError(f"duplicate S4 element type selection: {path}")
+        if unique_index != (repeat - 1) % unique_count:
+            raise ValueError(f"unexpected S4 wrapped index for {element_type}: {path}")
+        if wrapped != ((repeat - 1) >= unique_count):
+            raise ValueError(f"unexpected S4 wrap flag for {element_type}: {path}")
+        per_type[element_type] = (image_id, unique_count)
+        expected_types.append(element_type)
+        expected_ids.append(image_id)
+
+    if expected_types != record.get("s4_element_types"):
+        raise ValueError(f"calibration S4 types differ from the parity record: {path}")
+    if expected_ids != selection.get("s4_image_ids"):
+        raise ValueError(f"calibration S4 type IDs differ from the selection: {path}")
+    if type_selections != record.get("s4_type_selections"):
+        raise ValueError(
+            f"calibration S4 type details differ from the parity record: {path}"
+        )
+    return per_type
 
 
 if __name__ == "__main__":
