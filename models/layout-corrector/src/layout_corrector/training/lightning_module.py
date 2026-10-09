@@ -238,7 +238,6 @@ class LayoutCorrectorTrainingModule(LightningModule):
             clip_value,
             norm_type=2.0,
             error_if_nonfinite=False,
-            foreach=False,
         )
 
     @torch.no_grad()
