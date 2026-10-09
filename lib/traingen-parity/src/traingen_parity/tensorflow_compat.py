@@ -94,3 +94,39 @@ def install_assert_all_finite_compat() -> None:
         return assert_all_finite(x, message, name=name)
 
     tf.debugging.assert_all_finite = assert_all_finite_compat
+
+
+def install_sparse_categorical_accuracy_compat() -> None:
+    """Restore the TensorFlow 2.3 rank behavior for sparse accuracy.
+
+    TensorFlow 2.3 squeezes y_true only when y_true and y_pred have equal rank:
+    https://github.com/tensorflow/tensorflow/blob/v2.3.0/tensorflow/python/keras/metrics.py#L3271-L3309
+    The Keras 2.15 public wrapper also squeezes a trailing singleton from the
+    metric output, which changes [batch, 1] to [batch]:
+    https://github.com/keras-team/tf-keras/blob/v2.15.0/tf_keras/metrics/accuracy_metrics.py#L1928-L1935
+    """
+    tf = import_module("tensorflow")
+    original = tf.keras.metrics.sparse_categorical_accuracy
+    if getattr(original, "_traingen_parity_tf23_compat", False):
+        return
+
+    def sparse_categorical_accuracy_compat(y_true: _Tensor, y_pred: _Tensor) -> _Tensor:
+        y_true = tf.convert_to_tensor(y_true)
+        y_pred = tf.convert_to_tensor(y_pred)
+        y_true_rank = y_true.shape.rank
+        y_pred_rank = y_pred.shape.rank
+        if (
+            y_true_rank is not None
+            and y_pred_rank is not None
+            and y_true_rank == y_pred_rank
+        ):
+            y_true = tf.squeeze(y_true, axis=-1)
+
+        predictions = tf.math.argmax(y_pred, axis=-1)
+        if predictions.dtype != y_true.dtype:
+            predictions = tf.cast(predictions, y_true.dtype)
+
+        return tf.cast(tf.equal(y_true, predictions), tf.keras.backend.floatx())
+
+    setattr(sparse_categorical_accuracy_compat, "_traingen_parity_tf23_compat", True)
+    tf.keras.metrics.sparse_categorical_accuracy = sparse_categorical_accuracy_compat

@@ -13,7 +13,7 @@ import sys
 import tarfile
 import tempfile
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from pathlib import PurePosixPath
 from types import MethodType
@@ -96,7 +96,13 @@ class _Comparison(NamedTuple):
     shape_match: bool
 
 
+class _TensorFlowShape(Protocol):
+    def as_list(self) -> list[int | None]: ...
+
+
 class _TensorFlowTensor(Protocol):
+    shape: _TensorFlowShape
+
     def numpy(self) -> Shaped[np.ndarray, "..."]: ...
 
 
@@ -252,10 +258,20 @@ def _reference_inputs(
     }
 
 
-def _crello_model(tf, data_dir: Path, *, dropout: float):
-    from traingen_parity.tensorflow_compat import install_keras_preprocessing_compat
+def _crello_model(
+    tf,
+    data_dir: Path,
+    *,
+    dropout: float,
+    metric_shape_report: list[dict[str, JSONValue]] | None = None,
+):
+    from traingen_parity.tensorflow_compat import (
+        install_keras_preprocessing_compat,
+        install_sparse_categorical_accuracy_compat,
+    )
 
     install_keras_preprocessing_compat()
+    install_sparse_categorical_accuracy_compat()
     batch_norm_base = tf.keras.layers.BatchNormalization
 
     class IgnorePropagatedMask(batch_norm_base):
@@ -269,16 +285,104 @@ def _crello_model(tf, data_dir: Path, *, dropout: float):
 
     dataspec = DataSpec("crello-document", str(data_dir), batch_size=BATCH_SIZE)
     columns = dataspec.make_input_columns()
-    model = VAE(
-        columns,
-        latent_dim=LATENT_DIM,
-        decoder_type="oneshot",
-        num_blocks=1,
-        block_type="deepsvg",
-        dropout=dropout,
-        kl=KL_WEIGHT,
-        l2=L2_WEIGHT,
-    )
+    model_kwargs = {
+        "latent_dim": LATENT_DIM,
+        "decoder_type": "oneshot",
+        "num_blocks": 1,
+        "block_type": "deepsvg",
+        "dropout": dropout,
+        "kl": KL_WEIGHT,
+        "l2": L2_WEIGHT,
+    }
+    if metric_shape_report is None:
+        model = VAE(columns, **model_kwargs)
+    else:
+        from canvasvae.models import metrics as vendor_metrics
+
+        scalar_fields = [
+            key
+            for key, column in columns.items()
+            if key != "length" and not column["is_sequence"]
+        ]
+        categorical_fields = [
+            key
+            for key, column in columns.items()
+            if column["is_sequence"] and column["type"] == "categorical"
+        ]
+        numerical_fields = [
+            key
+            for key, column in columns.items()
+            if column["is_sequence"] and column["type"] == "numerical"
+        ]
+
+        def tensor_shape(value: _TensorFlowTensor) -> list[int | None]:
+            return value.shape.as_list()
+
+        def record_shape(
+            field: str,
+            metric: str,
+            y_true: _TensorFlowTensor,
+            y_pred: _TensorFlowTensor,
+            output: _TensorFlowTensor,
+        ) -> None:
+            metric_shape_report.append(
+                {
+                    "field": field,
+                    "metric": metric,
+                    "y_true_shape": cast(JSONValue, tensor_shape(y_true)),
+                    "y_pred_shape": cast(JSONValue, tensor_shape(y_pred)),
+                    "output_shape": cast(JSONValue, tensor_shape(output)),
+                }
+            )
+
+        original_accuracy = tf.keras.metrics.sparse_categorical_accuracy
+        original_bleu1 = vendor_metrics.bleu1
+        original_cosine = vendor_metrics.scaled_mean_cosine_similarity
+
+        def record_metric_shapes(
+            metric: str,
+            fields: Sequence[str],
+            original: Callable[..., _TensorFlowTensor],
+        ) -> Callable[..., _TensorFlowTensor]:
+            index = 0
+
+            def wrapped(
+                y_true: _TensorFlowTensor | tuple[_TensorFlowTensor, _TensorFlowTensor],
+                y_pred: _TensorFlowTensor | tuple[_TensorFlowTensor, _TensorFlowTensor],
+            ) -> _TensorFlowTensor:
+                nonlocal index
+                field = fields[index]
+                index += 1
+                true_tensor = cast(
+                    _TensorFlowTensor,
+                    y_true[0] if isinstance(y_true, tuple) else y_true,
+                )
+                pred_tensor = cast(
+                    _TensorFlowTensor,
+                    y_pred[0] if isinstance(y_pred, tuple) else y_pred,
+                )
+                output = original(y_true, y_pred)
+                record_shape(field, metric, true_tensor, pred_tensor, output)
+                return output
+
+            return wrapped
+
+        tf.keras.metrics.sparse_categorical_accuracy = record_metric_shapes(
+            "sparse_categorical_accuracy", scalar_fields, original_accuracy
+        )
+        vendor_metrics.bleu1 = record_metric_shapes(
+            "bleu1", categorical_fields, original_bleu1
+        )
+        vendor_metrics.scaled_mean_cosine_similarity = record_metric_shapes(
+            "scaled_mean_cosine_similarity", numerical_fields, original_cosine
+        )
+        try:
+            model = VAE(columns, **model_kwargs)
+        finally:
+            tf.keras.metrics.sparse_categorical_accuracy = original_accuracy
+            vendor_metrics.bleu1 = original_bleu1
+            vendor_metrics.scaled_mean_cosine_similarity = original_cosine
+
     model.compile(
         optimizer=tf.keras.optimizers.Adam(
             learning_rate=LEARNING_RATE, clipnorm=CLIP_NORM
@@ -946,9 +1050,23 @@ def _run_s0(
         kl_weight=KL_WEIGHT,
         l2_weight=L2_WEIGHT,
     )
-    dataspec, columns, vendor_model = _crello_model(tf, data_dir, dropout=0.0)
+    vendor_metric_shapes: list[dict[str, JSONValue]] = []
+    dataspec, columns, vendor_model = _crello_model(
+        tf, data_dir, dropout=0.0, metric_shape_report=vendor_metric_shapes
+    )
     package_model = CanvasVAECrelloModel(config)
     errors = _common(vendor_model, package_model)
+    expected_metric_fields = set(columns) - {"length"}
+    observed_metric_fields = {
+        cast(str, entry["field"]) for entry in vendor_metric_shapes if "field" in entry
+    }
+    if (
+        len(vendor_metric_shapes) != len(expected_metric_fields)
+        or observed_metric_fields != expected_metric_fields
+    ):
+        errors.append(
+            "vendor metric shape report does not cover each field exactly once"
+        )
 
     vocabulary_matches: dict[str, bool] = {}
     for field, expected in vocabularies.items():
@@ -1094,6 +1212,7 @@ def _run_s0(
             "vocabulary_matches": vocabulary_matches,
         },
         "vendor_fields": field_report,
+        "vendor_metric_shapes_before_concat": vendor_metric_shapes,
         "package_field_sizes": {
             "context": config.context_field_sizes,
             "sequence": config.sequence_field_sizes,
