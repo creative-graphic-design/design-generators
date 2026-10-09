@@ -4357,6 +4357,12 @@ metrics = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' or extra == 'extra-10-canvas-vae-convert' or extra == 'extra-10-canvas-vae-vendor' or extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-10-canvas-vae-convert' and extra != 'extra-10-canvas-vae-vendor' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-10-canvas-vae-convert' and extra == 'extra-10-canvas-vae-vendor') or (extra == 'extra-10-canvas-vae-convert' and extra == 'extra-6-laygen-agents') or (extra == 'extra-10-canvas-vae-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-10-canvas-vae-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-10-canvas-vae-convert' and extra == 'project-7-postero') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'extra-6-laygen-agents') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'project-10-layout-gpt') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'project-14-layoutprompter') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'project-7-postero') or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-7-postero') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-7-postero')" },
 ]
+training = [
+    { name = "lightning" },
+    { name = "torch-geometric" },
+    { name = "traingen" },
+    { name = "traingen-parity" },
+]
 vendor = [
     { name = "fsspec" },
     { name = "matplotlib" },
@@ -4374,6 +4380,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=0.24" },
     { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
+    { name = "lightning", marker = "extra == 'training'", specifier = ">=2.4,<3" },
     { name = "matplotlib", marker = "extra == 'vendor'", specifier = ">=3.7" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pillow", specifier = ">=10" },
@@ -4382,11 +4389,14 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'metrics'", specifier = ">=1.10" },
     { name = "seaborn", marker = "extra == 'vendor'", specifier = ">=0.13" },
     { name = "torch", specifier = ">=2.0" },
+    { name = "torch-geometric", marker = "extra == 'training'", specifier = ">=2.5" },
     { name = "torch-geometric", marker = "extra == 'vendor'", specifier = ">=2.5" },
     { name = "tqdm", marker = "extra == 'vendor'", specifier = ">=4.66" },
+    { name = "traingen", marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", specifier = ">=4.57.0" },
 ]
-provides-extras = ["hub", "metrics", "vendor"]
+provides-extras = ["training", "hub", "metrics", "vendor"]
 
 [[package]]
 name = "lark"

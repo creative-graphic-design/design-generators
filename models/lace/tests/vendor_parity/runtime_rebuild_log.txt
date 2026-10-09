@@ -1,0 +1,46 @@
+LACE audited-runtime rebuild transcript
+
+Recorded at: 2026-10-09T10:54:57+09:00
+
+The command was run from the repository root with `<wheel-root>` set to the
+directory containing the recorded torch and torchvision wheels:
+
+$ bash models/lace/scripts/rebuild_audit_runtime.sh \
+    .cache/lace/stage-evidence/314a625da0dffe43ea6d60d91461cf4edb80c88c-s4-fid-refresh/s4-loader-evaluation/runtime/pip-freeze.txt \
+    <wheel-root> \
+    .cache/lace/runtime/venv-rebuild-20261009 \
+    .cache/lace/runtime/rebuild-20261009
+
+The script generated the two requirement inputs from the cited freeze, then
+ran these installation commands verbatim:
+
+UV_NO_CONFIG=1 UV_FROZEN=1 uv venv .cache/lace/runtime/venv-rebuild-20261009 --python 3.11 --clear
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip sync --python .cache/lace/runtime/venv-rebuild-20261009/bin/python .cache/lace/runtime/rebuild-20261009/recorded-runtime-requirements.txt
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip install --python .cache/lace/runtime/venv-rebuild-20261009/bin/python --require-hashes --no-deps -r .cache/lace/runtime/rebuild-20261009/wheel-hash-requirements.txt
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip install --python .cache/lace/runtime/venv-rebuild-20261009/bin/python --no-deps -e models/lace -e lib/laygen -e lib/traingen -e lib/traingen-parity
+UV_NO_CONFIG=1 UV_FROZEN=1 uv pip freeze --python .cache/lace/runtime/venv-rebuild-20261009/bin/python > .cache/lace/runtime/rebuild-20261009/pip-freeze.txt
+
+Recorded freeze SHA-256:
+90bace448bc88abf9a1683fd625e83f73d8f19239d2f2f8eec2348a331418332
+
+Generated input SHA-256 values:
+recorded-runtime-requirements.txt  f8196235d8c4e073449a65055c8e6312b3801835c8212fe4632955f4c7bdff16
+wheel-hash-requirements.txt       c5b9a53084773e73680305768e71a5593ab819910da70461d080dd2f9ae31afb
+
+Rebuilt freeze:
+.cache/lace/runtime/rebuild-20261009/pip-freeze.txt
+7fc45d8710e05650c7dff7926815f7cfcf2f397e9f3a0e5a195bb1558b35d6e7
+
+Canonical distribution diff against the cited freeze:
+Only in cited freeze:
+- ds_gan (editable)
+- posgen (editable)
+Only in rebuilt freeze:
+
+Distribution diff artifact SHA-256:
+3b6b454c06319fe4d4d3a6422985fab74afd6871d916d28c254e7c8ef07aebdc
+
+The rebuilt runtime has the four LACE workspace editables and the pinned CUDA
+wheels. No S0 or S1 rerun was performed: the measured difference is exactly
+the two unused editables allowed by the review condition, so the existing
+final S0 and S1 records were reused.

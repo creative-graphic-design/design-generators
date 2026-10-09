@@ -8,7 +8,6 @@ models/dlt/README.md
 models/ds-gan/README.md
 models/flex-dm/README.md
 models/housegan/README.md
-models/lace/README.md
 models/layousyn/README.md
 models/layout-action/README.md
 models/layout-corrector/README.md
