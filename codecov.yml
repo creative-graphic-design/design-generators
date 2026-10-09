@@ -14,6 +14,8 @@ flags:
     carryforward: true
   posgen:
     carryforward: true
+  canvas-vae:
+    carryforward: true
   coarse-to-fine:
     carryforward: true
   ds-gan:

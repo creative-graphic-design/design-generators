@@ -52,7 +52,6 @@ COMMAND_STARTERS = (
     "pytest ",
     "uv ",
 )
-HISTORICAL_COMMAND_PREFIXES = ("Parameterized `setsid nohup` launchers under ",)
 ARTIFACT_PREFIXES = (
     ".cache/",
     "docs/",
@@ -150,38 +149,17 @@ def is_rerunnable_command(value: str) -> bool:
     normalized = normalize_value(command)
     if normalized in PENDING_VALUES:
         return False
-    if command.startswith(HISTORICAL_COMMAND_PREFIXES):
-        return True
-
-    while True:
-        assignment = re.match(
-            r"[A-Za-z_][A-Za-z0-9_]*=(?:<[^>]*>|'[^']*'|\"[^\"]*\"|\S+)\s+",
-            command,
-        )
-        if assignment is None:
-            break
-        command = command[assignment.end() :]
-
     return command.startswith(COMMAND_STARTERS)
 
 
 def is_artifact_path(value: str) -> bool:
     """Return whether an artifact cell is repo-relative or cache-relative."""
-    quoted_paths = re.findall(r"`([^`]+)`", value)
-    if quoted_paths:
-        return all(is_artifact_path(path) for path in quoted_paths)
-
     artifact = unquote_cell(value)
-    if ";" in artifact:
-        return all(is_artifact_path(part) for part in artifact.split(";"))
-
     normalized = normalize_value(artifact)
     if normalized in PENDING_VALUES or " " in artifact:
         return False
-
     if ".." in Path(artifact).parts or artifact.endswith("/TRAINING.md"):
         return False
-
     return artifact.startswith(ARTIFACT_PREFIXES) or artifact.startswith(
         GITHUB_ARTIFACT_PREFIX
     )
@@ -262,76 +240,53 @@ def has_s5_claim(text: str) -> bool:
     return False
 
 
-def _parse_stage_evidence_lines(
-    lines: list[str],
-) -> tuple[dict[str, StageEvidence], set[str]]:
-    """Parse one machine-readable stage-evidence section."""
-    for index, line in enumerate(lines):
-        if not line.lstrip().startswith("|"):
-            continue
-        headers = [normalize_header(cell) for cell in split_markdown_row(line)]
-        if not {"stage", "command", "artifact", "result"}.issubset(headers):
-            continue
-        row_start = index + 1
-        if row_start < len(lines) and is_table_delimiter(lines[row_start]):
-            row_start += 1
-        positions = {
-            name: headers.index(name)
-            for name in ("stage", "command", "artifact", "result")
-        }
-        evidence: dict[str, StageEvidence] = {}
-        duplicates: set[str] = set()
-
-        for row in lines[row_start:]:
-            if not row.lstrip().startswith("|"):
-                break
-
-            if is_table_delimiter(row):
-                continue
-            cells = split_markdown_row(row)
-            if len(cells) < len(headers):
-                continue
-
-            stage = cells[positions["stage"]].strip().upper()
-            if stage not in STAGES:
-                continue
-
-            if stage in evidence:
-                duplicates.add(stage)
-
-            evidence[stage] = StageEvidence(
-                stage=stage,
-                command=cells[positions["command"]],
-                artifact=cells[positions["artifact"]],
-                result=cells[positions["result"]],
-            )
-        return evidence, duplicates
-    return {}, set()
-
-
-def parse_stage_evidence_sections(
-    text: str,
-) -> list[tuple[str, dict[str, StageEvidence], set[str]]]:
-    """Parse all package or condition-specific stage-evidence sections."""
-    sections = []
-    for heading, lines in iter_heading_sections(text):
-        normalized_heading = heading.lower()
-        if normalized_heading != "stage evidence" and not normalized_heading.endswith(
-            " stage evidence"
-        ):
-            continue
-        evidence, duplicates = _parse_stage_evidence_lines(lines)
-        sections.append((heading, evidence, duplicates))
-
-    return sections
-
-
 def parse_stage_evidence(
     text: str,
 ) -> tuple[dict[str, StageEvidence], set[str]]:
-    """Parse the first machine-readable stage-evidence table."""
-    for _heading, evidence, duplicates in parse_stage_evidence_sections(text):
-        return evidence, duplicates
+    """Parse the machine-readable Stage Evidence table."""
+    for heading, lines in iter_heading_sections(text):
+        if heading.lower() != "stage evidence":
+            continue
+        for index, line in enumerate(lines):
+            if not line.lstrip().startswith("|"):
+                continue
+            headers = [normalize_header(cell) for cell in split_markdown_row(line)]
+            if not {"stage", "command", "artifact", "result"}.issubset(headers):
+                continue
+            row_start = index + 1
+            if row_start < len(lines) and is_table_delimiter(lines[row_start]):
+                row_start += 1
+            positions = {
+                name: headers.index(name)
+                for name in ("stage", "command", "artifact", "result")
+            }
+            evidence: dict[str, StageEvidence] = {}
+            duplicates: set[str] = set()
+
+            for row in lines[row_start:]:
+                if not row.lstrip().startswith("|"):
+                    break
+
+                if is_table_delimiter(row):
+                    continue
+                cells = split_markdown_row(row)
+                if len(cells) < len(headers):
+                    continue
+
+                stage = cells[positions["stage"]].strip().upper()
+                if stage not in STAGES:
+                    continue
+
+                if stage in evidence:
+                    duplicates.add(stage)
+
+                evidence[stage] = StageEvidence(
+                    stage=stage,
+                    command=cells[positions["command"]],
+                    artifact=cells[positions["artifact"]],
+                    result=cells[positions["result"]],
+                )
+            return evidence, duplicates
     return {}, set()
 
 
@@ -350,7 +305,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
     if not has_s5_claim(text):
         return []
     relative_path = path.relative_to(root).as_posix()
-    evidence_sections = parse_stage_evidence_sections(text)
+    evidence, duplicates = parse_stage_evidence(text)
     violations: list[StageEvidenceViolation] = []
     if not has_reproduction_results_heading(text):
         violations.append(
@@ -360,7 +315,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                 "S5 result claim requires a Reproduction Results heading",
             )
         )
-    if not evidence_sections:
+    if not evidence:
         violations.append(
             StageEvidenceViolation(
                 relative_path,
@@ -369,51 +324,42 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
             )
         )
         return violations
-    for _heading, evidence, duplicates in evidence_sections:
-        for stage in sorted(duplicates):
+    for stage in sorted(duplicates):
+        violations.append(
+            StageEvidenceViolation(
+                relative_path,
+                stage,
+                "stage evidence table contains duplicate rows for this stage",
+            )
+        )
+    for stage in STAGES:
+        row = evidence.get(stage)
+        if row is None:
             violations.append(
                 StageEvidenceViolation(
                     relative_path,
                     stage,
-                    "stage evidence table contains duplicate rows for this stage",
+                    "S5 result claim requires a complete evidence row for this stage",
                 )
             )
-        for stage in STAGES:
-            row = evidence.get(stage)
-            if row is None:
+        elif stage == "S5" and normalize_value(row.artifact) not in PENDING_VALUES:
+            manifest, parity_path = parse_s5_artifact_paths(row.artifact)
+            if parity_path is None:
                 violations.append(
                     StageEvidenceViolation(
                         relative_path,
                         stage,
-                        "S5 result claim requires a complete evidence row for this stage",
+                        "S5 artifact must include an evaluation-path parity artifact reference",
                     )
                 )
-            elif stage == "S5" and normalize_value(row.artifact) not in PENDING_VALUES:
-                manifest, parity_path = parse_s5_artifact_paths(row.artifact)
-                if parity_path is None:
-                    violations.append(
-                        StageEvidenceViolation(
-                            relative_path,
-                            stage,
-                            "S5 artifact must include an evaluation-path parity artifact reference",
-                        )
+            elif not s5_artifact_paths_are_valid(manifest, parity_path):
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
                     )
-                elif not s5_artifact_paths_are_valid(manifest, parity_path):
-                    violations.append(
-                        StageEvidenceViolation(
-                            relative_path,
-                            stage,
-                            "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
-                        )
-                    )
-                elif not row.is_complete:
-                    violations.append(
-                        StageEvidenceViolation(
-                            relative_path,
-                            stage,
-                            "stage evidence row has a placeholder command, artifact, or result",
-                        )
-                    )
+                )
             elif not row.is_complete:
                 violations.append(
                     StageEvidenceViolation(
@@ -422,6 +368,14 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                         "stage evidence row has a placeholder command, artifact, or result",
                     )
                 )
+        elif not row.is_complete:
+            violations.append(
+                StageEvidenceViolation(
+                    relative_path,
+                    stage,
+                    "stage evidence row has a placeholder command, artifact, or result",
+                )
+            )
     return violations
 
 

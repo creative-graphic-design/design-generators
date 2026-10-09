@@ -64,43 +64,6 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
     assert duplicates == set()
 
 
-def test_s5_claim_checks_multiple_stage_evidence_sections(tmp_path: Path) -> None:
-    second_table = complete_stage_evidence_table().replace(
-        "## Stage Evidence", "## PKU relation Stage Evidence"
-    )
-    second_table = second_table.replace(
-        "| S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed. |",
-        "| S4 | pending | pending | pending |",
-    )
-    write_training_md(
-        tmp_path,
-        "layout-dm",
-        f"""
-# Training
-
-## Reproduction Results
-
-Package training reproduction is achieved with training-seed n=3.
-
-{complete_stage_evidence_table()}
-{second_table}
-""",
-    )
-
-    assert check_training_stage_evidence.current_entries(tmp_path) == {
-        "models/layout-dm/TRAINING.md\tS4\tstage evidence row has a placeholder command, artifact, or result"
-    }
-
-
-def test_stage_evidence_accepts_assignment_prefixed_commands() -> None:
-    assert check_training_stage_evidence.is_rerunnable_command(
-        "CUDA_VISIBLE_DEVICES=<gpu> PARITY_REQUIRE=1 uv run pytest models/ralf/tests"
-    )
-    assert check_training_stage_evidence.is_rerunnable_command(
-        "RALF_CACHE_DIR=cache python models/ralf/scripts/check.py"
-    )
-
-
 def test_s5_manifest_artifact_passes(tmp_path: Path) -> None:
     write_training_md(
         tmp_path,
