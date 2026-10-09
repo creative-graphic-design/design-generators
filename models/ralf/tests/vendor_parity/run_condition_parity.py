@@ -529,11 +529,6 @@ def refinement_bbox(
     return values.tolist()
 
 
-def consume_vendor_dataloader_seed() -> None:
-    """Mirror the iterator seed draw before each vendor test seed."""
-    torch.empty((), dtype=torch.int64).random_()
-
-
 def generate_package_predictions(
     *, args: argparse.Namespace, input_root: Path, converted: Path, output_root: Path
 ) -> Path:
@@ -570,10 +565,6 @@ def generate_package_predictions(
         result_path = prediction_root / f"test_{seed}.pkl"
         random.seed(seed)
         torch.manual_seed(seed)
-        if args.condition == "relation":
-            # The vendor DataLoader iterator consumes this CPU draw before its
-            # first batch, even with the test launcher override of workers.
-            consume_vendor_dataloader_seed()
         generator = torch.Generator(device=device).manual_seed(seed)
         results: list[VendorSample] = []
         for start in range(0, len(test), args.batch_size):

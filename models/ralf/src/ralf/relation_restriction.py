@@ -220,6 +220,12 @@ class RelationConditioner:
         _labels, counts = self._parse_labels(input_ids, shuffle=False)
         valid_mask = _labels != self.name_to_id("pad")
         consume_relation_graph_rng(valid_mask)
+        # RelationshipPreprocessor first parses and records the sequence, then
+        # its LabelPreprocessor parses it again before building the condition.
+        # The first pass is discarded but still consumes the reference
+        # implementation's torch
+        # randperm stream and must remain in the inference-only path.
+        self._parse_labels(input_ids, shuffle=True)
         labels, counts = self._parse_labels(input_ids, shuffle=True)
         sequences = self._label_sequence(labels, counts)
         sequences = sequences.clone()
