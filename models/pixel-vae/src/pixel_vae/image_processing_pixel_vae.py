@@ -64,7 +64,10 @@ class PixelVAEImageProcessor(BaseImageProcessor):
 
         decoded = np.stack([decode_pixelvae_png(image) for image in image_batch])
         pixel_values: Float[torch.Tensor, "batch 4 256 256"] = (
-            torch.from_numpy(decoded).permute(0, 3, 1, 2).to(torch.float32).div(255)
+            torch.from_numpy(decoded)
+            .permute(0, 3, 1, 2)
+            .to(torch.float32)
+            .mul(1.0 / 255.0)
         )
         return BatchFeature({"pixel_values": pixel_values})
 

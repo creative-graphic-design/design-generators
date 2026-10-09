@@ -37,7 +37,8 @@ def test_processor_normalizes_without_reordering_or_resizing() -> None:
     assert tuple(batch.pixel_values.shape) == (2, 4, 256, 256)
     assert batch.pixel_values.dtype is torch.float32
     np.testing.assert_array_equal(
-        batch.pixel_values[0].permute(1, 2, 0).numpy(), pixels.astype(np.float32) / 255
+        batch.pixel_values[0].permute(1, 2, 0).numpy(),
+        pixels.astype(np.float32) * np.float32(1.0 / 255.0),
     )
 
 
@@ -63,4 +64,6 @@ def test_processor_configuration_round_trip(tmp_path) -> None:
 
     encoded, expected = png_bytes()
     actual = restored(encoded).pixel_values[0].permute(1, 2, 0).numpy()
-    np.testing.assert_array_equal(actual, expected.astype(np.float32) / 255)
+    np.testing.assert_array_equal(
+        actual, expected.astype(np.float32) * np.float32(1.0 / 255.0)
+    )
