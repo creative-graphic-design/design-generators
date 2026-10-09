@@ -2,7 +2,7 @@
 
 # @file models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 # @brief Preflight PixelVAE input selections, then run the distinct-input CPU acceptance sequence.
-# @description Runs selector tests, member coverage tests, and the pinned archive audit, then records every real input selection before report-only S1 diagnostics, calibration, limit freezing, and held-out parity.
+# @description Runs selector tests, member coverage tests, and the pinned archive audit, then records every real input selection before report-only numerical diagnostics, calibration, limit freezing, and held-out parity.
 # @example
 #   PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<sha> bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh
 

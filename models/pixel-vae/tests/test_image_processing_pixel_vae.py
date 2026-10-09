@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -46,6 +47,15 @@ def test_processor_normalizes_without_reordering_or_resizing() -> None:
 def test_processor_rejects_invalid_or_wrong_size_png(bad: bytes) -> None:
     with pytest.raises(ValueError, match="PNG|256x256"):
         decode_pixelvae_png(bad)
+
+
+def test_decode_rejects_oversized_png_before_rgba_conversion() -> None:
+    encoded, _ = png_bytes(257, 256)
+    with patch("pixel_vae.image_processing_pixel_vae.Image.Image.convert") as convert:
+        with pytest.raises(ValueError, match="requires 256x256.*257x256"):
+            decode_pixelvae_png(encoded)
+
+    convert.assert_not_called()
 
 
 def test_processor_requires_nonempty_pt_batch() -> None:

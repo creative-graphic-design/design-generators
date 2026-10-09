@@ -94,5 +94,5 @@ def test_calibration_validator_rejects_an_unrecorded_wrap(
         "s4_type_selections": selection["s4_type_selections"],
     }
 
-    with pytest.raises(ValueError, match="unexpected S4 wrap flag"):
+    with pytest.raises(ValueError, match="unexpected wrap flag"):
         _validator()(selection, record, 2, tmp_path / "repeat-2.json")

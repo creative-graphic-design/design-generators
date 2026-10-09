@@ -92,13 +92,13 @@ def decode_pixelvae_png(image_bytes: bytes) -> UInt8[np.ndarray, "256 256 4"]:
             if image.format != "PNG":
                 raise ValueError("image_bytes must contain a PNG image")
 
-            rgba = image.convert("RGBA")
-            width, height = rgba.size
+            width, height = image.size
             if (height, width) != (IMAGE_SIDE, IMAGE_SIDE):
                 raise ValueError(
-                    f"PixelVAE requires 256x256 PNGs; decoded image is {width}x{height}"
+                    f"PixelVAE requires 256x256 PNGs; image is {width}x{height}"
                 )
 
+            rgba = image.convert("RGBA")
             return np.asarray(rgba, dtype=np.uint8).copy()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("image_bytes is not a valid PNG image") from error

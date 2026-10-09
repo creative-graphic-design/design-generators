@@ -61,8 +61,8 @@ DIAGNOSTIC_TRAIN_PAIR_COUNT = 8
 CALIBRATION_SELECTION_RULE = (
     "deduplicated canonical train PNGs in UTF-8 document_id/source element order; "
     "repeat r uses document-stage indexes [2(r-1), 2r) and filtered training-stage "
-    "indexes [6(r-1), 6r); each S4 type uses unique index (r-1) mod n, recording "
-    "its unique count and whether it wrapped; distinct S4 IDs are required only "
+    "indexes [6(r-1), 6r); each element type uses unique index (r-1) mod n, recording "
+    "its unique count and whether it wrapped; distinct image IDs are required only "
     "when that type has at least three unique PNGs"
 )
 
@@ -223,7 +223,7 @@ def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     processor = PixelVAEImageProcessor()
     if diagnostic:
         if diagnostic_report is None:
-            raise RuntimeError("diagnostic inputs were not recorded before S1")
+            raise RuntimeError("diagnostic inputs were not recorded before comparisons")
         diagnostic_report["encoder_state_sha256"] = state_digest
         diagnostic_path.write_text(
             json.dumps(diagnostic_report, indent=2, sort_keys=True) + "\n",
@@ -780,7 +780,7 @@ def _run_s1_diagnostic(
             or output.kl_divergence is None
             or output.loss is None
         ):
-            raise ValueError("PixelVAE diagnostic forward omitted an S1 output")
+            raise ValueError("PixelVAE diagnostic forward omitted a required output")
 
         output_pairs = {
             "s1.posterior_mean.max_abs": (
@@ -899,9 +899,11 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
         training_pool = _select_images("train", 18, filter_training_types=True)
         document_indices = list(range((repeat - 1) * 2, repeat * 2))
         training_indices = list(range((repeat - 1) * 6, repeat * 6))
-        _require_image_count(document_pool, 6, split="train", stage="calibration S1")
         _require_image_count(
-            training_pool, 18, split="train", stage="calibration S2/S3"
+            document_pool, 6, split="train", stage="calibration document comparison"
+        )
+        _require_image_count(
+            training_pool, 18, split="train", stage="calibration training comparison"
         )
         document_images = [document_pool[index] for index in document_indices]
         training_images = [training_pool[index] for index in training_indices]
@@ -927,8 +929,12 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
     if mode == "heldout":
         document_images = _select_images("test", 6, filter_training_types=False)
         training_images = _select_images("test", 6, filter_training_types=True)
-        _require_image_count(document_images, 6, split="test", stage="held-out S1")
-        _require_image_count(training_images, 6, split="test", stage="held-out S2/S3")
+        _require_image_count(
+            document_images, 6, split="test", stage="held-out document comparison"
+        )
+        _require_image_count(
+            training_images, 6, split="test", stage="held-out training comparison"
+        )
         type_selections = _select_one_per_element_type("test")
         _require_audit_type_coverage(type_selections)
         type_examples = [selected.example for selected in type_selections]
@@ -952,13 +958,16 @@ def _select_parity_inputs(mode: str, *, repeat: int = 0) -> ParityInputSelection
         )
         training_images = _select_images("train", 6, filter_training_types=True)
         _require_image_count(
-            heldout_documents, 6, split="test", stage="diagnostic held-out S1"
+            heldout_documents,
+            6,
+            split="test",
+            stage="diagnostic held-out document comparison",
         )
         _require_image_count(
             train_documents,
             DIAGNOSTIC_TRAIN_PAIR_COUNT * 2,
             split="train",
-            stage="diagnostic train S1",
+            stage="diagnostic train document comparison",
         )
         _require_image_count(
             training_images, 6, split="train", stage="diagnostic training"
@@ -1297,7 +1306,9 @@ def test_selection_plan_reports_short_lists_and_sparse_element_types(
     )
     monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", short_root)
     assert len(_select_images("test", 6, filter_training_types=True)) == 1
-    with pytest.raises(ValueError, match="held-out S1 requires 6 unique PNGs; found 1"):
+    with pytest.raises(
+        ValueError, match="held-out document comparison requires 6 unique PNGs; found 1"
+    ):
         _select_parity_inputs("heldout")
 
     calibration_short_root = tmp_path / "calibration-short-tfrecords"
@@ -1309,7 +1320,8 @@ def test_selection_plan_reports_short_lists_and_sparse_element_types(
     )
     monkeypatch.setattr(sys.modules[__name__], "TFRECORD_DIR", calibration_short_root)
     with pytest.raises(
-        ValueError, match="calibration S1 requires 6 unique PNGs; found 1"
+        ValueError,
+        match="calibration document comparison requires 6 unique PNGs; found 1",
     ):
         _select_parity_inputs("calibration", repeat=1)
 
