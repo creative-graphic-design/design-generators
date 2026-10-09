@@ -367,6 +367,9 @@ def test_layout_predictions_reproduces_vendor_model_scale_before_postprocess() -
     assert predictions[0]["image_id"] == 7
     assert predictions[0]["category_id"] == 1
     assert predictions[0]["score"] == 0.75
-    assert predictions[0]["bbox"] == pytest.approx(
-        [52.01875, 69.97476871320437, 156.05625, 104.96215306980656]
-    )
+    assert predictions[0]["bbox"] == [
+        52.01874923706055,
+        69.97476959228516,
+        156.05624389648438,
+        104.96215057373047,
+    ]

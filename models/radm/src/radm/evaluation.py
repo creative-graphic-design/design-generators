@@ -47,6 +47,7 @@ def layout_predictions_to_coco(
     image_scales: Float[torch.Tensor, "batch 4"],
     original_image_scales: Float[torch.Tensor, "batch 4"],
     model_image_scales: Float[torch.Tensor, "batch 4"] | None = None,
+    boxes_are_absolute: bool = False,
     category_id_map: Mapping[int, int] | None = None,
 ) -> list[CocoPrediction]:
     """Convert selected normalized boxes into COCO detection records.
@@ -60,22 +61,27 @@ def layout_predictions_to_coco(
 
     results: list[CocoPrediction] = []
     for batch_index, image_id in enumerate(image_ids):
-        resized_width, resized_height = image_scales[batch_index, :2].tolist()
-        width, height = original_image_scales[batch_index, :2].tolist()
         model_scale = image_scales if model_image_scales is None else model_image_scales
+        resized_width, resized_height = image_scales[batch_index, :2]
+        width, height = original_image_scales[batch_index, :2]
         scale_x = width / resized_width
         scale_y = height / resized_height
         for proposal_index in torch.nonzero(
             mask[batch_index], as_tuple=False
         ).flatten():
-            left, top, right, bottom = (
-                boxes_xyxy[batch_index, proposal_index] * model_scale[batch_index]
-            ).tolist()
-            left = min(max(left * scale_x, 0.0), width)
-            top = min(max(top * scale_y, 0.0), height)
-            right = min(max(right * scale_x, 0.0), width)
-            bottom = min(max(bottom * scale_y, 0.0), height)
-            if right <= left or bottom <= top:
+            box = boxes_xyxy[batch_index, proposal_index]
+            if not boxes_are_absolute:
+                box = box * model_scale[batch_index]
+
+            box = box.clone()
+            box[0::2] *= scale_x
+            box[1::2] *= scale_y
+            box[0::2].clamp_(min=0, max=width)
+            box[1::2].clamp_(min=0, max=height)
+            box[2] -= box[0]
+            box[3] -= box[1]
+            left, top, box_width, box_height = box.tolist()
+            if box_width <= 0 or box_height <= 0:
                 continue
 
             label = int(labels[batch_index, proposal_index].item())
@@ -90,8 +96,8 @@ def layout_predictions_to_coco(
                     "bbox": [
                         float(left),
                         float(top),
-                        float(right - left),
-                        float(bottom - top),
+                        float(box_width),
+                        float(box_height),
                     ],
                     "score": float(scores[batch_index, proposal_index].item()),
                     "category_id": category_id,
@@ -257,10 +263,10 @@ def evaluate_checkpoint(
                 dtype=batch_device["images"].dtype,
             )
             scheduler.set_timesteps(steps, device=device)
-            final_boxes = scheduler.latent_to_normalized_boxes(sample)
             logits = sample.new_zeros(
                 batch_size, config.num_proposals, config.num_classes
             )
+            denoised = None
             for timestep in scheduler.timesteps:
                 normalized_sample = scheduler.latent_to_normalized_boxes(sample)
                 timestep_batch = torch.full(
@@ -278,7 +284,6 @@ def evaluate_checkpoint(
                     image_scales=source_image_scales,
                 )
                 logits = denoised.logits
-                final_boxes = denoised.boxes_xyxy
                 sample = scheduler.step(
                     scheduler.normalized_boxes_to_latent(denoised.pred_original_sample),
                     timestep,
@@ -286,8 +291,16 @@ def evaluate_checkpoint(
                     generator=generator,
                 ).prev_sample
 
+            if denoised is None:
+                raise RuntimeError("the denoiser produced no inference output")
+
+            if denoised.auxiliary_boxes_absolute_xyxy is None:
+                raise RuntimeError("the denoiser did not return absolute boxes")
+
+            final_boxes_absolute = denoised.auxiliary_boxes_absolute_xyxy[-1]
+
             selected_boxes, labels, mask, scores, _ = select_predictions(
-                boxes_xyxy=final_boxes,
+                boxes_xyxy=final_boxes_absolute,
                 logits=logits,
                 class_threshold=class_threshold,
                 nms_threshold=nms_threshold,
@@ -305,7 +318,7 @@ def evaluate_checkpoint(
                     scores=scores,
                     image_scales=batch_device["image_scales"],
                     original_image_scales=batch_device["original_image_scales"],
-                    model_image_scales=source_image_scales,
+                    boxes_are_absolute=True,
                 )
             )
             offset += batch_size
