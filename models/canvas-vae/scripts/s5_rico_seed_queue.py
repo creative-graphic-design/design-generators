@@ -310,7 +310,7 @@ def load_manifest(path: Path) -> QueueManifest:
 
 
 def launch_preconditions(
-    manifest: QueueManifest, manifest_path: Path
+    manifest: QueueManifest, manifest_path: Path, hub_repository: str
 ) -> tuple[str, list[str]]:
     pinned_commit = manifest.get("source_commit")
     if not isinstance(pinned_commit, str) or not COMMIT_PATTERN.fullmatch(
@@ -429,7 +429,13 @@ def launch_preconditions(
 
     manifest_arg = os.path.relpath(manifest_path.resolve(), REPOSITORY_ROOT)
 
-    return pinned_commit, [*runner, "--manifest", manifest_arg]
+    return pinned_commit, [
+        *runner,
+        "--manifest",
+        manifest_arg,
+        "--hub-repo",
+        hub_repository,
+    ]
 
 
 def run_queue(
@@ -498,6 +504,7 @@ def run_queue(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--hub-repo")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--launch", action="store_true")
@@ -524,8 +531,10 @@ def main() -> int:
             raise QueueError("source gate requires a clean worktree")
 
         if args.launch:
+            if args.hub_repo is None or not args.hub_repo.strip():
+                raise QueueError("--hub-repo is required for a launch", BLOCKED_EXIT)
             pinned_commit, runner_command = launch_preconditions(
-                manifest, manifest_path
+                manifest, manifest_path, args.hub_repo
             )
             if current_commit != pinned_commit:
                 raise QueueError(
