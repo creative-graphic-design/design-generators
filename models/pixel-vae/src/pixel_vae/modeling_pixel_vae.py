@@ -246,7 +246,7 @@ class PixelVAEMobileNetV2(nn.Module):
 
         x = self._apply_conv("Conv_1", x)
         x = F.relu6(self.layers["Conv_1_bn"](x))
-        return F.adaptive_avg_pool2d(x, 1).flatten(1)
+        return x.mean(dim=(2, 3))
 
 
 class PixelVAEEncoder(PreTrainedModel):
