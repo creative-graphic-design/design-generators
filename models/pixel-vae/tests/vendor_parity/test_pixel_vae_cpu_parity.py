@@ -379,7 +379,7 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
         tmp_path / "encoder-roundtrip"
     ).eval()
     with torch.inference_mode():
-        restored_embeddings = restored_encoder.encode(processed.pixel_values)
+        restored_embeddings = restored_encoder.encode(type_processed.pixel_values)
     if not torch.equal(original_embeddings, restored_embeddings):
         raise AssertionError(
             "posterior means changed across save_pretrained round trip"
