@@ -682,19 +682,27 @@ def _float32_ulp_delta(
 def _normalized_category_ids(
     target_ids: Shaped[np.ndarray, "..."], predicted_ids: Shaped[np.ndarray, "..."]
 ) -> tuple[Shaped[np.ndarray, "..."], Shaped[np.ndarray, "..."]]:
-    if target_ids.ndim == predicted_ids.ndim + 1 and target_ids.shape[-1] == 1:
+    if target_ids.ndim == 3 and target_ids.shape[-1] == 1:
         target_ids = target_ids[..., 0]
 
-    if predicted_ids.ndim == target_ids.ndim + 1 and predicted_ids.shape[-1] == 1:
+    if predicted_ids.ndim == 3 and predicted_ids.shape[-1] == 1:
         predicted_ids = predicted_ids[..., 0]
 
     if target_ids.ndim == 2:
         target_ids = target_ids[..., np.newaxis]
+
+    if predicted_ids.ndim == 2:
         predicted_ids = predicted_ids[..., np.newaxis]
 
-    if target_ids.shape != predicted_ids.shape or target_ids.ndim != 3:
+    if (
+        target_ids.ndim != 3
+        or predicted_ids.ndim != 3
+        or target_ids.shape[0] != predicted_ids.shape[0]
+        or target_ids.shape[2] != predicted_ids.shape[2]
+    ):
         raise ValueError(
-            "categorical diagnostic ids must share [batch, elements, channels]"
+            "categorical diagnostic ids must share batch and channel dimensions; "
+            f"got {target_ids.shape} and {predicted_ids.shape}"
         )
 
     return target_ids.astype(np.int64), predicted_ids.astype(np.int64)

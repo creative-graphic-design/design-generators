@@ -309,8 +309,8 @@ def test_crello_metric_diagnostic_records_bleu_steps_and_float64_scores():
     )
     target_ids = np.array([[[1], [2], [2], [0]]], dtype=np.int64)
     target_mask = np.array([[True, True, True, False]])
-    predicted_ids = np.array([[[2], [3], [0], [0]]], dtype=np.int64)
-    predicted_mask = np.array([[True, True, False, False]])
+    predicted_ids = np.array([[[2], [3], [0], [0], [0], [0]]], dtype=np.int64)
+    predicted_mask = np.array([[True, True, False, False, False, False]])
 
     report = diagnose_bleu(target_ids, target_mask, predicted_ids, predicted_mask, 4)
     float32 = cast(dict[str, list[list[float]]], report["float32_intermediates"])
