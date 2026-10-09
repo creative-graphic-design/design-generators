@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal, ROUND_CEILING
+import json
 import math
-from typing import TypedDict
+from pathlib import Path
+import sys
+from typing import TypeAlias, TypedDict
 
 import numpy as np
 from jaxtyping import Float
+
+JSONValue: TypeAlias = (
+    str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
+)
 
 
 class Float32DifferenceSummary(TypedDict):
@@ -22,6 +29,72 @@ class Float32DifferenceSummary(TypedDict):
     reference_at_max_diff: float
     candidate_at_max_diff: float
     ulps_at_max_diff: int
+
+
+def next_trace_convolution(
+    layer_name: str,
+    layer_type: str,
+    following_layers: Sequence[tuple[str, str]],
+) -> str | None:
+    """Return a successor convolution for layers aligned through its input."""
+    if layer_type not in {"Add", "ZeroPadding2D"}:
+        return None
+
+    convolution_types = {"Conv2D", "DepthwiseConv2D"}
+    next_convolution = next(
+        (name for name, kind in following_layers if kind in convolution_types), None
+    )
+    if next_convolution is None:
+        raise ValueError(
+            f"TensorFlow layer has no matching next convolution: {layer_name}"
+        )
+
+    return next_convolution
+
+
+def run_report_only_diagnostic(
+    operation: Callable[[], None],
+    *,
+    report_path: Path,
+    metadata: Mapping[str, JSONValue],
+) -> None:
+    """Run diagnostics without letting their exceptions stop later parity stages."""
+    try:
+        operation()
+    except Exception as error:
+        report = dict(metadata)
+        try:
+            existing = json.loads(report_path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                report.update(existing)
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            pass
+
+        report["status"] = "error"
+        report["diagnostic_exception"] = {
+            "type": type(error).__name__,
+            "message": str(error),
+        }
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        except Exception as report_error:
+            print(
+                json.dumps(
+                    {
+                        **report,
+                        "diagnostic_report_write_error": {
+                            "type": type(report_error).__name__,
+                            "message": str(report_error),
+                        },
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
 
 
 def max_absolute_difference(

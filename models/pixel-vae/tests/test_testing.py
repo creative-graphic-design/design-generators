@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -9,6 +12,8 @@ from pixel_vae.testing import (
     ceil_two_significant_figures,
     float32_difference_summary,
     max_absolute_difference,
+    next_trace_convolution,
+    run_report_only_diagnostic,
 )
 
 
@@ -131,3 +136,80 @@ def test_assert_within_limits_checks_exact_metric_set_and_values() -> None:
         assert_within_limits({"mean": 0.3}, {"mean": 0.2})
     with pytest.raises(AssertionError, match="exceed frozen"):
         assert_within_limits({"mean": float("nan")}, {"mean": 0.2})
+
+
+def test_next_trace_convolution_allows_terminal_out_relu() -> None:
+    assert next_trace_convolution("out_relu", "ReLU", []) is None
+
+
+@pytest.mark.parametrize(
+    ("layer_name", "layer_type", "following_layers", "expected"),
+    [
+        ("pad", "ZeroPadding2D", [("conv", "Conv2D")], "conv"),
+        ("add", "Add", [("depthwise", "DepthwiseConv2D")], "depthwise"),
+    ],
+)
+def test_next_trace_convolution_maps_layers_aligned_to_successor_input(
+    layer_name: str,
+    layer_type: str,
+    following_layers: list[tuple[str, str]],
+    expected: str,
+) -> None:
+    assert next_trace_convolution(layer_name, layer_type, following_layers) == expected
+
+
+def test_next_trace_convolution_rejects_unmatched_alignment_layer() -> None:
+    with pytest.raises(ValueError, match="no matching next convolution: add"):
+        next_trace_convolution("add", "Add", [("out_relu", "ReLU")])
+
+
+def test_run_report_only_diagnostic_records_failure_and_continues(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "diagnostic" / "s1-diagnostic.json"
+    report_path.parent.mkdir()
+    report_path.write_text(
+        json.dumps(
+            {
+                "status": "running",
+                "input_image_ids": {"train-01": ["train/id-a", "train/id-b"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail() -> None:
+        raise ValueError("terminal layer trace failed")
+
+    run_report_only_diagnostic(
+        fail,
+        report_path=report_path,
+        metadata={"mode": "diagnostic", "input_image_ids": {}},
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["status"] == "error"
+    assert report["mode"] == "diagnostic"
+    assert report["input_image_ids"] == {"train-01": ["train/id-a", "train/id-b"]}
+    assert report["diagnostic_exception"] == {
+        "type": "ValueError",
+        "message": "terminal layer trace failed",
+    }
+
+
+def test_run_report_only_diagnostic_does_not_raise_if_report_write_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    blocked_parent = tmp_path / "not-a-directory"
+    blocked_parent.write_text("file", encoding="utf-8")
+
+    def fail() -> None:
+        raise ValueError("diagnostic failure")
+
+    run_report_only_diagnostic(
+        fail,
+        report_path=blocked_parent / "diagnostic.json",
+        metadata={"mode": "diagnostic"},
+    )
+
+    assert "diagnostic_report_write_error" in capsys.readouterr().err

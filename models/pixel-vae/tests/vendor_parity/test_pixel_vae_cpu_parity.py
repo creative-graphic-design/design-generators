@@ -34,9 +34,12 @@ from pixel_vae.conversion import (
 )
 from pixel_vae.image_processing_pixel_vae import decode_pixelvae_png
 from pixel_vae.testing import (
+    JSONValue,
     assert_within_limits,
     float32_difference_summary,
     max_absolute_difference,
+    next_trace_convolution,
+    run_report_only_diagnostic,
 )
 from laygen.common.vendor import vendor_root
 
@@ -72,6 +75,25 @@ class ImageExample:
 
 
 def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
+    """Compare stages while keeping diagnostic-only failures non-blocking."""
+    if os.environ.get("PIXELVAE_PARITY_MODE", "heldout") == "diagnostic":
+        run_report_only_diagnostic(
+            lambda: _run_pixel_vae_cpu_stages(tmp_path),
+            report_path=PARITY_DIR / "diagnostic" / "s1-diagnostic.json",
+            metadata={
+                "mode": "diagnostic",
+                "diagnostic_only": True,
+                "limits_applied": False,
+                "source_commit": SOURCE_COMMIT,
+                "input_image_ids": {},
+            },
+        )
+        return
+
+    _run_pixel_vae_cpu_stages(tmp_path)
+
+
+def _run_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     """Compare static state, forward, updates, traces, and source data on CPU."""
     mode = os.environ.get("PIXELVAE_PARITY_MODE", "heldout")
     repeat = int(os.environ.get("PIXELVAE_PARITY_REPEAT", "0"))
@@ -137,6 +159,39 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     else:
         document_images = test_document_images
         training_images = test_training_images
+
+    diagnostic_pairs: list[tuple[str, list[ImageExample]]] = []
+    diagnostic_report: dict[str, JSONValue] | None = None
+    diagnostic_path = PARITY_DIR / "diagnostic" / "s1-diagnostic.json"
+    if diagnostic:
+        diagnostic_pairs = [
+            ("heldout", test_document_images[:2]),
+            *[
+                (
+                    f"train-{pair_index + 1:02d}",
+                    document_images[pair_index * 2 : pair_index * 2 + 2],
+                )
+                for pair_index in range(DIAGNOSTIC_TRAIN_PAIR_COUNT)
+            ],
+        ]
+        input_image_ids = {
+            pair_name: [example.image_id for example in examples]
+            for pair_name, examples in diagnostic_pairs
+        }
+        diagnostic_report = {
+            "mode": "diagnostic",
+            "status": "running",
+            "diagnostic_only": True,
+            "limits_applied": False,
+            "seed": 0,
+            "source_commit": SOURCE_COMMIT,
+            "input_image_ids": input_image_ids,
+        }
+        diagnostic_path.parent.mkdir(parents=True, exist_ok=True)
+        diagnostic_path.write_text(
+            json.dumps(diagnostic_report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     required_document_count = DIAGNOSTIC_TRAIN_PAIR_COUNT * 2 if diagnostic else 2
     if len(document_images) < required_document_count or len(training_images) < 6:
@@ -204,20 +259,18 @@ def test_pixel_vae_cpu_stages(tmp_path: Path) -> None:
     # Compare image decoding, posterior statistics, logits, and objective.
     processor = PixelVAEImageProcessor()
     if diagnostic:
+        if diagnostic_report is None:
+            raise RuntimeError("diagnostic inputs were not recorded before S1")
+        diagnostic_report["encoder_state_sha256"] = state_digest
+        diagnostic_path.write_text(
+            json.dumps(diagnostic_report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         _run_s1_diagnostic(
             reference,
             model,
             processor,
-            [
-                ("heldout", test_document_images[:2]),
-                *[
-                    (
-                        f"train-{pair_index + 1:02d}",
-                        document_images[pair_index * 2 : pair_index * 2 + 2],
-                    )
-                    for pair_index in range(DIAGNOSTIC_TRAIN_PAIR_COUNT)
-                ],
-            ],
+            diagnostic_pairs,
             state_digest=state_digest,
             source_commit=SOURCE_COMMIT,
         )
@@ -597,25 +650,21 @@ def _run_s1_diagnostic(
             target_modules[layer.name] = backbone.layers[layer.name]
             continue
 
-        next_convolution = next(
-            (
-                candidate
+        next_convolution_name = next_trace_convolution(
+            layer.name,
+            type(layer).__name__,
+            [
+                (candidate.name, type(candidate).__name__)
                 for candidate in source_layers[index + 1 :]
-                if isinstance(
-                    candidate,
-                    (tf.keras.layers.Conv2D, tf.keras.layers.DepthwiseConv2D),
-                )
-            ),
-            None,
+            ],
         )
-        if next_convolution is None:
-            raise ValueError(
-                f"TensorFlow layer has no matching next convolution: {layer.name}"
-            )
+        if next_convolution_name is None:
+            continue
+
         if isinstance(layer, tf.keras.layers.ZeroPadding2D):
-            padded_layer_targets[layer.name] = next_convolution.name
+            padded_layer_targets[layer.name] = next_convolution_name
         elif isinstance(layer, tf.keras.layers.Add):
-            added_layer_targets[layer.name] = next_convolution.name
+            added_layer_targets[layer.name] = next_convolution_name
     target_modules["z_mean"] = model.encoder.z_mean
     target_modules["z_log_sigma"] = model.encoder.z_log_variance
     layer_names = [layer.name for layer in source_layers] + [
@@ -841,6 +890,7 @@ def _run_s1_diagnostic(
 
     report = {
         "mode": "diagnostic",
+        "status": "complete",
         "diagnostic_only": True,
         "limits_applied": False,
         "seed": 0,
@@ -854,6 +904,10 @@ def _run_s1_diagnostic(
         "relative_difference_definition": "max_abs_diff / reference_max_abs",
         "ulp_definition": "ordered IEEE-754 binary32 integer distance at max_abs_diff index",
         "train_pair_count": DIAGNOSTIC_TRAIN_PAIR_COUNT,
+        "input_image_ids": {
+            pair_name: [example.image_id for example in examples]
+            for pair_name, examples in image_pairs
+        },
         "pairs": pair_records,
     }
     output_path = PARITY_DIR / "diagnostic" / "s1-diagnostic.json"
