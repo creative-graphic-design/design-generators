@@ -6,9 +6,7 @@ from pathlib import Path
 import pytest
 
 
-EXECUTOR_PATH = (
-    Path(__file__).parents[1] / "scripts" / "s5_rico_seed_executor.py"
-)
+EXECUTOR_PATH = Path(__file__).parents[1] / "scripts" / "s5_rico_seed_executor.py"
 EXECUTOR_SPEC = importlib.util.spec_from_file_location(
     "s5_rico_seed_executor", EXECUTOR_PATH
 )
