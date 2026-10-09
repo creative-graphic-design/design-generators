@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ from traingen_parity.tensorflow_compat import install_assert_all_finite_compat
 
 
 def main() -> None:
-    """Generate two independent original image and document data runs."""
+    """Generate selected original image and document preprocessing runs."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vendor-root", type=Path, required=True)
     parser.add_argument("--source-dir", type=Path, required=True)
@@ -55,7 +56,15 @@ def main() -> None:
             with beam.Pipeline(runner=FnApiRunner()) as pipeline:
                 pipeline | f"Generate-{run_index}-{name}" >> transform
 
-    print("completed two CPU FnApiRunner preprocessing runs")
+    print(
+        json.dumps(
+            {
+                "completed_run_indices": list(args.run_indices),
+                "transforms": ["crello-image", "crello-document"],
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":
