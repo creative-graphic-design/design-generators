@@ -35,6 +35,8 @@ from pixel_vae.image_processing_pixel_vae import decode_pixelvae_png
 from pixel_vae.testing import assert_within_limits, max_absolute_difference
 from laygen.common.vendor import vendor_root
 
+pytestmark = pytest.mark.vendor_parity
+
 SOURCE_BYTES = 2_989_732_284
 SOURCE_SHA256 = "f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e"
 PARITY_DIR = Path(os.environ.get("PIXELVAE_PARITY_DIR", ".cache/pixel-vae/parity"))
