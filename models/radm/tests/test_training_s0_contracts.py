@@ -486,6 +486,12 @@ def test_roi_index_put_preserves_channels_last_layout_on_cpu() -> None:
     assert pooled.is_contiguous(memory_format=torch.channels_last)
     assert pooled.stride() == (12544, 1, 1792, 256)
 
+    head.eval()
+    inference_pooled = head._roi_features(features, boxes)
+
+    assert inference_pooled.is_contiguous()
+    assert not inference_pooled.is_contiguous(memory_format=torch.channels_last)
+
 
 def test_geometry_relation_handles_channels_last_roi_output() -> None:
     torch.manual_seed(0)

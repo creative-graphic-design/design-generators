@@ -375,7 +375,7 @@ class RADMGeometryRelationAwareModule(nn.Module):
             dim=1,
         )
         transformed = self.linear2(
-            pooled_features.reshape(pooled_features.shape[0], -1)
+            pooled_features.contiguous().view(pooled_features.shape[0], -1)
         )
         topology = transformed.new_zeros((boxes_with_batch.shape[0], self.topo_out_dim))
         for batch_index in range(batch):
@@ -745,6 +745,9 @@ class RADMProposalHead(nn.Module):
             ],
             dim=-1,
         ).reshape(-1, 5)
+        memory_format = (
+            torch.channels_last if self.training else torch.contiguous_format
+        )
         pooled = torch.empty(
             (
                 boxes_xyxy.shape[0] * boxes_xyxy.shape[1],
@@ -754,7 +757,7 @@ class RADMProposalHead(nn.Module):
             ),
             dtype=features["p2"].dtype,
             device=features["p2"].device,
-            memory_format=torch.channels_last,
+            memory_format=memory_format,
         ).zero_()
         levels = self._assign_pooler_levels(absolute_boxes)
         for level, (name, stride) in enumerate(
