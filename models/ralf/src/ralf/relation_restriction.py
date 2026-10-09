@@ -651,10 +651,11 @@ class RelationConstraint:
                             )
                         elif relation_type == RalfRelationSize.SMALLER:
                             target_area /= 1 - REL_SIZE_ALPHA
-                            lower = 0
-                            upper = ceil(
-                                min(target_area / self.canvas_size, self.canvas_size)
+                            lower = min(
+                                ceil(target_area / self.canvas_size),
+                                self.canvas_size,
                             )
+                            upper = ceil(target_area)
                         elif relation_type == RalfRelationSize.LARGER:
                             target_area /= 1 + REL_SIZE_ALPHA
                             lower = 0

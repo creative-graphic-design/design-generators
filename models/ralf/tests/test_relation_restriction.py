@@ -79,3 +79,53 @@ def test_relation_decoder_restriction_is_bitwise_for_fixed_case() -> None:
     expected_allowed = torch.tensor([conditioner.name_to_id("logo")])
     assert torch.equal((~mask).nonzero().flatten(), expected_allowed)
     assert back_index is None
+
+
+def test_relation_decoder_smaller_width_matches_vendor_interval() -> None:
+    tokenizer, conditioner, _input_ids = relation_fixture()
+    label_zero = conditioner.name_to_id("embellishment")
+    label_one = conditioner.name_to_id("logo")
+    condition = torch.tensor(
+        [
+            conditioner.name_to_id("bos"),
+            conditioner.name_to_id("relationship"),
+            conditioner.name_to_id("end_of_task"),
+            label_zero,
+            conditioner.name_to_id("sep"),
+            label_one,
+            conditioner.name_to_id("relation_sep"),
+            label_one,
+            conditioner.name_to_id("A"),
+            conditioner.name_to_id("smaller"),
+            label_zero,
+            conditioner.name_to_id("A"),
+            conditioner.name_to_id("eos"),
+        ]
+    )
+    generated = torch.tensor(
+        [
+            [
+                conditioner.name_to_id("bos"),
+                label_zero,
+                tokenizer.config.bbox_token_offset("width") + 4,
+                tokenizer.config.bbox_token_offset("height") + 4,
+                tokenizer.config.bbox_token_offset("center_x") + 4,
+                tokenizer.config.bbox_token_offset("center_y") + 4,
+                label_one,
+            ]
+        ]
+    )
+
+    constraint = RelationConstraint(conditioner, tokenizer.token_mask())
+    relations = constraint.prepare(condition)
+    mask, back_index = constraint(generated[:, :1], relations)
+    for end in range(2, generated.size(1) + 1):
+        mask, back_index = constraint(generated[:, :end], relations)
+
+    width_start = tokenizer.config.bbox_token_offset("width")
+    expected_allowed = torch.arange(
+        width_start + 3,
+        width_start + tokenizer.config.num_bin,
+    )
+    assert torch.equal((~mask).nonzero().flatten(), expected_allowed)
+    assert back_index == 1
