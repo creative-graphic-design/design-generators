@@ -64,6 +64,96 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
     assert duplicates == set()
 
 
+def test_s5_claim_checks_multiple_exact_stage_evidence_sections(tmp_path: Path) -> None:
+    second_table = complete_stage_evidence_table().replace(
+        "| S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed. |",
+        "| S4 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table()}
+{second_table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS4\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
+def test_stage_evidence_heading_suffix_is_not_a_stage_table(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+## PKU relation Stage Evidence
+
+{complete_stage_evidence_table().replace("## Stage Evidence", "")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\t*\tS5 result claim requires a Stage Evidence table"
+    }
+
+
+def test_stage_evidence_accepts_assignment_prefixed_commands() -> None:
+    assert check_training_stage_evidence.is_rerunnable_command(
+        'CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run pytest models/pkg/tests'
+    )
+    assert check_training_stage_evidence.is_rerunnable_command(
+        "CACHE_DIR= python models/pkg/scripts/check.py"
+    )
+    assert check_training_stage_evidence.is_rerunnable_command(
+        'CUDA_VISIBLE_DEVICES=<gpu-index> "$PACKAGE_VENV/bin/python" check.py'
+    )
+
+
+def test_stage_evidence_accepts_quoted_compound_artifact_cells() -> None:
+    assert check_training_stage_evidence.is_artifact_path(
+        "`.cache/pkg/s0.json`; `models/pkg/tests/test_parity.py`"
+    )
+
+    artifact = (
+        "`.cache/pkg/full-run/manifest.json`; "
+        "`evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json`"
+    )
+    assert check_training_stage_evidence.s5_artifact_paths_are_valid(
+        *check_training_stage_evidence.parse_s5_artifact_paths(artifact)
+    )
+    assert not check_training_stage_evidence.is_artifact_path(
+        "`.cache/pkg/s0.json` trailing"
+    )
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        "placeholder; .cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        ".cache/pkg/full-run/manifest.json; placeholder; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        ".cache/pkg/full-run/manifest.json; evaluation-path-parity:; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+    ],
+)
+def test_s5_artifact_rejects_invalid_compound_components(artifact: str) -> None:
+    assert not check_training_stage_evidence.s5_artifact_paths_are_valid(
+        *check_training_stage_evidence.parse_s5_artifact_paths(artifact)
+    )
+
+
 def test_s5_manifest_artifact_passes(tmp_path: Path) -> None:
     write_training_md(
         tmp_path,
@@ -80,6 +170,31 @@ Package training reproduction is achieved with training-seed n=3.
     )
 
     assert check_training_stage_evidence.current_entries(tmp_path) == set()
+
+
+def test_s5_valid_command_and_artifact_reject_placeholder_result(
+    tmp_path: Path,
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        "training-seed n=3 accepted.", "<result>"
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
 
 
 def test_s5_valid_artifact_still_checks_placeholder_cells(tmp_path: Path) -> None:

@@ -36,6 +36,7 @@ PENDING_VALUES = {
     "not recorded",
     "not run",
     "pending",
+    "placeholder",
     "tbd",
     "todo",
     "<repo/cache-relative path or project issue/pr url>",
@@ -111,7 +112,7 @@ class StageEvidence:
         return (
             is_rerunnable_command(self.command)
             and artifact_is_complete
-            and normalize_value(self.result) not in PENDING_VALUES
+            and not is_pending_or_placeholder(self.result)
         )
 
 
@@ -138,6 +139,14 @@ def normalize_header(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.strip().strip("`").lower())
 
 
+def is_pending_or_placeholder(value: str) -> bool:
+    """Return whether a cell carries no recorded evidence."""
+    normalized = normalize_value(value)
+    return normalized in PENDING_VALUES or (
+        normalized.startswith("<") and normalized.endswith(">")
+    )
+
+
 def unquote_cell(value: str) -> str:
     """Return a Markdown table cell without simple code-span quoting."""
     return value.strip().strip("`").strip()
@@ -149,11 +158,36 @@ def is_rerunnable_command(value: str) -> bool:
     normalized = normalize_value(command)
     if normalized in PENDING_VALUES:
         return False
-    return command.startswith(COMMAND_STARTERS)
+
+    while True:
+        assignment = re.match(
+            r"[A-Za-z_][A-Za-z0-9_]*=(?:<[^>]*>|'[^']*'|\"[^\"]*\"|\S*)\s+",
+            command,
+        )
+        if assignment is None:
+            break
+
+        command = command[assignment.end() :]
+
+    if command.startswith(COMMAND_STARTERS):
+        return True
+
+    return bool(re.match(r"""["'](?:\$|\./|/)[^"']*["'](?:\s|$)""", command))
 
 
 def is_artifact_path(value: str) -> bool:
     """Return whether an artifact cell is repo-relative or cache-relative."""
+    if ";" in value:
+        return all(is_artifact_path(part) for part in value.split(";"))
+
+    quoted_paths = re.findall(r"`([^`]+)`", value)
+    if quoted_paths:
+        remainder = re.sub(r"`[^`]+`", "", value).strip()
+        if remainder:
+            return False
+
+        return all(is_artifact_path(path) for path in quoted_paths)
+
     artifact = unquote_cell(value)
     normalized = normalize_value(artifact)
     if normalized in PENDING_VALUES or " " in artifact:
@@ -169,14 +203,25 @@ def parse_s5_artifact_paths(value: str) -> tuple[str | None, str | None]:
     """Return the manifest path and evaluation-path parity path from an S5 cell."""
     manifest: str | None = None
     parity_path: str | None = None
-    for part in value.strip().split(";"):
-        cleaned = part.strip().strip("`").strip()
+    parity_seen = False
+    parts = [part.strip().strip("`").strip() for part in value.strip().split(";")]
+    if not parts or any(not part for part in parts):
+        return None, None
+
+    for cleaned in parts:
         marker, _separator, path = cleaned.partition(":")
         if marker.strip().lower() == EVALUATION_PATH_PARITY_MARKER:
+            if parity_seen:
+                return None, None
+
+            parity_seen = True
             parity_path = path.strip().strip("`").strip() or None
             continue
 
         if cleaned:
+            if manifest is not None:
+                return None, None
+
             manifest = cleaned
 
     return manifest, parity_path
@@ -240,53 +285,73 @@ def has_s5_claim(text: str) -> bool:
     return False
 
 
-def parse_stage_evidence(
-    text: str,
+def _parse_stage_evidence_lines(
+    lines: list[str],
 ) -> tuple[dict[str, StageEvidence], set[str]]:
-    """Parse the machine-readable Stage Evidence table."""
+    """Parse one machine-readable Stage Evidence table."""
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith("|"):
+            continue
+        headers = [normalize_header(cell) for cell in split_markdown_row(line)]
+        if not {"stage", "command", "artifact", "result"}.issubset(headers):
+            continue
+        row_start = index + 1
+        if row_start < len(lines) and is_table_delimiter(lines[row_start]):
+            row_start += 1
+        positions = {
+            name: headers.index(name)
+            for name in ("stage", "command", "artifact", "result")
+        }
+        evidence: dict[str, StageEvidence] = {}
+        duplicates: set[str] = set()
+
+        for row in lines[row_start:]:
+            if not row.lstrip().startswith("|"):
+                break
+
+            if is_table_delimiter(row):
+                continue
+            cells = split_markdown_row(row)
+            if len(cells) < len(headers):
+                continue
+
+            stage = cells[positions["stage"]].strip().upper()
+            if stage not in STAGES:
+                continue
+
+            if stage in evidence:
+                duplicates.add(stage)
+
+            evidence[stage] = StageEvidence(
+                stage=stage,
+                command=cells[positions["command"]],
+                artifact=cells[positions["artifact"]],
+                result=cells[positions["result"]],
+            )
+        return evidence, duplicates
+    return {}, set()
+
+
+def parse_stage_evidence_sections(
+    text: str,
+) -> list[tuple[str, dict[str, StageEvidence], set[str]]]:
+    """Parse every exact Stage Evidence section in a training document."""
+    sections = []
     for heading, lines in iter_heading_sections(text):
         if heading.lower() != "stage evidence":
             continue
-        for index, line in enumerate(lines):
-            if not line.lstrip().startswith("|"):
-                continue
-            headers = [normalize_header(cell) for cell in split_markdown_row(line)]
-            if not {"stage", "command", "artifact", "result"}.issubset(headers):
-                continue
-            row_start = index + 1
-            if row_start < len(lines) and is_table_delimiter(lines[row_start]):
-                row_start += 1
-            positions = {
-                name: headers.index(name)
-                for name in ("stage", "command", "artifact", "result")
-            }
-            evidence: dict[str, StageEvidence] = {}
-            duplicates: set[str] = set()
+        evidence, duplicates = _parse_stage_evidence_lines(lines)
+        sections.append((heading, evidence, duplicates))
 
-            for row in lines[row_start:]:
-                if not row.lstrip().startswith("|"):
-                    break
+    return sections
 
-                if is_table_delimiter(row):
-                    continue
-                cells = split_markdown_row(row)
-                if len(cells) < len(headers):
-                    continue
 
-                stage = cells[positions["stage"]].strip().upper()
-                if stage not in STAGES:
-                    continue
-
-                if stage in evidence:
-                    duplicates.add(stage)
-
-                evidence[stage] = StageEvidence(
-                    stage=stage,
-                    command=cells[positions["command"]],
-                    artifact=cells[positions["artifact"]],
-                    result=cells[positions["result"]],
-                )
-            return evidence, duplicates
+def parse_stage_evidence(
+    text: str,
+) -> tuple[dict[str, StageEvidence], set[str]]:
+    """Parse the first machine-readable Stage Evidence table."""
+    for _heading, evidence, duplicates in parse_stage_evidence_sections(text):
+        return evidence, duplicates
     return {}, set()
 
 
@@ -305,7 +370,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
     if not has_s5_claim(text):
         return []
     relative_path = path.relative_to(root).as_posix()
-    evidence, duplicates = parse_stage_evidence(text)
+    evidence_sections = parse_stage_evidence_sections(text)
     violations: list[StageEvidenceViolation] = []
     if not has_reproduction_results_heading(text):
         violations.append(
@@ -315,7 +380,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                 "S5 result claim requires a Reproduction Results heading",
             )
         )
-    if not evidence:
+    if not evidence_sections:
         violations.append(
             StageEvidenceViolation(
                 relative_path,
@@ -324,42 +389,51 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
             )
         )
         return violations
-    for stage in sorted(duplicates):
-        violations.append(
-            StageEvidenceViolation(
-                relative_path,
-                stage,
-                "stage evidence table contains duplicate rows for this stage",
-            )
-        )
-    for stage in STAGES:
-        row = evidence.get(stage)
-        if row is None:
+    for _heading, evidence, duplicates in evidence_sections:
+        for stage in sorted(duplicates):
             violations.append(
                 StageEvidenceViolation(
                     relative_path,
                     stage,
-                    "S5 result claim requires a complete evidence row for this stage",
+                    "stage evidence table contains duplicate rows for this stage",
                 )
             )
-        elif stage == "S5" and normalize_value(row.artifact) not in PENDING_VALUES:
-            manifest, parity_path = parse_s5_artifact_paths(row.artifact)
-            if parity_path is None:
+        for stage in STAGES:
+            row = evidence.get(stage)
+            if row is None:
                 violations.append(
                     StageEvidenceViolation(
                         relative_path,
                         stage,
-                        "S5 artifact must include an evaluation-path parity artifact reference",
+                        "S5 result claim requires a complete evidence row for this stage",
                     )
                 )
-            elif not s5_artifact_paths_are_valid(manifest, parity_path):
-                violations.append(
-                    StageEvidenceViolation(
-                        relative_path,
-                        stage,
-                        "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
+            elif stage == "S5" and not is_pending_or_placeholder(row.artifact):
+                manifest, parity_path = parse_s5_artifact_paths(row.artifact)
+                if parity_path is None:
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "S5 artifact must include an evaluation-path parity artifact reference",
+                        )
                     )
-                )
+                elif not s5_artifact_paths_are_valid(manifest, parity_path):
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
+                        )
+                    )
+                elif not row.is_complete:
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "stage evidence row has a placeholder command, artifact, or result",
+                        )
+                    )
             elif not row.is_complete:
                 violations.append(
                     StageEvidenceViolation(
@@ -368,14 +442,6 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                         "stage evidence row has a placeholder command, artifact, or result",
                     )
                 )
-        elif not row.is_complete:
-            violations.append(
-                StageEvidenceViolation(
-                    relative_path,
-                    stage,
-                    "stage evidence row has a placeholder command, artifact, or result",
-                )
-            )
     return violations
 
 
