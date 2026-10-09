@@ -163,6 +163,12 @@ def test_stage_evidence_accepts_assignment_prefixed_commands() -> None:
     assert not check_training_stage_evidence.is_rerunnable_command(
         '"./.venv/bin/python" check.py'
     )
+    assert not check_training_stage_evidence.is_rerunnable_command(
+        '"$PACKAGE_VENV/bin/bash" check.py'
+    )
+    assert not check_training_stage_evidence.is_rerunnable_command(
+        '"$PACKAGE_VENV/custom" check.py'
+    )
 
 
 def test_stage_evidence_accepts_quoted_compound_artifact_cells() -> None:

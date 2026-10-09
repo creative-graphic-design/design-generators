@@ -172,7 +172,9 @@ def is_rerunnable_command(value: str) -> bool:
     if command.startswith(COMMAND_STARTERS):
         return True
 
-    return bool(re.match(r"""["']\$[^"']*["'](?:\s|$)""", command))
+    return bool(
+        re.match(r"""(["'])\$[A-Za-z_][A-Za-z0-9_]*/bin/python\1(?:\s|$)""", command)
+    )
 
 
 def is_artifact_path(value: str) -> bool:
