@@ -36,6 +36,7 @@ from canvas_vae.conversion import (
 )
 from canvas_vae.data import (
     CrelloBatch,
+    CrelloDocument,
     CrelloProcessor,
     CrelloSplit,
     fixture_image_ids,
@@ -1258,6 +1259,17 @@ def _load_frozen_limits(report_dir: Path, commit: str) -> tuple[bytes, _FrozenLi
     return limits_bytes, limits
 
 
+def _heldout_test_batches(
+    documents: Sequence[CrelloDocument],
+) -> list[tuple[int, list[CrelloDocument]]]:
+    return [
+        (batch_index, [documents[index] for index in indices])
+        for batch_index, indices in enumerate(
+            sequential_batches(len(documents), BATCH_SIZE)
+        )
+    ]
+
+
 def _calibrate(
     *,
     data_dir: Path = DATA_DIR,
@@ -1490,12 +1502,7 @@ def _run(
 
         selected = [(batch_index, documents[CrelloSplit.train][start:stop])]
     else:
-        selected = [
-            (index, documents[CrelloSplit.test][start:stop])
-            for index, (start, stop) in enumerate(
-                sequential_batches(len(documents[CrelloSplit.test]), BATCH_SIZE)
-            )
-        ]
+        selected = _heldout_test_batches(documents[CrelloSplit.test])
 
     ordered = [row for split in CrelloSplit for row in documents[split]]
     embeddings = load_embedding_fixture(fixture_dir, fixture_image_ids(ordered))
