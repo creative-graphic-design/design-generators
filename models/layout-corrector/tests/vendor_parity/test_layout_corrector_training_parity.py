@@ -24,10 +24,82 @@ from typing import (
     cast,
 )  # noqa: TID251 - vendor APIs are dynamic.
 from unittest.mock import patch
+from urllib.parse import unquote, urlparse
 
 import pytest
 import torch
 import torch.nn.functional as F
+
+
+_EDITABLE_SOURCES: Final[dict[str, str]] = {
+    "laygen": "lib/laygen",
+    "traingen": "lib/traingen",
+    "traingen-parity": "lib/traingen-parity",
+    "layout-dm": "models/layout-dm",
+    "layout-corrector": "models/layout-corrector",
+}
+
+
+def _repository_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def _editable_source_records() -> dict[str, dict[str, Any]]:
+    """Verify that audited editable installs resolve to this worktree."""
+    root = _repository_root()
+    runtime = Path(os.environ["LAYOUT_CORRECTOR_AUDIT_VENV"])
+    site_packages = (
+        runtime
+        / "lib"
+        / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages"
+    )
+    records: dict[str, dict[str, Any]] = {}
+    for distribution_name, relative_source in _EDITABLE_SOURCES.items():
+        normalized_name = distribution_name.replace("-", "_")
+        candidates = sorted(site_packages.glob(f"{normalized_name}-*.dist-info"))
+        if len(candidates) != 1:
+            raise RuntimeError(
+                f"audited runtime must have one dist-info directory for "
+                f"{distribution_name}: {candidates}"
+            )
+        direct_url_path = candidates[0] / "direct_url.json"
+        direct_url_text = (
+            direct_url_path.read_text() if direct_url_path.is_file() else ""
+        )
+        if not direct_url_text:
+            raise RuntimeError(
+                f"audited runtime has no direct_url.json for {distribution_name}"
+            )
+        direct_url = cast(dict[str, Any], json.loads(direct_url_text))
+        if direct_url.get("dir_info", {}).get("editable") is not True:
+            raise RuntimeError(
+                f"audited runtime distribution is not editable: {distribution_name}"
+            )
+        parsed_url = urlparse(str(direct_url.get("url", "")))
+        if parsed_url.scheme != "file" or parsed_url.netloc not in ("", "localhost"):
+            raise RuntimeError(
+                f"audited runtime direct_url is not a local path: {distribution_name}"
+            )
+        actual_source = Path(unquote(parsed_url.path)).resolve()
+        expected_source = (root / relative_source).resolve()
+        if actual_source != expected_source:
+            raise RuntimeError(
+                f"audited runtime editable path mismatch for {distribution_name}: "
+                f"{actual_source} != {expected_source}"
+            )
+        tree_result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", f"HEAD:{relative_source}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        records[distribution_name] = {
+            "editable": True,
+            "path": relative_source,
+            "git_tree": tree_result.stdout.strip(),
+        }
+    return records
 
 
 def _require_audited_runtime_when_gated() -> None:
@@ -52,6 +124,7 @@ def _require_audited_runtime_when_gated() -> None:
             "PARITY_REQUIRE=1 must run under LAYOUT_CORRECTOR_AUDIT_VENV: "
             f"{sys.executable} != {expected_python}"
         )
+    _editable_source_records()
 
 
 pytest.importorskip("lightning", _require_audited_runtime_when_gated())
@@ -102,7 +175,7 @@ from layout_dm.training.config import LayoutDMTrainingDatasetName
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
-ROOT: Final = Path(__file__).resolve().parents[4]
+ROOT: Final = _repository_root()
 DATASETS: Final[tuple[LayoutCorrectorTrainingDatasetName, ...]] = (
     "rico25",
     "publaynet",
@@ -320,6 +393,7 @@ def _runtime_record() -> dict[str, Any]:
         ).stdout.strip(),
         "freeze_sha256": hashlib.sha256(freeze.encode()).hexdigest(),
         "freeze_includes_file_urls": "file://" in freeze,
+        "editable_sources": _editable_source_records(),
     }
     for package in ("torch", "torchvision"):
         package_result = subprocess.run(
@@ -615,7 +689,7 @@ def _paired_real_batch(
     batch_size: int = 4,
     random_order: bool = True,
     num_workers: int | None = None,
-) -> tuple[dict[str, torch.Tensor], dict[str, Any]]:
+) -> tuple[dict[str, torch.Tensor], dict[str, Any], dict[str, int]]:
     """Load one matching batch through both production dataset adapters."""
     from trainer.data.util import compose_transform, sparse_to_dense
 
@@ -649,6 +723,13 @@ def _paired_real_batch(
         shuffle=split == "train",
         num_workers=workers,
     )
+    loader_workers = {
+        "requested_num_workers": workers,
+        "vendor_loader_num_workers": int(vendor_loader.num_workers),
+        "package_loader_num_workers": int(package_loader.num_workers),
+    }
+    assert loader_workers["vendor_loader_num_workers"] == workers
+    assert loader_workers["package_loader_num_workers"] == workers
     seed = 42975
     torch.manual_seed(seed)
     vendor_batch = next(iter(vendor_loader))
@@ -675,6 +756,7 @@ def _paired_real_batch(
             "attention_mask": vendor_encoded["mask"],
         },
         package_batch,
+        loader_workers,
     )
 
 
@@ -1022,13 +1104,18 @@ def test_s0_training_static_state_matches_vendor(
     package_optimizer = torch.optim.AdamW(
         fixture.package.optim_groups(), lr=5.0e-4, betas=(0.9, 0.98)
     )
-    vendor_input, package_batch = _paired_real_batch(
+    vendor_input, package_batch, paired_loader_workers = _paired_real_batch(
         dataset,
         "train",
         fixture.vendor_tokenizer,
         random_order=False,
         num_workers=0,
     )
+    assert paired_loader_workers == {
+        "requested_num_workers": 0,
+        "vendor_loader_num_workers": 0,
+        "package_loader_num_workers": 0,
+    }
     dataset_input_diffs, dataset_first = _mapping_diffs(vendor_input, package_batch)
     vendor_frozen_model = cast(Any, fixture.vendor_diffusion).model.module
     vendor_frozen_state = vendor_frozen_model.state_dict()
@@ -1137,6 +1224,7 @@ def test_s0_training_static_state_matches_vendor(
                 "vendor": vendor_optimizer_state_entries,
                 "package": package_optimizer_state_entries,
             },
+            "paired_loader_workers": paired_loader_workers,
             "dataset_static_values_equal": not dataset_first,
             "dataset_static_max_abs_diff": max(dataset_input_diffs.values()),
             "first_divergence": {
@@ -1162,9 +1250,15 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor(
     apply_determinism(DeterminismConfig(seed=42975, deterministic_algorithms=False))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     fixture = _fixture(dataset, device)
-    vendor_batch, package_batch = _paired_real_batch(
+    vendor_batch, package_batch, paired_loader_workers = _paired_real_batch(
         dataset, "train", fixture.vendor_tokenizer
     )
+    configured_workers = _loader_worker_count(dataset)
+    assert paired_loader_workers == {
+        "requested_num_workers": configured_workers,
+        "vendor_loader_num_workers": configured_workers,
+        "package_loader_num_workers": configured_workers,
+    }
     vendor_trace, package_trace = _paired_trace(fixture, vendor_batch, package_batch)
     diffs, first = _tensor_diffs(vendor_trace, package_trace)
     assert not first, diffs
@@ -1175,6 +1269,7 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor(
             "dataset": dataset,
             "max_abs_diffs": diffs,
             "first_divergence": first,
+            "paired_loader_workers": paired_loader_workers,
             "runtime": _runtime_record(),
             "vendor_source_commit": _source_commit(
                 ROOT / "vendor" / "layout-corrector"
@@ -1193,9 +1288,15 @@ def test_s2_one_optimizer_step_matches_vendor(
     apply_determinism(DeterminismConfig(seed=42975, deterministic_algorithms=False))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     fixture = _fixture(dataset, device)
-    vendor_batch, package_batch = _paired_real_batch(
+    vendor_batch, package_batch, paired_loader_workers = _paired_real_batch(
         dataset, "train", fixture.vendor_tokenizer
     )
+    configured_workers = _loader_worker_count(dataset)
+    assert paired_loader_workers == {
+        "requested_num_workers": configured_workers,
+        "vendor_loader_num_workers": configured_workers,
+        "package_loader_num_workers": configured_workers,
+    }
     vendor_trace, package_trace = _paired_trace(fixture, vendor_batch, package_batch)
     vendor_optimizer = torch.optim.AdamW(
         fixture.vendor.optim_groups(weight_decay=0.1), lr=5e-4, betas=(0.9, 0.98)
@@ -1261,6 +1362,7 @@ def test_s2_one_optimizer_step_matches_vendor(
                 optimizer_state_diffs.values(), default=0.0
             ),
             "first_optimizer_state_difference": optimizer_state_first,
+            "paired_loader_workers": paired_loader_workers,
             "scheduler_state": {
                 "vendor_digest": vendor_scheduler_digest,
                 "package_digest": package_scheduler_digest,
