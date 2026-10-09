@@ -12,6 +12,7 @@ from canvas_vae.data import (
     document_id,
 )
 from canvas_vae.metrics import (
+    _scaled_mean_cosine_similarity,
     crello_field_statistics,
     crello_histogram_scores,
     crello_reconstruction_scores,
@@ -189,6 +190,26 @@ def test_reconstruction_metrics_match_vendor_field_channel_weights():
         "layout_miou",
     ):
         torch.testing.assert_close(scores[key], torch.ones_like(scores[key]))
+
+
+def test_scaled_cosine_uses_tensorflow_epsilon_for_near_zero_vectors():
+    score = _scaled_mean_cosine_similarity(
+        torch.tensor([[[1e-10, 0.0]]]),
+        torch.tensor([[[1.0, 0.0]]]),
+        torch.tensor([[True]]),
+        torch.tensor([[True]]),
+    )
+
+    torch.testing.assert_close(score, torch.tensor([0.50005]), rtol=1e-5, atol=1e-7)
+
+
+def test_histogram_cosine_uses_tensorflow_epsilon_for_near_zero_vectors():
+    scores = crello_histogram_scores(
+        {"image_embedding": torch.tensor([[1e-10, 0.0]])},
+        {"image_embedding": torch.tensor([[1.0, 0.0]])},
+    )
+
+    assert abs(scores["image_embedding"] - 0.49995) < 1e-7
 
 
 def test_generation_statistics_match_vendor_color_channels_and_cosine_loss():

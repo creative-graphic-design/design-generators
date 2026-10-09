@@ -363,6 +363,27 @@ def test_crello_metric_diagnostic_recomputes_scaled_cosine_in_float64():
     assert report["torch_score"] == [0.0]
 
 
+def test_crello_metric_diagnostic_matches_tensorflow_epsilon_for_near_zero_vectors():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    diagnose_cosine = cast(
+        Callable[..., dict[str, object]], namespace["_scaled_cosine_diagnostic"]
+    )
+    report = diagnose_cosine(
+        np.array([[[1e-10, 0.0]]], dtype=np.float32),
+        np.array([[True]]),
+        np.array([[[1.0, 0.0]]], dtype=np.float32),
+        np.array([[True]]),
+    )
+
+    assert report["tensorflow_cosine_similarity"] == pytest.approx([1e-4])
+    assert report["torch_cosine_similarity"] == pytest.approx([1e-4])
+    assert report["tensorflow_score"] == pytest.approx([0.50005])
+    assert report["torch_score"] == pytest.approx([0.50005])
+
+
 def test_crello_metric_diagnostic_reports_signed_float32_ulp_delta():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"

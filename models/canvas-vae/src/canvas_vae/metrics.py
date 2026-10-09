@@ -392,9 +392,20 @@ def _scaled_mean_cosine_similarity(
     prediction_mean = (prediction * prediction_mask.unsqueeze(-1)).sum(
         dim=1
     ) / prediction_length.unsqueeze(1)
-    similarity = (1.0 + F.cosine_similarity(target_mean, prediction_mean, dim=-1)) / 2
+    cosine_similarity = _keras_cosine_similarity(target_mean, prediction_mean)
+    similarity = (1.0 + cosine_similarity) / 2
     brevity = torch.exp(torch.clamp(1.0 - target_length / prediction_length, max=0.0))
     return (brevity * similarity).clamp(0.0, 1.0)
+
+
+def _keras_cosine_similarity(
+    target: Float[torch.Tensor, "items features"],
+    prediction: Float[torch.Tensor, "items features"],
+) -> Float[torch.Tensor, "items"]:
+    # Match tf.linalg.l2_normalize's squared-norm epsilon of 1e-12.
+    target_normalized = F.normalize(target, p=2, dim=-1, eps=1e-6)
+    prediction_normalized = F.normalize(prediction, p=2, dim=-1, eps=1e-6)
+    return (target_normalized * prediction_normalized).sum(dim=-1)
 
 
 def _crello_layout_scores(
@@ -607,7 +618,7 @@ def crello_histogram_scores(
     for field, target in reference.items():
         candidate = generated[field].to(target.device)
         if field == "image_embedding":
-            channel_scores = 0.5 - 0.5 * F.cosine_similarity(target, candidate, dim=-1)
+            channel_scores = 0.5 - 0.5 * _keras_cosine_similarity(target, candidate)
             values[field] = float(channel_scores.mean().item())
         else:
             channel_scores = torch.minimum(target, candidate).sum(dim=0)
