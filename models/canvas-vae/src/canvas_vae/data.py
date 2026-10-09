@@ -11,7 +11,7 @@ import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum, auto
 from pathlib import Path, PurePosixPath
-from typing import Final, Literal, TypedDict, cast
+from typing import Final, Literal, TypedDict, cast, overload
 
 import numpy as np
 import torch
@@ -550,7 +550,7 @@ class CrelloProcessor:
                     element["type"] in CRELLO_IMAGE_TYPES
                 )
 
-        return BatchFeature(result)
+        return BatchFeature(cast(dict[str, torch.Tensor | list[str]], result))
 
     def _lookup(self, field: str, value: str | int) -> int:
         try:
@@ -560,9 +560,24 @@ class CrelloProcessor:
                 f"unknown Crello {field} vocabulary value: {value!r}"
             ) from error
 
+    @overload
+    @staticmethod
+    def _discretize(field: _GeometryField, value: float) -> int: ...
+
+    @overload
+    @staticmethod
+    def _discretize(field: Literal["opacity"], value: float) -> int: ...
+
+    @overload
     @staticmethod
     def _discretize(
-        field: str, value: float | int | Sequence[int]
+        field: Literal["color"], value: Sequence[int]
+    ) -> Int[np.ndarray, "..."]: ...
+
+    @staticmethod
+    def _discretize(
+        field: _GeometryField | Literal["opacity", "color"],
+        value: float | int | Sequence[int],
     ) -> int | Int[np.ndarray, "..."]:
         if field == "opacity":
             bins, minimum, maximum = 8, 0.0, 1.0
