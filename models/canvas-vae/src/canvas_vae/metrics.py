@@ -11,11 +11,15 @@ by histogram intersection.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
+from torch.nn import functional as F
 
-from .configuration_canvas_vae import CanvasVAEField
+from .configuration_canvas_vae import CanvasVAECrelloConfig, CanvasVAEField
+from .data import CrelloBatch
+from .modeling_canvas_vae import CanvasVAECrelloModelOutput
 
 LENGTH_KEY = "length"
 TOTAL_KEY = "total"
@@ -176,22 +180,34 @@ def layout_scores(
             grid_size=grid_size,
             background_id=background_id,
         )
-        confusion = torch.zeros(num_labels, num_labels)
-        confusion.index_put_(
-            (predicted.flatten(), target.flatten()),
-            torch.ones(grid_size * grid_size),
-            accumulate=True,
-        )
-        intersection = confusion.diagonal()
-        union = confusion.sum(dim=0) + confusion.sum(dim=1) - intersection
-        valid = (union > 0).float()
-        accuracies.append(intersection.sum() / confusion.sum())
-        mean_ious.append((valid * intersection / (union + 1e-9)).sum() / valid.sum())
+        accuracy, mean_iou = _grid_scores(target, predicted, grid_size, num_labels)
+        accuracies.append(accuracy)
+        mean_ious.append(mean_iou)
 
     return {
         "layout_acc": torch.stack(accuracies),
         "layout_miou": torch.stack(mean_ious),
     }
+
+
+def _grid_scores(
+    target: Int[torch.Tensor, "grid grid"],
+    predicted: Int[torch.Tensor, "grid grid"],
+    grid_size: int,
+    num_labels: int,
+) -> tuple[Float[torch.Tensor, ""], Float[torch.Tensor, ""]]:
+    confusion = torch.zeros(num_labels, num_labels)
+    confusion.index_put_(
+        (predicted.flatten(), target.flatten()),
+        torch.ones(grid_size * grid_size),
+        accumulate=True,
+    )
+    intersection = confusion.diagonal()
+    union = confusion.sum(dim=0) + confusion.sum(dim=1) - intersection
+    valid = (union > 0).float()
+    accuracy = intersection.sum() / confusion.sum()
+    mean_iou = (valid * intersection / (union + 1e-9)).sum() / valid.sum()
+    return accuracy, mean_iou
 
 
 def field_histograms(
@@ -257,8 +273,352 @@ def histogram_scores(
     return scores
 
 
+def crello_reconstruction_scores(
+    batch: CrelloBatch,
+    output: CanvasVAECrelloModelOutput,
+    config: CanvasVAECrelloConfig,
+) -> dict[str, Float[torch.Tensor, "..."]]:
+    """Return per-document vector scores and type-map layout metrics."""
+    context_logits = output.context_logits
+    sequence_logits = output.sequence_logits
+    numerical_predictions = output.numerical_predictions
+    pred_mask = output.mask
+    if context_logits is None:
+        raise ValueError("reconstruction metrics need decoded Crello fields")
+
+    if sequence_logits is None:
+        raise ValueError("reconstruction metrics need decoded Crello fields")
+
+    if numerical_predictions is None or pred_mask is None:
+        raise ValueError("reconstruction metrics need decoded Crello fields")
+
+    tensor_batch = cast(Mapping[str, Shaped[torch.Tensor, "..."]], batch)
+    predicted_type = sequence_logits["type"].argmax(dim=-1)
+    true_mask = batch["element_mask"]
+    parts: list[Float[torch.Tensor, "batch channels"]] = []
+    weights: list[Float[torch.Tensor, "batch channels"]] = []
+    scores: dict[str, Float[torch.Tensor, "batch"]] = {}
+    for field, logits in context_logits.items():
+        values = (logits.argmax(dim=-1) == tensor_batch[field]).float()
+        scores[field] = values
+        parts.append(values.reshape(values.shape[0], -1))
+        weights.append(torch.ones_like(values).reshape(values.shape[0], -1))
+
+    for field, logits in sequence_logits.items():
+        targets = tensor_batch[field]
+        predictions = logits.argmax(dim=-1)
+        field_true_mask = true_mask
+        field_pred_mask = pred_mask
+        if field in config.conditional_types:
+            field_true_mask = tensor_batch[f"{field}_mask"]
+            field_pred_mask = field_pred_mask & _allowed_type_mask(
+                predicted_type, config.conditional_type_ids(field)
+            )
+
+        channel_scores = (
+            torch.stack(
+                [
+                    bleu1(
+                        targets[..., channel],
+                        field_true_mask,
+                        predictions[..., channel],
+                        field_pred_mask,
+                        logits.shape[-1],
+                    )
+                    for channel in range(targets.shape[-1])
+                ],
+                dim=1,
+            )
+            if field == "color"
+            else bleu1(
+                targets.squeeze(-1),
+                field_true_mask,
+                predictions,
+                field_pred_mask,
+                logits.shape[-1],
+            ).unsqueeze(1)
+        )
+        has_both = (
+            (field_true_mask.any(dim=1) & field_pred_mask.any(dim=1))
+            .float()
+            .unsqueeze(1)
+        )
+        scores[field] = channel_scores
+        parts.append(channel_scores)
+        weights.append(has_both.expand_as(channel_scores))
+
+    image_true_mask = batch["image_embedding_mask"]
+    image_pred_mask = pred_mask & _allowed_type_mask(
+        predicted_type, config.conditional_type_ids("image_embedding")
+    )
+    image_score = _scaled_mean_cosine_similarity(
+        batch["image_embedding"],
+        numerical_predictions["image_embedding"],
+        image_true_mask,
+        image_pred_mask,
+    )
+    scores["image_embedding"] = image_score.unsqueeze(1)
+    parts.append(image_score.unsqueeze(1))
+    weights.append(
+        (image_true_mask.any(dim=1) & image_pred_mask.any(dim=1)).float().unsqueeze(1)
+    )
+    scores["total"] = torch.cat(parts, dim=1).sum(dim=1, keepdim=True) / torch.cat(
+        weights, dim=1
+    ).sum(dim=1, keepdim=True)
+    scores.update(_crello_layout_scores(batch, output, config))
+    return scores
+
+
+def _allowed_type_mask(
+    type_ids: Int[torch.Tensor, "batch elements"], allowed: tuple[int, ...]
+) -> Bool[torch.Tensor, "batch elements"]:
+    if not allowed:
+        return torch.zeros_like(type_ids, dtype=torch.bool)
+
+    classes = torch.tensor(allowed, dtype=type_ids.dtype, device=type_ids.device)
+    return (type_ids.unsqueeze(-1) == classes).any(dim=-1)
+
+
+def _scaled_mean_cosine_similarity(
+    target: Float[torch.Tensor, "batch elements features"],
+    prediction: Float[torch.Tensor, "batch elements features"],
+    target_mask: Bool[torch.Tensor, "batch elements"],
+    prediction_mask: Bool[torch.Tensor, "batch elements"],
+) -> Float[torch.Tensor, "batch"]:
+    target_length = target_mask.float().sum(dim=1) + 1e-9
+    prediction_length = prediction_mask.float().sum(dim=1) + 1e-9
+    target_mean = (target * target_mask.unsqueeze(-1)).sum(
+        dim=1
+    ) / target_length.unsqueeze(1)
+    prediction_mean = (prediction * prediction_mask.unsqueeze(-1)).sum(
+        dim=1
+    ) / prediction_length.unsqueeze(1)
+    similarity = (1.0 + F.cosine_similarity(target_mean, prediction_mean, dim=-1)) / 2
+    brevity = torch.exp(torch.clamp(1.0 - target_length / prediction_length, max=0.0))
+    return (brevity * similarity).clamp(0.0, 1.0)
+
+
+def _crello_layout_scores(
+    batch: CrelloBatch,
+    output: CanvasVAECrelloModelOutput,
+    config: CanvasVAECrelloConfig,
+) -> dict[str, Float[torch.Tensor, "batch"]]:
+    if output.sequence_logits is None or output.mask is None:
+        raise ValueError("layout metrics need decoded sequence fields")
+
+    predicted = {
+        field: output.sequence_logits[field].argmax(dim=-1)
+        for field in ("left", "top", "width", "height", "type")
+    }
+    true = {
+        field: batch[field].squeeze(-1)
+        for field in ("left", "top", "width", "height", "type")
+    }
+    accuracies = []
+    mean_ious = []
+    for index in range(batch["num_elements"].shape[0]):
+        target_grid = _type_grid(
+            true,
+            batch["element_mask"],
+            index,
+            config.max_length,
+            config.primary_label_id,
+        )
+        predicted_grid = _type_grid(
+            predicted, output.mask, index, config.max_length, config.primary_label_id
+        )
+        accuracy, mean_iou = _grid_scores(
+            target_grid,
+            predicted_grid,
+            config.max_length,
+            len(config.vocabularies["type"]),
+        )
+        accuracies.append(accuracy)
+        mean_ious.append(mean_iou)
+
+    return {
+        "layout_acc": torch.stack(accuracies),
+        "layout_miou": torch.stack(mean_ious),
+    }
+
+
+def _type_grid(
+    values: Mapping[str, Int[torch.Tensor, "batch elements"]],
+    mask: Bool[torch.Tensor, "batch elements"],
+    index: int,
+    grid_size: int,
+    background_id: int,
+) -> Int[torch.Tensor, "grid grid"]:
+    grid = torch.full((grid_size, grid_size), background_id, dtype=torch.long)
+    fields = torch.stack(
+        [
+            values[field][index][mask[index]]
+            for field in ("left", "top", "width", "height", "type")
+        ],
+        dim=-1,
+    )
+    for left, top, width, height, type_id in fields.tolist():
+        right = min(grid_size - 1, left + width)
+        bottom = min(grid_size - 1, top + height)
+        if top >= bottom or left >= right:
+            continue
+
+        grid[top : bottom + 1, left : right + 1] = type_id
+
+    return grid
+
+
+def crello_field_statistics(
+    batch: CrelloBatch,
+    config: CanvasVAECrelloConfig,
+    output: CanvasVAECrelloModelOutput | None = None,
+) -> dict[str, Float[torch.Tensor, "classes channels"]]:
+    """Return normalized categorical histograms and conditional embedding mean."""
+    tensor_batch = cast(Mapping[str, Shaped[torch.Tensor, "..."]], batch)
+    stats: dict[str, Float[torch.Tensor, "classes channels"]] = {}
+    context_ids: dict[str, Shaped[torch.Tensor, "..."]]
+    sequence_ids: dict[str, Shaped[torch.Tensor, "..."]]
+    sequence_mask: Bool[torch.Tensor, "batch elements"]
+    embeddings: Float[torch.Tensor, "batch elements features"]
+    if output is None:
+        context_ids = {field: tensor_batch[field] for field in config.context_fields}
+        sequence_ids = {
+            field: tensor_batch[field].squeeze(-1)
+            if tensor_batch[field].shape[-1] == 1
+            else tensor_batch[field]
+            for field in config.sequence_fields
+            if field != "image_embedding"
+        }
+        sequence_mask = batch["element_mask"]
+        embeddings = batch["image_embedding"]
+    else:
+        length_logits = output.length_logits
+        context_logits = output.context_logits
+        sequence_logits = output.sequence_logits
+        decoded_mask = output.mask
+        numerical_predictions = output.numerical_predictions
+        if length_logits is None:
+            raise ValueError("generation statistics need decoded Crello fields")
+
+        if context_logits is None or sequence_logits is None:
+            raise ValueError("generation statistics need decoded Crello fields")
+
+        if decoded_mask is None or numerical_predictions is None:
+            raise ValueError("generation statistics need decoded Crello fields")
+
+        sequence_mask = decoded_mask
+        context_ids = {}
+        for field in config.context_fields:
+            context_ids[field] = (
+                length_logits.argmax(dim=-1).unsqueeze(-1)
+                if field == "length"
+                else context_logits[field].argmax(dim=-1)
+            )
+
+        sequence_ids = {
+            field: logits.argmax(dim=-1) for field, logits in sequence_logits.items()
+        }
+        embeddings = numerical_predictions["image_embedding"]
+
+    for field, ids in context_ids.items():
+        stats[field] = _normalized_histogram(
+            ids.reshape(-1, 1), config.context_field_sizes[field]
+        )
+
+    type_ids = sequence_ids["type"]
+    for field, size in config.sequence_field_sizes.items():
+        field_mask = sequence_mask
+        if field in config.conditional_types:
+            if output is None:
+                field_mask = tensor_batch[f"{field}_mask"]
+            else:
+                field_mask = field_mask & _allowed_type_mask(
+                    type_ids, config.conditional_type_ids(field)
+                )
+
+        ids = sequence_ids[field]
+        selected = ids[field_mask]
+        if selected.numel() == 0:
+            if output is None:
+                raise ValueError(f"Crello {field} has no values for its metric mask")
+
+            stats[field] = torch.zeros(
+                size,
+                3 if field == "color" else 1,
+                dtype=torch.float32,
+                device=ids.device,
+            )
+            continue
+
+        stats[field] = _normalized_histogram(selected, size)
+
+    if output is None:
+        image_mask = batch["image_embedding_mask"]
+    else:
+        image_mask = sequence_mask & _allowed_type_mask(
+            type_ids, config.conditional_type_ids("image_embedding")
+        )
+
+    selected_embeddings = embeddings[image_mask]
+    if selected_embeddings.numel() == 0:
+        if output is None:
+            raise ValueError("Crello image_embedding has no values for its metric mask")
+
+        stats["image_embedding"] = torch.zeros(
+            1, embeddings.shape[-1], dtype=embeddings.dtype, device=embeddings.device
+        )
+        return stats
+
+    stats["image_embedding"] = selected_embeddings.mean(dim=0, keepdim=True)
+    return stats
+
+
+def _normalized_histogram(
+    values: Int[torch.Tensor, "items"] | Int[torch.Tensor, "items channels"],
+    classes: int,
+) -> Float[torch.Tensor, "classes channels"]:
+    if values.ndim == 1:
+        values = values.unsqueeze(-1)
+
+    counts = torch.stack(
+        [
+            torch.bincount(values[:, channel], minlength=classes)
+            for channel in range(values.shape[1])
+        ],
+        dim=1,
+    ).float()
+    return counts / counts.sum(dim=0, keepdim=True)
+
+
+def crello_histogram_scores(
+    reference: Mapping[str, Float[torch.Tensor, "classes channels"]],
+    generated: Mapping[str, Float[torch.Tensor, "classes channels"]],
+) -> dict[str, float]:
+    """Compare Crello categorical distributions and embedding means."""
+    values: dict[str, float] = {}
+    all_scores: list[Float[torch.Tensor, "channels"]] = []
+    for field, target in reference.items():
+        candidate = generated[field].to(target.device)
+        if field == "image_embedding":
+            channel_scores = 0.5 - 0.5 * F.cosine_similarity(
+                target, candidate, dim=-1
+            ).clamp(0.0, 1.0)
+            values[field] = float(channel_scores.mean().item())
+        else:
+            channel_scores = torch.minimum(target, candidate).sum(dim=0)
+            values[field] = float(channel_scores.mean().item())
+
+        all_scores.append(channel_scores.reshape(-1))
+
+    values["total"] = float(torch.cat(all_scores).mean().item())
+    return values
+
+
 __all__ = [
     "bleu1",
+    "crello_field_statistics",
+    "crello_histogram_scores",
+    "crello_reconstruction_scores",
     "component_grid",
     "field_histograms",
     "histogram_scores",

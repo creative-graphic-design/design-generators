@@ -1,4 +1,4 @@
-"""Lightning training module for CanvasVAE."""
+"""Lightning training modules for CanvasVAE on RICO and Crello."""
 
 from __future__ import annotations
 
@@ -9,9 +9,11 @@ import torch
 from jaxtyping import Float, Int
 from torch.optim import Optimizer
 
-from ..configuration_canvas_vae import CanvasVAEConfig
+from ..configuration_canvas_vae import CanvasVAEConfig, CanvasVAECrelloConfig
+from ..data import CrelloBatch, load_crello_vocabularies
+from ..metrics import crello_reconstruction_scores
 from ..metrics import TOTAL_KEY, layout_scores, reconstruction_scores
-from ..modeling_canvas_vae import CanvasVAEModel, length_mask
+from ..modeling_canvas_vae import CanvasVAECrelloModel, CanvasVAEModel, length_mask
 from ..processing_canvas_vae import load_rico_vocabularies
 from .optim import KerasAdam, clip_gradients_by_norm, l2_penalty
 
@@ -198,4 +200,171 @@ class CanvasVAETrainingModule(L.LightningModule):
         clip_gradients_by_norm(self.model.parameters(), self.clip_norm)
 
 
-__all__ = ["CanvasVAETrainingModule"]
+class CanvasVAECrelloTrainingModule(L.LightningModule):
+    """Train Crello CanvasVAE with source-matched losses and optimizer settings.
+
+    Args:
+        data_dir: Prepared split directory containing ``vocabulary.json``.
+        fixture_dir: Verified shared posterior-mean fixture directory.
+        latent_dim: Hidden and latent dimension.
+        num_blocks: Number of transformer blocks.
+        num_heads: Number of attention heads.
+        dropout: Dropout rate.
+        kl_weight: KL divergence coefficient.
+        l2_weight: Squared-norm penalty weight.
+        learning_rate: Adam learning rate.
+        clip_norm: Maximum norm of each gradient tensor.
+    """
+
+    def __init__(
+        self,
+        data_dir: str = ".cache/canvas-vae/crello/package-run-1",
+        fixture_dir: str = ".cache/canvas-vae/crello/fixture",
+        latent_dim: int = 512,
+        num_blocks: int = 1,
+        num_heads: int = 8,
+        dropout: float = 0.1,
+        kl_weight: float = 32.0,
+        l2_weight: float = 1e-6,
+        learning_rate: float = 1e-3,
+        clip_norm: float = 1.0,
+    ) -> None:
+        """Build the model from the prepared Crello vocabularies."""
+        super().__init__()
+        self.save_hyperparameters()
+        self.learning_rate = learning_rate
+        self.clip_norm = clip_norm
+        self.model = CanvasVAECrelloModel(
+            CanvasVAECrelloConfig(
+                vocabularies=load_crello_vocabularies(data_dir),
+                latent_dim=latent_dim,
+                num_blocks=num_blocks,
+                num_heads=num_heads,
+                dropout=dropout,
+                kl_weight=kl_weight,
+                l2_weight=l2_weight,
+            )
+        )
+        self.validation_sums: dict[str, float] = {}
+        self.validation_counts: dict[str, int] = {}
+
+    def training_step(
+        self, batch: CrelloBatch, batch_idx: int
+    ) -> Float[torch.Tensor, ""]:
+        """Return reconstruction, weighted KL, and L2 losses summed.
+
+        Args:
+            batch: Crello processor output.
+            batch_idx: Batch index.
+
+        Returns:
+            Total loss.
+        """
+        del batch_idx
+        output = self.model(batch)
+        if output.loss is None or output.kl_divergence is None:
+            raise RuntimeError("Crello training forward did not return losses")
+
+        penalty = l2_penalty(self.model, self.model.config.l2_weight)
+        loss = output.loss + penalty
+        batch_size = int(batch["num_elements"].shape[0])
+        for key, value in (output.reconstruction_losses or {}).items():
+            self.log(
+                f"train/{key}_loss",
+                value,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch_size,
+            )
+
+        self.log(
+            "train/kl_divergence",
+            output.kl_divergence,
+            on_epoch=True,
+            batch_size=batch_size,
+        )
+        self.log(
+            "train/l2", penalty, on_step=False, on_epoch=True, batch_size=batch_size
+        )
+        self.log(
+            "train/loss", loss, prog_bar=True, on_epoch=True, batch_size=batch_size
+        )
+        return loss
+
+    def on_validation_epoch_start(self) -> None:
+        """Reset validation accumulators."""
+        self.validation_sums = {}
+        self.validation_counts = {}
+
+    def validation_step(self, batch: CrelloBatch, batch_idx: int) -> None:
+        """Accumulate per-document reconstruction scores.
+
+        Args:
+            batch: Crello processor output.
+            batch_idx: Batch index.
+        """
+        del batch_idx
+        output = self.model(batch)
+        if output.kl_divergence is None:
+            raise RuntimeError("Crello validation forward did not return KL divergence")
+
+        scores = crello_reconstruction_scores(batch, output, self.model.config)
+        for key, values in scores.items():
+            self.validation_sums[key] = self.validation_sums.get(key, 0.0) + float(
+                values.detach().sum()
+            )
+            self.validation_counts[key] = (
+                self.validation_counts.get(key, 0) + values.numel()
+            )
+
+        self.validation_sums["kl_divergence_batches"] = self.validation_sums.get(
+            "kl_divergence_batches", 0.0
+        ) + float(output.kl_divergence.detach())
+        self.validation_sums["batches"] = self.validation_sums.get("batches", 0.0) + 1
+
+    def on_validation_epoch_end(self) -> None:
+        """Log per-document means of the accumulated scores."""
+        if not self.validation_counts:
+            return
+
+        sums = dict(self.validation_sums)
+        batches = sums.pop("batches")
+        kl = sums.pop("kl_divergence_batches") / batches
+        for key, value in sums.items():
+            name = f"val/{key}" if key.startswith("layout_") else f"val/{key}_score"
+            self.log(
+                name,
+                value / self.validation_counts[key],
+                prog_bar=key == TOTAL_KEY,
+            )
+
+        self.log("val/kl_divergence", kl)
+
+    def configure_optimizers(self) -> Optimizer:
+        """Return :class:`KerasAdam` over the model parameters."""
+        return KerasAdam(self.model.parameters(), lr=self.learning_rate)
+
+    def configure_gradient_clipping(
+        self,
+        optimizer: Optimizer,
+        gradient_clip_val: float | None = None,
+        gradient_clip_algorithm: str | None = None,
+    ) -> None:
+        """Clip every gradient tensor independently to ``clip_norm``.
+
+        Args:
+            optimizer: Optimizer about to step.
+            gradient_clip_val: Must be unset; global clipping is not used.
+            gradient_clip_algorithm: Ignored.
+
+        Raises:
+            ValueError: If Lightning's global ``gradient_clip_val`` is set.
+        """
+        del optimizer, gradient_clip_algorithm
+        if gradient_clip_val:
+            raise ValueError("set clip_norm on the module instead of gradient_clip_val")
+
+        clip_gradients_by_norm(self.model.parameters(), self.clip_norm)
+
+
+__all__ = ["CanvasVAECrelloTrainingModule", "CanvasVAETrainingModule"]

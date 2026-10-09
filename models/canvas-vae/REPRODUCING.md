@@ -82,3 +82,16 @@ uv run --package canvas-vae models/canvas-vae/scripts/smoke_from_pretrained.py -
 ```
 
 For a Lightning checkpoint from `traingen fit`, run the same converter with `uv run --package canvas-vae` and no TensorFlow extra.
+
+## Crello model agreement checks (S0–S3)
+
+These CPU-only checks compare the package Crello model with the pinned TensorFlow vendor on the prepared splits and shared posterior-mean fixture above. They cover model configuration, forward outputs and losses, gradients, optimizer state, and batch-normalization statistics; they do not rerun the Crello data comparison or full training. Vendor parity and full-run Crello results are not claimed until these checks and any later training evaluation have been run.
+
+Run the test from the repository root after the data checks have produced `package-run-1` and `fixture`. It selects three distinct, non-overlapping batches fixed before calibration: canonical training documents `[0, 1024)`, `[1024, 2048)`, and `[2048, 3072)`. For each comparison group, the limit is `max(L, ceil2(1.5 × maximum calibration error))` with `L = 0`; `ceil2` rounds upward to two significant digits. The calibration report is written before checks, then its limits and commit SHA are frozen. The held-out check runs only after that freeze and evaluates all canonical test documents in ordered batches of 1,024. Both reports and the frozen limits remain under `.cache/canvas-vae/reference/crello-model/`.
+
+```bash
+uv sync --package canvas-vae --extra training --extra convert
+PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra training --extra convert --with pytest pytest models/canvas-vae/tests/vendor_parity/test_canvas_vae_crello_training_parity.py -m "vendor_parity and training" -k crello_s0_s3 -rs
+```
+
+The command runs calibration before held-out evaluation in the same test session. It requires the data and fixture files created by the preceding Crello data checks, and it does not run S5 or use a GPU.
