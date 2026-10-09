@@ -55,7 +55,9 @@ def test_relation_condition_preparation_mirrors_vendor_draw_order(
     sequence, pad_mask = conditioner.prepare(input_ids, ["first", "second"])
 
     assert len(random_draws) == 4
-    assert randperm_sizes == [2, 1, 2, 1]
+    # The vendor's LabelPreprocessor calls randperm once per record after the
+    # relation-graph draws; an extra discarded pass shifts the condition.
+    assert randperm_sizes == [2, 1]
     assert sequence.shape == pad_mask.shape
     assert conditioner.name_to_id("relation_sep") in sequence[0].tolist()
     assert sequence[0, -1].item() == conditioner.name_to_id("eos")

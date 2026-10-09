@@ -220,7 +220,6 @@ class RelationConditioner:
         _labels, counts = self._parse_labels(input_ids, shuffle=False)
         valid_mask = _labels != self.name_to_id("pad")
         consume_relation_graph_rng(valid_mask)
-        self._parse_labels(input_ids, shuffle=True)
         labels, counts = self._parse_labels(input_ids, shuffle=True)
         sequences = self._label_sequence(labels, counts)
         sequences = sequences.clone()
