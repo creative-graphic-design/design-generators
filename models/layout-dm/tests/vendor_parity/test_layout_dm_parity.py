@@ -29,6 +29,8 @@ def _cluster_path(dataset: str) -> Path:
             missing_paths=[Path(".cache") / "layout-dm"],
             regeneration_hint="set LAYOUT_DM_CACHE to the LayoutDM download cache",
         )
+
+    assert cache is not None
     path = (
         Path(cache)
         / "clustering_weights"

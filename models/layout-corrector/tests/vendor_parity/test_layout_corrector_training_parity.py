@@ -177,6 +177,8 @@ def _layout_dm_cache() -> Path:
             missing_paths=[ROOT / ".cache" / "layout-dm"],
             regeneration_hint="set LAYOUT_DM_CACHE to the LayoutDM download cache",
         )
+
+    assert value is not None
     return Path(value)
 
 
@@ -2369,6 +2371,8 @@ def _evaluation_asset_root() -> Path:
             missing_paths=[Path("$LAYOUT_CORRECTOR_EVAL_ASSET_ROOT")],
             regeneration_hint="set LAYOUT_CORRECTOR_EVAL_ASSET_ROOT to the extracted starter-kit download directory",
         )
+
+    assert value is not None
     return Path(value)
 
 
@@ -2380,6 +2384,8 @@ def _evaluation_pipeline_root(dataset: str) -> Path:
             missing_paths=[Path("$LAYOUT_CORRECTOR_EVAL_PIPELINE_ROOT")],
             regeneration_hint="convert the released seed-0 LayoutDM and Layout-Corrector checkpoints",
         )
+
+    assert root is not None
     path = Path(root) / dataset
     if not path.is_dir():
         skip_or_fail_vendor_parity(
