@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
+import canvas_vae.metrics as canvas_vae_metrics
 from canvas_vae import CanvasVAECrelloConfig, CanvasVAECrelloModel
 from canvas_vae.data import (
     CrelloDocument,
@@ -202,8 +203,38 @@ def test_generation_statistics_match_vendor_color_channels_and_cosine_loss():
     scores = crello_histogram_scores(reference, generated)
     for key in ("type", "color", "group", "length"):
         assert scores[key] == 1.0
-    assert scores["image_embedding"] == 0.0
+    assert abs(scores["image_embedding"]) < 1e-6
     assert 0.0 <= scores["total"] <= 1.0
+
+
+def test_image_embedding_histogram_score_maps_negative_cosine_to_one():
+    scores = crello_histogram_scores(
+        {"image_embedding": torch.tensor([[1.0, 0.0]])},
+        {"image_embedding": torch.tensor([[-1.0, 0.0]])},
+    )
+
+    assert scores["image_embedding"] == 1.0
+    assert scores["total"] == 1.0
+
+
+def test_crello_layout_metric_rasterizes_geometry_vocab_sizes(monkeypatch):
+    batch = make_batch()
+    output = exact_output(batch)
+    config = make_config()
+    config.max_length = 7
+    shapes: list[tuple[tuple[int, ...], tuple[int, ...]]] = []
+
+    def capture_grid_size(
+        target: torch.Tensor, predicted: torch.Tensor, num_labels: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        del num_labels
+        shapes.append((tuple(target.shape), tuple(predicted.shape)))
+        return torch.tensor(0.0), torch.tensor(0.0)
+
+    monkeypatch.setattr(canvas_vae_metrics, "_grid_scores", capture_grid_size)
+    canvas_vae_metrics._crello_layout_scores(batch, output, config)
+
+    assert shapes == [((64, 64), (64, 64)), ((64, 64), (64, 64))]
 
 
 def test_generation_statistics_accept_empty_conditional_predictions():

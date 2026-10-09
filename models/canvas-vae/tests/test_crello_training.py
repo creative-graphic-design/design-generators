@@ -1,9 +1,13 @@
 import json
+import hashlib
+import io
 import runpy
 import subprocess
 import sys
+import tarfile
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
@@ -46,6 +50,184 @@ def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
 
     assert ceil_two_significant_digits(0.001845) == 0.0019
     assert ceil_two_significant_digits(0.0) == 0.0
+
+
+def test_crello_parity_report_serializes_numpy_scalars(tmp_path):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    write_json = cast(Callable[..., bytes], namespace["_write_json"])
+
+    path = tmp_path / "report.json"
+    write_json(path, {"vendor_value": np.float32(0.5)})
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {"vendor_value": 0.5}
+
+
+def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
+    tmp_path, monkeypatch
+):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    calibrate = cast(Callable[..., dict[str, object]], namespace["_calibrate"])
+    original_run = subprocess.run
+    commands: list[list[str]] = []
+    values = (0.1, 0.3, 0.2)
+    plan_visible_at_launch: list[bool] = []
+
+    def run(command, **kwargs):
+        if len(command) > 1 and command[1] == str(script):
+            commands.append(command)
+            batch_index = int(command[command.index("--batch-index") + 1])
+            report_dir = Path(command[command.index("--report-dir") + 1])
+            plan_path = report_dir / "calibration-plan.json"
+            plan_visible_at_launch.append(plan_path.is_file())
+            child = {
+                "static_errors": [],
+                "batch_digests": [
+                    hashlib.sha256(f"batch-{batch_index}".encode()).hexdigest()
+                ],
+                "initial_state_sha256": "same-initial-state",
+                "initial_state_mismatch_keys": [],
+                "measurements": [
+                    {
+                        "group": "s1_eval_outputs",
+                        "name": "output",
+                        "batch": batch_index,
+                        "metric": "max_rel_to_max",
+                        "value": values[batch_index],
+                        "actual_shape": [1],
+                        "expected_shape": [1],
+                        "shape_match": True,
+                    }
+                ],
+            }
+            (report_dir / f"calibration-batch-{batch_index}.json").write_text(
+                json.dumps(child), encoding="utf-8"
+            )
+            return SimpleNamespace(returncode=0)
+
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    report = calibrate(report_dir=tmp_path)
+
+    assert [
+        int(command[command.index("--batch-index") + 1]) for command in commands
+    ] == [0, 1, 2]
+    assert plan_visible_at_launch == [True, True, True]
+    assert all(command[1] == str(script) for command in commands)
+    plan_bytes = (tmp_path / "calibration-plan.json").read_bytes()
+    assert report["calibration_plan_sha256"] == hashlib.sha256(plan_bytes).hexdigest()
+    assert report["distinct_input_batches"] is True
+    limits = cast(dict[str, dict[str, object]], report["limits"])
+    limit = limits["s1_eval_outputs"]
+    assert cast(list[float], limit["calibration_batch_maxima"]) == list(values)
+    assert limit["max_calibration_error"] == 0.3
+    assert limit["limit"] == 0.45
+    assert (tmp_path / "limits.json").is_file()
+
+
+def test_crello_hub_location_parser_accepts_model_and_dataset_resolve_urls():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    parse_hub_location = cast(
+        Callable[[str], tuple[str, str | None, str, str]],
+        namespace["_parse_hub_location"],
+    )
+
+    assert parse_hub_location(
+        "https://huggingface.co/owner/model/resolve/main/path/fixture.tar"
+    ) == ("owner/model", None, "main", "path/fixture.tar")
+    assert parse_hub_location(
+        "https://huggingface.co/datasets/owner/data/resolve/main/fixture.tar"
+    ) == ("owner/data", "dataset", "main", "fixture.tar")
+    with pytest.raises(ValueError, match="HTTPS Hugging Face resolve URL"):
+        parse_hub_location("http://huggingface.co/owner/model/resolve/main/fixture.tar")
+
+
+def test_crello_fixture_archive_extracts_only_expected_root_files(tmp_path):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    extract_fixture_archive = cast(
+        Callable[[Path, Path], None], namespace["_extract_fixture_archive"]
+    )
+    archive = tmp_path / "fixture.tar"
+    entries = {
+        "manifest.json": b"{}\n",
+        "manifest.sha256": b"fixture-manifest-hash\n",
+        "posterior_means.npy": b"fixture-array",
+    }
+    with tarfile.open(archive, mode="w") as bundle:
+        for name, payload in entries.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            bundle.addfile(info, io.BytesIO(payload))
+
+    fixture_dir = tmp_path / "fixture"
+    extract_fixture_archive(archive, fixture_dir)
+    assert {path.name: path.read_bytes() for path in fixture_dir.iterdir()} == entries
+
+    unsafe_archive = tmp_path / "unsafe.tar"
+    with tarfile.open(unsafe_archive, mode="w") as bundle:
+        info = tarfile.TarInfo("../escape")
+        info.size = 1
+        bundle.addfile(info, io.BytesIO(b"x"))
+    with pytest.raises(ValueError, match="unsafe path"):
+        extract_fixture_archive(unsafe_archive, tmp_path / "unsafe")
+
+
+def test_crello_fixture_download_checks_hash_and_deletes_token_file(
+    tmp_path, monkeypatch
+):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    download_fixture_archive = cast(
+        Callable[[str, str, Path, Path | None], None],
+        namespace["_download_fixture_archive"],
+    )
+    cached_file = tmp_path / "cached.tar"
+    cached_file.write_bytes(b"fixture archive")
+    token_file = tmp_path / "hf-token"
+    token_file.write_text("hf_private_token\n")
+    token_file.chmod(0o600)
+
+    import huggingface_hub
+
+    monkeypatch.setattr(
+        huggingface_hub, "hf_hub_download", lambda **_: str(cached_file)
+    )
+    destination = tmp_path / "download.tar"
+    digest = hashlib.sha256(cached_file.read_bytes()).hexdigest()
+    download_fixture_archive(
+        "https://huggingface.co/owner/model/resolve/main/fixture.tar",
+        digest,
+        destination,
+        token_file,
+    )
+
+    assert destination.read_bytes() == cached_file.read_bytes()
+    assert not token_file.exists()
+
+    bad_token_file = tmp_path / "bad-token"
+    bad_token_file.write_text("hf_private_token\n")
+    bad_token_file.chmod(0o644)
+    with pytest.raises(PermissionError, match="mode 0600"):
+        download_fixture_archive(
+            "https://huggingface.co/owner/model/resolve/main/fixture.tar",
+            digest,
+            destination,
+            bad_token_file,
+        )
 
 
 def make_document(split: CrelloSplit, index: int) -> CrelloDocument:

@@ -7,13 +7,18 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
+from pathlib import PurePosixPath
 from types import MethodType
 from typing import Final, NamedTuple, Protocol, TypeAlias, TypedDict, cast
+from urllib.parse import unquote, urlsplit
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
@@ -76,6 +81,13 @@ CALIBRATION_SELECTION: Final = (
     "first three non-overlapping 1,024-document slices of canonical train.jsonl: "
     "indices [0,1024), [1024,2048), [2048,3072)"
 )
+CALIBRATION_FORMULA: Final = "limit=max(L,ceil2(1.5*M)); L=0; M=max(per-metric maxima from three independent processes)"
+VENDOR_METRIC_NOTE: Final = (
+    "VectorMetricLayer and LayoutMetricLayer are bypassed in parity model calls "
+    "because the vendor VectorMetricLayer cannot concatenate Crello's "
+    "three-channel color scores with its non-sequence score tensors; the encoder, "
+    "decoder, and training LossLayer still follow the vendor call path."
+)
 
 
 class _Comparison(NamedTuple):
@@ -108,6 +120,7 @@ class _TrainingTrace(TypedDict):
 class _FrozenLimit(TypedDict):
     metric: str
     L: float
+    calibration_batch_maxima: list[float]
     max_calibration_error: float
     limit: float
 
@@ -118,6 +131,13 @@ class _FrozenLimits(TypedDict):
     selection: str
     formula: str
     limits: dict[str, _FrozenLimit]
+
+
+class _HubFile(NamedTuple):
+    repo_id: str
+    repo_type: str | None
+    revision: str
+    filename: str
 
 
 JSONValue: TypeAlias = (
@@ -216,6 +236,15 @@ def _batch_digest(batch: CrelloBatch) -> str:
     return digest.hexdigest()
 
 
+def _torch_state_sha256(state: Mapping[str, Shaped[torch.Tensor, "..."]]) -> str:
+    digest = hashlib.sha256()
+    for key, value in sorted(state.items()):
+        digest.update(key.encode("utf-8"))
+        digest.update(value.detach().cpu().contiguous().numpy().tobytes())
+
+    return digest.hexdigest()
+
+
 def _reference_inputs(
     tf: _TensorFlowModule,
     batch: CrelloBatch,
@@ -243,9 +272,26 @@ def _crello_model(tf, data_dir: Path, *, dropout: float):
     from canvasvae.data.spec import DataSpec
     from canvasvae.models.vae import VAE
 
+    # Vendor metrics cannot build Crello outputs with the 3-channel color field.
+    class CrelloParityVAE(VAE):
+        def call(self, inputs, training=False, sampling=False):
+            z = self.encoder(
+                inputs,
+                training=training,
+                sampling=training or sampling,
+            )
+            if training:
+                z = (z, inputs)
+
+            outputs = self.decoder(z, training=training)
+            if training:
+                self.loss_layer((inputs, outputs))
+
+            return outputs
+
     dataspec = DataSpec("crello-document", str(data_dir), batch_size=BATCH_SIZE)
     columns = dataspec.make_input_columns()
-    model = VAE(
+    model = CrelloParityVAE(
         columns,
         latent_dim=LATENT_DIM,
         decoder_type="oneshot",
@@ -262,6 +308,129 @@ def _crello_model(tf, data_dir: Path, *, dropout: float):
     )
     model.optimizer.build(model.trainable_variables)
     return dataspec, columns, model
+
+
+def _parse_hub_location(location: str) -> _HubFile:
+    parsed = urlsplit(location)
+    if parsed.scheme != "https" or parsed.hostname != "huggingface.co":
+        raise ValueError(
+            "fixture Hub location must be an HTTPS Hugging Face resolve URL"
+        )
+
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "fixture Hub location must not contain credentials or query data"
+        )
+
+    parts = [unquote(part) for part in parsed.path.split("/") if part]
+    repo_type = None
+    if parts and parts[0] in {"datasets", "spaces"}:
+        repo_type = parts.pop(0)[:-1]
+
+    if len(parts) < 5 or parts[2] != "resolve":
+        raise ValueError(
+            "fixture Hub location must name a file under /resolve/<revision>/"
+        )
+
+    owner, repository, _, revision, *filename_parts = parts
+    filename = PurePosixPath(*filename_parts)
+    if not revision or filename.is_absolute() or ".." in filename.parts:
+        raise ValueError("fixture Hub location contains an unsafe revision or filename")
+
+    return _HubFile(f"{owner}/{repository}", repo_type, revision, filename.as_posix())
+
+
+def _sha256_file(path: Path) -> str:
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def _extract_fixture_archive(archive: Path, fixture_dir: Path) -> None:
+    expected_files = {"manifest.json", "manifest.sha256", "posterior_means.npy"}
+    fixture_dir.mkdir(parents=True)
+    extracted: set[str] = set()
+    with tarfile.open(archive, mode="r:*") as bundle:
+        for member in bundle:
+            relative = PurePosixPath(member.name)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(
+                    f"unsafe path in Crello fixture archive: {member.name!r}"
+                )
+
+            if not relative.parts and member.isdir():
+                continue
+
+            if len(relative.parts) != 1:
+                raise ValueError("Crello fixture archive files must be at its root")
+
+            name = relative.name
+            if member.isdir() and name == ".":
+                continue
+
+            if not member.isfile() or name not in expected_files or name in extracted:
+                raise ValueError(
+                    f"unexpected entry in Crello fixture archive: {member.name!r}"
+                )
+
+            source = bundle.extractfile(member)
+            if source is None:
+                raise ValueError(f"cannot read Crello fixture archive entry: {name!r}")
+
+            destination = fixture_dir / name
+            with source, destination.open("xb") as output:
+                shutil.copyfileobj(source, output)
+            extracted.add(name)
+
+    if extracted != expected_files:
+        raise ValueError(
+            f"Crello fixture archive is missing files: {sorted(expected_files - extracted)}"
+        )
+
+
+def _download_fixture_archive(
+    location: str,
+    expected_sha256: str,
+    destination: Path,
+    token_file: Path | None,
+) -> None:
+    if len(expected_sha256) != 64 or any(
+        char not in "0123456789abcdefABCDEF" for char in expected_sha256
+    ):
+        raise ValueError("fixture SHA-256 must contain 64 hexadecimal characters")
+
+    hub_file = _parse_hub_location(location)
+    token = None
+    try:
+        if token_file is not None:
+            if token_file.stat().st_mode & 0o077:
+                raise PermissionError("fixture token file must have mode 0600")
+
+            token = token_file.read_text("utf-8").strip()
+            if not token:
+                raise ValueError("fixture token file is empty")
+
+        from huggingface_hub import hf_hub_download
+
+        cached_path = hf_hub_download(
+            repo_id=hub_file.repo_id,
+            filename=hub_file.filename,
+            repo_type=hub_file.repo_type,
+            revision=hub_file.revision,
+            token=token,
+        )
+        shutil.copyfile(cached_path, destination)
+    finally:
+        if token_file is not None:
+            token_file.unlink(missing_ok=True)
+
+    actual_sha256 = _sha256_file(destination)
+    if actual_sha256.lower() != expected_sha256.lower():
+        raise ValueError(f"Crello fixture archive SHA-256 mismatch: {actual_sha256}")
 
 
 def _install_fixed_noise_call(
@@ -660,6 +829,7 @@ def _cpu_report_context() -> dict[str, str | int | float]:
             text=True,
             cwd=REPO_ROOT,
         ).stdout.strip(),
+        "python_executable": sys.executable,
         "batch_size": BATCH_SIZE,
         "latent_dim": LATENT_DIM,
         "kl_weight": KL_WEIGHT,
@@ -672,9 +842,18 @@ def _cpu_report_context() -> dict[str, str | int | float]:
 
 def _write_json(path: Path, payload: JSONValue) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
-    serialized = (json.dumps(payload, indent=1, sort_keys=True) + "\n").encode()
+    serialized = (
+        json.dumps(payload, indent=1, sort_keys=True, default=_json_default) + "\n"
+    ).encode()
     path.write_bytes(serialized)
     return serialized
+
+
+def _json_default(value: np.generic) -> JSONValue:
+    if isinstance(value, np.generic):
+        return cast(JSONValue, value.item())
+
+    raise TypeError(f"cannot serialize {type(value).__name__} in a parity report")
 
 
 def _record_payload(record: _Comparison) -> dict[str, JSONValue]:
@@ -686,23 +865,29 @@ def _has_shape_errors(records: Sequence[_Comparison]) -> bool:
 
 
 def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
-    grouped: dict[str, list[float]] = defaultdict(list)
+    grouped: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     metrics: dict[str, str] = {}
     for row in records:
         if row.value is not None:
-            grouped[row.group].append(row.value)
+            grouped[row.group][row.batch].append(row.value)
             metrics[row.group] = row.metric
 
-    return {
-        group: {
+    limits: dict[str, _FrozenLimit] = {}
+    for group, batches in grouped.items():
+        batch_maxima = [
+            max(batches.get(index, ()), default=0.0)
+            for index in range(len(CALIBRATION_SLICES))
+        ]
+        maximum = max(batch_maxima, default=0.0)
+        limits[group] = {
             "metric": metrics[group],
             "L": 0.0,
+            "calibration_batch_maxima": batch_maxima,
             "max_calibration_error": maximum,
             "limit": max(0.0, _ceil_two_significant_digits(1.5 * maximum)),
         }
-        for group, values in grouped.items()
-        if (maximum := max(values, default=0.0)) >= 0
-    }
+
+    return limits
 
 
 def _common(model, package_model: CanvasVAECrelloModel) -> list[str]:
@@ -729,6 +914,221 @@ def _common(model, package_model: CanvasVAECrelloModel) -> list[str]:
     return checks
 
 
+def _run_s0(
+    *, data_dir: Path = DATA_DIR, report_dir: Path = REPORT_DIR
+) -> dict[str, JSONValue]:
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    import tensorflow as tf
+
+    if tf.config.list_physical_devices("GPU"):
+        raise RuntimeError("Crello model parity is CPU-only")
+
+    tf.config.experimental.enable_op_determinism()
+    tf.keras.utils.set_random_seed(0)
+    torch.manual_seed(0)
+    report_context = _cpu_report_context()
+    vocabularies = load_crello_vocabularies(data_dir)
+    config = CanvasVAECrelloConfig(
+        vocabularies=vocabularies,
+        latent_dim=LATENT_DIM,
+        dropout=0.0,
+        kl_weight=KL_WEIGHT,
+        l2_weight=L2_WEIGHT,
+    )
+    dataspec, columns, vendor_model = _crello_model(tf, data_dir, dropout=0.0)
+    package_model = CanvasVAECrelloModel(config)
+    errors = _common(vendor_model, package_model)
+
+    vocabulary_matches: dict[str, bool] = {}
+    for field, expected in vocabularies.items():
+        layer = dataspec.preprocessor.get(field)
+        if layer is None:
+            vocabulary_matches[field] = False
+        else:
+            actual = [
+                value.item() if isinstance(value, np.generic) else value
+                for value in layer.get_vocabulary()
+            ]
+            vocabulary_matches[field] = actual == expected
+        if not vocabulary_matches[field]:
+            errors.append(f"vendor vocabulary differs for {field}")
+
+    field_report: dict[str, JSONValue] = {}
+    for field, column in columns.items():
+        input_dim = column.get("input_dim")
+        field_report[field] = {
+            "type": column["type"],
+            "shape": list(column["shape"]),
+            "is_sequence": column["is_sequence"],
+            "input_dim": input_dim,
+        }
+
+    for field, size in config.context_field_sizes.items():
+        column = columns.get(field)
+        if (
+            column is None
+            or column["type"] != "categorical"
+            or column["input_dim"] != size
+        ):
+            errors.append(f"context input dimension differs for {field}")
+        if package_model.encoder.context_embeddings[field].num_embeddings != size:
+            errors.append(f"context embedding dimension differs for {field}")
+
+        head = (
+            package_model.decoder.length_head
+            if field == "length"
+            else package_model.decoder.context_heads[field]
+        )
+        if head.out_features != size:
+            errors.append(f"context output dimension differs for {field}")
+
+    for field, size in config.sequence_field_sizes.items():
+        column = columns.get(field)
+        if (
+            column is None
+            or column["type"] != "categorical"
+            or column["input_dim"] != size
+        ):
+            errors.append(f"sequence input dimension differs for {field}")
+        if column is not None and (
+            not column["is_sequence"]
+            or column["shape"] != (3 if field == "color" else 1,)
+        ):
+            errors.append(f"sequence input shape differs for {field}")
+
+        embedding = package_model.encoder.sequence_embeddings[f"field_{field}"]
+        if embedding.num_embeddings != size:
+            errors.append(f"sequence embedding dimension differs for {field}")
+
+        head = package_model.decoder.sequence_heads[f"field_{field}"]
+        expected_output_dim = size * (3 if field == "color" else 1)
+        if head.out_features != expected_output_dim:
+            errors.append(f"sequence output dimension differs for {field}")
+
+    embedding_column = columns.get("image_embedding")
+    projection = package_model.encoder.numerical_projections["image_embedding"]
+    numerical_head = package_model.decoder.numerical_heads["image_embedding"]
+    if (
+        embedding_column is None
+        or embedding_column["type"] != "numerical"
+        or embedding_column["shape"] != (256,)
+        or not embedding_column["is_sequence"]
+        or projection.in_features != 256
+        or projection.out_features != LATENT_DIM
+        or numerical_head.in_features != LATENT_DIM
+        or numerical_head.out_features != 256
+    ):
+        errors.append("image_embedding dimensions differ from the vendor schema")
+
+    conditional_masks: dict[str, bool] = {}
+    for field in ("color", "image_embedding"):
+        condition = columns[field].get("loss_condition", {})
+        expected_ids = config.conditional_type_ids(field)
+        expected_mask = tuple(
+            index in expected_ids for index in range(len(vocabularies["type"]))
+        )
+        actual_mask = tuple(bool(value) for value in condition.get("mask", ()))
+        matches = condition.get("key") == "type" and actual_mask == expected_mask
+        conditional_masks[field] = matches
+        if not matches:
+            errors.append(f"type-conditioned loss mask differs for {field}")
+
+    mapping = tensorflow_crello_key_map(config)
+    variables = _vendor_variables(vendor_model)
+    initialization_error = None
+    initial_mismatch_keys: list[str] = []
+    state_digest = None
+    try:
+        state = convert_tensorflow_crello_variables(variables, config)
+        package_model.load_state_dict(state, strict=True)
+        initial_mismatch_keys = [
+            key
+            for key, value in package_model.state_dict().items()
+            if not torch.equal(value, state[key])
+        ]
+        if initial_mismatch_keys:
+            errors.append("package initial state differs after TensorFlow mapping")
+        state_digest = _torch_state_sha256(package_model.state_dict())
+    except (KeyError, RuntimeError) as error:
+        initialization_error = str(error)
+        errors.append("vendor initialization could not be mapped into the package")
+
+    vendor_optimizer = vendor_model.optimizer
+    vendor_optimizer_config = vendor_optimizer.get_config()
+    package_optimizer = KerasAdam(package_model.parameters(), lr=LEARNING_RATE)
+    package_optimizer_config = package_optimizer.param_groups[0]
+    optimizer_matches = (
+        math.isclose(
+            float(vendor_optimizer.learning_rate.numpy()),
+            float(package_optimizer_config["lr"]),
+            rel_tol=1e-6,
+        )
+        and float(vendor_optimizer.beta_1) == package_optimizer_config["betas"][0]
+        and float(vendor_optimizer.beta_2) == package_optimizer_config["betas"][1]
+        and float(vendor_optimizer.epsilon) == package_optimizer_config["eps"]
+        and float(vendor_optimizer.clipnorm) == CLIP_NORM
+    )
+    if not optimizer_matches:
+        errors.append("vendor and package optimizer defaults differ")
+
+    report: dict[str, JSONValue] = {
+        **report_context,
+        "phase": "s0",
+        "vendor_metric_compatibility": VENDOR_METRIC_NOTE,
+        "metadata": {
+            "count_json_sha256": _sha256_file(data_dir / "count.json"),
+            "vocabulary_json_sha256": _sha256_file(data_dir / "vocabulary.json"),
+            "vocabulary_sizes": {
+                field: len(values) for field, values in vocabularies.items()
+            },
+            "vocabulary_matches": vocabulary_matches,
+        },
+        "vendor_fields": field_report,
+        "package_field_sizes": {
+            "context": config.context_field_sizes,
+            "sequence": config.sequence_field_sizes,
+        },
+        "conditional_masks_match": conditional_masks,
+        "parameter_mapping": {
+            "mapped_keys": len(mapping),
+            "package_state_keys": len(package_model.state_dict()),
+            "vendor_weight_keys": len(variables),
+            "initial_state_sha256": state_digest,
+            "initial_state_mismatch_keys": initial_mismatch_keys,
+            "initialization_error": initialization_error,
+        },
+        "parameter_counts": {
+            "vendor_trainable": sum(
+                int(np.prod(variable.shape))
+                for variable in vendor_model.trainable_variables
+            ),
+            "package_trainable": sum(
+                parameter.numel() for parameter in package_model.parameters()
+            ),
+            "vendor_tensors": len(vendor_model.trainable_variables),
+            "package_tensors": len(tuple(package_model.parameters())),
+        },
+        "optimizer": {
+            "vendor": vendor_optimizer_config,
+            "package": {
+                "learning_rate": package_optimizer_config["lr"],
+                "betas": list(package_optimizer_config["betas"]),
+                "epsilon": package_optimizer_config["eps"],
+                "clip_norm": CLIP_NORM,
+            },
+            "defaults_match": optimizer_matches,
+            "scheduler": None,
+        },
+        "static_errors": errors,
+    }
+    report_path = report_dir / "s0.json"
+    _write_json(report_path, report)
+    if errors:
+        raise AssertionError(f"S0 checks failed; report written to {report_path}")
+
+    return report
+
+
 def _load_frozen_limits(report_dir: Path, commit: str) -> tuple[bytes, _FrozenLimits]:
     limits_bytes = (report_dir / "limits.json").read_bytes()
     expected_sha256 = (report_dir / "limits.sha256").read_text("ascii").strip()
@@ -742,12 +1142,199 @@ def _load_frozen_limits(report_dir: Path, commit: str) -> tuple[bytes, _FrozenLi
     return limits_bytes, limits
 
 
+def _calibrate(
+    *,
+    data_dir: Path = DATA_DIR,
+    fixture_dir: Path = FIXTURE_DIR,
+    report_dir: Path = REPORT_DIR,
+    fixture_archive_sha256: str | None = None,
+) -> dict[str, JSONValue]:
+    report_context = _cpu_report_context()
+    report_dir.mkdir(parents=True, exist_ok=True)
+    output_path = report_dir / "calibrate.json"
+    plan_path = report_dir / "calibration-plan.json"
+    for path in (
+        plan_path,
+        output_path,
+        report_dir / "limits.json",
+        report_dir / "limits.sha256",
+        *(report_dir / f"calibration-batch-{index}.json" for index in range(3)),
+    ):
+        path.unlink(missing_ok=True)
+
+    plan = {
+        **report_context,
+        "phase": "calibration_plan",
+        "input_selection": CALIBRATION_SELECTION,
+        "batches": [
+            {"batch_index": index, "split": "train", "start": start, "stop": stop}
+            for index, (start, stop) in enumerate(CALIBRATION_SLICES)
+        ],
+        "formula": CALIBRATION_FORMULA,
+    }
+    plan_bytes = _write_json(plan_path, plan)
+
+    records: list[_Comparison] = []
+    static_errors: list[str] = []
+    process_reports: list[dict[str, JSONValue]] = []
+    batch_digests: list[str] = []
+    initial_state_hashes: list[str] = []
+    initial_mismatch_keys: list[str] = []
+    script = Path(__file__).resolve()
+    for batch_index in range(len(CALIBRATION_SLICES)):
+        child_report_path = report_dir / f"calibration-batch-{batch_index}.json"
+        command = [
+            sys.executable,
+            str(script),
+            "calibration-batch",
+            "--batch-index",
+            str(batch_index),
+            "--data-dir",
+            str(data_dir),
+            "--fixture-dir",
+            str(fixture_dir),
+            "--report-dir",
+            str(report_dir),
+        ]
+        if fixture_archive_sha256 is not None:
+            command.extend(("--fixture-archive-sha256", fixture_archive_sha256))
+
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            env={**os.environ, "CUDA_VISIBLE_DEVICES": ""},
+        )
+        process_report: dict[str, JSONValue] = {
+            "batch_index": batch_index,
+            "returncode": completed.returncode,
+            "report_file": child_report_path.name,
+            "report_sha256": None,
+        }
+        if not child_report_path.exists():
+            static_errors.append(
+                f"calibration process {batch_index} did not write its report"
+            )
+            process_reports.append(process_report)
+            continue
+
+        child_bytes = child_report_path.read_bytes()
+        child = cast(dict[str, JSONValue], json.loads(child_bytes))
+        process_report["report_sha256"] = hashlib.sha256(child_bytes).hexdigest()
+        process_reports.append(process_report)
+        if completed.returncode != 0:
+            static_errors.append(
+                f"calibration process {batch_index} exited with {completed.returncode}"
+            )
+
+        child_errors = cast(list[str], child["static_errors"])
+        static_errors.extend(child_errors)
+        child_digests = cast(list[str], child["batch_digests"])
+        if len(child_digests) != 1:
+            static_errors.append(
+                f"calibration process {batch_index} did not use exactly one batch"
+            )
+        batch_digests.extend(child_digests)
+        initial_state_hashes.append(cast(str, child["initial_state_sha256"]))
+        initial_mismatch_keys.extend(
+            cast(list[str], child["initial_state_mismatch_keys"])
+        )
+        for measurement in cast(list[dict[str, JSONValue]], child["measurements"]):
+            records.append(
+                _Comparison(
+                    group=cast(str, measurement["group"]),
+                    name=cast(str, measurement["name"]),
+                    batch=cast(int, measurement["batch"]),
+                    metric=cast(str, measurement["metric"]),
+                    value=cast(float | None, measurement["value"]),
+                    actual_shape=cast(list[int], measurement["actual_shape"]),
+                    expected_shape=cast(list[int], measurement["expected_shape"]),
+                    shape_match=cast(bool, measurement["shape_match"]),
+                )
+            )
+
+    distinct_input_batches = len(batch_digests) == len(CALIBRATION_SLICES) and len(
+        set(batch_digests)
+    ) == len(CALIBRATION_SLICES)
+    if not distinct_input_batches:
+        static_errors.append("calibration inputs are not three distinct batches")
+
+    if (
+        len(initial_state_hashes) != len(CALIBRATION_SLICES)
+        or len(set(initial_state_hashes)) != 1
+    ):
+        static_errors.append(
+            "calibration processes did not share the prescribed initial state"
+        )
+
+    groups_per_batch = {
+        index: {
+            row.group for row in records if row.batch == index and row.value is not None
+        }
+        for index in range(len(CALIBRATION_SLICES))
+    }
+    all_groups = set().union(*groups_per_batch.values())
+    if not all_groups:
+        static_errors.append("calibration produced no metric measurements")
+    for group in all_groups:
+        if any(group not in groups_per_batch[index] for index in groups_per_batch):
+            static_errors.append(
+                f"calibration metric group {group} is missing from a batch"
+            )
+
+    report: dict[str, JSONValue] = {
+        **report_context,
+        "phase": "calibrate",
+        "calibration_plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+        "fixture_archive_sha256": fixture_archive_sha256,
+        "input_selection": CALIBRATION_SELECTION,
+        "calibration_processes": process_reports,
+        "batch_digests": batch_digests,
+        "distinct_input_batches": distinct_input_batches,
+        "initial_state_sha256": initial_state_hashes[0]
+        if initial_state_hashes
+        else None,
+        "static_errors": static_errors,
+        "initial_state_mismatch_keys": initial_mismatch_keys,
+        "measurements": [_record_payload(row) for row in records],
+        "calibration_formula": CALIBRATION_FORMULA,
+        "limits": _limits(records),
+    }
+    report_bytes = _write_json(output_path, report)
+    if (
+        static_errors
+        or initial_mismatch_keys
+        or _has_shape_errors(records)
+        or len(process_reports) != len(CALIBRATION_SLICES)
+    ):
+        raise AssertionError(
+            f"calibration checks failed; report written to {output_path}"
+        )
+
+    limits_payload: dict[str, JSONValue] = {
+        "commit": report_context["commit"],
+        "calibration_sha256": hashlib.sha256(report_bytes).hexdigest(),
+        "selection": CALIBRATION_SELECTION,
+        "formula": report["calibration_formula"],
+        "limits": report["limits"],
+    }
+    limits_bytes = _write_json(report_dir / "limits.json", limits_payload)
+    (report_dir / "limits.sha256").write_text(
+        hashlib.sha256(limits_bytes).hexdigest() + "\n", encoding="ascii"
+    )
+    return report
+
+
 def _run(
     phase: str,
     *,
     data_dir: Path = DATA_DIR,
     fixture_dir: Path = FIXTURE_DIR,
     report_dir: Path = REPORT_DIR,
+    fixture_archive_sha256: str | None = None,
+    batch_index: int | None = None,
 ) -> dict[str, JSONValue]:
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
     import tensorflow as tf
@@ -757,6 +1344,7 @@ def _run(
 
     tf.config.experimental.enable_op_determinism()
     tf.keras.utils.set_random_seed(0)
+    torch.manual_seed(0)
     torch.set_num_threads(min(8, os.cpu_count() or 1))
     report_context = _cpu_report_context()
     frozen_bytes = None
@@ -765,19 +1353,21 @@ def _run(
         frozen_bytes, frozen = _load_frozen_limits(
             report_dir, str(report_context["commit"])
         )
-    else:
-        for filename in ("limits.json", "limits.sha256"):
-            (report_dir / filename).unlink(missing_ok=True)
+    elif phase != "calibration-batch" or batch_index not in range(
+        len(CALIBRATION_SLICES)
+    ):
+        raise ValueError("Crello parity phase must be heldout or one calibration batch")
 
     documents = {split: load_crello_split(data_dir, split) for split in CrelloSplit}
-    if phase == "calibrate":
-        if len(documents[CrelloSplit.train]) < 3 * BATCH_SIZE:
+    if phase == "calibration-batch":
+        if batch_index is None:
+            raise ValueError("a calibration process needs a batch index")
+
+        start, stop = CALIBRATION_SLICES[batch_index]
+        if len(documents[CrelloSplit.train]) < stop:
             raise ValueError("Crello calibration requires three full train batches")
 
-        selected = [
-            (index, documents[CrelloSplit.train][start:stop])
-            for index, (start, stop) in enumerate(CALIBRATION_SLICES)
-        ]
+        selected = [(batch_index, documents[CrelloSplit.train][start:stop])]
     else:
         selected = [
             (index, documents[CrelloSplit.test][start:stop])
@@ -801,6 +1391,7 @@ def _run(
     state = convert_tensorflow_crello_variables(_vendor_variables(vendor_model), config)
     package_model = CanvasVAECrelloModel(config)
     package_model.load_state_dict(state, strict=True)
+    initial_state_hash = _torch_state_sha256(package_model.state_dict())
     optimizer = KerasAdam(package_model.parameters(), lr=LEARNING_RATE)
 
     records: list[_Comparison] = []
@@ -853,46 +1444,38 @@ def _run(
             records,
         )
 
-    distinct_input_batches = len(set(batch_digests)) == len(batch_digests)
-    if phase == "calibrate" and not distinct_input_batches:
-        static_errors.append("calibration inputs are not three distinct batches")
-
-    output_path = report_dir / f"{phase}.json"
+    report_phase = "calibration_batch" if phase == "calibration-batch" else phase
+    output_name = (
+        f"calibration-batch-{batch_index}.json"
+        if phase == "calibration-batch"
+        else "heldout.json"
+    )
+    output_path = report_dir / output_name
     report: dict[str, JSONValue] = {
         **report_context,
-        "phase": phase,
-        "input_selection": CALIBRATION_SELECTION
-        if phase == "calibrate"
-        else "all canonical test documents in sequential 1,024-document batches",
+        "phase": report_phase,
+        "vendor_metric_compatibility": VENDOR_METRIC_NOTE,
+        "fixture_archive_sha256": fixture_archive_sha256,
+        "batch_index": batch_index,
+        "initial_state_sha256": initial_state_hash,
+        "input_selection": (
+            f"canonical train.jsonl indices {CALIBRATION_SLICES[batch_index][0]}:{CALIBRATION_SLICES[batch_index][1]}"
+            if phase == "calibration-batch" and batch_index is not None
+            else "all canonical test documents in sequential 1,024-document batches"
+        ),
         "batch_digests": batch_digests,
-        "distinct_input_batches": distinct_input_batches,
         "static_errors": static_errors,
         "initial_state_mismatch_keys": initial_errors,
         "measurements": [_record_payload(row) for row in records],
     }
 
-    if phase == "calibrate":
-        report["calibration_formula"] = (
-            "limit=max(L,ceil2(1.5*max(three distinct train batches))); L=0"
-        )
-        report["limits"] = _limits(records)
-        report_bytes = _write_json(output_path, report)
+    if phase == "calibration-batch":
+        _write_json(output_path, report)
         if _has_shape_errors(records) or static_errors or initial_errors:
             raise AssertionError(
-                f"calibration checks failed; report written to {output_path}"
+                f"calibration batch checks failed; report written to {output_path}"
             )
 
-        limits_payload: dict[str, JSONValue] = {
-            "commit": report_context["commit"],
-            "calibration_sha256": hashlib.sha256(report_bytes).hexdigest(),
-            "selection": CALIBRATION_SELECTION,
-            "formula": report["calibration_formula"],
-            "limits": report["limits"],
-        }
-        limits_bytes = _write_json(report_dir / "limits.json", limits_payload)
-        (report_dir / "limits.sha256").write_text(
-            hashlib.sha256(limits_bytes).hexdigest() + "\n", encoding="ascii"
-        )
         return report
 
     if frozen_bytes is None or frozen is None:
@@ -924,19 +1507,103 @@ def _run(
 
 
 def main() -> None:
-    """Run distinct-batch calibration or the frozen-limit held-out check."""
+    """Run fixture-independent configuration checks or the calibrated model checks."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("calibrate", "heldout"))
+    parser.add_argument(
+        "phase", choices=("s0", "calibrate", "calibration-batch", "heldout", "run")
+    )
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--fixture-dir", type=Path, default=FIXTURE_DIR)
     parser.add_argument("--report-dir", type=Path, default=REPORT_DIR)
+    parser.add_argument("--fixture-hub-location")
+    parser.add_argument("--fixture-sha256")
+    parser.add_argument("--fixture-token-file", type=Path)
+    parser.add_argument("--fixture-archive-sha256")
+    parser.add_argument("--batch-index", type=int)
     args = parser.parse_args()
-    report = _run(
-        args.phase,
-        data_dir=args.data_dir,
-        fixture_dir=args.fixture_dir,
-        report_dir=args.report_dir,
-    )
+    if args.phase == "s0":
+        report = _run_s0(data_dir=args.data_dir, report_dir=args.report_dir)
+        print(
+            json.dumps(
+                {"phase": report["phase"], "report": str(args.report_dir)}, indent=1
+            )
+        )
+        return
+
+    if args.phase == "run":
+        if not args.fixture_hub_location or not args.fixture_sha256:
+            parser.error("run requires --fixture-hub-location and --fixture-sha256")
+
+        token_file = args.fixture_token_file
+        if token_file is None and os.environ.get("CANVAS_VAE_FIXTURE_TOKEN_FILE"):
+            token_file = Path(os.environ["CANVAS_VAE_FIXTURE_TOKEN_FILE"])
+
+        with tempfile.TemporaryDirectory(
+            prefix="canvas-vae-crello-parity-"
+        ) as temporary:
+            temporary_dir = Path(temporary)
+            archive = temporary_dir / "fixture.tar"
+            _download_fixture_archive(
+                args.fixture_hub_location,
+                args.fixture_sha256,
+                archive,
+                token_file,
+            )
+            fixture_dir = temporary_dir / "fixture"
+            _extract_fixture_archive(archive, fixture_dir)
+            calibration = _calibrate(
+                data_dir=args.data_dir,
+                fixture_dir=fixture_dir,
+                report_dir=args.report_dir,
+                fixture_archive_sha256=args.fixture_sha256.lower(),
+            )
+            heldout = _run(
+                "heldout",
+                data_dir=args.data_dir,
+                fixture_dir=fixture_dir,
+                report_dir=args.report_dir,
+                fixture_archive_sha256=args.fixture_sha256.lower(),
+            )
+        print(
+            json.dumps(
+                {
+                    "phase": "run",
+                    "calibration": calibration["phase"],
+                    "heldout": heldout["phase"],
+                    "report": str(args.report_dir),
+                },
+                indent=1,
+            )
+        )
+        return
+
+    if args.phase == "calibrate":
+        report = _calibrate(
+            data_dir=args.data_dir,
+            fixture_dir=args.fixture_dir,
+            report_dir=args.report_dir,
+        )
+    elif args.phase == "calibration-batch":
+        if args.batch_index not in range(len(CALIBRATION_SLICES)):
+            parser.error("calibration-batch requires --batch-index 0, 1, or 2")
+
+        report = _run(
+            "calibration-batch",
+            data_dir=args.data_dir,
+            fixture_dir=args.fixture_dir,
+            report_dir=args.report_dir,
+            fixture_archive_sha256=args.fixture_archive_sha256,
+            batch_index=args.batch_index,
+        )
+    else:
+        report = _run(
+            args.phase,
+            data_dir=args.data_dir,
+            fixture_dir=args.fixture_dir,
+            report_dir=args.report_dir,
+            fixture_archive_sha256=args.fixture_archive_sha256,
+        )
+
     print(
         json.dumps({"phase": report["phase"], "report": str(args.report_dir)}, indent=1)
     )
