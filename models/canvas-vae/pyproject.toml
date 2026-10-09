@@ -14,7 +14,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-convert = ["tensorflow-cpu==2.15.1"]
+convert = [
+    "apache-beam[tfrecord]==2.76.0",
+    "pyyaml>=6",
+    "tensorflow-cpu==2.15.1",
+    "traingen-parity",
+]
 training = [
     "jsonargparse[signatures]>=4.27.7",
     "lightning>=2.4,<3",
