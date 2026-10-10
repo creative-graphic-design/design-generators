@@ -49,6 +49,8 @@ The evaluation-path parity artifact is required before every S5 launch and for e
 
 S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. For each dataset covered by the claim, run S5 full-run parity and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
 
+For one-step optimizer parity, gate package-versus-original gradients and compare each system's update against its own float64 Keras-Adam reference computed from that system's gradients. Keep the package-versus-original updated-parameter difference report-only. This rule is recorded in the [CanvasVAE optimizer-update amendment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6099737572).
+
 When S5 diverges, diagnose the gap in this order before claiming a bug:
 
 1. Score both checkpoints on the same evaluation samples to separate evaluation-side differences.
