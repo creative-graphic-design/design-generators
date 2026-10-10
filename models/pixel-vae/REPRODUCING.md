@@ -17,7 +17,7 @@ The `vendor` extra supplies TensorFlow CPU 2.15.1. The `parity` extra supplies t
 
 ## Download and audit the private Crello v1 source
 
-The archive is available from the original public GCS URL. Its 2,989,732,284 bytes and SHA-256 are pinned to issue #31. Keep it and all extracted records private.
+The archive is [crello-dataset-v1.zip](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip), 2,989,732,284 bytes with SHA-256 `f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e`. Keep the archive and all extracted records private.
 
 ```bash
 mkdir -p .cache/pixel-vae

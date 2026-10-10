@@ -1,6 +1,6 @@
 # PixelVAE encoder contract
 
-Status: agreed encoder-side contract for Crello v1 coordination. The data package owns record and fixture production; this document pins the encoder behavior and shared input/output assumptions.
+This document defines the PixelVAE side of the Crello v1 embedding interface. The data package owns record and fixture production; this contract specifies the encoder behavior and shared input/output assumptions.
 
 ## Ownership
 
@@ -8,7 +8,7 @@ The PixelVAE package owns PNG decoding into model input tensors, posterior-mean 
 
 ## Input
 
-Each Crello document-stage `image_bytes` value is a PNG preview of one visual element, of any element type. The source dataset guide describes these previews as 256 × 256 pixels. The original document transform decodes every element's PNG with `tf.io.decode_png(image_bytes, channels=4)`, producing an RGBA `uint8` image. The original encoder then applies `tf.image.convert_image_dtype(image, tf.float32)`, which maps byte values to float32 values in `[0, 1]` before MobileNetV2. The model's configured input shape is `(256, 256, 4)`.
+Each Crello document-stage `image_bytes` value is a 256 × 256 PNG preview of one visual element, of any element type. The original document transform decodes every element's PNG with `tf.io.decode_png(image_bytes, channels=4)`, producing an RGBA `uint8` image. The original encoder then applies `tf.image.convert_image_dtype(image, tf.float32)`, which maps byte values to float32 values in `[0, 1]` before MobileNetV2. The model's configured input shape is `(256, 256, 4)`.
 
 The pinned Crello v1 archive audit found no invalid or non-256 × 256 document PNGs; `textElement` PNGs have one unique SHA-256 per split and the same digest across train, val, and test.
 
@@ -24,7 +24,7 @@ For a batch with stable image IDs, output row `i` belongs to input ID `i`; the e
 
 ## CPU parity state
 
-Use one deterministically initialized, untrained TensorFlow PixelVAE state with the fixed production configuration, copy that state into the PyTorch package through the verified weight map, and use the same decoded RGBA examples in both encoders. The proposed seed is `0`; the run record must include the TensorFlow version, seed, source commit, state digest, and input IDs. The encoder-side tolerance is calibrated independently from CanvasVAE's tolerances.
+CPU parity uses one deterministically initialized, untrained TensorFlow PixelVAE state with the fixed production configuration and seed `0`, copied into the PyTorch package through the verified weight map and evaluated on the same decoded RGBA examples. The run record includes the TensorFlow version, seed, source commit, state digest, and input IDs. The encoder-side tolerance is calibrated independently from CanvasVAE's tolerances.
 
 This fixture checks decoding, weight mapping, posterior means, and data flow. It does not measure embedding quality from trained weights. It includes every document-stage element type; the source `generate_crello_image` transform's three-type filter selects PixelVAE training examples only. The later CanvasVAE loss mask controls which embeddings contribute to loss, not which elements are encoded or present in document records.
 

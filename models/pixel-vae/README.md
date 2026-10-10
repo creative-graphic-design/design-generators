@@ -20,11 +20,11 @@ model-index:
         dataset:
           type: "cyberagent/crello"
           name: "Crello v1"
-          config: "pinned original GCS archive"
+          config: "crello-dataset-v1.zip"
           split: "CPU implementation parity only; no trained-checkpoint evaluation"
         metrics:
           - type: "vendor-parity"
-            value: "CPU S0-S4 evidence pending"
+            value: "CPU S0-S4 passed; all 17 held-out metrics met frozen limits"
             name: "Agreement with the original implementation"
 ---
 
@@ -37,12 +37,12 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Crello&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/cyberagent/crello)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports the image encoder and decoder from [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), the ICCV 2021 vector-document VAE, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package. Its MobileNetV2 encoder maps 256 × 256 RGBA previews to the 256-dimensional posterior mean used by CanvasVAE document records. The package is a separate workspace member so it can be converted, serialized, and parity-checked independently before the document model consumes it.
 
-This implementation task covers conversion and CPU agreement on one deterministic, untrained TensorFlow state. The CPU S0–S4 run is not yet recorded; this package makes no trained-checkpoint or embedding-quality claim. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for scope and evidence and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md) for the shared Crello input and output contract.
+CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch: all 17 held-out metrics met their frozen per-metric limits, and state mapping, decode, and encoder save/load checks passed. This verifies conversion only; no trained-checkpoint or embedding-quality result is claimed. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the evidence and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md) for the shared Crello input and output contract.
 
 ## Model Details
 
@@ -86,7 +86,7 @@ The seed-0 untrained encoder does not provide meaningful visual similarity, sema
 
 ## Bias, Risks, and Limitations
 
-This port targets the original 256 × 256 RGBA path and rejects other dimensions instead of resizing them. The pinned Crello v1 archive and all derived embeddings remain private. Crello design previews may contain third-party artwork; do not redistribute the archive, previews, or embeddings.
+This port targets the original 256 × 256 RGBA path and rejects other dimensions instead of resizing them. The `crello-dataset-v1.zip` archive and all derived embeddings remain private. Crello design previews may contain third-party artwork; do not redistribute the archive, previews, or embeddings.
 
 ### Recommendations
 
@@ -138,13 +138,15 @@ Captured output will be added after running the example against the converted CP
 
 ### Training Data
 
-| Dataset | Dataset ID                                                               | Notes                                                                                                                                                 |
-| ------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Crello  | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | The original implementation task pins the separate Crello v1 GCS archive; its data and derived embeddings are private and are not in this repository. |
+| Dataset | Dataset ID                                                               | Notes                                                                                            |
+| ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Crello  | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | Original-code parity uses a private v1 archive; the archive and derived embeddings stay private. |
+
+Original-code parity uses [crello-dataset-v1.zip](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip), 2,989,732,284 bytes with SHA-256 `f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e`. Keep the archive and derived embeddings private.
 
 ### Training Procedure
 
-This package does not include a package-local training loop or a trained checkpoint. The original PixelVAE code supports training; the current change implements checkpoint conversion and CPU parity only. User scope excludes full training and S5 evaluation.
+This package does not include a package-local training loop or a trained checkpoint. It supports checkpoint conversion and CPU parity; GPU training, full-run evaluation, and S5 are out of scope.
 
 #### Preprocessing
 
@@ -152,7 +154,7 @@ Decode every document-stage `image_bytes` PNG to RGBA at its original 256 × 256
 
 #### Training Hyperparameters
 
-- **Training regime:** not retrained in this task; the original configuration uses batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6.
+- **Training regime:** not retrained; the original configuration uses batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6.
 
 ## Evaluation
 
@@ -168,19 +170,19 @@ The source and package receive identical PNG bytes decoded to RGBA uint8 values,
 
 #### Metrics
 
-Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric, rounding upward to two significant figures while preserving the registered limit `L` as a floor. The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
+Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric, rounding upward to two significant figures while preserving the per-metric floor `L` from [parity-limit-floors.json](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json). The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
 
 ### Parity Results
 
-not run: the calibrated CPU comparison has not yet been executed. Replace this table with measured maxima, frozen bounds, and pass counts before the pull request is ready for review.
+The CPU acceptance passed against one deterministic, untrained TensorFlow state copied to PyTorch. All 17 held-out metrics met their frozen per-metric limits; state mapping and exact decode checks passed. The example limit below illustrates the metric-specific thresholds; [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md) lists the full frozen table.
 
-| Check                                 |                                Cases | Criterion                                 | Result  |
-| ------------------------------------- | -----------------------------------: | ----------------------------------------- | ------- |
-| S0 state mapping                      |                              pending | exact transformed TensorFlow state        | pending |
-| S1 forward and losses                 |                            6 metrics | calibrated per-metric bound               | pending |
-| S2 gradients and optimizer            |                            6 metrics | calibrated per-metric bound               | pending |
-| S3 three-step trace                   |                            4 metrics | calibrated per-metric bound               | pending |
-| S4 archive, decode, and serialization | full archive plus encoder round trip | calibrated output bound plus exact checks | pending |
+| Check                                 |                                                                      Cases | Criterion                                                                                         | Result                                        |
+| ------------------------------------- | -------------------------------------------------------------------------: | ------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| S0 state mapping                      |                         1 untrained TensorFlow state; all mapped variables | exact config, one-to-one keys, and bitwise transformed tensors                                    | pass; all checks exact                        |
+| S1 forward and losses                 |                                                         6 held-out metrics | each metric within its frozen absolute bound; posterior mean `atol=1.4e-10`                       | pass; 6/6 metrics                             |
+| S2 gradients and optimizer            |                                                         6 held-out metrics | each metric within its frozen absolute bound                                                      | pass; 6/6 metrics                             |
+| S3 three-step trace                   |                                                         4 held-out metrics | each metric within its frozen absolute bound                                                      | pass; 4/4 metrics                             |
+| S4 archive, decode, and serialization | 23,361 documents; 5 element types; 1 encoder round trip; 1 held-out metric | all archive PNGs valid at 256 × 256; exact RGBA decode and round trip; metric within frozen bound | pass; full audit and exact checks; 1/1 metric |
 
 ## Reproducibility
 
@@ -196,7 +198,7 @@ The encoder uses Keras MobileNetV2 topology with a four-channel first convolutio
 
 #### Hardware
 
-The requested parity path is CPU-only. This task does not run GPU training or S5 evaluation.
+The only verified runtime in this package is CPU; GPU training and S5 evaluation have no result and are not claimed.
 
 #### Software
 

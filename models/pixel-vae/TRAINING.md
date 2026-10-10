@@ -1,6 +1,6 @@
 # PixelVAE Training
 
-PixelVAE CPU conversion and S0–S4 agreement are the scope of this package change; no training or trained-checkpoint reproduction is claimed. The issue amendment limits this task to CPU checks and explicitly excludes GPU full training and S5. See [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md) for fixed CPU metrics and [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md) for commands.
+CPU conversion and S0–S4 parity passed against the original TensorFlow PixelVAE on the Crello v1 archive, using one deterministic seed-0 untrained state copied to PyTorch. All 17 held-out metrics met their frozen limits, and exact state-mapping and decode checks passed. This package does not train or evaluate trained checkpoints; GPU full training and S5 are out of scope. See [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md) for the fixed CPU metrics and [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md) for commands.
 
 Run commands from the repository root. Keep Crello data, traces, checkpoints, conversion outputs, and embeddings under `.cache/pixel-vae/` during execution; they remain private and are not committed. Persist required run evidence only in the project's private artifact repository.
 
@@ -10,7 +10,7 @@ Run commands from the repository root. Keep Crello data, traces, checkpoints, co
 uv sync --package pixel-vae --extra vendor --extra parity
 ```
 
-The `vendor` extra provides TensorFlow CPU 2.15.1 for original-code conversion and parity. No training extra is provided because this change implements conversion and encoder inference, not a package-local training loop.
+The `vendor` extra provides TensorFlow CPU 2.15.1 for original-code conversion and parity. The package provides conversion and encoder inference but no package-local training loop, so it has no training extra.
 
 ## Data
 
@@ -28,11 +28,11 @@ There is no package-local training config in this CPU port. `PixelVAEConfig` rec
 
 ## Scheduler and Recipe Notes
 
-The original PixelVAE model uses MobileNetV2, batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6. This package does not implement the original training loop. Scheduler cadence — not applicable: this package has no training scheduler. Sampler — not applicable: this package has no timestep or importance sampler. EMA — not applicable: this package has no EMA path. AMP — not applicable: CPU parity uses float32 and this package has no AMP path. Multi-worker loader — not applicable: this package has no package-local training loader. The [issue #31 Crello amendment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6065470695) authorizes CPU conversion and parity while excluding GPU full training and S5.
+The original PixelVAE model uses MobileNetV2, batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6. This package does not implement the original training loop. Scheduler cadence — not applicable: this package has no training scheduler. Sampler — not applicable: this package has no timestep or importance sampler. EMA — not applicable: this package has no EMA path. AMP — not applicable: CPU parity uses float32 and this package has no AMP path. Multi-worker loader — not applicable: this package has no package-local training loader.
 
 ## Seed Policy
 
-The only seed scope in this change is deterministic TensorFlow initialization seed 0 for one untrained state copied to PyTorch. It is not a training-seed result or an evaluation-seed comparison.
+CPU parity uses deterministic TensorFlow initialization seed 0 for one untrained state copied to PyTorch. It is not a training-seed result or an evaluation-seed comparison.
 
 ## Validation Stages
 
@@ -43,27 +43,27 @@ The only seed scope in this change is deterministic TensorFlow initialization se
 | S2    | One optimizer-step parity                      | Compare gradients, Keras Adam moments, and updated parameters.                                |
 | S3    | Short deterministic multi-batch run            | Compare a fixed three-step CPU trace.                                                         |
 | S4    | Crello source and encoder serialization checks | Audit all element PNG dimensions, compare preprocessing, and verify posterior-mean save/load. |
-| S5    | Full-run statistical comparison                | Not run; this user-authorized task excludes full training and S5.                             |
+| S5    | Full-run statistical comparison                | Not run; full training and S5 are out of scope for this package.                              |
 
 ## Stage Evidence
 
-| Stage | Command                                                                                                                 | Artifact                                                                                         | Result                                                                                            |
-| ----- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| S0    | `PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-sha> bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh` | `input-selection-plan.json`, diagnostic/held-out/calibration input sidecars, calibration records | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S1    | Same ordered CPU acceptance command                                                                                     | `diagnostic/s1-diagnostic.json`, S0 input selections, `calibration/repeat-1..3.json`             | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S2    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                                   | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S3    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                                   | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S4    | Same ordered CPU acceptance command                                                                                     | `heldout.json`                                                                                   | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
-| S5    | not run by user scope                                                                                                   | [issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)              | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) |
+| Stage | Command                                                                                                                 | Artifact                                                                             | Result                                                                                                                                 |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | `PIXELVAE_PARITY_DIR=.cache/pixel-vae/parity/run-<full-sha> bash models/pixel-vae/scripts/run_cpu_parity_acceptance.sh` | `input-selection-plan.json`, source state record, calibration input sidecars         | Pass; exact config, complete key map, and bitwise state tensors for one untrained state.                                               |
+| S1    | Same ordered CPU acceptance command                                                                                     | `diagnostic/s1-diagnostic.json`, S0 input selections, `calibration/repeat-1..3.json` | Pass; all 6 held-out forward and loss metrics met their frozen limits.                                                                 |
+| S2    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | Pass; all 6 held-out gradient and optimizer metrics met their frozen limits.                                                           |
+| S3    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | Pass; all 4 held-out trace metrics met their frozen limits.                                                                            |
+| S4    | Same ordered CPU acceptance command                                                                                     | `heldout.json`, archive audit, encoder round-trip report                             | Pass; all 23,361 documents audited, exact RGBA decode and save/load checks passed, and the posterior-mean metric met its frozen limit. |
+| S5    | Not run; this package has no training loop                                                                              | N/A                                                                                  | Not run; full training and S5 are out of scope, so no trained-checkpoint result is claimed.                                            |
 
 ## Reproduction Results
 
-Only conversion and CPU stages are in scope. Trained-checkpoint reproduction, statistical evaluation, and embedding quality remain unclaimed.
+CPU conversion and parity passed on the Crello v1 source using one deterministic seed-0 untrained TensorFlow state copied to PyTorch. Three distinct canonical train-input groups set the metric bounds, and all 17 held-out metrics passed; trained-checkpoint reproduction, full-run evaluation, and embedding quality are not claimed.
 
-| Dataset   | System   | Status                                                                                            | Seed scope                  | Primary metrics                                 | Loss evidence        | Artifact summary           |
-| --------- | -------- | ------------------------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------- | -------------------- | -------------------------- |
-| Crello v1 | original | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) | seed-0 untrained state only | CPU S0–S4 pending; no trained-checkpoint metric | No training loss run | `.cache/pixel-vae/parity/` |
-| Crello v1 | package  | not-yet-run ([issue #31](https://github.com/creative-graphic-design/design-generators/issues/31)) | seed-0 untrained state only | CPU S0–S4 pending; no trained-checkpoint metric | No training loss run | `.cache/pixel-vae/parity/` |
+| Dataset   | System   | Status                                                             | Seed scope                               | Primary metrics                                                                | Loss evidence        | Artifact summary           |
+| --------- | -------- | ------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------------- | -------------------------- |
+| Crello v1 | original | not-yet-run (no training run is in scope)                          | seed-0 untrained state only              | Paired CPU parity passed: 17/17 held-out metrics; no trained-checkpoint metric | No training loss run | `.cache/pixel-vae/parity/` |
+| Crello v1 | package  | not-yet-run (no package-local training loop or trained checkpoint) | same seed-0 state copied from TensorFlow | Paired CPU parity passed: 17/17 held-out metrics; no trained-checkpoint metric | No training loss run | `.cache/pixel-vae/parity/` |
 
 ### Comparison Scope
 
