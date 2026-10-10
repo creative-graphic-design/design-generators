@@ -1,11 +1,12 @@
-"""Compare original TensorFlow Crello preprocessing with the package loader."""
+"""Compare original TensorFlow preprocessing with the production data loader."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Protocol, TypedDict, cast
 
@@ -19,13 +20,17 @@ from canvas_vae.data import (
     CRELLO_SEQUENCE_FIELDS,
     CRELLO_SPLITS,
     CrelloDocument,
-    CrelloProcessor,
+    CrelloSplit,
     fixture_image_ids,
     image_id,
     load_crello_split,
-    load_crello_vocabularies,
-    load_embedding_fixture,
     training_image_ids,
+)
+from canvas_vae.training.datamodule import CanvasVAECrelloDataModule
+from canvas_vae.training.sampling import (
+    CrossEpochBatchSampler,
+    sequential_batches,
+    wrapping_batches,
 )
 
 
@@ -71,6 +76,8 @@ class _SplitSummary(TypedDict):
     """Count and equality details for one data split."""
 
     documents: int
+    loader_batches: int
+    loader_samples: int
     document_stage_pngs: int
     pixelvae_training_pngs: int
     processed_fields: list[str]
@@ -83,6 +90,31 @@ class _S4Summary(TypedDict):
     exact: bool
     embedding_contract: str
     splits: dict[str, _SplitSummary]
+
+
+class _RecordingCrossEpochBatchSampler(CrossEpochBatchSampler):
+    """Record the ordered batches consumed by the production DataLoader."""
+
+    def __init__(
+        self,
+        num_records: int,
+        batch_size: int,
+        generator: torch.Generator,
+        *,
+        ordered_indices: Sequence[int],
+    ) -> None:
+        super().__init__(
+            num_records,
+            batch_size,
+            generator,
+            ordered_indices=ordered_indices,
+        )
+        self.produced_batches: list[list[int]] = []
+
+    def __iter__(self) -> Iterator[list[int]]:
+        for batch in super().__iter__():
+            self.produced_batches.append(batch)
+            yield batch
 
 
 def _source_id(record: _SequenceExample) -> str:
@@ -178,6 +210,95 @@ def _assert_replay_equal(first: BatchFeature, second: BatchFeature) -> None:
             raise ValueError(f"deterministic loader replay differs at {name}")
 
 
+def _production_loader_replay(
+    data_module: CanvasVAECrelloDataModule,
+    replay_data_module: CanvasVAECrelloDataModule,
+    split: str,
+    batch_size: int,
+) -> Iterator[tuple[BatchFeature, BatchFeature, list[str]]]:
+    selected = CrelloSplit(split)
+    documents = data_module.splits[selected].documents
+    document_ids = [document["document_id"] for document in documents]
+    index_by_id = {document_id: index for index, document_id in enumerate(document_ids)}
+    first_sampler: _RecordingCrossEpochBatchSampler | None = None
+    replay_sampler: _RecordingCrossEpochBatchSampler | None = None
+
+    if selected == CrelloSplit.train:
+        if (
+            data_module.train_sampler is None
+            or replay_data_module.train_sampler is None
+        ):
+            raise RuntimeError(
+                "Crello data module setup did not create its train sampler"
+            )
+
+        total_samples = len(data_module.train_sampler) * batch_size
+        ordered_indices = [
+            index_by_id[document_id]
+            for document_id in (
+                document_ids * math.ceil(total_samples / len(document_ids))
+            )[:total_samples]
+        ]
+        first_sampler = _RecordingCrossEpochBatchSampler(
+            len(documents),
+            batch_size,
+            torch.Generator().manual_seed(0),
+            ordered_indices=ordered_indices,
+        )
+        replay_sampler = _RecordingCrossEpochBatchSampler(
+            len(documents),
+            batch_size,
+            torch.Generator().manual_seed(0),
+            ordered_indices=ordered_indices,
+        )
+        data_module.train_sampler = first_sampler
+        actual_loader = data_module.train_dataloader()
+        replay_data_module.train_sampler = replay_sampler
+        replay_loader = replay_data_module.train_dataloader()
+        expected_batches = [
+            ordered_indices[start : start + batch_size]
+            for start in range(0, total_samples, batch_size)
+        ]
+    else:
+        expected_batches = (
+            wrapping_batches(len(documents), batch_size)
+            if selected == CrelloSplit.val
+            else sequential_batches(len(documents), batch_size)
+        )
+        actual_loader = (
+            data_module.val_dataloader()
+            if selected == CrelloSplit.val
+            else data_module.test_dataloader()
+        )
+        replay_loader = (
+            replay_data_module.val_dataloader()
+            if selected == CrelloSplit.val
+            else replay_data_module.test_dataloader()
+        )
+        batch_sampler = actual_loader.batch_sampler
+        if batch_sampler is None or list(batch_sampler) != expected_batches:
+            raise ValueError(f"production sampler order differs for {split}")
+
+    for actual, replay, index_batch in zip(
+        actual_loader, replay_loader, expected_batches, strict=True
+    ):
+        expected_ids = [document_ids[index] for index in index_batch]
+        if actual["document_id"] != expected_ids:
+            raise ValueError(f"production DataLoader IDs or order differ for {split}")
+
+        _assert_replay_equal(actual, replay)
+        yield actual, replay, expected_ids
+
+    if selected == CrelloSplit.train:
+        if first_sampler is None or replay_sampler is None:
+            raise RuntimeError("deterministic train samplers were not created")
+
+        if first_sampler.produced_batches != expected_batches:
+            raise ValueError("production train sampler order differs")
+        if replay_sampler.produced_batches != expected_batches:
+            raise ValueError("replayed train sampler order differs")
+
+
 def main() -> None:
     """Check all source splits, processed fields, masks, IDs, and replay order."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -192,14 +313,38 @@ def main() -> None:
     import tensorflow as tf
     from canvasvae.data.spec import DataSpec
 
+    data_module = CanvasVAECrelloDataModule(
+        data_dir=str(args.package_dir),
+        fixture_dir=str(args.fixture_dir),
+        batch_size=args.batch_size,
+        num_workers=0,
+        seed=0,
+    )
+    data_module.setup("fit")
+    replay_data_module = CanvasVAECrelloDataModule(
+        data_dir=str(args.package_dir),
+        fixture_dir=str(args.fixture_dir),
+        batch_size=args.batch_size,
+        num_workers=0,
+        seed=0,
+    )
+    replay_data_module.setup("fit")
     splits = {
-        split: load_crello_split(args.package_dir, split) for split in CRELLO_SPLITS
+        split: data_module.splits[CrelloSplit(split)].documents
+        for split in CRELLO_SPLITS
     }
     all_documents = [document for split in CRELLO_SPLITS for document in splits[split]]
     expected_ids = fixture_image_ids(all_documents)
-    embeddings = load_embedding_fixture(args.fixture_dir, expected_ids)
-    vocabularies = load_crello_vocabularies(args.package_dir)
-    processor = CrelloProcessor(vocabularies, embeddings)
+    if data_module.processor is None or replay_data_module.processor is None:
+        raise RuntimeError("Crello data module setup did not create its processor")
+
+    embeddings = data_module.processor.embeddings
+    if list(embeddings) != expected_ids:
+        raise ValueError(
+            "data module embedding IDs differ from canonical fixture order"
+        )
+
+    vocabularies = data_module.processor.vocabularies
     summary: _S4Summary = {
         "exact": True,
         "embedding_contract": "canonical unique-image fixture; legacy duplicate outputs are diagnostic-only",
@@ -223,7 +368,7 @@ def main() -> None:
     for split in CRELLO_SPLITS:
         documents = splits[split]
         if documents != load_crello_split(args.package_dir, split):
-            raise ValueError(f"package split loader replay differs for {split}")
+            raise ValueError(f"production data module changed package split {split}")
 
         original_by_id = _reference_records(args.reference_run, split)
         document_ids = [document["document_id"] for document in documents]
@@ -238,13 +383,24 @@ def main() -> None:
         ):
             raise ValueError(f"original/package filtered image IDs differ for {split}")
 
-        serialized = list(original_by_id.values())
-        for start in range(0, len(documents), args.batch_size):
-            package_rows = documents[start : start + args.batch_size]
-            reference_rows = serialized[start : start + args.batch_size]
-            actual = processor(package_rows)
-            replay = processor(package_rows)
-            _assert_replay_equal(actual, replay)
+        document_by_id = {document["document_id"]: document for document in documents}
+
+        observed_ids: list[str] = []
+        loader_batches = 0
+        for actual, _replay, expected_batch_ids in _production_loader_replay(
+            data_module,
+            replay_data_module,
+            split,
+            args.batch_size,
+        ):
+            loader_batches += 1
+            observed_ids.extend(expected_batch_ids)
+            package_rows = [
+                document_by_id[document_id] for document_id in expected_batch_ids
+            ]
+            reference_rows = [
+                original_by_id[document_id] for document_id in expected_batch_ids
+            ]
             expected = dict(data_spec.parse_fn(tf.constant(reference_rows)))
             expected["image_embedding"] = tf.convert_to_tensor(
                 _canonical_embedding_values(package_rows, embeddings)
@@ -263,13 +419,15 @@ def main() -> None:
             ):
                 mask = type_loss_masks[field][type_ids] & element_mask
                 if not np.array_equal(actual[key].numpy(), mask):
-                    raise ValueError(f"exact S4 mask mismatch: {key}")
+                    raise ValueError(f"exact S4 mask mismatch: {key} in {split}")
 
             if not np.array_equal(actual["element_mask"].numpy(), element_mask):
-                raise ValueError("exact S4 mask mismatch: element_mask")
+                raise ValueError(f"exact S4 mask mismatch: element_mask in {split}")
 
         summary["splits"][split] = {
             "documents": len(documents),
+            "loader_batches": loader_batches,
+            "loader_samples": len(observed_ids),
             "document_stage_pngs": len(
                 {
                     element["image_id"]

@@ -3,7 +3,7 @@ import hashlib
 import runpy
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from types import FunctionType, SimpleNamespace
 from typing import cast
@@ -11,6 +11,7 @@ from typing import cast
 import numpy as np
 import pytest
 import torch
+from transformers import BatchFeature
 
 from canvas_vae.data import (
     CrelloDocument,
@@ -41,6 +42,27 @@ TYPE_VALUES = [
     "maskElement",
     "otherElement",
 ]
+S2_GROUPS = (
+    "s2_gradients",
+    "s2_clipped_gradients",
+    "s2_first_moments",
+    "s2_second_moments",
+    "s2_updated_parameters",
+    "s2_zero_gradients",
+)
+
+
+def s2_diagnostic_rows(batch_index: int) -> list[dict[str, str | int | float]]:
+    return [
+        {
+            "group": group,
+            "tensor": f"tensor:{group}",
+            "batch": batch_index,
+            "metric": "max_abs" if group == "s2_zero_gradients" else "norm_rel",
+            "metric_value": 0.0,
+        }
+        for group in S2_GROUPS
+    ]
 
 
 def test_attention_key_biases_use_shared_absolute_zero_gradient_rule():
@@ -246,6 +268,102 @@ def test_crello_report_names_largest_relative_tensor_for_every_s2_group():
     )
 
 
+def test_crello_s2_tensor_record_has_parameter_gradient_and_adam_scales():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    diagnostic = cast(
+        Callable[..., dict[str, object]], namespace["_s2_tensor_diagnostic"]
+    )
+    optimizer_context = cast(
+        Callable[..., dict[str, object]], namespace["_s2_optimizer_context"]
+    )
+    summarize = cast(
+        Callable[..., dict[str, object]], namespace["_largest_s2_tensor_diagnostics"]
+    )
+    source = namespace["TensorFlowSource"]("dense/kernel", True)
+    package_parameter = torch.tensor([[3.0, 4.0]])
+    vendor_parameter = np.asarray([[2.9], [4.2]], dtype=np.float32)
+    row = diagnostic(
+        "s2_updated_parameters",
+        "decoder.context_heads.left.weight",
+        1,
+        package_parameter,
+        vendor_parameter,
+        source,
+    )
+    package_second_moment = torch.tensor([0.0, 0.01, 0.09])
+    vendor_second_moment = np.asarray([0.0, 0.01, 0.16], dtype=np.float32)
+    context = optimizer_context(
+        {"package": 5.0, "vendor": 5.1},
+        {"package": 4.9, "vendor": 5.0},
+        {"package": 0.02, "vendor": 0.03},
+        {"package": 0.01, "vendor": 0.02},
+        package_second_moment,
+        1e-7,
+        vendor_second_moment,
+        1e-7,
+    )
+    row.update(context)
+    diagnostics = [row]
+    diagnostics.append(
+        diagnostic(
+            "s2_updated_parameters",
+            "decoder.context_heads.right.weight",
+            0,
+            torch.tensor([[1.0, 1.0]]),
+            np.asarray([[1.0], [1.0]], dtype=np.float32),
+            source,
+        )
+    )
+    for group in (
+        "s2_gradients",
+        "s2_clipped_gradients",
+        "s2_first_moments",
+        "s2_second_moments",
+        "s2_zero_gradients",
+    ):
+        diagnostics.append(
+            diagnostic(
+                group,
+                "encoder.blocks.0.attention.q_proj.weight",
+                0,
+                torch.tensor([1.0, 1.0]),
+                np.asarray([0.9, 0.9], dtype=np.float32),
+                namespace["TensorFlowSource"]("q_proj/kernel", False),
+            )
+        )
+
+    largest = summarize(diagnostics)
+
+    assert set(largest) == {
+        "s2_gradients",
+        "s2_clipped_gradients",
+        "s2_first_moments",
+        "s2_second_moments",
+        "s2_updated_parameters",
+        "s2_zero_gradients",
+    }
+    updated = cast(dict[str, object], largest["s2_updated_parameters"])
+    adam_denominator = cast(dict[str, dict[str, int | float]], row["adam_denominator"])
+    assert updated["tensor"] == ("decoder.context_heads.left.weight")
+    assert row["absolute_difference"] == pytest.approx(
+        {"max_abs": 0.2, "l2": 0.2236068}
+    )
+    assert row["parameter_norm"] == {
+        "before_step": {"package": 5.0, "vendor": 5.1},
+        "after_step": {"package": 4.9, "vendor": 5.0},
+    }
+    assert row["gradient_norm"] == {
+        "raw": {"package": 0.02, "vendor": 0.03},
+        "clipped": {"package": 0.01, "vendor": 0.02},
+    }
+    assert adam_denominator["package"]["min"] == pytest.approx(1e-7)
+    assert adam_denominator["package"]["p50"] == pytest.approx(0.1)
+    assert adam_denominator["vendor"]["max"] == pytest.approx(0.4)
+
+
 def test_crello_parity_report_serializes_numpy_scalars(tmp_path):
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
@@ -353,6 +471,7 @@ def test_crello_heldout_batches_start_in_fresh_processes_from_frozen_limits(
             ],
             "initial_state_sha256": "same-initial-state",
             "initial_state_mismatch_keys": [],
+            "s2_tensor_diagnostics": s2_diagnostic_rows(batch_index),
             "measurements": [
                 {
                     "group": "s1_eval_outputs",
@@ -423,6 +542,7 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
                         "calibration_floor": 1e-6,
                     }
                 ],
+                "s2_tensor_diagnostics": s2_diagnostic_rows(batch_index),
                 "measurements": [
                     {
                         "group": "s1_eval_outputs",
@@ -833,12 +953,22 @@ def make_document(split: CrelloSplit, index: int) -> CrelloDocument:
     }
 
 
-def write_prepared_data(tmp_path):
+def write_prepared_data(tmp_path, *, documents_per_split=1):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    documents = [make_document(split, index) for index, split in enumerate(CrelloSplit)]
-    for split, row in zip(CrelloSplit, documents, strict=True):
-        (data_dir / f"{split}.jsonl").write_text(json.dumps(row) + "\n")
+    documents = [
+        make_document(split, index)
+        for split_index, split in enumerate(CrelloSplit)
+        for index in range(
+            split_index * documents_per_split,
+            (split_index + 1) * documents_per_split,
+        )
+    ]
+    for split in CrelloSplit:
+        rows = [document for document in documents if document["split"] == split]
+        (data_dir / f"{split}.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in rows)
+        )
 
     vocabulary = {
         "group": {"group": 3},
@@ -860,6 +990,71 @@ def write_prepared_data(tmp_path):
         encoder_state_sha256="a" * 64,
     )
     return data_dir, fixture_dir
+
+
+def test_crello_data_module_replays_production_loaders_for_every_split(tmp_path):
+    data_dir, fixture_dir = write_prepared_data(tmp_path, documents_per_split=3)
+    modules = [
+        CanvasVAECrelloDataModule(
+            data_dir=str(data_dir),
+            fixture_dir=str(fixture_dir),
+            batch_size=2,
+            seed=0,
+        )
+        for _ in range(2)
+    ]
+    for module in modules:
+        module.setup("fit")
+        assert module.train_sampler is not None
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_s4.py"
+    namespace = runpy.run_path(str(script))
+    replay_loader = cast(
+        Callable[..., Iterator[tuple[BatchFeature, BatchFeature, list[str]]]],
+        namespace["_production_loader_replay"],
+    )
+
+    for split in CrelloSplit:
+        comparisons = list(replay_loader(modules[0], modules[1], split.value, 2))
+        first_batches = [actual for actual, _, _ in comparisons]
+        replay_batches = [replay for _, replay, _ in comparisons]
+        assert len(first_batches) == len(replay_batches)
+
+        first_ids = [document_id for _, _, ids in comparisons for document_id in ids]
+        replay_ids = [
+            document_id
+            for batch in replay_batches
+            for document_id in batch["document_id"]
+        ]
+        assert first_ids == replay_ids
+        assert first_ids == [
+            document_id
+            for batch in first_batches
+            for document_id in batch["document_id"]
+        ]
+        assert all(name.split("/")[1] == split.value for name in first_ids)
+        for actual, replay in zip(first_batches, replay_batches, strict=True):
+            assert actual["document_id"] == replay["document_id"]
+            assert actual["split"] == replay["split"]
+            for key, value in actual.items():
+                if isinstance(value, torch.Tensor):
+                    assert torch.equal(value, replay[key])
+                else:
+                    assert value == replay[key]
+
+        expected_ids = [
+            document_id(split, index)
+            for index in range(
+                list(CrelloSplit).index(split) * 3,
+                (list(CrelloSplit).index(split) + 1) * 3,
+            )
+        ]
+        if split == CrelloSplit.train:
+            assert first_ids == [*expected_ids, expected_ids[0]]
+        elif split == CrelloSplit.val:
+            assert first_ids == [*expected_ids, expected_ids[0]]
+        else:
+            assert first_ids == expected_ids
 
 
 def test_crello_data_module_loads_fixture_and_serves_canonical_splits(tmp_path):
