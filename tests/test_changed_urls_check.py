@@ -48,6 +48,7 @@ def test_extract_urls_from_added_lines_only_reads_added_external_urls() -> None:
             "@@ -0,0 +1,2 @@",
             f"-removed {HTTPS}{REMOVED_HOST}/not-added",
             f"+added [repo]({DESIGN_GENERATORS_URL}).",
+            f"+inline `{HTTPS}{EXAMPLE_HOST}/archive.zip`",
             f"+two {SMARTTEXT_GOOD_URL} and {HTTP}{EXAMPLE_HOST}/demo",
             "",
         ]
@@ -59,12 +60,16 @@ def test_extract_urls_from_added_lines_only_reads_added_external_urls() -> None:
             source="README.md:1",
         ),
         check_changed_urls.ChangedUrl(
-            url=SMARTTEXT_GOOD_URL,
+            url=f"{HTTPS}{EXAMPLE_HOST}/archive.zip",
             source="README.md:2",
         ),
         check_changed_urls.ChangedUrl(
+            url=SMARTTEXT_GOOD_URL,
+            source="README.md:3",
+        ),
+        check_changed_urls.ChangedUrl(
             url=f"{HTTP}{EXAMPLE_HOST}/demo",
-            source="README.md:2",
+            source="README.md:3",
         ),
     ]
 

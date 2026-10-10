@@ -1,4 +1,4 @@
-"""Optimizer, gradient clipping, and weight penalty for CanvasVAE training."""
+"""Gradient clipping and weight penalty for CanvasVAE training."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from collections.abc import Iterable
 import torch
 from jaxtyping import Float
 from torch import nn
-from traingen.optim import KerasAdam
 
 
 def clip_gradients_by_norm(parameters: Iterable[nn.Parameter], max_norm: float) -> None:
@@ -62,4 +61,4 @@ def l2_penalty(model: nn.Module, weight: float) -> Float[torch.Tensor, ""]:
     return torch.stack(terms).sum()
 
 
-__all__ = ["KerasAdam", "clip_gradients_by_norm", "l2_penalty"]
+__all__ = ["clip_gradients_by_norm", "l2_penalty"]
