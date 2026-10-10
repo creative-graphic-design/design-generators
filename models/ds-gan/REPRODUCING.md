@@ -37,7 +37,7 @@ uv run --package ds-gan models/ds-gan/scripts/convert_original_checkpoint.py \
 Step 4 runs the vendor parity tests against the generated reference fixture and converted model code.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package ds-gan --extra vendor pytest models/ds-gan/tests/vendor_parity -m vendor_parity -rs -q
+CUDA_VISIBLE_DEVICES=1 uv run --package ds-gan --extra training --extra vendor pytest models/ds-gan/tests/vendor_parity -m vendor_parity -rs -q
 ```
 
 Expected parity results:
