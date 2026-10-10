@@ -115,6 +115,26 @@ conflicts = [
         { package = "postero" },
         { package = "canvas-vae", extra = "convert" },
     ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai members require protobuf>=5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layout-gpt" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layoutprompter" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "postero" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
     # The convert and vendor extras install different TensorFlow distributions; keep the environments separate.
     [
         { package = "canvas-vae", extra = "convert" },
@@ -154,6 +174,16 @@ conflicts = [
     [
         { package = "housegan", extra = "vendor" },
         { package = "canvas-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] uses TensorFlow CPU; canvas-vae[vendor] uses TensorFlow with CUDA.
+    [
+        { package = "pixel-vae", extra = "vendor" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] uses TensorFlow CPU; flex-dm[vendor-tf] uses TensorFlow with CUDA.
+    [
+        { package = "pixel-vae", extra = "vendor" },
+        { package = "flex-dm", extra = "vendor-tf" },
     ],
 ]
 
@@ -195,6 +225,7 @@ ralf = { workspace = true }
 smarttext = { workspace = true }
 traingen = { workspace = true }
 traingen-parity = { workspace = true }
+pixel-vae = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
