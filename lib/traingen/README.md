@@ -10,6 +10,8 @@
 
 Use `traingen` for generic training infrastructure such as [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) helpers. Use [`traingen-parity`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/traingen-parity) for deterministic trace capture and reference/target comparison reports.
 
+`traingen.optim.KerasAdam` implements the update order and epsilon placement used by Keras 2 Adam. CanvasVAE and PixelVAE use it when comparing TensorFlow training updates with their PyTorch models.
+
 ## Install
 
 ```bash
