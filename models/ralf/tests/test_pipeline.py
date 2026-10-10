@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+import pytest
 import torch
 
 from laygen.common.testing import assert_layout_output_schema
@@ -78,11 +79,20 @@ def test_pipeline_generator_wins_over_seed() -> None:
 def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:
     pipe = _pipeline()
 
+    assert pipe.config is pipe.model.config
     pipe.save_pretrained(tmp_path)
     loaded = RalfPipeline.from_pretrained(tmp_path, local_files_only=True)
 
+    assert loaded.config is loaded.model.config
     assert loaded.config.model_type == "ralf"
     assert loaded.processor.config.max_seq_length == 2
+
+    with pytest.raises(TypeError, match="does not accept a config override"):
+        RalfPipeline.from_pretrained(
+            tmp_path,
+            config=pipe.config,
+            local_files_only=True,
+        )
 
 
 def test_pipeline_retrieval_table_intermediates_and_retrieval_condition() -> None:

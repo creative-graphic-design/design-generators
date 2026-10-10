@@ -149,7 +149,7 @@ print(out.mask)
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Converted checkpoints port the released weights unchanged. The package also carries a training path for all twelve dataset/condition combinations listed in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md): six CGL conditions and six PKU conditions. Each campaign has S0-S5 evidence. CGL unconditional uses `training-seed n=3` per system; the other eleven conditions use `training-seed n=5` per system. The other eleven evaluations use inference seeds `0/1/2`; CGL unconditional uses its recorded per-run evaluation seed. The document records the condition-specific recipes, evaluator settings, evidence populations, and both-direction range verdicts.
 
 #### Preprocessing
 
@@ -157,7 +157,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream training for converted checkpoints; all twelve CGL and PKU condition recipes are additionally rerun in this repository. CGL unconditional uses three matched package/vendor seeds; the other eleven conditions use five matched seeds per system. See [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md) for the condition-specific epoch counts, optimizers, loaders, and evaluator settings.
 
 #### Speeds, Sizes, Times
 
@@ -181,13 +181,13 @@ Metrics are exact state-dict equality, exact tensor equality, or explicitly stat
 
 ### Parity Results
 
-| Dataset             | Compared artifact                          |                   Cases | Match criterion                                                                                                                        | Result |
-| ------------------- | ------------------------------------------ | ----------------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| CGL                 | `ralf_uncond_cgl` strict conversion        |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| CGL                 | `ralf_uncond_cgl` local-vs-vendor logits   | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
-| PKU                 | `ralf_uncond_pku10` strict conversion      |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| PKU                 | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
-| Synthetic CPU smoke | local `save_pretrained` reload             |                       1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label`                                                        | passed |
+| Dataset             | Compared artifact                          |                                 Cases | Match criterion                                                                                                                        | Result |
+| ------------------- | ------------------------------------------ | ------------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| CGL                 | `ralf_uncond_cgl` strict conversion        |                                     1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| CGL                 | `ralf_uncond_cgl` local-vs-vendor logits   | 1 synthetic batch on one selected GPU | `max_abs_diff=0.0`                                                                                                                     | passed |
+| PKU                 | `ralf_uncond_pku10` strict conversion      |                                     1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| PKU                 | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic batch on one selected GPU | `max_abs_diff=0.0`                                                                                                                     | passed |
+| Synthetic CPU smoke | local `save_pretrained` reload             |                                     1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label`                                                        | passed |
 
 ## Reproducibility
 
@@ -195,7 +195,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+Checkpoint conversion performs no training. The twelve-condition reproduction used three matched package/vendor training seeds for CGL unconditional and five matched seeds for each other condition on explicitly selected GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
