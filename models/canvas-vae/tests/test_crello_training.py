@@ -149,6 +149,63 @@ def test_crello_calibration_registers_two_ulp_floor_for_bounded_metric_scores():
     assert result["s1_reconstruction_losses"]["limit"] == 0.0
 
 
+def test_crello_key_bias_gradient_limit_uses_calibrated_maximum_and_floor():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    comparison_type = namespace["_Comparison"]
+    limits = cast(Callable[..., dict[str, dict[str, object]]], namespace["_limits"])
+    annotate = cast(Callable[..., None], namespace["_annotate_zero_gradient_checks"])
+    values = (0.8e-6, 1.24e-6, 1.092e-6)
+    records = [
+        comparison_type(
+            "s2_zero_gradients",
+            f"{side}:encoder.blocks.0.attention.k_proj.bias",
+            batch,
+            "max_abs",
+            value,
+            [],
+            [],
+            True,
+        )
+        for batch, maximum in enumerate(values)
+        for side, value in (("package", maximum * 0.7), ("vendor", maximum))
+    ]
+
+    limit = limits(records)["s2_zero_gradients"]
+    checks = [{"package_max_abs": 0.7e-6, "vendor_max_abs": 1.24e-6}]
+    annotate(checks, limit["limit"])
+
+    assert limit["L"] == 1e-6
+    assert limit["calibration_batch_maxima"] == list(values)
+    assert limit["max_calibration_error"] == 1.24e-6
+    assert limit["limit"] == 1.9e-6
+    assert checks[0]["limit"] == 1.9e-6
+    assert checks[0]["package_within_limit"] is True
+    assert checks[0]["vendor_within_limit"] is True
+    assert checks[0]["within_limit"] is True
+
+
+def test_crello_heldout_report_includes_maximum_per_metric_group():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    comparison_type = namespace["_Comparison"]
+    maxima = cast(Callable[..., dict[str, float]], namespace["_group_maxima"])
+
+    assert maxima(
+        [
+            comparison_type("s1_eval_outputs", "z", 0, "max", 0.1, [], [], True),
+            comparison_type("s1_eval_outputs", "z", 1, "max", 0.3, [], [], True),
+            comparison_type(
+                "s2_zero_gradients", "vendor:bias", 0, "max_abs", 1e-6, [], [], True
+            ),
+        ]
+    ) == {"s1_eval_outputs": 0.3, "s2_zero_gradients": 1e-6}
+
+
 def test_crello_report_names_largest_relative_tensor_for_every_s2_group():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
@@ -340,6 +397,7 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
     original_run = subprocess.run
     commands: list[list[str]] = []
     values = (0.1, 0.3, 0.2)
+    zero_gradient_values = (0.8e-6, 1.24e-6, 1.092e-6)
     plan_visible_at_launch: list[bool] = []
 
     def run(command, **kwargs):
@@ -356,6 +414,15 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
                 ],
                 "initial_state_sha256": "same-initial-state",
                 "initial_state_mismatch_keys": [],
+                "zero_gradient_checks": [
+                    {
+                        "tensor": "encoder.blocks.0.attention.k_proj.bias",
+                        "batch": batch_index,
+                        "package_max_abs": zero_gradient_values[batch_index] * 0.7,
+                        "vendor_max_abs": zero_gradient_values[batch_index],
+                        "calibration_floor": 1e-6,
+                    }
+                ],
                 "measurements": [
                     {
                         "group": "s1_eval_outputs",
@@ -366,7 +433,27 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
                         "actual_shape": [1],
                         "expected_shape": [1],
                         "shape_match": True,
-                    }
+                    },
+                    {
+                        "group": "s2_zero_gradients",
+                        "name": "package:encoder.blocks.0.attention.k_proj.bias",
+                        "batch": batch_index,
+                        "metric": "max_abs",
+                        "value": zero_gradient_values[batch_index] * 0.7,
+                        "actual_shape": [],
+                        "expected_shape": [],
+                        "shape_match": True,
+                    },
+                    {
+                        "group": "s2_zero_gradients",
+                        "name": "vendor:encoder.blocks.0.attention.k_proj.bias",
+                        "batch": batch_index,
+                        "metric": "max_abs",
+                        "value": zero_gradient_values[batch_index],
+                        "actual_shape": [],
+                        "expected_shape": [],
+                        "shape_match": True,
+                    },
                 ],
             }
             (report_dir / f"calibration-batch-{batch_index}.json").write_text(
@@ -387,12 +474,65 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
     plan_bytes = (tmp_path / "calibration-plan.json").read_bytes()
     assert report["calibration_plan_sha256"] == hashlib.sha256(plan_bytes).hexdigest()
     assert report["distinct_input_batches"] is True
+    assert report["calibration_complete"] is True
+    assert report["incomplete"] is False
     limits = cast(dict[str, dict[str, object]], report["limits"])
     limit = limits["s1_eval_outputs"]
     assert cast(list[float], limit["calibration_batch_maxima"]) == list(values)
     assert limit["max_calibration_error"] == 0.3
     assert limit["limit"] == 0.45
+    gradient_limit = limits["s2_zero_gradients"]
+    assert gradient_limit["calibration_batch_maxima"] == list(zero_gradient_values)
+    assert gradient_limit["L"] == 1e-6
+    assert gradient_limit["limit"] == 1.9e-6
+    checks = cast(list[dict[str, object]], report["zero_gradient_checks"])
+    assert len(checks) == 3
+    assert all(row["within_limit"] is True for row in checks)
     assert (tmp_path / "limits.json").is_file()
+
+
+def test_crello_calibration_stops_after_static_failure_and_writes_incomplete_report(
+    tmp_path, monkeypatch
+):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    calibrate = cast(Callable[..., dict[str, object]], namespace["_calibrate"])
+    original_run = subprocess.run
+    commands: list[list[str]] = []
+
+    def run(command, **kwargs):
+        if len(command) > 1 and command[1] == str(script):
+            commands.append(command)
+            report_dir = Path(command[command.index("--report-dir") + 1])
+            child = {
+                "static_errors": ["synthetic static failure"],
+                "batch_digests": ["first-batch"],
+                "initial_state_sha256": "initial-state",
+                "initial_state_mismatch_keys": [],
+                "zero_gradient_checks": [],
+                "measurements": [],
+            }
+            (report_dir / "calibration-batch-0.json").write_text(
+                json.dumps(child), encoding="utf-8"
+            )
+            return SimpleNamespace(returncode=1)
+
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(AssertionError, match="calibration checks failed"):
+        calibrate(report_dir=tmp_path)
+
+    report = json.loads((tmp_path / "calibrate.json").read_text(encoding="utf-8"))
+    assert len(commands) == 1
+    assert commands[0][commands[0].index("--batch-index") + 1] == "0"
+    assert report["calibration_complete"] is False
+    assert report["incomplete"] is True
+    assert report["limits"] == {}
+    assert "synthetic static failure" in report["static_errors"]
+    assert not (tmp_path / "limits.json").exists()
 
 
 def test_crello_metric_comparison_records_color_total_and_layout_scores():

@@ -54,7 +54,6 @@ from canvas_vae.modeling_canvas_vae import (
 )
 from canvas_vae.training.optim import KerasAdam, clip_gradients_by_norm, l2_penalty
 from canvas_vae.training.parity import (
-    ZERO_GRADIENT_LIMIT,
     check_zero_gradient,
     split_attention_key_biases,
 )
@@ -91,9 +90,11 @@ CALIBRATION_SELECTION: Final = (
     "indices [0,1024), [1024,2048), [2048,3072)"
 )
 METRIC_SCORE_FLOOR: Final = 2 * 2**-24
+ZERO_GRADIENT_FLOOR: Final = 1e-6
 CALIBRATION_FORMULA: Final = (
     "limit=max(L,ceil2(1.5*M)); L=2*2^-24 for reconstruction/layout scores, "
-    "otherwise 0; M=max(per-metric maxima from three independent processes)"
+    "L=1e-6 for attention key-bias max-absolute gradients, otherwise 0; "
+    "M=max(per-metric maxima from three independent processes)"
 )
 
 
@@ -1355,8 +1356,7 @@ def _train_step(
                     "batch": batch_index,
                     "package_max_abs": None,
                     "vendor_max_abs": None,
-                    "limit": ZERO_GRADIENT_LIMIT,
-                    "within": False,
+                    "calibration_floor": ZERO_GRADIENT_FLOOR,
                 }
             )
             static_errors.append(f"zero-gradient tensor {state_key} has no gradient")
@@ -1369,13 +1369,24 @@ def _train_step(
                 "batch": batch_index,
                 "package_max_abs": check.package_max_abs,
                 "vendor_max_abs": check.vendor_max_abs,
-                "limit": ZERO_GRADIENT_LIMIT,
-                "within": check.within_limit,
+                "calibration_floor": ZERO_GRADIENT_FLOOR,
             }
         )
-        if not check.within_limit:
-            static_errors.append(
-                f"zero-gradient tensor {state_key} exceeds the {ZERO_GRADIENT_LIMIT:g} absolute limit"
+        for side, value in (
+            ("package", check.package_max_abs),
+            ("vendor", check.vendor_max_abs),
+        ):
+            records.append(
+                _Comparison(
+                    "s2_zero_gradients",
+                    f"{side}:{state_key}",
+                    batch_index,
+                    "max_abs",
+                    value,
+                    [],
+                    [],
+                    True,
+                )
             )
 
     for state_key, source in relative_mapping.items():
@@ -1596,6 +1607,37 @@ def _largest_s2_relative_tensors(
     return summary
 
 
+def _group_maxima(records: Sequence[_Comparison]) -> dict[str, float]:
+    grouped: dict[str, list[float]] = defaultdict(list)
+    for row in records:
+        if row.value is not None:
+            grouped[row.group].append(row.value)
+
+    return {group: max(values) for group, values in grouped.items()}
+
+
+def _annotate_zero_gradient_checks(
+    checks: list[dict[str, JSONValue]], limit: float | None
+) -> None:
+    for check in checks:
+        package_value = cast(float | None, check["package_max_abs"])
+        vendor_value = cast(float | None, check["vendor_max_abs"])
+        package_within = (
+            None if limit is None or package_value is None else package_value <= limit
+        )
+        vendor_within = (
+            None if limit is None or vendor_value is None else vendor_value <= limit
+        )
+        check["limit"] = limit
+        check["package_within_limit"] = package_within
+        check["vendor_within_limit"] = vendor_within
+        check["within_limit"] = (
+            None
+            if package_within is None or vendor_within is None
+            else package_within and vendor_within
+        )
+
+
 def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
     grouped: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     metrics: dict[str, str] = {}
@@ -1609,6 +1651,8 @@ def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
         registered_floor = (
             METRIC_SCORE_FLOOR
             if group.startswith(("s1_reconstruction_metrics/", "s1_layout_metrics/"))
+            else ZERO_GRADIENT_FLOOR
+            if group == "s2_zero_gradients"
             else 0.0
         )
         batch_maxima = [
@@ -1988,7 +2032,7 @@ def _calibrate(
                 f"calibration process {batch_index} did not write its report"
             )
             process_reports.append(process_report)
-            continue
+            break
 
         child_bytes = child_report_path.read_bytes()
         child = cast(dict[str, JSONValue], json.loads(child_bytes))
@@ -2008,28 +2052,46 @@ def _calibrate(
             )
         )
         child_digests = cast(list[str], child["batch_digests"])
+        child_batch_invalid = len(child_digests) != 1
         if len(child_digests) != 1:
             static_errors.append(
                 f"calibration process {batch_index} did not use exactly one batch"
             )
         batch_digests.extend(child_digests)
+        if len(set(batch_digests)) != len(batch_digests):
+            static_errors.append("calibration inputs are not three distinct batches")
+            child_batch_invalid = True
         initial_state_hashes.append(cast(str, child["initial_state_sha256"]))
         initial_mismatch_keys.extend(
             cast(list[str], child["initial_state_mismatch_keys"])
         )
-        for measurement in cast(list[dict[str, JSONValue]], child["measurements"]):
-            records.append(
-                _Comparison(
-                    group=cast(str, measurement["group"]),
-                    name=cast(str, measurement["name"]),
-                    batch=cast(int, measurement["batch"]),
-                    metric=cast(str, measurement["metric"]),
-                    value=cast(float | None, measurement["value"]),
-                    actual_shape=cast(list[int], measurement["actual_shape"]),
-                    expected_shape=cast(list[int], measurement["expected_shape"]),
-                    shape_match=cast(bool, measurement["shape_match"]),
-                )
+        if len(set(initial_state_hashes)) > 1:
+            static_errors.append(
+                "calibration processes did not share the prescribed initial state"
             )
+        child_records = [
+            _Comparison(
+                group=cast(str, measurement["group"]),
+                name=cast(str, measurement["name"]),
+                batch=cast(int, measurement["batch"]),
+                metric=cast(str, measurement["metric"]),
+                value=cast(float | None, measurement["value"]),
+                actual_shape=cast(list[int], measurement["actual_shape"]),
+                expected_shape=cast(list[int], measurement["expected_shape"]),
+                shape_match=cast(bool, measurement["shape_match"]),
+            )
+            for measurement in cast(list[dict[str, JSONValue]], child["measurements"])
+        ]
+        records.extend(child_records)
+        if (
+            completed.returncode != 0
+            or child_errors
+            or child_batch_invalid
+            or cast(list[str], child["initial_state_mismatch_keys"])
+            or len(set(initial_state_hashes)) > 1
+            or _has_shape_errors(child_records)
+        ):
+            break
 
     distinct_input_batches = len(batch_digests) == len(CALIBRATION_SLICES) and len(
         set(batch_digests)
@@ -2054,11 +2116,25 @@ def _calibrate(
     all_groups = set().union(*groups_per_batch.values())
     if not all_groups:
         static_errors.append("calibration produced no metric measurements")
+    if "s2_zero_gradients" not in all_groups:
+        static_errors.append("calibration produced no key-bias gradient measurements")
     for group in all_groups:
         if any(group not in groups_per_batch[index] for index in groups_per_batch):
             static_errors.append(
                 f"calibration metric group {group} is missing from a batch"
             )
+
+    candidate_limits = _limits(records)
+    calibration_complete = (
+        not static_errors
+        and not initial_mismatch_keys
+        and not _has_shape_errors(records)
+        and len(process_reports) == len(CALIBRATION_SLICES)
+    )
+    zero_gradient_limit = (
+        candidate_limits["s2_zero_gradients"]["limit"] if calibration_complete else None
+    )
+    _annotate_zero_gradient_checks(zero_gradient_checks, zero_gradient_limit)
 
     report: dict[str, JSONValue] = {
         **report_context,
@@ -2068,6 +2144,8 @@ def _calibrate(
         "fixture_manifest_sha256": fixture_manifest_sha256,
         "input_selection": CALIBRATION_SELECTION,
         "calibration_processes": process_reports,
+        "calibration_complete": calibration_complete,
+        "incomplete": not calibration_complete,
         "batch_digests": batch_digests,
         "distinct_input_batches": distinct_input_batches,
         "initial_state_sha256": initial_state_hashes[0]
@@ -2079,15 +2157,11 @@ def _calibrate(
         "zero_gradient_checks": zero_gradient_checks,
         "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "calibration_formula": CALIBRATION_FORMULA,
-        "limits": _limits(records),
+        "limits": candidate_limits if calibration_complete else {},
+        "candidate_limits": {} if calibration_complete else candidate_limits,
     }
     report_bytes = _write_json(output_path, report)
-    if (
-        static_errors
-        or initial_mismatch_keys
-        or _has_shape_errors(records)
-        or len(process_reports) != len(CALIBRATION_SLICES)
-    ):
+    if not calibration_complete:
         raise AssertionError(
             f"calibration checks failed; report written to {output_path}"
         )
@@ -2284,6 +2358,9 @@ def _heldout(
                 }
             )
 
+    zero_gradient_limit = frozen["limits"].get("s2_zero_gradients", {}).get("limit")
+    _annotate_zero_gradient_checks(zero_gradient_checks, zero_gradient_limit)
+
     report: dict[str, JSONValue] = {
         **report_context,
         "phase": "heldout",
@@ -2303,6 +2380,7 @@ def _heldout(
         "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "frozen_limits_sha256": hashlib.sha256(frozen_bytes).hexdigest(),
         "heldout_errors": heldout_errors,
+        "heldout_maxima": _group_maxima(records),
     }
     _write_json(output_path, report)
     if (
