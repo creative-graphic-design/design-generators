@@ -2603,25 +2603,6 @@ def _vendor_command(dataset: str, job_dir: Path) -> list[str]:
     ]
 
 
-def test_vendor_command_forwards_first_physical_cuda_device(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "3,7")
-
-    command = _vendor_command("rico25", tmp_path / "job")
-
-    assert command[command.index("--device") + 1] == "3"
-
-
-def test_vendor_command_fails_closed_without_cuda_visible_devices(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
-
-    with pytest.raises(RuntimeError, match="requires inherited CUDA_VISIBLE_DEVICES"):
-        _vendor_command("rico25", tmp_path / "job")
-
-
 def _vendor_unconditional_sample_count() -> int:
     """Read the unconditional count from the original evaluator entry point."""
     path = ROOT / "vendor" / "layout-corrector" / "bin" / "corrector_test_eval.py"

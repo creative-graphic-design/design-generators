@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -31,6 +32,62 @@ from layout_corrector.training import (
 )
 from layout_corrector.training.dataset import first_sample_ids
 from layout_dm.configuration_layout_dm import LayoutDMConfig
+
+
+EVALUATION_BATCH_SIZE = 512
+EVALUATION_CONDITIONS = ("unconditional", "c", "cwh")
+EVALUATION_CORRECTOR_T_LIST = (10, 20, 30)
+
+
+def _vendor_command(dataset: str, job_dir: Path) -> list[str]:
+    visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if not visible_devices:
+        raise RuntimeError("vendor evaluation requires inherited CUDA_VISIBLE_DEVICES")
+    physical_device = visible_devices.split(",", 1)[0].strip()
+    if not physical_device:
+        raise RuntimeError(
+            "vendor evaluation requires a physical id in CUDA_VISIBLE_DEVICES"
+        )
+
+    root = Path(__file__).resolve().parents[3]
+    return [
+        sys.executable,
+        str(root / "vendor" / "layout-corrector" / "bin" / "corrector_test_eval.py"),
+        str(job_dir),
+        dataset,
+        "--device",
+        physical_device,
+        "--batch_size",
+        str(EVALUATION_BATCH_SIZE),
+        "--test_only",
+        "--timesteps",
+        "100",
+        "--corrector_t_list",
+        *(str(value) for value in EVALUATION_CORRECTOR_T_LIST),
+        "--force",
+        "--cond_list",
+        *EVALUATION_CONDITIONS,
+        "--no_gumbel_noise",
+    ]
+
+
+def test_vendor_command_forwards_first_physical_cuda_device(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "3,7")
+
+    command = _vendor_command("rico25", tmp_path / "job")
+
+    assert command[command.index("--device") + 1] == "3"
+
+
+def test_vendor_command_fails_closed_without_cuda_visible_devices(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    with pytest.raises(RuntimeError, match="requires inherited CUDA_VISIBLE_DEVICES"):
+        _vendor_command("rico25", tmp_path / "job")
 
 
 @pytest.mark.parametrize("dataset", ("rico25", "publaynet"))
