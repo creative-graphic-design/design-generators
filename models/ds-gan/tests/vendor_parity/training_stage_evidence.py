@@ -43,7 +43,7 @@ from traingen_parity.determinism import (
     capture_rng_state,
     restore_rng_state,
 )
-from traingen_parity.trace import build_step_trace, tensor_sha256
+from traingen_parity.trace import build_step_trace, summarize_tensor, tensor_sha256
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -58,6 +58,7 @@ MAX_ELEM = 32
 SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
+SYNCHRONIZED_LOCALIZATION_STEP = 4
 S2_SELF_REPEATS = 12
 S1_SELF_REPEATS = 12
 S1_LOSS_COMPONENTS = ("loss_ce", "loss_bbox", "loss_giou")
@@ -196,6 +197,14 @@ def _write_record(path: Path, text: str) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
+
+
+def _write_tensor_artifact(path: Path, payload: dict[str, Any]) -> None:
+    if EVIDENCE_RUN and path.exists():
+        raise FileExistsError(f"refusing to overwrite evidence record: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(payload, path)
 
 
 def _set_determinism(seed: int = SEED) -> None:
@@ -3981,6 +3990,211 @@ def _state_max_summary(
     }
 
 
+def _tensor_summary_map(values: dict[str, torch.Tensor]) -> dict[str, Any]:
+    return {name: asdict(summarize_tensor(value)) for name, value in values.items()}
+
+
+def _batch_localization_metadata(
+    batch: dict[str, torch.Tensor], *, step: int, epoch: int
+) -> dict[str, Any]:
+    mask = batch["mask"].detach().cpu().bool()
+    labels = batch["labels"].detach().cpu()
+    boxes = batch["boxes"].detach().cpu()
+    valid_labels = labels[mask]
+    label_values, label_counts = torch.unique(valid_labels, return_counts=True)
+    degenerate = ((boxes[..., 2:] <= 0).any(dim=-1) & mask).sum().item()
+    return {
+        "step": step,
+        "epoch": epoch,
+        "batch_index_zero_based": step - 1,
+        "batch_size": int(mask.shape[0]),
+        "slot_count": int(mask.shape[1]),
+        "valid_target_count": int(mask.sum().item()),
+        "empty_target_rows": int((~mask.any(dim=1)).sum().item()),
+        "padded_slot_count": int((~mask).sum().item()),
+        "degenerate_box_count": int(degenerate),
+        "nonfinite_box_count": int((~torch.isfinite(boxes)).any(dim=-1).sum().item()),
+        "class_counts": {
+            str(int(label)): int(count)
+            for label, count in zip(label_values, label_counts, strict=True)
+        },
+        "scheduler_epoch_boundary": step % TRAIN_BATCHES_PER_EPOCH == 0,
+        "batch_tensors": {
+            name: asdict(summarize_tensor(value)) for name, value in batch.items()
+        },
+    }
+
+
+def _localize_synchronized_step(
+    vendor_generator: nn.Module,
+    vendor_discriminator: nn.Module,
+    package_module: Any,
+    vendor_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    package_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+    vendor_schedulers: tuple[
+        torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR
+    ],
+    package_schedulers: tuple[
+        torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR
+    ],
+    vendor_batch: dict[str, torch.Tensor],
+    device: torch.device,
+    step: int,
+    epoch: int,
+) -> dict[str, Any]:
+    pre_model_state = {
+        "vendor_generator": copy.deepcopy(vendor_generator.state_dict()),
+        "vendor_discriminator": copy.deepcopy(vendor_discriminator.state_dict()),
+        "package_generator": copy.deepcopy(package_module.generator.state_dict()),
+        "package_discriminator": copy.deepcopy(
+            package_module.discriminator.state_dict()
+        ),
+    }
+    pre_optimizer_state = {
+        "vendor": tuple(
+            copy.deepcopy(optimizer.state_dict()) for optimizer in vendor_optimizers
+        ),
+        "package": tuple(
+            copy.deepcopy(optimizer.state_dict()) for optimizer in package_optimizers
+        ),
+    }
+    pre_scheduler_state = {
+        "vendor": tuple(
+            copy.deepcopy(scheduler.state_dict()) for scheduler in vendor_schedulers
+        ),
+        "package": tuple(
+            copy.deepcopy(scheduler.state_dict()) for scheduler in package_schedulers
+        ),
+    }
+    pre_package_step_index = package_module._step_index
+    pre_package_trace = {
+        key: value.detach().clone()
+        for key, value in package_module.latest_step_trace.items()
+    }
+    pre_rng = copy.deepcopy(capture_rng_state())
+    package_batch = {key: value.detach().clone() for key, value in vendor_batch.items()}
+    try:
+        row = _synchronized_step_once(
+            vendor_generator,
+            vendor_discriminator,
+            package_module,
+            vendor_optimizers,
+            package_optimizers,
+            vendor_schedulers,
+            package_schedulers,
+            vendor_batch,
+            package_batch,
+            device,
+            step,
+            epoch,
+        )
+        vendor_forward = row["_vendor_trace"]
+        package_forward = row["_package_trace"]
+        vendor_gradients = {
+            **_named_gradients(vendor_generator, "generator"),
+            **_named_gradients(vendor_discriminator, "discriminator"),
+        }
+        package_gradients = {
+            **_named_gradients(package_module.generator, "generator"),
+            **_named_gradients(package_module.discriminator, "discriminator"),
+        }
+        forward_comparison = _trace_compare(vendor_forward, package_forward)
+        gradient_comparison = _state_compare(vendor_gradients, package_gradients)
+        first_forward_difference = forward_comparison["first_difference"]
+        first_gradient_difference = gradient_comparison["first_difference"]
+        tensor_artifact = (
+            EVIDENCE / "s3-lockstep-synchronized" / "step-4-localization.pt"
+        )
+        _write_tensor_artifact(
+            tensor_artifact,
+            {
+                "step": step,
+                "vendor_batch": {
+                    key: value.detach().cpu() for key, value in vendor_batch.items()
+                },
+                "package_batch": {
+                    key: value.detach().cpu() for key, value in package_batch.items()
+                },
+                "vendor_forward_intermediates": {
+                    key: value.detach().cpu() for key, value in vendor_forward.items()
+                },
+                "package_forward_intermediates": {
+                    key: value.detach().cpu() for key, value in package_forward.items()
+                },
+                "vendor_gradients": {
+                    key: value.detach().cpu() for key, value in vendor_gradients.items()
+                },
+                "package_gradients": {
+                    key: value.detach().cpu()
+                    for key, value in package_gradients.items()
+                },
+            },
+        )
+        return {
+            "step": step,
+            "state_source": "synchronized pre-step state before this optimizer boundary",
+            "batch_source": "vendor batch copied into the package step",
+            "batch": _batch_localization_metadata(vendor_batch, step=step, epoch=epoch),
+            "forward_intermediates": {
+                "vendor": _tensor_summary_map(vendor_forward),
+                "package": _tensor_summary_map(package_forward),
+                "comparison": forward_comparison,
+            },
+            "per_parameter_gradients": {
+                "vendor": _tensor_summary_map(vendor_gradients),
+                "package": _tensor_summary_map(package_gradients),
+                "comparison": gradient_comparison,
+            },
+            "first_difference": {
+                "forward_intermediate": (
+                    first_forward_difference["name"]
+                    if first_forward_difference is not None
+                    else None
+                ),
+                "gradient": (
+                    first_gradient_difference["name"]
+                    if first_gradient_difference is not None
+                    else None
+                ),
+                "operation": (
+                    "torch.nn.functional.cross_entropy -> CUDA nll_loss2d"
+                    if first_forward_difference is not None
+                    and first_forward_difference["name"] == "loss_reconstruction"
+                    else "unlocalized"
+                ),
+                "package_path": "DSGANSetCriterion.forward",
+                "vendor_path": _vendor_cross_entropy_operator(),
+            },
+            "tensor_artifact": str(tensor_artifact.relative_to(ROOT)),
+        }
+    finally:
+        vendor_generator.load_state_dict(pre_model_state["vendor_generator"])
+        vendor_discriminator.load_state_dict(pre_model_state["vendor_discriminator"])
+        package_module.generator.load_state_dict(pre_model_state["package_generator"])
+        package_module.discriminator.load_state_dict(
+            pre_model_state["package_discriminator"]
+        )
+        for optimizer, state in zip(
+            vendor_optimizers, pre_optimizer_state["vendor"], strict=True
+        ):
+            optimizer.load_state_dict(copy.deepcopy(state))
+        for optimizer, state in zip(
+            package_optimizers, pre_optimizer_state["package"], strict=True
+        ):
+            optimizer.load_state_dict(copy.deepcopy(state))
+        for scheduler, state in zip(
+            vendor_schedulers, pre_scheduler_state["vendor"], strict=True
+        ):
+            scheduler.load_state_dict(copy.deepcopy(state))
+        for scheduler, state in zip(
+            package_schedulers, pre_scheduler_state["package"], strict=True
+        ):
+            scheduler.load_state_dict(copy.deepcopy(state))
+        package_module._step_index = pre_package_step_index
+        package_module.latest_step_trace = pre_package_trace
+        restore_rng_state(pre_rng)
+
+
 def _synchronized_step(
     vendor_generator: nn.Module,
     vendor_discriminator: nn.Module,
@@ -4313,6 +4527,21 @@ def run_s3_synchronized() -> Path:
             package_batch = {
                 key: value.detach().clone() for key, value in vendor_batch.items()
             }
+        localization = None
+        if step == SYNCHRONIZED_LOCALIZATION_STEP:
+            localization = _localize_synchronized_step(
+                vendor_generator,
+                vendor_discriminator,
+                package_module,
+                vendor_optimizers,
+                package_optimizers,
+                vendor_schedulers,
+                package_schedulers,
+                vendor_batch,
+                device,
+                step,
+                epoch,
+            )
         row = _synchronized_step(
             vendor_generator,
             vendor_discriminator,
@@ -4337,6 +4566,8 @@ def run_s3_synchronized() -> Path:
                 else "vendor_batch_copy"
             ),
         }
+        if localization is not None:
+            row["step_4_localization"] = localization
         rows.append(row)
         if step % TRAIN_BATCHES_PER_EPOCH == 0:
             for scheduler in (*vendor_schedulers, *package_schedulers):
