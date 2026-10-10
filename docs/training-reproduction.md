@@ -49,6 +49,8 @@ The evaluation-path parity artifact is required before every S5 launch and for e
 
 S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. For each dataset covered by the claim, run S5 full-run parity and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
 
+For an optimizer-step parity check that gates gradients, optimizer state, and update configuration, keep the resulting parameter-update difference report-only once those inputs pass; it is derived from those inputs.
+
 When S5 diverges, diagnose the gap in this order before claiming a bug:
 
 1. Score both checkpoints on the same evaluation samples to separate evaluation-side differences.
