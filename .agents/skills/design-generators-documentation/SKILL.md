@@ -25,6 +25,7 @@ Read the model issue and amendments when changing its scope, interface, or evide
 - Follow the reader-first and no-hard-wrap rules in the repository's core `AGENTS.md`.
 - Before publishing or approving a document, run a reduction pass: for every table column, table row, and sentence, state what a first-time reader would lose if it were deleted, and delete anything that loses nothing. A column that restates another column, a row whose owner cell already says what the row would add, and a sentence that repeats the section's opening principle are the usual casualties.
 - Write facts and rules as reader-facing prose; do not expose work-history or evidence-receipt language without context.
+- State facts, values, scope, and decisions directly. Never make an issue, PR, or comment the authority for information a reader needs. A link to discussion may follow as optional context or evidence after the information is stated, or appear in a document whose purpose is tracking.
 - Put a section where its subject belongs; do not grow a section merely where related work happened.
 - Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
 - The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.

@@ -93,6 +93,7 @@
 ## Reader-First Documentation
 
 - Reader-facing documents (package `TRAINING.md` and `README.md` files, `docs/*.md`, PR and issue bodies) are written for a first-time reader with no knowledge of this repository's history. Lead with the claim or outcome; define or link internal terms, roles, and stage codes at first use; do not open with corrections to earlier states the reader has never seen. Before writing or editing such a document, declare the intended reader and judge every sentence by its value to that reader.
+- State facts, values, scope, and decisions directly. Never make an issue, PR, or comment the authority for information a reader needs. A link to discussion may follow as optional context or evidence after the information is stated, or appear in a document whose purpose is tracking.
 - Do not hard-wrap markdown prose mid-sentence at a column width; write each bullet, paragraph, and table cell as one logical line, breaking only at structural boundaries.
 
 ## Machine-Checked Conventions
