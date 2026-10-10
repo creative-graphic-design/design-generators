@@ -20,7 +20,7 @@ import subprocess
 import zipfile
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import NamedTuple, TypedDict
+from typing import NamedTuple, TypedDict, cast
 
 import numpy as np
 import pytest
@@ -45,8 +45,15 @@ from canvas_vae.training import (
     wrapping_batches,
 )
 from canvas_vae.training.parity import (
+    S2_ADAM_RULE_LIMIT,
+    S2_WELL_CONDITIONED_LIMIT,
+    S3_ADAM_RULE_LIMIT,
+    S3_WELL_CONDITIONED_LIMIT,
     ZERO_GRADIENT_LIMIT,
+    WELL_CONDITIONED_SQRT_V,
+    check_keras_adam_update,
     check_zero_gradient,
+    keras_adam_float64,
     split_attention_key_biases,
 )
 from laygen.common.testing import skip_or_fail_vendor_parity
@@ -125,8 +132,6 @@ S2_CLIPPED_GRADIENT = Tolerance("norm_rel", 3.5e-4)
 S2_FIRST_MOMENT = Tolerance("norm_rel", 3.5e-4)
 S2_SECOND_MOMENT = Tolerance("norm_rel", 3.5e-4)
 S2_BATCH_NORM = Tolerance("max_rel_to_max", 1e-5)
-S2_ADAM_RULE_LIMIT = 3.5e-4
-S2_WELL_CONDITIONED_LIMIT = 1.6e-3
 # The synchronized direct check uses the recalibrated one-step gradient limit.
 # This deviates from the literal formula in the stricter direction: with a pass
 # rule of direct <= D or float64 <= R, lowering D can only reject more. The
@@ -134,11 +139,8 @@ S2_WELL_CONDITIONED_LIMIT = 1.6e-3
 S3_DIRECT_GRADIENT = S2_GRADIENT
 S3_TOTAL_LOSS = Tolerance("max_rel_to_max", 1.2e-6)
 S3_RUNNING_VARIANCE = Tolerance("max_rel_to_max", 1e-5)
-S3_ADAM_RULE_LIMIT = 5.1e-4
-S3_WELL_CONDITIONED_LIMIT = 6.1e-3
 # One float64 error bound applies to both one-step and synchronized checks.
 ROUNDING_LIMIT = 4.1e-3
-WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
 # Counts of direct and float64-arbitrated comparisons remain report-only.
 
@@ -844,78 +846,6 @@ def test_s1_fixed_batch_forward_trace(
     check_measured("s1", measured)
 
 
-def keras_adam_float64(grad, m, v, step: int):
-    """Return the Keras Adam update, clipped gradient, and moments in float64."""
-    g = torch.as_tensor(grad, dtype=torch.float64)
-    g = g * 1.0 / max(float(g.norm()), 1.0)
-    m = torch.as_tensor(m, dtype=torch.float64)
-    v = torch.as_tensor(v, dtype=torch.float64)
-    m = m + (g - m) * (1 - 0.9)
-    v = v + (g * g - v) * (1 - 0.999)
-    alpha = 1e-3 * math.sqrt(1 - 0.999**step) / (1 - 0.9**step)
-    return -(m * alpha) / (v.sqrt() + 1e-7), g, m, v
-
-
-def check_update(
-    name,
-    package,
-    original,
-    package_grad,
-    original_grad,
-    m,
-    v,
-    step,
-    measured,
-    *,
-    adam_rule_limit,
-    well_conditioned_limit,
-):
-    """Gate Adam-rule and well-conditioned checks; record full-update norm as diagnostic."""
-    package = torch.as_tensor(package, dtype=torch.float64)
-    original = torch.as_tensor(np.asarray(original), dtype=torch.float64)
-    package_exact, _, _, _ = keras_adam_float64(
-        package_grad.detach().cpu().numpy(), m, v, step
-    )
-    original_exact, _, _, v_exact = keras_adam_float64(original_grad, m, v, step)
-    well = v_exact.sqrt() >= WELL_CONDITIONED_SQRT_V
-    delta = package - original
-    rule = {
-        "package_adam_rule": float(
-            (package - package_exact).norm() / package_exact.norm().clamp_min(1e-30)
-        ),
-        "original_adam_rule": float(
-            (original - original_exact).norm() / original_exact.norm().clamp_min(1e-30)
-        ),
-    }
-    well_rel = (
-        float(delta[well].norm() / original[well].norm().clamp_min(1e-30))
-        if well.any()
-        else 0.0
-    )
-    measured[name] = {
-        "norm_rel": float(delta.norm() / original.norm().clamp_min(1e-30)),
-        **rule,
-        "well_conditioned_fraction": float(well.double().mean()),
-        "well_conditioned_elements": int(well.sum()),
-        "elements": delta.numel(),
-        "ignore_limit_in_calibration": True,
-        "well_conditioned_norm_rel": well_rel,
-        "adam_rule_limit": adam_rule_limit,
-        "well_conditioned_limit": well_conditioned_limit,
-        "package_adam_rule_within": rule["package_adam_rule"] <= adam_rule_limit,
-        "original_adam_rule_within": rule["original_adam_rule"] <= adam_rule_limit,
-        "well_conditioned_within": well_rel <= well_conditioned_limit,
-        "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
-        "near_zero_difference_sq": float(delta[~well].square().sum()),
-        "total_difference_sq": float(delta.square().sum()),
-        "near_zero_share_of_difference": float(
-            delta[~well].square().sum() / delta.square().sum().clamp_min(1e-300)
-        ),
-        "within": max(rule.values()) <= adam_rule_limit
-        and well_rel <= well_conditioned_limit,
-    }
-
-
 def summarize_updates(measured, *, adam_rule_limit, well_conditioned_limit):
     """Summarize Adam-rule checks and the squared update-difference split."""
     updates = {
@@ -958,7 +888,7 @@ def test_s2_one_optimizer_step(
     all_sources = trainable_sources(model.config)
     sources, zero_gradient_sources = split_attention_key_biases(all_sources)
     parameters = dict(model.named_parameters())
-    measured: dict[str, dict[str, float]] = {}
+    measured: dict[str, dict[str, float | int | bool | None]] = {}
     grad_types = {
         str(step0[f"grad_type/{source}"]) for source, _ in all_sources.values()
     }
@@ -1028,19 +958,20 @@ def test_s2_one_optimizer_step(
         )
         package_values["v"][key] = state["exp_avg_sq"].detach().clone()
         zeros = np.zeros(tuple(parameters[key].shape))
-        check_update(
-            f"update/{key}",
-            parameters[key].detach() - initial_state[key],
-            as_package(step0[f"after/{source}"], transpose)
-            - initial_state[key].numpy(),
-            raw[key],
-            as_package(step0[f"grad/{source}"], transpose),
-            zeros,
-            zeros,
-            1,
-            measured,
-            adam_rule_limit=S2_ADAM_RULE_LIMIT,
-            well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
+        measured[f"update/{key}"] = cast(
+            dict[str, float | int | bool | None],
+            check_keras_adam_update(
+                parameters[key].detach() - initial_state[key],
+                as_package(step0[f"after/{source}"], transpose)
+                - initial_state[key].numpy(),
+                raw[key],
+                as_package(step0[f"grad/{source}"], transpose),
+                zeros,
+                zeros,
+                1,
+                adam_rule_limit=S2_ADAM_RULE_LIMIT,
+                well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
+            ),
         )
 
     assert_close(
@@ -1138,7 +1069,10 @@ def test_s2_one_optimizer_step(
             "arbitrated": len(family_arbitrated),
         }
         arbitrated_errors.extend(
-            max(check["package_float64_error"], check["original_float64_error"])
+            max(
+                cast(float, check["package_float64_error"]),
+                cast(float, check["original_float64_error"]),
+            )
             for check in family_arbitrated
         )
 
@@ -1353,7 +1287,7 @@ def test_s3_synchronized_steps(
     optimizer = KerasAdam(model.parameters())
     sources, _ = split_attention_key_biases(trainable_sources(config))
     parameters = dict(model.named_parameters())
-    measured: dict[str, dict[str, float]] = {}
+    measured: dict[str, dict[str, float | int | bool | None]] = {}
     for step in range(1, steps):
         state = dict(np.load(sync / f"step{step}.npz"))
         after = dict(
@@ -1407,18 +1341,19 @@ def test_s3_synchronized_steps(
             reference = as_package(after[f"weight/{source}"], transpose) - as_package(
                 state[f"weight/{source}"], transpose
             )
-            check_update(
-                f"step{step}/update/{key}",
-                parameters[key].detach() - before[key],
-                reference,
-                grads[key],
-                as_package(state[f"grad/{source}"], transpose),
-                as_package(state[f"m/{source}"], transpose),
-                as_package(state[f"v/{source}"], transpose),
-                int(state["iterations"]) + 1,
-                measured,
-                adam_rule_limit=S3_ADAM_RULE_LIMIT,
-                well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
+            measured[f"step{step}/update/{key}"] = cast(
+                dict[str, float | int | bool | None],
+                check_keras_adam_update(
+                    parameters[key].detach() - before[key],
+                    reference,
+                    grads[key],
+                    as_package(state[f"grad/{source}"], transpose),
+                    as_package(state[f"m/{source}"], transpose),
+                    as_package(state[f"v/{source}"], transpose),
+                    int(state["iterations"]) + 1,
+                    adam_rule_limit=S3_ADAM_RULE_LIMIT,
+                    well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
+                ),
             )
 
         assert_close(
@@ -1434,7 +1369,10 @@ def test_s3_synchronized_steps(
     direct = [value for value in gradient_checks if not value.get("float64_arbitrated")]
     max_arbitrated_error = max(
         (
-            max(value["package_float64_error"], value["original_float64_error"])
+            max(
+                cast(float, value["package_float64_error"]),
+                cast(float, value["original_float64_error"]),
+            )
             for value in arbitrated
         ),
         default=None,
