@@ -140,30 +140,40 @@ def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
     assert ceil_two_significant_digits(0.0) == 0.0
 
 
-def test_crello_well_conditioned_update_uses_zero_calibration_floor():
+def test_crello_updated_parameter_differences_are_report_only():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
     )
     namespace = runpy.run_path(str(script))
     comparison_type = namespace["_Comparison"]
     limits = cast(Callable[..., dict[str, dict[str, object]]], namespace["_limits"])
-    candidate = limits(
-        [
-            comparison_type(
-                "s2_updated_parameters", "first", 0, "norm_rel", 0.001, [2], [2], True
-            ),
-            comparison_type(
-                "s2_updated_parameters", "second", 1, "norm_rel", 0.002, [2], [2], True
-            ),
-            comparison_type(
-                "s2_updated_parameters", "third", 2, "norm_rel", 0.003, [2], [2], True
-            ),
-        ]
-    )["s2_updated_parameters"]
+    limit_errors = cast(
+        Callable[..., list[dict[str, object]]], namespace["_heldout_limit_errors"]
+    )
+    updates = [
+        comparison_type(
+            "s2_updated_parameters", "update", 0, "norm_rel", 0.5, [2], [2], True
+        )
+    ]
+    calibration_limits = limits(updates)
+    heldout_errors = limit_errors(
+        updates
+        + [
+            comparison_type("s1_total_loss", "loss", 0, "norm_rel", 0.5, [2], [2], True)
+        ],
+        {
+            "s1_total_loss": {
+                "metric": "norm_rel",
+                "L": 0.0,
+                "calibration_batch_maxima": [0.001],
+                "max_calibration_error": 0.001,
+                "limit": 0.01,
+            }
+        },
+    )
 
-    assert candidate["L"] == 0.0
-    assert candidate["calibration_batch_maxima"] == [0.001, 0.002, 0.003]
-    assert candidate["limit"] == pytest.approx(0.0045)
+    assert "s2_updated_parameters" not in calibration_limits
+    assert [row["group"] for row in heldout_errors] == ["s1_total_loss"]
 
 
 def test_crello_calibration_registers_two_ulp_floor_for_bounded_metric_scores():
