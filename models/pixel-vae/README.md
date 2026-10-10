@@ -174,7 +174,7 @@ Compare maximum absolute error for posterior means, posterior log variances, dec
 
 ### Parity Results
 
-The CPU acceptance passed against one deterministic, untrained TensorFlow state copied to PyTorch. All 17 held-out metrics met their frozen per-metric limits; state mapping and exact decode checks passed. The example limit below illustrates the metric-specific thresholds; [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md) lists the full frozen table.
+The CPU acceptance passed against one deterministic, untrained TensorFlow state copied to PyTorch. All 17 held-out metrics met their frozen per-metric limits; state mapping and exact decode checks passed. The example limit below illustrates the metric-specific thresholds; [PARITY_PROTOCOL.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/PARITY_PROTOCOL.md) lists every frozen limit alongside the original worker-run held-out maximum absolute error.
 
 | Check                                 |                                                                      Cases | Criterion                                                                                         | Result                                        |
 | ------------------------------------- | -------------------------------------------------------------------------: | ------------------------------------------------------------------------------------------------- | --------------------------------------------- |

@@ -44,6 +44,28 @@ Each of three fresh CPU calibration processes uses different train inputs wherev
 
 For each metric, the new limit is `max(L, ceil2(1.5 × M))`. `L` is that metric's original floor in [`parity-limit-floors.json`](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json), set before the failed held-out runs. `M` is the maximum over the three distinct-input runs, and `ceil2` rounds up to two significant figures. Diagnostics are report-only. Each calibration process writes its selected IDs to `calibration/repeat-r.inputs.json` before comparison; the limit utility verifies those IDs against the completed metric record. Limits are frozen after calibration, then one fresh normal-mode CPU check runs on canonical test inputs. A held-out failure requires an implementation fix and a new calibration plus held-out sequence; it never authorizes editing limits.
 
+The accepted CPU run froze the following limits. The held-out column gives the original worker-run maximum absolute errors; an independent coordinator rerun used identical limits, passed all 17 metrics, and differed on 11 held-out values at the displayed precision.
+
+| Stage / metric               | Frozen limit | Held-out maximum absolute error |
+| ---------------------------- | -----------: | ------------------------------: |
+| S1 decoder logits            |      2.7e-13 |                 1.857917032e-13 |
+| S1 KL loss                   |          0.0 |                               0 |
+| S1 posterior log-variance    |      1.2e-10 |                 8.309553740e-11 |
+| S1 posterior mean            |      1.4e-10 |                 9.878804025e-11 |
+| S1 reconstruction loss       |       0.0019 |                  0.000244140625 |
+| S1 total loss                |       0.0019 |                  0.000244140625 |
+| S2 Adam first moment         |        270.0 |                    65.469459534 |
+| S2 Adam second moment        |       5700.0 |                   408.149932861 |
+| S2 batch-normalization state |       0.0043 |                  0.001727998257 |
+| S2 gradients                 |       2700.0 |                   654.694641113 |
+| S2 loss                      |          1.6 |                        0.234375 |
+| S2 parameters                |      0.00031 |                  0.000200033188 |
+| S3 batch-normalization state |        0.011 |                  0.006030142307 |
+| S3 parameters                |      0.00091 |                  0.000600405037 |
+| S3 posterior means           |         0.89 |                  0.489781439304 |
+| S3 step losses               |          4.9 |                     1.116088867 |
+| S4 posterior means           |      1.5e-10 |                 9.878805413e-11 |
+
 The runner reads `L` from [`parity-limit-floors.json`](./parity-limit-floors.json), records its provenance and the historical failures in `calibration/limits.json`, and applies the formula in [`testing.py`](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/src/pixel_vae/testing.py).
 
 Run the sequence in one CPU job with separate processes for the diagnostic, each calibration repeat, and held-out validation. Retain the report-only diagnostic, three raw calibration records, and frozen limits under `.cache/pixel-vae/parity/`. Freeze the limits before starting a fresh normal-mode CPU process on held-out test examples and the full v1 source path. The held-out run passes only if all stage metrics are at or below their frozen bounds and every S0/S4 exact check passes. A failed held-out run cannot be repaired by changing limits; a code change requires three new distinct-input calibration repeats and a fresh held-out run. Earlier failed runs remain historical evidence and are not overwritten.
