@@ -62,6 +62,7 @@ Training infrastructure follows the current package boundaries below. Model pack
 | --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | LightningCLI/bootstrap                                    | `traingen`                 | Model-agnostic repository training entrypoint used by package-scoped training environments.                                           |
 | Generic Lightning logging/reduction helpers               | `traingen.lightning.steps` | Model-agnostic logging, loss reduction, and training-trace helpers used by package-scoped training environments.                      |
+| Keras 2 Adam update semantics                             | `traingen.optim`           | Shared by CanvasVAE and PixelVAE when comparing optimizer updates with their TensorFlow references.                                   |
 | RNG capture/restore and deterministic runtime controls    | `traingen-parity`          | Parity-only primitives are used by LayoutDM, LayoutFlow, and LayoutDiffusion adapters; model-specific seed wrappers remain local.     |
 | Trace construction/comparison/report helpers              | `traingen-parity`          | Generic parity primitives; model packages provide trace schemas and adapter functions.                                                |
 | TensorFlow 2.15 Keras compatibility for reference scripts | `traingen-parity`          | `traingen_parity.tensorflow_compat` is used by Flex-DM reference scripts; it imports neither TensorFlow nor PyTorch at module import. |
@@ -73,7 +74,7 @@ Training infrastructure follows the current package boundaries below. Model pack
 | Model-specific callbacks                                  | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                                |
 | Checkpoint conversion                                     | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                                |
 
-The generated API exposes these helpers under `traingen.lightning.steps`.
+The generated API exposes Lightning helpers under `traingen.lightning.steps` and the shared Keras-compatible optimizer under `traingen.optim`.
 
 ## Runtime ownership
 
