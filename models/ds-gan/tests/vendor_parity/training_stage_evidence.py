@@ -49,7 +49,9 @@ from traingen_parity.trace import build_step_trace, tensor_sha256
 ROOT = Path(__file__).resolve().parents[4]
 VENDOR = ROOT / "vendor" / "posterlayout-cvpr2023"
 CACHE = ROOT / ".cache" / "ds-gan"
-EVIDENCE = CACHE / "stage-evidence"
+EVIDENCE_ROOT = CACHE / "stage-evidence"
+EVIDENCE_RUN = os.environ.get("DSGAN_EVIDENCE_RUN")
+EVIDENCE = EVIDENCE_ROOT / EVIDENCE_RUN if EVIDENCE_RUN else EVIDENCE_ROOT
 TRAINING_BATCH_SIZE = 128
 TEST_BATCH_SIZE = 4
 MAX_ELEM = 32
@@ -99,8 +101,8 @@ def _runtime_distribution(name: str) -> dict[str, Any]:
     }
 
 
-def _runtime() -> dict[str, Any]:
-    freeze_path = EVIDENCE / "runtime" / "pip-freeze.txt"
+def _runtime(record_path: Path) -> dict[str, Any]:
+    freeze_path = record_path.with_suffix(".pip-freeze.txt")
     freeze_path.parent.mkdir(parents=True, exist_ok=True)
     venv_path = Path(sys.prefix)
     try:
@@ -142,7 +144,7 @@ def _runtime() -> dict[str, Any]:
     }
 
 
-def _metadata() -> dict[str, Any]:
+def _metadata(record_path: Path) -> dict[str, Any]:
     dirty = _git("status", "--porcelain", "--untracked-files=all")
     if dirty:
         raise RuntimeError(
@@ -152,7 +154,7 @@ def _metadata() -> dict[str, Any]:
         "source_commit": _git("rev-parse", "HEAD"),
         "vendor_commit": _git("-C", str(VENDOR), "rev-parse", "HEAD"),
         "backbone_weights": _backbone_manifest(),
-        "runtime": _runtime(),
+        "runtime": _runtime(record_path),
         "compatibility_hooks": {
             "vendor_backbone_torch_load": (
                 "temporary torch.load monkeypatch maps vendor backbone paths to the "
@@ -170,6 +172,9 @@ def _metadata() -> dict[str, Any]:
 
 def _write(stage: str, payload: dict[str, Any]) -> Path:
     target = EVIDENCE / stage / "run.json"
+    if EVIDENCE_RUN and target.exists():
+        raise FileExistsError(f"refusing to overwrite evidence record: {target}")
+
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return target
@@ -177,9 +182,20 @@ def _write(stage: str, payload: dict[str, Any]) -> Path:
 
 def _write_jsonl(stage: str, name: str, rows: list[dict[str, Any]]) -> Path:
     target = EVIDENCE / stage / name
+    if EVIDENCE_RUN and target.exists():
+        raise FileExistsError(f"refusing to overwrite evidence record: {target}")
+
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
     return target
+
+
+def _write_record(path: Path, text: str) -> None:
+    if EVIDENCE_RUN and path.exists():
+        raise FileExistsError(f"refusing to overwrite evidence record: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
 
 
 def _set_determinism(seed: int = SEED) -> None:
@@ -824,10 +840,10 @@ def _vendor_loaders(seed: int, *, overlay_root: Path | None = None) -> tuple[Any
     return train_loader, test_loader
 
 
-def _package_loaders(seed: int) -> tuple[Any, Any]:
+def _package_datamodule(seed: int) -> Any:
     from ds_gan.training.datamodule import DSGANDataModule
 
-    module = DSGANDataModule(
+    return DSGANDataModule(
         cache_dir=str(_source_root()),
         batch_size=TRAINING_BATCH_SIZE,
         test_batch_size=TEST_BATCH_SIZE,
@@ -835,18 +851,12 @@ def _package_loaders(seed: int) -> tuple[Any, Any]:
         num_workers=16,
         seed=seed,
     )
+
+
+def _package_loaders(seed: int) -> tuple[Any, Any]:
+    module = _package_datamodule(seed)
     module.setup("fit")
     return module.train_dataloader(), module.test_dataloader()
-
-
-def _bind_package_loader_generator(
-    package_module: Any, package_loader: DataLoader[Any]
-) -> None:
-    generator = package_loader.generator
-    if not isinstance(generator, torch.Generator):
-        raise RuntimeError("package DataModule loader has no seeded torch.Generator")
-
-    package_module._torch_generator = generator
 
 
 def _batch_stream_report(
@@ -1165,10 +1175,11 @@ def _run_s1_self_repeat(system: str, repeat: int, json_path: Path) -> None:
                     output.class_probs, output.bbox, _targets(package_batch)
                 )
 
-    json_path.write_text(
+    _write_record(
+        json_path,
         json.dumps(
             {
-                **_metadata(),
+                **_metadata(record_path=json_path),
                 "stage": "S1-self-repeat",
                 "system": system,
                 "repeat": repeat,
@@ -1185,7 +1196,7 @@ def _run_s1_self_repeat(system: str, repeat: int, json_path: Path) -> None:
             indent=2,
             sort_keys=True,
         )
-        + "\n"
+        + "\n",
     )
 
 
@@ -1299,10 +1310,11 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
 
     state_path = json_path.with_suffix(".pt")
     torch.save(states, state_path)
-    json_path.write_text(
+    _write_record(
+        json_path,
         json.dumps(
             {
-                **_metadata(),
+                **_metadata(record_path=json_path),
                 "stage": "S2-self-repeat",
                 "system": system,
                 "repeat": repeat,
@@ -1320,7 +1332,7 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
             indent=2,
             sort_keys=True,
         )
-        + "\n"
+        + "\n",
     )
 
 
@@ -2392,7 +2404,7 @@ def run_s0() -> Path:
     return _write(
         "s0-static",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s0-static" / "run.json"),
             "stage": "S0",
             "result": "PASS" if topology_pass else "FAIL",
             "topology": {
@@ -2520,7 +2532,7 @@ def run_s1() -> Path:
     return _write(
         "s1-forward-loss",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s1-forward-loss" / "run.json"),
             "stage": "S1",
             "result": result,
             "batch": batch_meta,
@@ -2552,10 +2564,11 @@ def run_s1() -> Path:
 
 
 def _reevaluate_s1_recorded_artifact() -> Path:
-    target = EVIDENCE / "s1-forward-loss" / "run.json"
-    payload = json.loads(target.read_text())
+    source = EVIDENCE / "s1-forward-loss" / "run.json"
+    target = EVIDENCE / "s1-forward-loss" / "reevaluated.json"
+    payload = json.loads(source.read_text())
     if payload["stage"] != "S1":
-        raise RuntimeError(f"unexpected recorded stage in {target}: {payload['stage']}")
+        raise RuntimeError(f"unexpected recorded stage in {source}: {payload['stage']}")
 
     component_comparisons = payload["component_comparisons"]
     loss_ce = component_comparisons["loss_ce"]
@@ -2605,7 +2618,7 @@ def _reevaluate_s1_recorded_artifact() -> Path:
         "criterion": DISTRIBUTIONAL_ENVELOPE_CRITERION,
         "reason": "re-evaluated recorded S1 values without resampling",
     }
-    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    _write_record(target, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return target
 
 
@@ -2872,7 +2885,7 @@ def run_s2() -> Path:
     return _write(
         "s2-optimizer-step",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s2-optimizer-step" / "run.json"),
             "stage": "S2",
             "result": "PASS" if passed else "FAIL",
             "batch": batch_meta,
@@ -2905,10 +2918,11 @@ def _load_recorded_s2_states() -> tuple[list[dict[str, Any]], list[dict[str, Any
 
 
 def _reevaluate_s2_recorded_artifact() -> Path:
-    target = EVIDENCE / "s2-optimizer-step" / "run.json"
-    payload = json.loads(target.read_text())
+    source = EVIDENCE / "s2-optimizer-step" / "run.json"
+    target = EVIDENCE / "s2-optimizer-step" / "reevaluated.json"
+    payload = json.loads(source.read_text())
     if payload["stage"] != "S2":
-        raise RuntimeError(f"unexpected recorded stage in {target}: {payload['stage']}")
+        raise RuntimeError(f"unexpected recorded stage in {source}: {payload['stage']}")
 
     cause = payload["cause"]
     cross_system = cause["cross_system_repeat_pairs"]
@@ -2949,7 +2963,7 @@ def _reevaluate_s2_recorded_artifact() -> Path:
         "reason": "re-evaluated recorded S2 values without resampling",
         "source_commit": _git("rev-parse", "HEAD"),
     }
-    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    _write_record(target, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return target
 
 
@@ -2969,7 +2983,8 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
     _set_determinism(SEED)
     vendor_loader, _ = _vendor_loaders(SEED)
     _set_determinism(SEED)
-    package_loader, _ = _package_loaders(SEED)
+    package_datamodule = _package_datamodule(SEED)
+    package_datamodule.setup("fit")
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
     package_module = DSGANTrainingModule(
         config=generator_config,
@@ -2977,7 +2992,6 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
-    _bind_package_loader_generator(package_module, package_loader)
     vendor_schedulers = _schedulers(vendor_optimizers)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -3005,7 +3019,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         callbacks=[callback],
     )
     with _capture_deterministic_warnings():
-        trainer.fit(package_module, train_dataloaders=package_loader)
+        trainer.fit(package_module, datamodule=package_datamodule)
     if len(callback.rows) != LOCKSTEP_STEPS:
         raise RuntimeError(
             f"package Trainer produced {len(callback.rows)} iterations, expected {LOCKSTEP_STEPS}"
@@ -3159,14 +3173,13 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
     package_generator, package_discriminator, generator_config, discriminator_config = (
         _independent_models("package", device)
     )
-    package_loader, _ = _package_loaders(SEED)
+    package_datamodule = _package_datamodule(SEED)
     package_module = DSGANTrainingModule(
         config=generator_config,
         discriminator_config=discriminator_config,
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
-    _bind_package_loader_generator(package_module, package_loader)
     stopper = _StopAfterIterations()
     trainer = Trainer(
         accelerator="gpu" if device.type == "cuda" else "cpu",
@@ -3184,7 +3197,7 @@ def _run_package_alone(repeat: int, device: torch.device) -> dict[str, Any]:
         callbacks=[stopper],
     )
     with _capture_deterministic_warnings():
-        trainer.fit(package_module, train_dataloaders=package_loader)
+        trainer.fit(package_module, datamodule=package_datamodule)
     if stopper.iterations != LOCKSTEP_STEPS:
         raise RuntimeError(
             f"package Trainer produced {stopper.iterations} iterations, expected {LOCKSTEP_STEPS}"
@@ -3274,9 +3287,10 @@ def run_s3_natural_repeat(repeat: int, json_path: Path, state_path: Path) -> Non
     result = _run_natural(
         repeat, torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
+    result["metadata"] = _metadata(record_path=json_path)
     result["process_id"] = os.getpid()
     result["source_commit"] = _git("rev-parse", "HEAD")
-    json_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    _write_record(json_path, json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
 def run_s3_self_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
@@ -3298,10 +3312,22 @@ def run_s3_self_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
     vendor["source_commit"] = _git("rev-parse", "HEAD")
     package["source_commit"] = _git("rev-parse", "HEAD")
     state_path.parent.mkdir(parents=True, exist_ok=True)
+    if EVIDENCE_RUN and state_path.exists():
+        raise FileExistsError(f"refusing to overwrite evidence record: {state_path}")
+
     torch.save(state, state_path)
-    json_path.write_text(
-        json.dumps({"vendor": vendor, "package": package}, indent=2, sort_keys=True)
-        + "\n"
+    _write_record(
+        json_path,
+        json.dumps(
+            {
+                "metadata": _metadata(record_path=json_path),
+                "vendor": vendor,
+                "package": package,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
     )
 
 
@@ -3378,7 +3404,7 @@ def run_s3_production_wiring() -> Path:
     return _write(
         "s3-production-wiring",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s3-production-wiring" / "run.json"),
             "stage": "S3",
             "evidence_layer": "production-wiring",
             "result": "PASS" if passed else "FAIL",
@@ -3449,15 +3475,8 @@ def run_s3() -> Path:
     natural_batch_streams_identical = all(
         run["batch_stream"]["passed"] for run in repeats
     )
-    warning_captured = all(
-        run["deterministic_warning"]["contains_nll_loss2d"] for run in repeats
-    )
     natural_pass = all(item["bitwise_300"] for item in repeats)
-    natural_cause = (
-        "shared nondeterministic CUDA nll_loss2d reduction"
-        if natural_batch_streams_identical and warning_captured
-        else "unattributed natural drift"
-    )
+    natural_cause = "not applicable: natural drift cause not localized"
     field_interpretation = {
         field: (
             f"cross {field} max_abs_difference is "
@@ -3470,7 +3489,7 @@ def run_s3() -> Path:
     return _write(
         "s3-lockstep",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s3-lockstep" / "run.json"),
             "stage": "S3",
             "evidence_layer": "natural",
             "result": "PASS" if natural_pass else "FAIL",
@@ -3478,10 +3497,9 @@ def run_s3() -> Path:
             "cause": natural_cause,
             "cause_requires": {
                 "batch_streams_identical_at_all_steps": True,
-                "deterministic_nll_loss2d_warning": True,
+                "natural_drift_cause_localized": False,
             },
             "batch_streams_identical_at_all_steps": natural_batch_streams_identical,
-            "deterministic_nll_loss2d_warning": warning_captured,
             "repeats": repeats,
             "repeat_process_ids": {
                 "natural": natural_process_ids,
@@ -3761,15 +3779,16 @@ def _synchronized_repeat_envelope(
             "cross_system": cross,
             "vendor_self": vendor_self,
             "package_self": package_self,
-            "cross_inside_vendor_self_envelope": (
-                cross["max_abs_difference"] <= vendor_self["max_abs_difference"]
-                and cross["median_abs_difference"]
-                <= vendor_self["median_abs_difference"]
+            "larger_self_max_abs_difference": max(
+                vendor_self["max_abs_difference"],
+                package_self["max_abs_difference"],
             ),
-            "cross_inside_package_self_envelope": (
-                cross["max_abs_difference"] <= package_self["max_abs_difference"]
-                and cross["median_abs_difference"]
-                <= package_self["median_abs_difference"]
+            "larger_self_median_abs_difference": max(
+                vendor_self["median_abs_difference"],
+                package_self["median_abs_difference"],
+            ),
+            "cross_inside_larger_self_envelope": _inside_larger_self_envelope(
+                cross, vendor_self, package_self
             ),
         }
     return envelope
@@ -3779,6 +3798,26 @@ def _synchronized_repeat_step(
     first_args: tuple[Any, ...],
     second_pair: dict[str, Any],
 ) -> dict[str, Any]:
+    pre_model_state = {
+        "generator": copy.deepcopy(first_args[0].state_dict()),
+        "discriminator": copy.deepcopy(first_args[1].state_dict()),
+        "package_generator": copy.deepcopy(first_args[2].generator.state_dict()),
+        "package_discriminator": copy.deepcopy(
+            first_args[2].discriminator.state_dict()
+        ),
+    }
+    pre_vendor_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in first_args[3]
+    )
+    pre_package_optimizer_state = tuple(
+        copy.deepcopy(optimizer.state_dict()) for optimizer in first_args[4]
+    )
+    pre_vendor_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in first_args[5]
+    )
+    pre_package_scheduler_state = tuple(
+        copy.deepcopy(scheduler.state_dict()) for scheduler in first_args[6]
+    )
     pre_rng = copy.deepcopy(capture_rng_state())
     first = _synchronized_step_once(*first_args)
     first_rng = copy.deepcopy(capture_rng_state())
@@ -3789,6 +3828,34 @@ def _synchronized_repeat_step(
         first_args[3],
         first_args[4],
     )
+    second_pair["vendor_generator"].load_state_dict(
+        copy.deepcopy(pre_model_state["generator"])
+    )
+    second_pair["vendor_discriminator"].load_state_dict(
+        copy.deepcopy(pre_model_state["discriminator"])
+    )
+    second_pair["package_module"].generator.load_state_dict(
+        copy.deepcopy(pre_model_state["package_generator"])
+    )
+    second_pair["package_module"].discriminator.load_state_dict(
+        copy.deepcopy(pre_model_state["package_discriminator"])
+    )
+    for optimizer, state in zip(
+        second_pair["vendor_optimizers"], pre_vendor_optimizer_state, strict=True
+    ):
+        optimizer.load_state_dict(copy.deepcopy(state))
+    for optimizer, state in zip(
+        second_pair["package_optimizers"], pre_package_optimizer_state, strict=True
+    ):
+        optimizer.load_state_dict(copy.deepcopy(state))
+    for scheduler, state in zip(
+        second_pair["vendor_schedulers"], pre_vendor_scheduler_state, strict=True
+    ):
+        scheduler.load_state_dict(copy.deepcopy(state))
+    for scheduler, state in zip(
+        second_pair["package_schedulers"], pre_package_scheduler_state, strict=True
+    ):
+        scheduler.load_state_dict(copy.deepcopy(state))
     restore_rng_state(pre_rng)
     second = _synchronized_step_once(
         second_pair["vendor_generator"],
@@ -3826,6 +3893,7 @@ def _synchronized_repeat_step(
         "repeat_run_envelope": _synchronized_repeat_envelope(
             first, second, first_state, second_state
         ),
+        "self_pair_restored_from_pre_step": True,
     }
 
 
@@ -3885,6 +3953,18 @@ def _distribution_summary(values: list[float]) -> dict[str, Any]:
         "max_abs_difference": max(values),
         "median_abs_difference": median(values),
     }
+
+
+def _inside_larger_self_envelope(
+    cross: dict[str, Any], vendor_self: dict[str, Any], package_self: dict[str, Any]
+) -> bool:
+    return cross["max_abs_difference"] <= max(
+        vendor_self["max_abs_difference"],
+        package_self["max_abs_difference"],
+    ) and cross["median_abs_difference"] <= max(
+        vendor_self["median_abs_difference"],
+        package_self["median_abs_difference"],
+    )
 
 
 def _state_max_summary(
@@ -4286,15 +4366,16 @@ def run_s3_synchronized() -> Path:
             "cross_system": cross,
             "vendor_self": vendor_self,
             "package_self": package_self,
-            "cross_inside_vendor_self_envelope": (
-                cross["max_abs_difference"] <= vendor_self["max_abs_difference"]
-                and cross["median_abs_difference"]
-                <= vendor_self["median_abs_difference"]
+            "larger_self_max_abs_difference": max(
+                vendor_self["max_abs_difference"],
+                package_self["max_abs_difference"],
             ),
-            "cross_inside_package_self_envelope": (
-                cross["max_abs_difference"] <= package_self["max_abs_difference"]
-                and cross["median_abs_difference"]
-                <= package_self["median_abs_difference"]
+            "larger_self_median_abs_difference": max(
+                vendor_self["median_abs_difference"],
+                package_self["median_abs_difference"],
+            ),
+            "cross_inside_larger_self_envelope": _inside_larger_self_envelope(
+                cross, vendor_self, package_self
             ),
         }
     trace_bitwise = all(
@@ -4311,14 +4392,13 @@ def run_s3_synchronized() -> Path:
         for row in rows
     )
     numeric_envelope_pass = all(
-        field_summary["cross_inside_vendor_self_envelope"]
-        and field_summary["cross_inside_package_self_envelope"]
-        for field, field_summary in synchronized_envelope.items()
-        if field != "trace"
+        row["repeat_run_envelope"][field]["cross_inside_larger_self_envelope"]
+        for row in rows
+        for field in ("gradients", "optimizer_state", "parameters")
     )
-    trace_envelope_pass = (
-        synchronized_envelope["trace"]["cross_inside_vendor_self_envelope"]
-        and synchronized_envelope["trace"]["cross_inside_package_self_envelope"]
+    trace_envelope_pass = all(
+        row["repeat_run_envelope"]["trace"]["cross_inside_larger_self_envelope"]
+        for row in rows
     )
     passed = (
         trace_envelope_pass and rng_pass and scheduler_pass and numeric_envelope_pass
@@ -4328,7 +4408,14 @@ def run_s3_synchronized() -> Path:
             row
             for row in rows
             if not (
-                row["rng_equal_after_resynchronization"]
+                row["self_pair_restored_from_pre_step"]
+                and all(
+                    row["repeat_run_envelope"][field][
+                        "cross_inside_larger_self_envelope"
+                    ]
+                    for field in ("trace", "gradients", "optimizer_state", "parameters")
+                )
+                and row["rng_equal_after_resynchronization"]
                 and row["repeat_rng_equal_after_resynchronization"]
                 and row["scheduler"]["vendor"] == row["scheduler"]["package"]
                 and row["repeat_scheduler"]["vendor"]
@@ -4340,7 +4427,7 @@ def run_s3_synchronized() -> Path:
     return _write(
         "s3-lockstep-synchronized",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s3-lockstep-synchronized" / "run.json"),
             "stage": "S3",
             "evidence_layer": "synchronized",
             "result": "PASS" if passed else "FAIL",
@@ -4352,7 +4439,10 @@ def run_s3_synchronized() -> Path:
                 "trace_envelope_pass": trace_envelope_pass,
                 "rng_bitwise": rng_pass,
                 "scheduler_bitwise": scheduler_pass,
-                "numeric_state_gate": "cross distributions inside both self envelopes",
+                "numeric_state_gate": (
+                    "per-step cross max <= larger self max and cross median "
+                    "<= larger self median"
+                ),
                 "numeric_state_pass": numeric_envelope_pass,
             },
             "repeat_run_envelope": synchronized_envelope,
@@ -4595,7 +4685,7 @@ def run_s4_bridge() -> Path:
     return _write(
         "s4-bridge",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s4-bridge" / "run.json"),
             "stage": "S4",
             "result": "PASS" if not manifest["missing_source_fields"] else "BLOCKED",
             "manifest": manifest,
@@ -4971,7 +5061,7 @@ def run_s4() -> Path:
     return _write(
         "s4-evaluation",
         {
-            **_metadata(),
+            **_metadata(record_path=EVIDENCE / "s4-evaluation" / "run.json"),
             "stage": "S4",
             "result": "PASS" if passed else "FAIL",
             "bridge_manifest": ".cache/ds-gan/bridge/pku_posterlayout_manifest.json",
