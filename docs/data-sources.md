@@ -49,7 +49,7 @@ Do not fully download `PubLayNet` in tests; its full archive is about 107 GB. Us
 - `Magazine` inputs are polygon-based, converted to boxes by package processors, and train-only.
 - `PKU PosterLayout` includes an `INVALID` class in the source tensors and uses pixel `ltrb` boxes before package normalization.
 - `CGL-v2` uses the `ralf-style` configuration for validation and saliency use cases.
-- `Crello` uses `cyberagent/crello` as the current public source until a mirror hosted by the `creative-graphic-design` Hugging Face organization exists; authors' processed splits remain the agreement baseline where a package documents them.
+- `cyberagent/crello` is the current public Crello dataset until an organization-hosted mirror exists. Parity with the original CanvasVAE and PixelVAE v1 image path uses [crello-dataset-v1.zip](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip), which is 2,989,732,284 bytes with SHA-256 `f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e`; keep its images and derived embeddings private.
 
 ## Import candidates
 

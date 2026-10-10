@@ -93,7 +93,7 @@ The recipe uses batch size 256, learning rate `1e-5`, Adam with betas `(0.9, 0.9
 
 - Scheduler cadence — not applicable: the LACE optimizer has no learning-rate scheduler.
 - AMP scale state — not applicable: AMP is disabled in the recorded recipe.
-- S4/S5 data path — amended by [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247): use LACE's processed stream from the approved sources.
+- S4/S5 data path: LACE uses its InMemoryDataset stream from the approved PubLayNet and RICO25 sources, stored at `.cache/lace/data/<dataset>-max25/processed/{train,val,test}.pt`. This replaces the planned LayoutDM-style processed stream; the departure is approved for LACE. [The amendment records this approval](https://github.com/creative-graphic-design/design-generators/issues/423#issuecomment-6035776247).
 - Sampler activation — applicable: both loops execute the vendor timestep-sampling branch over the configured training range.
 - EMA activation — applicable: EMA is registered before the first optimizer step and updated after the optimizer step.
 - Multi-worker loader — applicable: package S3 uses the shipped 4 workers; the vendor side and S1, S2, and S4 use 0 workers and record that deviation.
