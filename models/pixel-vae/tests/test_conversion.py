@@ -187,7 +187,7 @@ def test_converter_rejects_duplicate_target_keys(monkeypatch) -> None:
     assignment = tensorflow_weight_map(model)[0]
     monkeypatch.setattr(
         "pixel_vae.conversion.tensorflow_weight_map",
-        lambda target_model: (assignment, assignment),
+        lambda _: (assignment, assignment),
     )
 
     with pytest.raises(ValueError, match="more than once"):
