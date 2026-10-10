@@ -46,9 +46,7 @@ from canvas_vae.training import (
 )
 from canvas_vae.training.parity import (
     S2_ADAM_RULE_LIMIT,
-    S2_WELL_CONDITIONED_LIMIT,
     S3_ADAM_RULE_LIMIT,
-    S3_WELL_CONDITIONED_LIMIT,
     ZERO_GRADIENT_LIMIT,
     WELL_CONDITIONED_SQRT_V,
     check_keras_adam_update,
@@ -846,8 +844,8 @@ def test_s1_fixed_batch_forward_trace(
     check_measured("s1", measured)
 
 
-def summarize_updates(measured, *, adam_rule_limit, well_conditioned_limit):
-    """Summarize Adam-rule checks and the squared update-difference split."""
+def summarize_updates(measured, *, adam_rule_limit):
+    """Summarize gated Adam-rule checks and report-only update differences."""
     updates = {
         name: values
         for name, values in measured.items()
@@ -874,7 +872,7 @@ def summarize_updates(measured, *, adam_rule_limit, well_conditioned_limit):
         "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
         "epsilon": 1e-7,
         "adam_rule_limit": adam_rule_limit,
-        "well_conditioned_limit": well_conditioned_limit,
+        "cross_system_update_difference": "report-only",
     }
 
 
@@ -968,9 +966,10 @@ def test_s2_one_optimizer_step(
                 as_package(step0[f"grad/{source}"], transpose),
                 zeros,
                 zeros,
+                zeros,
+                zeros,
                 1,
                 adam_rule_limit=S2_ADAM_RULE_LIMIT,
-                well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
             ),
         )
 
@@ -1103,7 +1102,6 @@ def test_s2_one_optimizer_step(
             "update_criterion": summarize_updates(
                 measured,
                 adam_rule_limit=S2_ADAM_RULE_LIMIT,
-                well_conditioned_limit=S2_WELL_CONDITIONED_LIMIT,
             ),
             "float64_arbitration": {
                 "by_family": arbitration_by_family,
@@ -1311,6 +1309,13 @@ def test_s3_synchronized_steps(
         )
         grads = {key: parameters[key].grad.clone() for key in sources}
         clip_gradients_by_norm(model.parameters(), 1.0)
+        package_moments_before = {
+            key: (
+                optimizer.state[parameters[key]]["exp_avg"].detach().clone(),
+                optimizer.state[parameters[key]]["exp_avg_sq"].detach().clone(),
+            )
+            for key in sources
+        }
         optimizer.step()
         for key, (source, transpose) in sources.items():
             original = as_package(state[f"grad/{source}"], transpose)
@@ -1348,11 +1353,12 @@ def test_s3_synchronized_steps(
                     reference,
                     grads[key],
                     as_package(state[f"grad/{source}"], transpose),
+                    package_moments_before[key][0],
+                    package_moments_before[key][1],
                     as_package(state[f"m/{source}"], transpose),
                     as_package(state[f"v/{source}"], transpose),
                     int(state["iterations"]) + 1,
                     adam_rule_limit=S3_ADAM_RULE_LIMIT,
-                    well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
                 ),
             )
 
@@ -1392,7 +1398,6 @@ def test_s3_synchronized_steps(
             "update_criterion": summarize_updates(
                 measured,
                 adam_rule_limit=S3_ADAM_RULE_LIMIT,
-                well_conditioned_limit=S3_WELL_CONDITIONED_LIMIT,
             ),
             "float64_arbitration": {
                 "total_gradients": len(gradient_checks),

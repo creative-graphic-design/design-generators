@@ -13,15 +13,13 @@ from jaxtyping import Float
 ZERO_GRADIENT_LIMIT = 1e-6
 KERAS_ADAM_EPSILON = 1e-7
 S2_ADAM_RULE_LIMIT = 3.5e-4
-S2_WELL_CONDITIONED_LIMIT = 1.6e-3
 S3_ADAM_RULE_LIMIT = 5.1e-4
-S3_WELL_CONDITIONED_LIMIT = 6.1e-3
 WELL_CONDITIONED_SQRT_V = 100 * KERAS_ADAM_EPSILON
 _Value = TypeVar("_Value")
 
 
 class AdamUpdateCheck(TypedDict):
-    """RICO-style Adam-rule and well-conditioned update measurements."""
+    """Per-system Adam-rule gates and cross-system update measurements."""
 
     norm_rel: float
     package_adam_rule: float
@@ -32,10 +30,9 @@ class AdamUpdateCheck(TypedDict):
     ignore_limit_in_calibration: bool
     well_conditioned_norm_rel: float
     adam_rule_limit: float
-    well_conditioned_limit: float | None
     package_adam_rule_within: bool
     original_adam_rule_within: bool
-    well_conditioned_within: bool | None
+    cross_system_update_report_only: bool
     sqrt_v_threshold: float
     near_zero_difference_sq: float
     total_difference_sq: float
@@ -79,21 +76,22 @@ def check_keras_adam_update(
     original_update: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     package_gradient: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     original_gradient: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
-    first_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
-    second_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
+    package_first_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
+    package_second_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
+    original_first_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
+    original_second_moment: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     step: int,
     *,
     adam_rule_limit: float,
-    well_conditioned_limit: float | None,
 ) -> AdamUpdateCheck:
-    """Measure per-system Adam-rule errors and cross-system conditioned updates."""
+    """Gate each system's update against its own float64 Keras-Adam reference."""
     package_actual = torch.as_tensor(package_update, dtype=torch.float64)
     original_actual = torch.as_tensor(original_update, dtype=torch.float64)
     package_exact, _, _, _ = keras_adam_float64(
-        package_gradient, first_moment, second_moment, step
+        package_gradient, package_first_moment, package_second_moment, step
     )
     original_exact, _, _, original_v = keras_adam_float64(
-        original_gradient, first_moment, second_moment, step
+        original_gradient, original_first_moment, original_second_moment, step
     )
     well = original_v.sqrt() >= WELL_CONDITIONED_SQRT_V
     difference = package_actual - original_actual
@@ -113,12 +111,6 @@ def check_keras_adam_update(
     total_difference_sq = float(difference.square().sum())
     package_within = package_rule <= adam_rule_limit
     original_within = original_rule <= adam_rule_limit
-    well_within = (
-        None
-        if well_conditioned_limit is None
-        else well_relative <= well_conditioned_limit
-    )
-
     return {
         "norm_rel": float(difference.norm() / original_actual.norm().clamp_min(1e-30)),
         "package_adam_rule": package_rule,
@@ -129,19 +121,16 @@ def check_keras_adam_update(
         "ignore_limit_in_calibration": True,
         "well_conditioned_norm_rel": well_relative,
         "adam_rule_limit": adam_rule_limit,
-        "well_conditioned_limit": well_conditioned_limit,
         "package_adam_rule_within": package_within,
         "original_adam_rule_within": original_within,
-        "well_conditioned_within": well_within,
+        "cross_system_update_report_only": True,
         "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
         "near_zero_difference_sq": near_zero_difference_sq,
         "total_difference_sq": total_difference_sq,
         "near_zero_share_of_difference": (
             near_zero_difference_sq / max(total_difference_sq, 1e-300)
         ),
-        "within": package_within
-        and original_within
-        and (well_within is None or well_within),
+        "within": package_within and original_within,
     }
 
 

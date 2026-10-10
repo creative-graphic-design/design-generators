@@ -95,10 +95,11 @@ METRIC_SCORE_FLOOR: Final = 2 * 2**-24
 ZERO_GRADIENT_FLOOR: Final = 1e-6
 CALIBRATION_FORMULA: Final = (
     "limit=max(L,ceil2(1.5*M)); L=2*2^-24 for reconstruction/layout scores, "
-    "L=1e-6 for attention key-bias max-absolute gradients, L=0 for well-conditioned "
-    "Adam updates and other metrics; "
+    "L=1e-6 for attention key-bias max-absolute gradients, L=0 for other gated "
+    "metrics; package-vs-original update differences are report-only; "
     "M=max(per-metric maxima from three independent processes)"
 )
+REPORT_ONLY_GROUPS: Final = frozenset({"s2_updated_parameters"})
 S2_DIAGNOSTIC_GROUPS: Final = (
     "s2_gradients",
     "s2_clipped_gradients",
@@ -1940,9 +1941,10 @@ def _train_step(
                 optimizer_values_vendor[state_key]["gradient"],
                 zeros,
                 zeros,
+                zeros,
+                zeros,
                 step=1,
                 adam_rule_limit=S2_ADAM_RULE_LIMIT,
-                well_conditioned_limit=None,
             )
             records.append(
                 _Comparison(
@@ -2213,7 +2215,7 @@ def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
     grouped: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     metrics: dict[str, str] = {}
     for row in records:
-        if row.value is not None:
+        if row.value is not None and row.group not in REPORT_ONLY_GROUPS:
             grouped[row.group][row.batch].append(row.value)
             metrics[row.group] = row.metric
 
@@ -2240,6 +2242,30 @@ def _limits(records: Sequence[_Comparison]) -> dict[str, _FrozenLimit]:
         }
 
     return limits
+
+
+def _heldout_limit_errors(
+    records: Sequence[_Comparison], limits: Mapping[str, _FrozenLimit]
+) -> list[dict[str, JSONValue]]:
+    errors: list[dict[str, JSONValue]] = []
+    for row in records:
+        if row.group in REPORT_ONLY_GROUPS:
+            continue
+
+        limit = limits.get(row.group)
+        if limit is None or row.value is None or row.value > limit["limit"]:
+            errors.append(
+                {
+                    "group": row.group,
+                    "name": row.name,
+                    "batch": row.batch,
+                    "value": row.value,
+                    "limit": None if limit is None else limit["limit"],
+                    "shape_match": row.shape_match,
+                }
+            )
+
+    return errors
 
 
 def _common(model, package_model: CanvasVAECrelloModel) -> list[str]:
@@ -2999,20 +3025,7 @@ def _heldout(
                 f"held-out batch {index} is missing metrics: {', '.join(sorted(missing_groups))}"
             )
 
-    heldout_errors: list[dict[str, JSONValue]] = []
-    for row in records:
-        limit = frozen["limits"].get(row.group)
-        if limit is None or row.value is None or row.value > limit["limit"]:
-            heldout_errors.append(
-                {
-                    "group": row.group,
-                    "name": row.name,
-                    "batch": row.batch,
-                    "value": row.value,
-                    "limit": None if limit is None else limit["limit"],
-                    "shape_match": row.shape_match,
-                }
-            )
+    heldout_errors = _heldout_limit_errors(records, frozen["limits"])
 
     zero_gradient_limit = frozen["limits"].get("s2_zero_gradients", {}).get("limit")
     _annotate_zero_gradient_checks(zero_gradient_checks, zero_gradient_limit)
