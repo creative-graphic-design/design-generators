@@ -85,9 +85,9 @@ uv run --package canvas-vae models/canvas-vae/scripts/smoke_from_pretrained.py -
 
 For a Lightning checkpoint from `traingen fit`, run the same converter with `uv run --package canvas-vae` and no TensorFlow extra.
 
-## Crello model agreement checks (S0–S3)
+## Crello model agreement checks (CPU S0–S3; S4 loader replay)
 
-These CPU-only checks compare the package Crello model with the pinned TensorFlow vendor on the prepared splits and shared posterior-mean fixture above. They cover model configuration, forward outputs and losses, gradients, optimizer state, and batch-normalization statistics; they do not run S4 or full training. The S0–S3 CPU model comparison passed. The earlier S4 comparison passed exact record-level equality for train, validation, and test, but it did not iterate the production DataModule, sampler, or DataLoader, so Crello S4 remains pending until the production-loader replay passes. These checks do not run full training or evaluate a trained checkpoint, so no full-run or trained-model quality result is claimed.
+The CPU S0–S3 command compares the package Crello model with the pinned TensorFlow vendor on the prepared splits and shared posterior-mean fixture. It covers static configuration, forward outputs and losses, gradients, optimizer state, and batch-normalization statistics. In the latest run pinned to package commit `18ede0628cf1200ba5be2fd335db8d3e3331e965`, S0 passed; three independent calibration children froze limits before three independent held-out children. All six children exited 0, but the aggregate held-out gate failed because `s2_updated_parameters` reached `0.0306713` against `0.0048` for `encoder.blocks.0.norm2.bias`; S0–S3 parity is not confirmed. The separate S4 production DataModule/DataLoader replay passed exact equality for train, validation, and test, including deterministic replay. These checks do not run full training or evaluate a trained checkpoint, so no full-run or trained-model quality result is claimed.
 
 S0 needs only the `count.json` and `vocabulary.json` files from the original run-1 small reports; it does not need document splits or the embedding fixture. It compares vendor and package vocabularies, field shapes and class counts, type-conditioned masks, parameter mapping and counts, and the package state after copying the vendor's seeded initialization. Run it from the repository root after initializing `vendor/canvas-vae`:
 
@@ -101,7 +101,7 @@ For the S1–S3 CPU comparison, make the prepared canonical splits available und
 CUDA_VISIBLE_DEVICES="" uv run --package canvas-vae --extra convert models/canvas-vae/scripts/compare_crello_training.py run --data-dir .cache/canvas-vae/crello/package-run-1 --fixture-hub-location "$CRELLO_FIXTURE_HUB_LOCATION" --fixture-array-sha256 "$CRELLO_FIXTURE_ARRAY_SHA256" --fixture-manifest-sha256 "$CRELLO_FIXTURE_MANIFEST_SHA256" --report-dir .cache/canvas-vae/reference/crello-model
 ```
 
-The job runs on CPU, evaluates the held-out set only after calibration limits are frozen, and does not run S4 or S5. To rerun the individual phases with an already downloaded fixture, use the marked `vendor_parity` test below; it requires local prepared splits and fixture files.
+The `run` command executes S0–S3 on CPU and evaluates canonical held-out batches only after calibration limits are frozen; it does not run S4 or S5. S4 uses `models/canvas-vae/scripts/compare_crello_s4.py` to iterate the production DataModule and compare the three deterministic loader streams. To rerun individual model phases with an already downloaded fixture, use the marked `vendor_parity` test below; it requires local prepared splits and fixture files.
 
 ```bash
 uv sync --package canvas-vae --extra training --extra convert

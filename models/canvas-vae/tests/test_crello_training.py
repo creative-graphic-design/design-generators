@@ -65,6 +65,37 @@ def s2_diagnostic_rows(batch_index: int) -> list[dict[str, str | int | float]]:
     ]
 
 
+def s3_diagnostic_rows(batch_index: int) -> list[dict[str, object]]:
+    return [
+        {
+            "group": group,
+            "tensor": "encoder.norm.running_statistics",
+            "batch": batch_index,
+            "metric": "max_rel_to_max",
+            "metric_value": 0.0,
+            "argmax_coordinate": [0],
+            "coordinate_values": {
+                "package": {
+                    "value": 0.0,
+                    "gradient": None,
+                    "m": None,
+                    "sqrt_v_plus_eps": None,
+                    "update": None,
+                },
+                "vendor": {
+                    "value": 0.0,
+                    "gradient": None,
+                    "m": None,
+                    "sqrt_v_plus_eps": None,
+                    "update": None,
+                },
+            },
+            "optimizer_state_applicable": False,
+        }
+        for group in ("s3_batch_norm_mean", "s3_batch_norm_variance")
+    ]
+
+
 def test_attention_key_biases_use_shared_absolute_zero_gradient_rule():
     parameters = {
         "encoder.blocks.0.attention.k_proj.bias": object(),
@@ -107,6 +138,32 @@ def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
 
     assert ceil_two_significant_digits(0.001845) == 0.0019
     assert ceil_two_significant_digits(0.0) == 0.0
+
+
+def test_crello_well_conditioned_update_uses_zero_calibration_floor():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    comparison_type = namespace["_Comparison"]
+    limits = cast(Callable[..., dict[str, dict[str, object]]], namespace["_limits"])
+    candidate = limits(
+        [
+            comparison_type(
+                "s2_updated_parameters", "first", 0, "norm_rel", 0.001, [2], [2], True
+            ),
+            comparison_type(
+                "s2_updated_parameters", "second", 1, "norm_rel", 0.002, [2], [2], True
+            ),
+            comparison_type(
+                "s2_updated_parameters", "third", 2, "norm_rel", 0.003, [2], [2], True
+            ),
+        ]
+    )["s2_updated_parameters"]
+
+    assert candidate["L"] == 0.0
+    assert candidate["calibration_batch_maxima"] == [0.001, 0.002, 0.003]
+    assert candidate["limit"] == pytest.approx(0.0045)
 
 
 def test_crello_calibration_registers_two_ulp_floor_for_bounded_metric_scores():
@@ -364,6 +421,119 @@ def test_crello_s2_tensor_record_has_parameter_gradient_and_adam_scales():
     assert adam_denominator["vendor"]["max"] == pytest.approx(0.4)
 
 
+def test_crello_optimizer_diagnostic_records_values_at_each_group_argmax():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    argmax = cast(
+        Callable[..., dict[str, object]], namespace["_optimizer_argmax_diagnostic"]
+    )
+    package = {
+        "gradient": np.asarray([0.1, 0.20001], dtype=np.float32),
+        "clipped_gradient": np.asarray([0.1, 0.2], dtype=np.float32),
+        "m": np.asarray([0.01, 0.02], dtype=np.float32),
+        "v": np.asarray([0.001, 0.004], dtype=np.float32),
+        "sqrt_v_plus_eps": np.asarray([0.0316, 0.0632], dtype=np.float32),
+        "update": np.asarray([-0.0009, -0.0008], dtype=np.float32),
+    }
+    vendor = {
+        **package,
+        "gradient": np.asarray([0.1, 0.2], dtype=np.float32),
+        "update": np.asarray([-0.0009, -0.0008], dtype=np.float32),
+    }
+    for group in (
+        "s2_gradients",
+        "s2_clipped_gradients",
+        "s2_first_moments",
+        "s2_second_moments",
+        "s2_updated_parameters",
+        "s2_zero_gradients",
+    ):
+        row = argmax(group, package, vendor)
+        values = cast(dict[str, dict[str, float]], row["optimizer_values"])
+        assert row["argmax_coordinate"] is not None
+        for side_values in values.values():
+            assert {
+                "gradient",
+                "clipped_gradient",
+                "m",
+                "sqrt_v_plus_eps",
+                "update",
+            } <= side_values.keys()
+
+    gradient_diagnostic = argmax("s2_gradients", package, vendor)
+    update_diagnostic = argmax(
+        "s2_updated_parameters",
+        {
+            **package,
+            "gradient": np.asarray([0.0, 0.1], dtype=np.float32),
+            "v": np.asarray([0.0, 0.001], dtype=np.float32),
+            "update": np.asarray([-0.5, -0.001], dtype=np.float32),
+        },
+        {
+            **vendor,
+            "gradient": np.asarray([0.0, 0.1], dtype=np.float32),
+            "v": np.asarray([0.0, 0.001], dtype=np.float32),
+            "update": np.asarray([0.5, -0.001], dtype=np.float32),
+        },
+    )
+
+    assert gradient_diagnostic["argmax_coordinate"] == [1]
+    gradient_values = cast(
+        dict[str, dict[str, float]], gradient_diagnostic["optimizer_values"]
+    )
+    assert gradient_values["package"]["gradient"] == pytest.approx(0.20001)
+    assert gradient_values["vendor"]["m"] == pytest.approx(0.02)
+    assert gradient_values["package"]["sqrt_v_plus_eps"] == pytest.approx(0.0632)
+    assert gradient_values["vendor"]["update"] == pytest.approx(-0.0008)
+    for values in gradient_values.values():
+        assert {
+            "gradient",
+            "clipped_gradient",
+            "m",
+            "sqrt_v_plus_eps",
+            "update",
+        } <= values.keys()
+    assert update_diagnostic["argmax_coordinate"] == [1]
+    assert update_diagnostic["well_conditioned_coordinate"] is True
+
+
+def test_crello_s3_batch_norm_diagnostic_records_argmax_without_optimizer_state():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    diagnostic = cast(
+        Callable[..., dict[str, object]], namespace["_batch_norm_tensor_diagnostic"]
+    )
+
+    for group, tensor in (
+        ("s3_batch_norm_mean", "encoder.norm.running_mean"),
+        ("s3_batch_norm_variance", "encoder.norm.running_variance"),
+    ):
+        row = diagnostic(
+            group,
+            tensor,
+            2,
+            torch.tensor([0.4, 0.8, 1.2]),
+            np.asarray([0.4, 0.8, 1.1], dtype=np.float32),
+        )
+
+        assert row["argmax_coordinate"] == [2]
+        assert row["optimizer_state_applicable"] is False
+        coordinate_values = cast(
+            dict[str, dict[str, float | None]], row["coordinate_values"]
+        )
+        assert coordinate_values["package"]["value"] == pytest.approx(1.2)
+        assert coordinate_values["vendor"]["value"] == pytest.approx(1.1)
+        for values in coordinate_values.values():
+            assert values["gradient"] is None
+            assert values["m"] is None
+            assert values["sqrt_v_plus_eps"] is None
+            assert values["update"] is None
+
+
 def test_crello_parity_report_serializes_numpy_scalars(tmp_path):
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
@@ -472,6 +642,7 @@ def test_crello_heldout_batches_start_in_fresh_processes_from_frozen_limits(
             "initial_state_sha256": "same-initial-state",
             "initial_state_mismatch_keys": [],
             "s2_tensor_diagnostics": s2_diagnostic_rows(batch_index),
+            "s3_tensor_diagnostics": s3_diagnostic_rows(batch_index),
             "measurements": [
                 {
                     "group": "s1_eval_outputs",
@@ -543,6 +714,7 @@ def test_crello_calibration_uses_three_fresh_processes_before_freezing_limits(
                     }
                 ],
                 "s2_tensor_diagnostics": s2_diagnostic_rows(batch_index),
+                "s3_tensor_diagnostics": s3_diagnostic_rows(batch_index),
                 "measurements": [
                     {
                         "group": "s1_eval_outputs",

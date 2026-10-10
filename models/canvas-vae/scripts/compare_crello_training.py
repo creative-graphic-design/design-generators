@@ -55,6 +55,10 @@ from canvas_vae.modeling_canvas_vae import (
 )
 from canvas_vae.training.optim import KerasAdam, clip_gradients_by_norm, l2_penalty
 from canvas_vae.training.parity import (
+    KERAS_ADAM_EPSILON,
+    S2_ADAM_RULE_LIMIT,
+    WELL_CONDITIONED_SQRT_V,
+    check_keras_adam_update,
     check_zero_gradient,
     split_attention_key_biases,
 )
@@ -91,7 +95,8 @@ METRIC_SCORE_FLOOR: Final = 2 * 2**-24
 ZERO_GRADIENT_FLOOR: Final = 1e-6
 CALIBRATION_FORMULA: Final = (
     "limit=max(L,ceil2(1.5*M)); L=2*2^-24 for reconstruction/layout scores, "
-    "L=1e-6 for attention key-bias max-absolute gradients, otherwise 0; "
+    "L=1e-6 for attention key-bias max-absolute gradients, L=0 for well-conditioned "
+    "Adam updates and other metrics; "
     "M=max(per-metric maxima from three independent processes)"
 )
 S2_DIAGNOSTIC_GROUPS: Final = (
@@ -101,6 +106,10 @@ S2_DIAGNOSTIC_GROUPS: Final = (
     "s2_second_moments",
     "s2_updated_parameters",
     "s2_zero_gradients",
+)
+S3_DIAGNOSTIC_GROUPS: Final = (
+    "s3_batch_norm_mean",
+    "s3_batch_norm_variance",
 )
 
 
@@ -1225,6 +1234,14 @@ def _tensor_values(
     return np.asarray(value, dtype=np.float64)
 
 
+def _aligned_vendor_tensor_values(
+    value: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
+    source: TensorFlowSource,
+) -> Float[np.ndarray, "..."]:
+    values = _tensor_values(value)
+    return values.T if source.transpose else values
+
+
 def _paired_tensor_norms(
     package: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     vendor: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
@@ -1259,6 +1276,8 @@ def _s2_tensor_diagnostic(
     actual: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     expected: Float[torch.Tensor, "..."] | Float[np.ndarray, "..."],
     source: TensorFlowSource,
+    *,
+    metric_value: float | None = None,
 ) -> dict[str, JSONValue]:
     actual_values = _tensor_values(actual)
     expected_values = _tensor_values(expected)
@@ -1279,13 +1298,27 @@ def _s2_tensor_diagnostic(
             / max(float(np.linalg.norm(expected_values)), 1e-30)
         )
 
-    return {
+    measured_value = (
+        max(
+            float(np.max(np.abs(actual_values), initial=0.0)),
+            float(np.max(np.abs(expected_values), initial=0.0)),
+        )
+        if group == "s2_zero_gradients"
+        else float(
+            np.linalg.norm(difference)
+            / max(float(np.linalg.norm(expected_values)), 1e-30)
+        )
+    )
+    if metric_value is not None:
+        measured_value = metric_value
+
+    diagnostic = {
         "group": group,
         "tensor": name,
         "batch": batch_index,
         "metric": metric,
-        "metric_value": metric_value,
-        "relative_error": metric_value if metric == "norm_rel" else None,
+        "metric_value": measured_value,
+        "relative_error": measured_value if metric == "norm_rel" else None,
         "absolute_difference": {
             "max_abs": float(np.max(difference, initial=0.0)),
             "l2": float(np.linalg.norm(difference)),
@@ -1296,6 +1329,127 @@ def _s2_tensor_diagnostic(
             "package_l2": float(np.linalg.norm(actual_values)),
             "vendor_l2": float(np.linalg.norm(expected_values)),
         },
+    }
+    if group == "s2_updated_parameters":
+        diagnostic["full_vector_relative_l2"] = float(
+            np.linalg.norm(difference)
+            / max(float(np.linalg.norm(expected_values)), 1e-30)
+        )
+
+    return diagnostic
+
+
+def _optimizer_argmax_diagnostic(
+    group: str,
+    package: Mapping[str, Float[torch.Tensor, "..."] | Float[np.ndarray, "..."]],
+    vendor: Mapping[str, Float[torch.Tensor, "..."] | Float[np.ndarray, "..."]],
+) -> dict[str, JSONValue]:
+    metric_field = {
+        "s2_gradients": "gradient",
+        "s2_clipped_gradients": "clipped_gradient",
+        "s2_first_moments": "m",
+        "s2_second_moments": "v",
+        "s2_updated_parameters": "update",
+        "s2_zero_gradients": "gradient",
+    }[group]
+    package_values = {key: _tensor_values(value) for key, value in package.items()}
+    vendor_values = {key: _tensor_values(value) for key, value in vendor.items()}
+    package_metric = package_values[metric_field]
+    vendor_metric = vendor_values[metric_field]
+    if group == "s2_zero_gradients":
+        source = (
+            package_metric
+            if np.max(np.abs(package_metric)) >= np.max(np.abs(vendor_metric))
+            else vendor_metric
+        )
+        flat_index = int(np.argmax(np.abs(source)))
+        difference = max(
+            float(np.max(np.abs(package_metric), initial=0.0)),
+            float(np.max(np.abs(vendor_metric), initial=0.0)),
+        )
+        conditioned = False
+    else:
+        delta = np.abs(package_metric - vendor_metric)
+        if group == "s2_updated_parameters":
+            well = np.sqrt(vendor_values["v"]) >= WELL_CONDITIONED_SQRT_V
+            if not well.any():
+                return {
+                    "comparison_field": metric_field,
+                    "argmax_coordinate": None,
+                    "argmax_absolute_difference": None,
+                    "optimizer_values": None,
+                }
+            delta = np.where(well, delta, -1.0)
+            conditioned = True
+        else:
+            conditioned = False
+        flat_index = int(np.argmax(delta))
+        difference = float(delta.reshape(-1)[flat_index])
+
+    coordinate = [
+        int(value) for value in np.unravel_index(flat_index, package_metric.shape)
+    ]
+    index = tuple(coordinate)
+    return {
+        "comparison_field": metric_field,
+        "argmax_coordinate": coordinate,
+        "argmax_absolute_difference": difference,
+        "well_conditioned_coordinate": conditioned,
+        "optimizer_values": {
+            "package": {
+                key: float(values[index])
+                for key, values in package_values.items()
+                if key != "v"
+            },
+            "vendor": {
+                key: float(values[index])
+                for key, values in vendor_values.items()
+                if key != "v"
+            },
+        },
+    }
+
+
+def _batch_norm_tensor_diagnostic(
+    group: str,
+    tensor: str,
+    batch_index: int,
+    package: Float[torch.Tensor, "..."],
+    vendor: Float[np.ndarray, "..."],
+) -> dict[str, JSONValue]:
+    package_values = _tensor_values(package)
+    vendor_values = _tensor_values(vendor)
+    difference = np.abs(package_values - vendor_values)
+    flat_index = int(np.argmax(difference))
+    coordinate = [
+        int(value) for value in np.unravel_index(flat_index, package_values.shape)
+    ]
+    index = tuple(coordinate)
+    return {
+        "group": group,
+        "tensor": tensor,
+        "batch": batch_index,
+        "metric": "max_rel_to_max",
+        "metric_value": float(
+            np.max(difference, initial=0.0)
+            / max(float(np.max(np.abs(vendor_values), initial=0.0)), 1e-12)
+        ),
+        "argmax_coordinate": coordinate,
+        "argmax_absolute_difference": float(difference[index]),
+        "coordinate_values": {
+            side: {
+                "value": float(values[index]),
+                "gradient": None,
+                "m": None,
+                "sqrt_v_plus_eps": None,
+                "update": None,
+            }
+            for side, values in (
+                ("package", package_values),
+                ("vendor", vendor_values),
+            )
+        },
+        "optimizer_state_applicable": False,
     }
 
 
@@ -1373,6 +1527,7 @@ def _train_step(
     records: list[_Comparison],
     zero_gradient_checks: list[dict[str, JSONValue]],
     s2_tensor_diagnostics: list[dict[str, JSONValue]],
+    s3_tensor_diagnostics: list[dict[str, JSONValue]],
     static_errors: list[str],
 ) -> None:
     tf_inputs = _reference_inputs(tf, batch, vendor_model.input_columns)
@@ -1506,9 +1661,20 @@ def _train_step(
         static_errors.append("no attention key-projection biases were checked")
 
     parameter_norm_before: dict[str, dict[str, JSONValue]] = {}
+    parameter_values_before: dict[
+        str, tuple[Float[torch.Tensor, "..."], Float[np.ndarray, "..."]]
+    ] = {}
     diagnostics_by_tensor: dict[str, list[dict[str, JSONValue]]] = defaultdict(list)
     raw_gradient_norms: dict[str, dict[str, JSONValue]] = {}
     clipped_gradient_norms: dict[str, dict[str, JSONValue]] = {}
+    optimizer_values_package: dict[
+        str,
+        dict[str, Float[torch.Tensor, "..."] | Float[np.ndarray, "..."]],
+    ] = defaultdict(dict)
+    optimizer_values_vendor: dict[
+        str,
+        dict[str, Float[torch.Tensor, "..."] | Float[np.ndarray, "..."]],
+    ] = defaultdict(dict)
     for state_key, source in all_mapping.items():
         package_parameter = package_parameters.get(state_key)
         tf_variable = vendor_variables.get(source.key)
@@ -1519,6 +1685,10 @@ def _train_step(
             package_parameter,
             tf_variable.numpy(),
             source,
+        )
+        parameter_values_before[state_key] = (
+            package_parameter.detach().clone(),
+            tf_variable.numpy().copy(),
         )
 
     for state_key, source in zero_gradient_mapping.items():
@@ -1542,6 +1712,12 @@ def _train_step(
             continue
 
         check = check_zero_gradient(package_parameter.grad, tf_gradient.numpy())
+        optimizer_values_package[state_key]["gradient"] = (
+            package_parameter.grad.detach().clone()
+        )
+        optimizer_values_vendor[state_key]["gradient"] = _aligned_vendor_tensor_values(
+            tf_gradient.numpy(), source
+        )
         raw_gradient_norms[state_key] = _paired_tensor_norms(
             package_parameter.grad,
             tf_gradient.numpy(),
@@ -1629,6 +1805,12 @@ def _train_step(
             tf_gradient.numpy(),
             source,
         )
+        optimizer_values_package[state_key]["gradient"] = (
+            package_parameter.grad.detach().clone()
+        )
+        optimizer_values_vendor[state_key]["gradient"] = _aligned_vendor_tensor_values(
+            tf_gradient.numpy(), source
+        )
         raw_gradient_norms[state_key] = _paired_tensor_norms(
             package_parameter.grad,
             tf_gradient.numpy(),
@@ -1683,6 +1865,12 @@ def _train_step(
             vendor_clipped[id(tf_variable)],
             source,
         )
+        optimizer_values_package[state_key]["clipped_gradient"] = (
+            package_parameter.grad.detach().clone()
+        )
+        optimizer_values_vendor[state_key]["clipped_gradient"] = (
+            _aligned_vendor_tensor_values(vendor_clipped[id(tf_variable)], source)
+        )
         clipped_gradient_norms[state_key] = _paired_tensor_norms(
             package_parameter.grad,
             vendor_clipped[id(tf_variable)],
@@ -1703,72 +1891,152 @@ def _train_step(
         zip(vendor_gradients, vendor_model.trainable_variables, strict=True)
     )
     optimizer.step()
-    for state_key, source in relative_mapping.items():
-        if state_key not in package_parameters:
+    for state_key, source in all_mapping.items():
+        package_parameter = package_parameters.get(state_key)
+        tf_variable = vendor_variables.get(source.key)
+        if package_parameter is None or tf_variable is None:
             continue
 
-        tf_variable = vendor_variables[source.key]
-        package_parameter = package_parameters[state_key]
-        _compare_state_tensor(
-            records,
-            "s2_updated_parameters",
-            batch_index,
-            state_key,
-            package_parameter,
-            tf_variable.numpy(),
-            source,
-        )
-        diagnostics_by_tensor[state_key].append(
-            _s2_tensor_diagnostic(
-                "s2_updated_parameters",
-                state_key,
-                batch_index,
-                package_parameter,
-                tf_variable.numpy(),
-                source,
-            )
-        )
+        package_before, vendor_before = parameter_values_before[state_key]
+        package_update = package_parameter.detach() - package_before
+        vendor_update = tf_variable.numpy() - vendor_before
+        vendor_update_aligned = _aligned_vendor_tensor_values(vendor_update, source)
         index = vendor_model.optimizer._index_dict[
             vendor_model.optimizer._var_key(tf_variable)
         ]
-        _compare_state_tensor(
-            records,
-            "s2_first_moments",
-            batch_index,
-            state_key,
-            optimizer.state[package_parameter]["exp_avg"],
-            vendor_model.optimizer._momentums[index].numpy(),
-            source,
+        package_state = optimizer.state[package_parameter]
+        vendor_first_moment = vendor_model.optimizer._momentums[index].numpy()
+        vendor_second_moment = vendor_model.optimizer._velocities[index].numpy()
+        package_first_moment = package_state["exp_avg"]
+        package_second_moment = package_state["exp_avg_sq"]
+
+        optimizer_values_package[state_key].update(
+            {
+                "m": package_first_moment.detach().clone(),
+                "v": package_second_moment.detach().clone(),
+                "sqrt_v_plus_eps": torch.sqrt(package_second_moment)
+                + KERAS_ADAM_EPSILON,
+                "update": package_update.detach().clone(),
+            }
         )
-        diagnostics_by_tensor[state_key].append(
-            _s2_tensor_diagnostic(
+        optimizer_values_vendor[state_key].update(
+            {
+                "m": _aligned_vendor_tensor_values(vendor_first_moment, source),
+                "v": _aligned_vendor_tensor_values(vendor_second_moment, source),
+                "sqrt_v_plus_eps": np.sqrt(
+                    _aligned_vendor_tensor_values(vendor_second_moment, source)
+                )
+                + KERAS_ADAM_EPSILON,
+                "update": vendor_update_aligned,
+            }
+        )
+
+        if state_key in relative_mapping:
+            zeros = torch.zeros_like(package_update)
+            update_check = check_keras_adam_update(
+                package_update,
+                vendor_update_aligned,
+                optimizer_values_package[state_key]["gradient"],
+                optimizer_values_vendor[state_key]["gradient"],
+                zeros,
+                zeros,
+                step=1,
+                adam_rule_limit=S2_ADAM_RULE_LIMIT,
+                well_conditioned_limit=None,
+            )
+            records.append(
+                _Comparison(
+                    "s2_updated_parameters",
+                    state_key,
+                    batch_index,
+                    "norm_rel",
+                    update_check["well_conditioned_norm_rel"],
+                    list(package_update.shape),
+                    list(vendor_update_aligned.shape),
+                    True,
+                )
+            )
+            for side, check_key in (
+                ("package", "package_adam_rule_within"),
+                ("vendor", "original_adam_rule_within"),
+            ):
+                if not update_check[check_key]:
+                    static_errors.append(
+                        f"{side} Adam update for {state_key} differs from its "
+                        "float64 Keras reference by more than "
+                        f"{S2_ADAM_RULE_LIMIT}"
+                    )
+
+            diagnostic = _s2_tensor_diagnostic(
+                "s2_updated_parameters",
+                state_key,
+                batch_index,
+                package_update,
+                vendor_update,
+                source,
+                metric_value=update_check["well_conditioned_norm_rel"],
+            )
+            diagnostic.update(cast(Mapping[str, JSONValue], update_check))
+            diagnostic["float64_reference_relative_l2"] = {
+                "package": update_check["package_adam_rule"],
+                "vendor": update_check["original_adam_rule"],
+            }
+            well = np.sqrt(optimizer_values_vendor[state_key]["v"])
+            well_mask = well >= WELL_CONDITIONED_SQRT_V
+            update_delta = np.abs(
+                _tensor_values(package_update) - vendor_update_aligned
+            )
+            conditioned_delta = update_delta[well_mask]
+            diagnostic["well_conditioned_absolute_difference"] = {
+                "elements": int(conditioned_delta.size),
+                "l2": float(np.linalg.norm(conditioned_delta)),
+                "max_abs": float(np.max(conditioned_delta, initial=0.0)),
+            }
+            diagnostic["update_norm"] = {
+                "package": float(torch.linalg.vector_norm(package_update)),
+                "vendor": float(np.linalg.norm(vendor_update_aligned)),
+            }
+            diagnostics_by_tensor[state_key].append(diagnostic)
+
+        if state_key in relative_mapping:
+            _compare_state_tensor(
+                records,
                 "s2_first_moments",
-                state_key,
                 batch_index,
-                optimizer.state[package_parameter]["exp_avg"],
-                vendor_model.optimizer._momentums[index].numpy(),
+                state_key,
+                package_first_moment,
+                vendor_first_moment,
                 source,
             )
-        )
-        _compare_state_tensor(
-            records,
-            "s2_second_moments",
-            batch_index,
-            state_key,
-            optimizer.state[package_parameter]["exp_avg_sq"],
-            vendor_model.optimizer._velocities[index].numpy(),
-            source,
-        )
-        diagnostics_by_tensor[state_key].append(
-            _s2_tensor_diagnostic(
+            diagnostics_by_tensor[state_key].append(
+                _s2_tensor_diagnostic(
+                    "s2_first_moments",
+                    state_key,
+                    batch_index,
+                    package_first_moment,
+                    vendor_first_moment,
+                    source,
+                )
+            )
+            _compare_state_tensor(
+                records,
                 "s2_second_moments",
-                state_key,
                 batch_index,
-                optimizer.state[package_parameter]["exp_avg_sq"],
-                vendor_model.optimizer._velocities[index].numpy(),
+                state_key,
+                package_second_moment,
+                vendor_second_moment,
                 source,
             )
-        )
+            diagnostics_by_tensor[state_key].append(
+                _s2_tensor_diagnostic(
+                    "s2_second_moments",
+                    state_key,
+                    batch_index,
+                    package_second_moment,
+                    vendor_second_moment,
+                    source,
+                )
+            )
 
     for state_key, source in all_mapping.items():
         package_parameter = package_parameters.get(state_key)
@@ -1779,12 +2047,13 @@ def _train_step(
         index = vendor_model.optimizer._index_dict[
             vendor_model.optimizer._var_key(tf_variable)
         ]
-        package_state = optimizer.state.get(package_parameter, {})
-        vendor_velocity = (
-            vendor_model.optimizer._velocities[index].numpy()
+        package_second_moment = optimizer_values_package[state_key].get("v")
+        vendor_second_moment = (
+            optimizer_values_vendor[state_key].get("v")
             if index < len(vendor_model.optimizer._velocities)
             else None
         )
+        vendor_velocity = vendor_second_moment
         parameter_norm_after = _paired_tensor_norms(
             package_parameter,
             tf_variable.numpy(),
@@ -1795,35 +2064,49 @@ def _train_step(
             parameter_norm_after,
             raw_gradient_norms.get(state_key),
             clipped_gradient_norms.get(state_key),
-            package_state.get("exp_avg_sq"),
+            package_second_moment,
             float(optimizer.param_groups[0]["eps"]),
             vendor_velocity,
             float(vendor_model.optimizer.epsilon),
         )
         for diagnostic in diagnostics_by_tensor[state_key]:
             diagnostic.update(context)
+            diagnostic["argmax_coordinate_diagnostic"] = _optimizer_argmax_diagnostic(
+                cast(str, diagnostic["group"]),
+                optimizer_values_package[state_key],
+                optimizer_values_vendor[state_key],
+            )
             s2_tensor_diagnostics.append(diagnostic)
 
-    records.append(
-        _comparison(
+    for group, tensor, package_value, vendor_value in (
+        (
             "s3_batch_norm_mean",
-            "running_mean",
-            batch_index,
+            "encoder.norm.running_mean",
             package_model.encoder.norm.running_mean,
             vendor_model.encoder.norm.moving_mean.numpy(),
-            "max_rel_to_max",
-        )
-    )
-    records.append(
-        _comparison(
+        ),
+        (
             "s3_batch_norm_variance",
-            "running_variance",
-            batch_index,
+            "encoder.norm.running_variance",
             package_model.encoder.norm.running_var,
             vendor_model.encoder.norm.moving_variance.numpy(),
-            "max_rel_to_max",
+        ),
+    ):
+        records.append(
+            _comparison(
+                group,
+                tensor,
+                batch_index,
+                package_value,
+                vendor_value,
+                "max_rel_to_max",
+            )
         )
-    )
+        s3_tensor_diagnostics.append(
+            _batch_norm_tensor_diagnostic(
+                group, tensor, batch_index, package_value, vendor_value
+            )
+        )
 
 
 def _cpu_report_context() -> dict[str, str | int | float]:
@@ -2279,6 +2562,7 @@ def _calibrate(
     batch_digests: list[str] = []
     zero_gradient_checks: list[dict[str, JSONValue]] = []
     s2_tensor_diagnostics: list[dict[str, JSONValue]] = []
+    s3_tensor_diagnostics: list[dict[str, JSONValue]] = []
     initial_state_hashes: list[str] = []
     initial_mismatch_keys: list[str] = []
     script = Path(__file__).resolve()
@@ -2358,6 +2642,18 @@ def _calibrate(
             static_errors.append(
                 f"calibration process {batch_index} is missing S2 tensor diagnostics: "
                 + ", ".join(sorted(child_missing_diagnostics))
+            )
+        child_s3_diagnostics = cast(
+            list[dict[str, JSONValue]], child.get("s3_tensor_diagnostics", [])
+        )
+        s3_tensor_diagnostics.extend(child_s3_diagnostics)
+        child_missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(
+            _largest_s2_tensor_diagnostics(child_s3_diagnostics)
+        )
+        if child_missing_s3_diagnostics:
+            static_errors.append(
+                f"calibration process {batch_index} is missing S3 tensor diagnostics: "
+                + ", ".join(sorted(child_missing_s3_diagnostics))
             )
         child_digests = cast(list[str], child["batch_digests"])
         child_batch_invalid = len(child_digests) != 1
@@ -2440,6 +2736,13 @@ def _calibrate(
             "calibration is missing S2 tensor diagnostics: "
             + ", ".join(sorted(missing_s2_diagnostics))
         )
+    largest_s3_diagnostics = _largest_s2_tensor_diagnostics(s3_tensor_diagnostics)
+    missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(largest_s3_diagnostics)
+    if missing_s3_diagnostics:
+        static_errors.append(
+            "calibration is missing S3 tensor diagnostics: "
+            + ", ".join(sorted(missing_s3_diagnostics))
+        )
 
     calibration_complete = (
         not static_errors
@@ -2472,7 +2775,9 @@ def _calibrate(
         "measurements": [_record_payload(row) for row in records],
         "zero_gradient_checks": zero_gradient_checks,
         "s2_tensor_diagnostics": s2_tensor_diagnostics,
+        "s3_tensor_diagnostics": s3_tensor_diagnostics,
         "largest_s2_tensor_diagnostic_by_group": largest_s2_diagnostics,
+        "largest_s3_tensor_diagnostic_by_group": largest_s3_diagnostics,
         "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "calibration_formula": CALIBRATION_FORMULA,
         "limits": candidate_limits if calibration_complete else {},
@@ -2549,6 +2854,7 @@ def _heldout(
     batch_digests: list[str] = []
     zero_gradient_checks: list[dict[str, JSONValue]] = []
     s2_tensor_diagnostics: list[dict[str, JSONValue]] = []
+    s3_tensor_diagnostics: list[dict[str, JSONValue]] = []
     process_reports: list[dict[str, JSONValue]] = []
     script = Path(__file__).resolve()
     calibration_report = cast(
@@ -2630,6 +2936,18 @@ def _heldout(
                 f"held-out process {batch_index} is missing S2 tensor diagnostics: "
                 + ", ".join(sorted(child_missing_diagnostics))
             )
+        child_s3_diagnostics = cast(
+            list[dict[str, JSONValue]], child.get("s3_tensor_diagnostics", [])
+        )
+        s3_tensor_diagnostics.extend(child_s3_diagnostics)
+        child_missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(
+            _largest_s2_tensor_diagnostics(child_s3_diagnostics)
+        )
+        if child_missing_s3_diagnostics:
+            static_errors.append(
+                f"held-out process {batch_index} is missing S3 tensor diagnostics: "
+                + ", ".join(sorted(child_missing_s3_diagnostics))
+            )
         child_digests = cast(list[str], child["batch_digests"])
         if len(child_digests) != 1:
             static_errors.append(
@@ -2705,6 +3023,13 @@ def _heldout(
             "held-out run is missing S2 tensor diagnostics: "
             + ", ".join(sorted(missing_s2_diagnostics))
         )
+    largest_s3_diagnostics = _largest_s2_tensor_diagnostics(s3_tensor_diagnostics)
+    missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(largest_s3_diagnostics)
+    if missing_s3_diagnostics:
+        static_errors.append(
+            "held-out run is missing S3 tensor diagnostics: "
+            + ", ".join(sorted(missing_s3_diagnostics))
+        )
 
     report: dict[str, JSONValue] = {
         **report_context,
@@ -2723,7 +3048,9 @@ def _heldout(
         "measurements": [_record_payload(row) for row in records],
         "zero_gradient_checks": zero_gradient_checks,
         "s2_tensor_diagnostics": s2_tensor_diagnostics,
+        "s3_tensor_diagnostics": s3_tensor_diagnostics,
         "largest_s2_tensor_diagnostic_by_group": largest_s2_diagnostics,
+        "largest_s3_tensor_diagnostic_by_group": largest_s3_diagnostics,
         "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
         "frozen_limits_sha256": hashlib.sha256(frozen_bytes).hexdigest(),
         "heldout_errors": heldout_errors,
@@ -2832,6 +3159,7 @@ def _run(
     metric_diagnostics: list[dict[str, JSONValue]] = []
     zero_gradient_checks: list[dict[str, JSONValue]] = []
     s2_tensor_diagnostics: list[dict[str, JSONValue]] = []
+    s3_tensor_diagnostics: list[dict[str, JSONValue]] = []
     static_errors = _common(vendor_model, package_model)
     initial_errors = []
     for key, package_value in package_model.state_dict().items():
@@ -2932,6 +3260,7 @@ def _run(
             records,
             zero_gradient_checks,
             s2_tensor_diagnostics,
+            s3_tensor_diagnostics,
             static_errors,
         )
 
@@ -2971,8 +3300,12 @@ def _run(
         "measurements": [_record_payload(row) for row in records],
         "zero_gradient_checks": zero_gradient_checks,
         "s2_tensor_diagnostics": s2_tensor_diagnostics,
+        "s3_tensor_diagnostics": s3_tensor_diagnostics,
         "largest_s2_tensor_diagnostic_by_group": _largest_s2_tensor_diagnostics(
             s2_tensor_diagnostics
+        ),
+        "largest_s3_tensor_diagnostic_by_group": _largest_s2_tensor_diagnostics(
+            s3_tensor_diagnostics
         ),
         "largest_relative_tensor_by_s2_group": _largest_s2_relative_tensors(records),
     }
