@@ -603,6 +603,15 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
         )
 
 
+def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
+    path = Path("models/pixel-vae/README.md")
+    card.assert_pipeline_tag(
+        path,
+        "pipeline_tag: image-feature-extraction\nmodel-index:\n"
+        "  - task:\n      type: image-feature-extraction",
+    )
+
+
 def test_model_index_policy_rejects_wrong_weight_mode() -> None:
     prompt_path = Path("models/layout-gpt/README.md")
     weight_path = Path("models/layout-dm/README.md")
