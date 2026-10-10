@@ -679,6 +679,18 @@ class RADMProposalHead(nn.Module):
                 for name in ("p2", "p3", "p4", "p5")
             }
         )
+        self.num_classes = config.num_classes
+        self.bias_value = -math.log((1.0 - 0.01) / 0.01)
+        self._reset_parameters()
+
+    def _reset_parameters(self) -> None:
+        """Apply the released head's Xavier and focal-prior initialization."""
+        for parameter in self.parameters():
+            if parameter.dim() > 1:
+                nn.init.xavier_uniform_(parameter)
+
+            if parameter.shape[-1] in (self.num_classes, self.num_classes + 1):
+                nn.init.constant_(parameter, self.bias_value)
 
     def forward(
         self,
@@ -745,9 +757,6 @@ class RADMProposalHead(nn.Module):
             ],
             dim=-1,
         ).reshape(-1, 5)
-        memory_format = (
-            torch.channels_last if self.training else torch.contiguous_format
-        )
         pooled = torch.empty(
             (
                 boxes_xyxy.shape[0] * boxes_xyxy.shape[1],
@@ -757,7 +766,7 @@ class RADMProposalHead(nn.Module):
             ),
             dtype=features["p2"].dtype,
             device=features["p2"].device,
-            memory_format=memory_format,
+            memory_format=torch.contiguous_format,
         ).zero_()
         levels = self._assign_pooler_levels(absolute_boxes)
         for level, (name, stride) in enumerate(

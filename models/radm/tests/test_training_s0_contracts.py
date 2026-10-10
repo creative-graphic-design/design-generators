@@ -453,7 +453,7 @@ def test_s0_roi_pooler_uses_detectron2_canonical_fpn_levels() -> None:
     assert levels.tolist() == [[0, 1, 2, 3]]
 
 
-def test_roi_index_put_preserves_channels_last_layout_on_cpu() -> None:
+def test_roi_index_put_uses_contiguous_layout_for_training_and_inference() -> None:
     config = RADMConfig(
         num_classes=2,
         num_proposals=2,
@@ -483,14 +483,13 @@ def test_roi_index_put_preserves_channels_last_layout_on_cpu() -> None:
     pooled = head._roi_features(features, boxes)
 
     assert pooled.shape == (2, 256, 7, 7)
-    assert pooled.is_contiguous(memory_format=torch.channels_last)
-    assert pooled.stride() == (12544, 1, 1792, 256)
+    assert pooled.is_contiguous()
+    assert pooled.stride() == (12544, 49, 7, 1)
 
     head.eval()
     inference_pooled = head._roi_features(features, boxes)
 
     assert inference_pooled.is_contiguous()
-    assert not inference_pooled.is_contiguous(memory_format=torch.channels_last)
 
 
 def test_geometry_relation_handles_channels_last_roi_output() -> None:
