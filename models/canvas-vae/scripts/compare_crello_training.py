@@ -60,9 +60,6 @@ from canvas_vae.training.parity import (
 from canvas_vae.training.sampling import sequential_batches
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
-VENDOR_ROOT: Final = vendor_root(
-    "canvas-vae", marker="src/canvas-vae/canvasvae/train.py"
-)
 DATA_DIR: Final = Path(
     os.environ.get("CANVAS_VAE_DATA_DIR", ".cache/canvas-vae/crello/package-run-1")
 )
@@ -319,7 +316,8 @@ def _crello_model(
             return super().call(inputs, training=training)
 
     tf.keras.layers.BatchNormalization = IgnorePropagatedMask
-    sys.path.insert(0, str(VENDOR_ROOT / "src" / "canvas-vae"))
+    vendor_path = vendor_root("canvas-vae", marker="src/canvas-vae/canvasvae/train.py")
+    sys.path.insert(0, str(vendor_path / "src" / "canvas-vae"))
     from canvasvae.data.spec import DataSpec
     from canvasvae.models.vae import VAE
 

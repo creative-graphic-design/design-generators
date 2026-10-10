@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 IGNORE_PATH = ROOT / ".lycheeignore"
 URL_RE = re.compile(r"https?://[^\s<>'\"\\]+")
-TRAILING_PUNCTUATION = ".,;:!?"
+TRAILING_PUNCTUATION = ".,;:!?`"
 TRANSIENT_STATUS_MIN = 500
 HARD_FAIL_STATUSES = {404, 410}
 DEFAULT_TIMEOUT_SECONDS = 5.0

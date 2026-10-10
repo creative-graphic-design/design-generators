@@ -6,6 +6,8 @@ from traingen_parity.tensorflow_compat import (
     install_sparse_categorical_accuracy_compat,
 )
 
+pytestmark = pytest.mark.vendor_parity
+
 
 def test_vendor_vector_metrics_concat_crello_shapes(
     monkeypatch: pytest.MonkeyPatch,
