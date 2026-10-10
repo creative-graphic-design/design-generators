@@ -3,6 +3,7 @@ import math
 import pytest
 import torch
 
+import layout_dm.scheduling_layout_dm as scheduling_module
 from laygen.common.discrete import SamplingMode
 from layout_dm.conditioning import LayoutDMCondition
 from layout_dm.sampling import LayoutDMSamplingConfig
@@ -60,6 +61,56 @@ def test_scheduler_predict_start_softmaxes_vocab_axis_before_flattening() -> Non
     )
 
     assert torch.equal(result, expected)
+
+
+def test_scheduler_random_step_flattens_tokens_after_vocab_softmax(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scheduler = LayoutDMScheduler(vocab_size=4, mask_token_id=3, pad_token_id=2)
+    model_log_prob = torch.log_softmax(
+        torch.tensor(
+            [
+                [
+                    [1.0, 10.0],
+                    [2.0, 20.0],
+                    [3.0, 30.0],
+                    [4.0, 40.0],
+                ]
+            ]
+        ),
+        dim=1,
+    )
+    captured: dict[str, torch.Tensor] = {}
+
+    def capture_multinomial(
+        probabilities: torch.Tensor,
+        num_samples: int,
+        *,
+        generator: torch.Generator | None,
+        device: torch.device,
+    ) -> torch.Tensor:
+        assert num_samples == 1
+        del generator
+        captured["probabilities"] = probabilities
+        return probabilities.argmax(dim=1, keepdim=True).to(device)
+
+    monkeypatch.setattr(scheduling_module, "multinomial", capture_multinomial)
+    monkeypatch.setattr(
+        scheduler,
+        "q_posterior",
+        lambda *_args: model_log_prob,
+    )
+
+    scheduler.step(
+        torch.zeros(1, 2, 4),
+        torch.zeros(1, dtype=torch.long),
+        torch.zeros(1, 4, 2),
+        previous_timestep=1,
+        sampling=LayoutDMSamplingConfig(name=SamplingMode.random),
+    )
+
+    expected = model_log_prob.softmax(dim=1).permute(0, 2, 1).reshape(-1, 4)
+    assert torch.equal(captured["probabilities"], expected)
 
 
 def test_scheduler_masks_weak_condition_tokens_at_initialization():

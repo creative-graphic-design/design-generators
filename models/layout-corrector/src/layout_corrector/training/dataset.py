@@ -18,7 +18,7 @@ from .config import (
 
 
 def _preserve_torch_worker_seed(worker_id: int) -> None:
-    """Keep PyTorch's default worker seed stream for random-order transforms."""
+    """Stop Lightning from auto-adding its worker_init_fn."""
     del worker_id
 
 

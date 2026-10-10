@@ -18,7 +18,6 @@ The package `training` extra provides Lightning, `traingen`, and `traingen-parit
 
 ```bash
 UV_FROZEN=1 uv sync --package layout-corrector --extra training
-uv lock
 ```
 
 The following is the complete audited-runtime install command. The operator supplies `AUDIT_VENV`, `TORCH_WHEEL`, and `TORCHVISION_WHEEL` as local paths.
@@ -143,7 +142,7 @@ The OOB counts are report-only counts of decoded elements outside the original n
 
 ## Regeneration Metadata
 
-Evidence commit `9833bfc7f78c8529216cefa1bbbd0d3843c80335` is an ancestor of the final PR head. The existing merge commit `563826b` brings `origin/main` at `e850af3` into this branch; no rebase was used. S0-S4 evidence ran on `<gpu>` with S0 at 0 workers and S1-S4 at the shipped-config 16 workers under audited runtime freeze SHA-256 `3fdc59949e80293c858d8eba525ad4cd46713dd8e4ca31e8c9fab428e46cefdf`. The retained vendor evaluation outputs came from sweep source commit `5ee3af2`; the final comparison reused those outputs while executing the package pipeline at the evidence commit. The evaluator source commit is recorded in each evaluation summary, and the parent and child evaluator environments assert `PYTHONHASHSEED=0`.
+Evidence commit `9833bfc7f78c8529216cefa1bbbd0d3843c80335` is an ancestor of the final PR head. The merge commits `563826b`, `75b7125`, and `2b51940` bring `origin/main` into this branch; no rebase was used. S0-S4 evidence ran on `<gpu>` with S0 at 0 workers and S1-S4 at the shipped-config 16 workers under audited runtime freeze SHA-256 `3fdc59949e80293c858d8eba525ad4cd46713dd8e4ca31e8c9fab428e46cefdf`. The retained vendor evaluation outputs came from sweep source commit `5ee3af2`; the final comparison reused those outputs while executing the package pipeline at the evidence commit. The evaluator source commit is recorded in each evaluation summary. The parent evaluator process asserts `PYTHONHASHSEED=0`, and the child inherits that value. After the evidence commit, `git diff --stat 9833bfc 2b51940 -- models/layout-corrector/src models/layout-dm/src lib` reported only `lib/traingen/README.md`, `lib/traingen/src/traingen/optim.py`, and `lib/traingen/tests/test_optim.py`. These PixelVAE-port additions are not imported on the evidence path.
 
 ```text
 .cache/layout-corrector/stage-evidence/s0-static/<dataset>/summary.json
