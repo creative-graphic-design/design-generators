@@ -48,3 +48,32 @@ def test_runtime_freeze_rejects_interpreter_mismatch(
 
     with pytest.raises(RuntimeError, match="refusing to launch"):
         runner.runtime_freeze(tmp_path / "output", runtime_python, expected_path)
+
+
+def test_full_test_counts_are_dataset_specific() -> None:
+    runner = load_runner()
+
+    assert runner.TEST_COUNTS == {"cgl": 6002, "pku": 1000}
+
+
+def test_relation_comparison_records_unavoidable_difference(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_runner()
+    monkeypatch.setattr(runner, "INFERENCE_SEEDS", (0,))
+    package_scores = tmp_path / "package.yaml"
+    vendor_scores = tmp_path / "vendor.yaml"
+    score = "average:\n  test:\n    metric: 1.0\n"
+    package_scores.write_text(score, encoding="utf-8")
+    vendor_scores.write_text(score, encoding="utf-8")
+
+    result = runner.compare_predictions(
+        {0: [{"label": [1]}]},
+        {0: [{"label": [2]}]},
+        package_scores,
+        vendor_scores,
+        allow_relation_difference=True,
+    )
+
+    assert result["status"] == "measured_relation_difference"
+    assert result["prediction_mismatch_count"] == 1

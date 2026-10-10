@@ -9,7 +9,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 PACKAGE_ROOT = ROOT / "models" / "ralf" / "src" / "ralf"
-CHANGED_MODULES = {"ralf.pipeline_ralf", "ralf.relation_restriction"}
+CHANGED_MODULES = {
+    "ralf.modeling_ralf",
+    "ralf.pipeline_ralf",
+    "ralf.relation_restriction",
+}
+SHARED_MODEL_MODULES = {"ralf.modeling_ralf"}
+INFERENCE_ONLY_MODEL_SYMBOLS = {
+    "_apply_decode_space_restriction",
+    "_generate_sequences",
+    "multinomial",
+}
 
 
 def module_path(module: str) -> Path:
@@ -93,16 +103,67 @@ def training_method_calls() -> dict[str, set[str]]:
     return {root: reachable for root in ("training_step", "validation_step")}
 
 
+def modeling_inference_calls() -> set[str]:
+    """Return inference-only modeling symbols reachable from model.forward."""
+    module = "ralf.modeling_ralf"
+    tree = ast.parse(module_path(module).read_text(encoding="utf-8"))
+    methods: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.ClassDef)
+            and node.name == "RalfForConditionalLayoutGeneration"
+        ):
+            methods.update(
+                {
+                    node_item.name: node_item
+                    for node_item in node.body
+                    if isinstance(node_item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                }
+            )
+
+    reachable: set[str] = set()
+    pending = ["forward"]
+    found: set[str] = set()
+    while pending:
+        name = pending.pop()
+        if name in reachable:
+            continue
+        reachable.add(name)
+        node = methods.get(name)
+        if node is None:
+            continue
+        for call in ast.walk(node):
+            if not isinstance(call, ast.Call):
+                continue
+            if (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "self"
+            ):
+                if call.func.attr in INFERENCE_ONLY_MODEL_SYMBOLS:
+                    found.add(call.func.attr)
+                pending.append(call.func.attr)
+            elif isinstance(call.func, ast.Name) and call.func.id in (
+                INFERENCE_ONLY_MODEL_SYMBOLS - {"_generate_sequences"}
+            ):
+                found.add(call.func.id)
+    return found
+
+
 def main() -> int:
     closure = import_closure("ralf.training.lightning_module")
     calls = training_method_calls()
-    imported_changed = sorted(closure & CHANGED_MODULES)
+    imported_changed = sorted((closure & CHANGED_MODULES) - SHARED_MODEL_MODULES)
+    shared_model_modules = sorted(closure & SHARED_MODEL_MODULES)
+    modeling_changed = sorted(modeling_inference_calls())
     called_changed: list[str] = []
     print(f"training import closure changed modules: {imported_changed}")
+    print(f"training import closure shared modeling modules: {shared_model_modules}")
     for root, reachable in calls.items():
         print(f"{root} reachable local methods: {sorted(reachable)}")
         print(f"{root} reachable changed symbols: {called_changed}")
-    if imported_changed or called_changed:
+    print(f"training model forward reachable inference symbols: {modeling_changed}")
+    if imported_changed or called_changed or modeling_changed:
         return 1
     print("result: PASS, relation preparation and decoder are inference-only")
     return 0

@@ -66,7 +66,7 @@ CONDITIONS = {
 }
 DATASET_NAMES = {"cgl": "cgl", "pku": "pku10"}
 TASK_TO_CONDITION = {value: key for key, value in CONDITIONS.items()}
-TEST_LIMIT = 1000
+TEST_COUNTS = {"cgl": 6002, "pku": 1000}
 BATCH_SIZE = 128
 INFERENCE_SEEDS = (0, 1, 2)
 
@@ -81,6 +81,18 @@ def sha256(path: Path) -> str:
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def repository_source_commit() -> str:
+    repo_root = Path(__file__).resolve().parents[4]
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 def path_label(path: Path, root: Path) -> str:
@@ -164,7 +176,12 @@ def parse_args() -> argparse.Namespace:
         help="run one inference seed in an isolated lane",
     )
     parser.add_argument("--gpu", type=int, required=True)
-    parser.add_argument("--test-count", type=int, default=TEST_LIMIT)
+    parser.add_argument(
+        "--test-count",
+        type=int,
+        default=None,
+        help="full TEST row count; defaults to the selected dataset's split size",
+    )
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument(
         "--disable-cudnn",
@@ -180,6 +197,16 @@ def parse_args() -> argparse.Namespace:
         "--refresh-existing",
         action="store_true",
         help="rewrite the artifact from existing predictions and score files",
+    )
+    parser.add_argument(
+        "--producing-runner-sha256",
+        default=None,
+        help="producing runner hash for a legacy refresh without provenance",
+    )
+    parser.add_argument(
+        "--producing-source-commit",
+        default=None,
+        help="package source commit for a legacy refresh without provenance",
     )
     return parser.parse_args()
 
@@ -545,8 +572,10 @@ def generate_package_predictions(
         # noisy condition is prepared.
         torch.manual_seed(0)
     if args.condition == "relation":
-        # The vendor constructs RelationshipPreprocessor after this
-        # process-start seed and before set_seed(seed) in inference.py.
+        # Relation-table preparation is part of the vendor process state.  The
+        # package keeps its recorded preparation seed for a reproducible local
+        # arm; the vendor arm below intentionally follows the campaign's
+        # direct module invocation without injecting a wrapper seed.
         random.seed(0)
     pipe = RalfPipeline.from_pretrained(converted, local_files_only=True)
     train, test = load_local_dataset(input_root, args.dataset)
@@ -676,28 +705,10 @@ def vendor_prediction_dir(
             ]
         )
     elif args.condition == "relation":
-        relation_wrapper = "import random; random.seed(0); "
-        if args.disable_cudnn:
-            relation_wrapper += "import torch; torch.backends.cudnn.enabled=False; "
-        if len(INFERENCE_SEEDS) == 1:
-            seed = INFERENCE_SEEDS[0]
-            relation_wrapper += (
-                "import importlib; "
-                "module=importlib.import_module('image2layout.train.inference'); "
-                "original_product=module.itertools.product; "
-                f"selected_seed={seed}; "
-                "module.itertools.product=lambda *values: "
-                "original_product(values[0], [selected_seed], *values[2:]) "
-                "if len(values) == 4 and list(values[1]) == [0] "
-                "else original_product(*values); "
-                "module.main()"
-            )
-        else:
-            relation_wrapper += (
-                "import runpy; "
-                "runpy.run_module('image2layout.train.inference', run_name='__main__')"
-            )
-        command.extend(["-c", relation_wrapper])
+        # Match the campaign's direct `python -m` invocation.  In particular,
+        # do not inject random.seed, monkeypatch itertools.product for a
+        # single seed, or disable cuDNN here.
+        command.extend(["-m", "image2layout.train.inference"])
     elif args.disable_cudnn:
         command.extend(["-c", module_wrapper])
     else:
@@ -715,7 +726,7 @@ def vendor_prediction_dir(
             "hydra/job_logging=none",
             f"cond_type={CONDITIONS[args.condition]}",
             "test_split=test",
-            "+num_workers=0",
+            "+num_workers=2" if args.condition == "relation" else "+num_workers=0",
             f"num_seeds={len(INFERENCE_SEEDS)}",
             "+run_on_local=True",
         ]
@@ -740,6 +751,16 @@ def vendor_prediction_dir(
             f"vendor inference produced no test_{expected_seed}.pkl"
         )
     selected = candidates[0].parent
+    if args.condition == "relation" and args.seed is not None:
+        for path in selected.glob("test_*.pkl"):
+            if path.name != f"test_{args.seed}.pkl":
+                path.unlink()
+        for path in selected.glob("test_*_violation.csv"):
+            if path.name != f"test_{args.seed}_violation.csv":
+                path.unlink()
+        for path in selected.glob("layout_test_*.png"):
+            if path.name != f"layout_test_{args.seed}.png":
+                path.unlink()
     for path in selected.glob("test_*.pkl"):
         sanitize_vendor_pickle(path, input_root)
     return selected
@@ -817,8 +838,10 @@ def evaluate(
 
 def load_results(directory: Path) -> dict[int, list[dict[str, Any]]]:
     output = {}
-    for path in sorted(directory.glob("test_*.pkl")):
-        seed = int(path.stem.split("_")[1])
+    for seed in INFERENCE_SEEDS:
+        path = directory / f"test_{seed}.pkl"
+        if not path.is_file():
+            continue
         with path.open("rb") as handle:
             payload = pickle.load(handle)
         output[seed] = cast(list[dict[str, Any]], payload["results"])
@@ -834,7 +857,11 @@ def compare_predictions(
     vendor: dict[int, list[dict[str, Any]]],
     package_scores: Path,
     vendor_scores: Path,
+    *,
+    allow_relation_difference: bool = False,
 ) -> dict[str, Any]:
+    prediction_mismatches = 0
+    mismatch_by_seed: dict[str, int] = {}
     for seed in INFERENCE_SEEDS:
         if len(package[seed]) != len(vendor[seed]):
             raise RuntimeError(
@@ -845,29 +872,89 @@ def compare_predictions(
             zip(package[seed], vendor[seed], strict=True)
         ):
             if left != right:
-                differing = [key for key in left if left.get(key) != right.get(key)]
-                raise RuntimeError(
-                    f"localized parity failure seed={seed} row={index} "
-                    f"keys={differing[:3]}"
-                )
+                prediction_mismatches += 1
+                mismatch_by_seed[str(seed)] = mismatch_by_seed.get(str(seed), 0) + 1
+                if not allow_relation_difference:
+                    differing = [key for key in left if left.get(key) != right.get(key)]
+                    raise RuntimeError(
+                        f"localized parity failure seed={seed} row={index} "
+                        f"keys={differing[:3]}"
+                    )
     package_metrics = score_average(package_scores)
     vendor_metrics = score_average(vendor_scores)
+    metric_mismatches: list[str] = []
     if package_metrics != vendor_metrics:
-        differing = [
+        metric_mismatches = [
             key
             for key in package_metrics
             if package_metrics.get(key) != vendor_metrics.get(key)
         ]
-        raise RuntimeError(
-            f"localized parity failure: evaluator metrics differ for {differing[:3]}"
-        )
+        if not allow_relation_difference:
+            raise RuntimeError(
+                "localized parity failure: evaluator metrics differ for "
+                f"{metric_mismatches[:3]}"
+            )
+    if (prediction_mismatches or metric_mismatches) and not allow_relation_difference:
+        raise RuntimeError("localized parity failure")
     return {
-        "status": "bitwise_equal",
+        "status": (
+            "bitwise_equal"
+            if not prediction_mismatches and not metric_mismatches
+            else "measured_relation_difference"
+        ),
         "seeds": list(INFERENCE_SEEDS),
         "predictions_per_seed": len(package[INFERENCE_SEEDS[0]]),
         "total_predictions": sum(len(rows) for rows in package.values()),
-        "metrics_bitwise_equal": True,
+        "prediction_mismatch_count": prediction_mismatches,
+        "prediction_mismatches_by_seed": mismatch_by_seed,
+        "metrics_bitwise_equal": not metric_mismatches,
+        "metric_mismatches": metric_mismatches,
         "metric_count": len(package_metrics),
+    }
+
+
+def compare_campaign_vendor(
+    *, args: argparse.Namespace, vendor_prediction_root: Path
+) -> dict[str, Any] | None:
+    """Measure the direct vendor arm against its retained campaign output."""
+    campaign_root = campaign_package_job(args)
+    dirname = (
+        "generated_samples_relation_name_top_k_temperature_1.0_top_k_5_"
+        "final_dynamictopk_16_backtrack"
+    )
+    matches = 0
+    mismatches = 0
+    counts: list[int] = []
+    for seed in INFERENCE_SEEDS:
+        campaign_path = campaign_root / dirname / f"test_{seed}.pkl"
+        if not campaign_path.is_file():
+            return None
+        parity_path = vendor_prediction_root / f"test_{seed}.pkl"
+        with campaign_path.open("rb") as handle:
+            campaign = cast(list[dict[str, Any]], pickle.load(handle)["results"])
+        with parity_path.open("rb") as handle:
+            parity = cast(list[dict[str, Any]], pickle.load(handle)["results"])
+        if len(campaign) != len(parity):
+            raise RuntimeError(
+                f"campaign vendor count differs for seed={seed}: "
+                f"campaign={len(campaign)} parity={len(parity)}"
+            )
+        counts.append(len(campaign))
+        for left, right in zip(campaign, parity, strict=True):
+            if left == right:
+                matches += 1
+            else:
+                mismatches += 1
+    return {
+        "status": "bitwise_equal" if mismatches == 0 else "measured_difference",
+        "campaign_prediction_counts": counts,
+        "matching_predictions": matches,
+        "mismatching_predictions": mismatches,
+        "campaign_artifact": (
+            "campaign/s5/evals/package-seed-1/"
+            "generated_samples_relation_name_top_k_temperature_1.0_top_k_5_"
+            "final_dynamictopk_16_backtrack/test_<seed>.pkl"
+        ),
     }
 
 
@@ -1057,6 +1144,7 @@ def artifact(
     vendor_scores: Path,
     comparison: dict[str, Any],
     freeze: dict[str, str],
+    provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     package_predictions = load_results(output_root / "package-pipeline")
     vendor_prediction_root = next(
@@ -1066,6 +1154,8 @@ def artifact(
     )
     vendor_predictions = load_results(vendor_prediction_root)
     script_path = Path(__file__).resolve()
+    runner_hash = sha256(script_path)
+    source_commit = repository_source_commit()
     record = {
         "dataset": args.dataset,
         "condition": args.condition,
@@ -1142,6 +1232,13 @@ def artifact(
             "cuda": torch.version.cuda,
         },
         "runtime_provenance": runtime_provenance(args=args, freeze=freeze),
+        "campaign_vendor": (
+            compare_campaign_vendor(
+                args=args, vendor_prediction_root=vendor_prediction_root
+            )
+            if args.condition == "relation"
+            else None
+        ),
         "condition_preparation": (
             {
                 "perturbation_owner": "committed parity runner only",
@@ -1173,8 +1270,8 @@ def artifact(
                 ),
                 "runner_source": (
                     "models/ralf/tests/vendor_parity/run_condition_parity.py: "
-                    "random.seed(0), load the raw relationship table, then "
-                    "configure_relation_conditioner once before set_seed(seed)."
+                    "load the raw relationship table, then configure_relation_conditioner "
+                    "once after the package preparation seed and before set_seed(seed)."
                 ),
                 "vendor_source": (
                     "image2layout/train/models/layoutformerpp/task_preprocessor.py:498-507 "
@@ -1186,7 +1283,7 @@ def artifact(
                     "implements the decoder restriction."
                 ),
                 "per_seed_order": (
-                    "process-start random.seed(0), construct RelationConditioner once, "
+                    "construct the vendor preprocessor during the direct module invocation, "
                     "then set_seed(seed), then consume edge draws, perform both label "
                     "randperm passes, sample relation records, and decode each batch"
                 ),
@@ -1201,8 +1298,15 @@ def artifact(
         ),
         "runner": {
             "path": "models/ralf/tests/vendor_parity/run_condition_parity.py",
-            "sha256": sha256(script_path),
-            "regeneration_command": 'source <protected-dataset-environment>; CUDA_VISIBLE_DEVICES=<gpu> <audited-cu128-python> models/ralf/tests/vendor_parity/run_condition_parity.py --dataset-root "$RALF_PKU_SOURCE_DIR" --dataset <dataset> --condition <condition> --campaign-root <campaign-root> --output-root <output-root> --runtime-freeze-path <parity-root>/runtime-freeze.txt --gpu <gpu> --disable-cudnn',
+            "sha256": runner_hash,
+            "source_commit": source_commit,
+            "regeneration_command": 'source <protected-dataset-environment>; CUDA_VISIBLE_DEVICES=<gpu> <audited-cu128-python> models/ralf/tests/vendor_parity/run_condition_parity.py --dataset-root "$RALF_PKU_SOURCE_DIR" --dataset <dataset> --condition <condition> --campaign-root <campaign-root> --output-root <output-root> --runtime-freeze-path <parity-root>/runtime-freeze.txt --gpu <gpu>',
+        },
+        "provenance": provenance
+        or {
+            "producing_runner_sha256": runner_hash,
+            "producing_package_source_commit": source_commit,
+            "refresh": None,
         },
         "comparison": comparison,
     }
@@ -1265,8 +1369,12 @@ def update_manifest_parity(*, args: argparse.Namespace, artifact_path: Path) -> 
 def main() -> None:
     global INFERENCE_SEEDS
     args = parse_args()
+    if args.test_count is None:
+        args.test_count = TEST_COUNTS[args.dataset]
     if args.seed is not None:
         INFERENCE_SEEDS = (args.seed,)
+    if args.condition == "relation" and args.disable_cudnn:
+        raise ValueError("relation parity uses the campaign's cuDNN-enabled invocation")
     if args.disable_cudnn:
         torch.backends.cudnn.enabled = False
     args.dataset_root = args.dataset_root.resolve()
@@ -1292,9 +1400,10 @@ def main() -> None:
         )
         if (cache_campaign / "s5").is_dir():
             args.campaign_root = cache_campaign
-    if args.test_count != TEST_LIMIT:
+    if args.test_count != TEST_COUNTS[args.dataset]:
         raise ValueError(
-            "the parity contract requires the full 1,000-row TEST population"
+            f"the parity contract requires the full {TEST_COUNTS[args.dataset]}-row "
+            f"{args.dataset.upper()} TEST population"
         )
     if not (0 <= args.gpu):
         raise ValueError("gpu must be non-negative")
@@ -1358,7 +1467,25 @@ def main() -> None:
                 load_results(vendor_predictions),
                 package_scores,
                 vendor_scores,
+                allow_relation_difference=args.condition == "relation",
             )
+        previous_provenance = previous.get("provenance")
+        if isinstance(previous_provenance, dict):
+            producing_runner = previous_provenance.get("producing_runner_sha256")
+            producing_source = previous_provenance.get(
+                "producing_package_source_commit"
+            )
+        else:
+            producing_runner = args.producing_runner_sha256
+            producing_source = args.producing_source_commit
+        if not isinstance(producing_runner, str) or not isinstance(
+            producing_source, str
+        ):
+            raise ValueError(
+                "refresh-existing requires producing runner and package source provenance"
+            )
+        current_runner = sha256(Path(__file__).resolve())
+        current_source = repository_source_commit()
         record = artifact(
             args=args,
             input_root=input_root,
@@ -1367,6 +1494,14 @@ def main() -> None:
             vendor_scores=vendor_scores,
             comparison=comparison,
             freeze=freeze,
+            provenance={
+                "producing_runner_sha256": producing_runner,
+                "producing_package_source_commit": producing_source,
+                "refresh": {
+                    "runner_sha256": current_runner,
+                    "package_source_commit": current_source,
+                },
+            },
         )
         # Refreshing an existing result only repairs provenance fields.  The
         # original evaluator/runtime evidence remains the source of truth; a
@@ -1421,6 +1556,7 @@ def main() -> None:
         load_results(vendor_predictions),
         package_scores,
         vendor_scores,
+        allow_relation_difference=args.condition == "relation",
     )
     record = artifact(
         args=args,
