@@ -655,6 +655,37 @@ def test_crello_calibration_stops_after_static_failure_and_writes_incomplete_rep
     assert not (tmp_path / "limits.json").exists()
 
 
+def test_crello_calibration_report_preserves_child_failure_output(
+    tmp_path, monkeypatch
+):
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    calibrate = cast(Callable[..., dict[str, object]], namespace["_calibrate"])
+    original_run = subprocess.run
+
+    def run(command, **kwargs):
+        if len(command) > 1 and command[1] == str(script):
+            return SimpleNamespace(
+                returncode=1,
+                stdout="child standard output",
+                stderr="child traceback hf_synthetic_secret",
+            )
+
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(AssertionError, match="calibration checks failed"):
+        calibrate(report_dir=tmp_path)
+
+    report = json.loads((tmp_path / "calibrate.json").read_text(encoding="utf-8"))
+    process_report = report["calibration_processes"][0]
+    assert process_report["stdout_tail"] == "child standard output"
+    assert process_report["stderr_tail"] == "child traceback [redacted token]"
+    assert "hf_synthetic_secret" not in json.dumps(report)
+
+
 def test_crello_metric_comparison_records_color_total_and_layout_scores():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"

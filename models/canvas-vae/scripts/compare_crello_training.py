@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -189,6 +190,14 @@ class _HubDirectory(NamedTuple):
 JSONValue: TypeAlias = (
     str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
 )
+
+
+def _process_output_excerpt(output: str | None) -> str:
+    if not output:
+        return ""
+
+    redacted = re.sub(r"hf_[A-Za-z0-9_-]+", "[redacted token]", output)
+    return redacted[-8192:]
 
 
 def _comparison(
@@ -2307,6 +2316,13 @@ def _calibrate(
             "report_file": child_report_path.name,
             "report_sha256": None,
         }
+        if completed.returncode != 0 or not child_report_path.exists():
+            process_report["stdout_tail"] = _process_output_excerpt(
+                cast(str | None, getattr(completed, "stdout", None))
+            )
+            process_report["stderr_tail"] = _process_output_excerpt(
+                cast(str | None, getattr(completed, "stderr", None))
+            )
         if not child_report_path.exists():
             static_errors.append(
                 f"calibration process {batch_index} did not write its report"
@@ -2572,6 +2588,13 @@ def _heldout(
             "report_file": child_report_path.name,
             "report_sha256": None,
         }
+        if completed.returncode != 0 or not child_report_path.exists():
+            process_report["stdout_tail"] = _process_output_excerpt(
+                cast(str | None, getattr(completed, "stdout", None))
+            )
+            process_report["stderr_tail"] = _process_output_excerpt(
+                cast(str | None, getattr(completed, "stderr", None))
+            )
         if not child_report_path.exists():
             static_errors.append(
                 f"held-out process {batch_index} did not write its report"
