@@ -39,7 +39,7 @@ REQUIRED_CHECKLIST_ITEMS = [
 COMPLETION_GATE_ITEMS = [
     "Vendor parity verified, or gated-pending: <blocker name and short reason>.",
     "Training S5 reproduction complete, or N/A: <reason>.",
-    "Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)",
+    "Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)",
 ]
 
 
@@ -207,7 +207,7 @@ def test_completion_gate_allows_draft_incomplete() -> None:
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
             "- [ ] Training S5 reproduction complete, or N/A: <reason>.\n"
-            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+            "- [ ] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
@@ -219,7 +219,7 @@ def test_completion_gate_rejects_ready_incomplete() -> None:
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
             "- [ ] Training S5 reproduction complete, or N/A: <reason>.\n"
-            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+            "- [ ] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
@@ -234,7 +234,7 @@ def test_completion_gate_accepts_ready_complete() -> None:
         completion_gate=(
             "- [x] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
             "- [x] Training S5 reproduction complete, or N/A: <reason>.\n"
-            "- [x] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+            "- [x] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
@@ -246,7 +246,7 @@ def test_completion_gate_accepts_na_and_blocker_reasons() -> None:
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: no redistributable checkpoint is available.\n"
             "- [ ] Training S5 reproduction complete, or N/A: documentation-only PR.\n"
-            "- [x] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+            "- [x] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
@@ -258,16 +258,37 @@ def test_completion_gate_rejects_unchecked_adversarial_review() -> None:
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: no redistributable checkpoint is available.\n"
             "- [ ] Training S5 reproduction complete, or N/A: documentation-only PR.\n"
-            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+            "- [ ] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
     errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
 
     assert errors == [
-        "Ready-for-review PRs must check `Pre-PR adversarial review completed "
-        "(reviewer spawned before opening the PR; findings resolved)` or convert "
+        "Ready-for-review PRs must check `Independent adversarial review completed "
+        "before ready for review (reviewer with no prior involvement reviewed the "
+        "head being marked ready; findings resolved)` or convert "
         "the PR back to draft."
+    ]
+
+
+def test_completion_gate_rejects_checked_legacy_adversarial_review() -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [x] Vendor parity verified, or gated-pending: not applicable.\n"
+            "- [x] Training S5 reproduction complete, or N/A: documentation-only PR.\n"
+            "- [x] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+        ),
+    )
+
+    errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
+
+    assert errors == [
+        "Ready-for-review PRs must include the completion item for "
+        "independent adversarial review: `Independent adversarial review completed "
+        "before ready for review (reviewer with no prior involvement reviewed the "
+        "head being marked ready; findings resolved)`. Complete it or convert the "
+        "PR back to draft."
     ]
 
 

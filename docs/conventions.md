@@ -98,7 +98,7 @@ Layout pipelines expose the following keyword-only arguments. The initial layout
 | `num_inference_steps=None`                                 | Optional generation-step override where supported.                                          |
 | `output_type="dataclass"`, `return_intermediates=False`    | Return the canonical output or its dictionary form; keep auxiliary data in `intermediates`. |
 
-Expose the agreed v1 arguments even when some combinations are unsupported; reject those combinations explicitly. For v2, add only the relevant inputs: `prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`. The model issue defines their meaning for that package. Open-vocabulary labels use request-local ids; batched outputs use one batch-local union with per-example maps in `intermediates["id2label_per_example"]`.
+Expose the agreed v1 arguments even when some combinations are unsupported; reject those combinations explicitly. For v2, add only the relevant inputs: `prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`. Each package's pipeline API documentation must state the accepted shape and meaning of every v2 input it exposes. Open-vocabulary labels use request-local ids; batched outputs use one batch-local union with per-example maps in `intermediates["id2label_per_example"]`.
 
 ### Model and serialization rules
 
