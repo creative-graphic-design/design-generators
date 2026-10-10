@@ -38,12 +38,12 @@ from canvas_vae.processing_canvas_vae import (
 )
 from canvas_vae.training import (
     CrossEpochBatchSampler,
-    KerasAdam,
     clip_gradients_by_norm,
     l2_penalty,
     sequential_batches,
     wrapping_batches,
 )
+from traingen.optim import KerasAdam
 from canvas_vae.training.parity import (
     S2_ADAM_RULE_LIMIT,
     S3_ADAM_RULE_LIMIT,

@@ -53,7 +53,7 @@ from canvas_vae.modeling_canvas_vae import (
     CanvasVAECrelloModel,
     CanvasVAECrelloModelOutput,
 )
-from canvas_vae.training.optim import KerasAdam, clip_gradients_by_norm, l2_penalty
+from canvas_vae.training.optim import clip_gradients_by_norm, l2_penalty
 from canvas_vae.training.parity import (
     KERAS_ADAM_EPSILON,
     S2_ADAM_RULE_LIMIT,
@@ -63,6 +63,7 @@ from canvas_vae.training.parity import (
     split_attention_key_biases,
 )
 from canvas_vae.training.sampling import sequential_batches
+from traingen.optim import KerasAdam
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 DATA_DIR: Final = Path(

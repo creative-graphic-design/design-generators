@@ -396,6 +396,8 @@ The original record function emits all eligible screens, but the multi-threaded 
 
 ## Training Commands
 
+The S5 seed queue requires an explicit artifact repository; pass it as `--hub-repo '<your-hub-repo>'` when launching the queue. The queue forwards this value to each per-seed executor, which refuses to start without it.
+
 Run the staged parity checks after generating references with [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md).
 
 ```bash

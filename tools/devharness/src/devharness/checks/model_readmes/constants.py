@@ -171,6 +171,10 @@ EXPECTED_FRONTMATTER = {
         "license": "apache-2.0",
         "datasets": ["creative-graphic-design/Rico"],
     },
+    "pixel-vae": {
+        "license": "apache-2.0",
+        "datasets": ["cyberagent/crello"],
+    },
     "dlt": {
         "license": "apache-2.0",
         "datasets": [
@@ -309,6 +313,9 @@ EXPECTED_FRONTMATTER = {
     "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
 }
 
+EXPECTED_PIPELINE_TAGS = {"pixel-vae": "image-feature-extraction"}
+EXPECTED_MODEL_INDEX_TASKS = {"pixel-vae": "image-feature-extraction"}
+
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
@@ -334,6 +341,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "pixel-vae": "PixelVAE",
     "posterllama": "PosterLlama",
     "posterllava": "PosterLLaVA",
     "postero": "PosterO",
@@ -358,6 +366,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
     "canvas-vae": "https://github.com/CyberAgentAILab/canvas-vae",
+    "pixel-vae": "https://github.com/CyberAgentAILab/canvas-vae",
     "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",

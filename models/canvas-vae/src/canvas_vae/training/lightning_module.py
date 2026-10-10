@@ -8,6 +8,7 @@ import lightning as L
 import torch
 from jaxtyping import Float, Int
 from torch.optim import Optimizer
+from traingen.optim import KerasAdam
 
 from ..configuration_canvas_vae import CanvasVAEConfig, CanvasVAECrelloConfig
 from ..data import CrelloBatch, load_crello_vocabularies
@@ -15,7 +16,7 @@ from ..metrics import crello_reconstruction_scores
 from ..metrics import TOTAL_KEY, layout_scores, reconstruction_scores
 from ..modeling_canvas_vae import CanvasVAECrelloModel, CanvasVAEModel, length_mask
 from ..processing_canvas_vae import load_rico_vocabularies
-from .optim import KerasAdam, clip_gradients_by_norm, l2_penalty
+from .optim import clip_gradients_by_norm, l2_penalty
 
 
 class CanvasVAETrainingModule(L.LightningModule):

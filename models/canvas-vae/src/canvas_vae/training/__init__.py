@@ -3,7 +3,6 @@
 from importlib.util import find_spec as _find_spec
 
 from .optim import (
-    KerasAdam as KerasAdam,
     clip_gradients_by_norm as clip_gradients_by_norm,
     l2_penalty as l2_penalty,
 )

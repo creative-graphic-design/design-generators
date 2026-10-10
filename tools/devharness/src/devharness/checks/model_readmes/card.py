@@ -11,7 +11,9 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .constants import (
     BANNED_PATTERNS,
     EXPECTED_FRONTMATTER,
+    EXPECTED_MODEL_INDEX_TASKS,
     EXPECTED_MODEL_NAMES,
+    EXPECTED_PIPELINE_TAGS,
     EXPECTED_REPOSITORY_LINKS,
     MODEL_CONTENT_VALUES,
     MODEL_CONDITIONING_ORDER,
@@ -348,11 +350,12 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
 
 
 def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
-    """Require the model-card task metadata for layout generation."""
+    """Require the model-card task metadata declared for this package."""
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
-    if pipeline_tag != "other":
+    expected_pipeline_tag = EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
+    if pipeline_tag != expected_pipeline_tag:
         raise AssertionError(
-            f"{path}: pipeline_tag must be 'other' for layout generation, got {pipeline_tag!r}"
+            f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
 
     bad_task = re.search(
@@ -364,8 +367,9 @@ def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
     task_types = re.findall(
         r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
     )
-    if "other" not in task_types and "model-index:" in frontmatter:
-        raise AssertionError(f"{path}: model-index task.type must be 'other'")
+    expected_task = EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
+    if expected_task not in task_types and "model-index:" in frontmatter:
+        raise AssertionError(f"{path}: model-index task.type must be {expected_task!r}")
 
 
 def assert_model_index_policy(path: Path, frontmatter: str) -> None:
