@@ -42,7 +42,7 @@ model-index:
 
 This package ports the image encoder and decoder from [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), the ICCV 2021 vector-document VAE, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package. Its MobileNetV2 encoder maps 256 × 256 RGBA previews to the 256-dimensional posterior mean used by CanvasVAE document records. The package is a separate workspace member so it can be converted, serialized, and parity-checked independently before the document model consumes it.
 
-CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch: all 17 held-out metrics met their frozen per-metric limits, and state mapping, decode, and encoder save/load checks passed. This verifies conversion only; no trained-checkpoint or embedding-quality result is claimed. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the evidence and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md) for the shared Crello input and output contract.
+CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch: all 17 held-out metrics met their frozen per-metric limits, and state mapping, decode, and encoder save/load checks passed. The package also provides a Lightning training recipe that matches the original objective and optimizer settings; no trained-checkpoint or embedding-quality result is claimed. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the recipe and evidence and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md) for the shared Crello input and output contract.
 
 ## Model Details
 
@@ -146,15 +146,23 @@ Original-code parity uses [crello-dataset-v1.zip](https://storage.googleapis.com
 
 ### Training Procedure
 
-This package does not include a package-local training loop or a trained checkpoint. It supports checkpoint conversion and CPU parity; GPU training, full-run evaluation, and S5 are out of scope.
+This package includes a Lightning training module and a `traingen` configuration. Full training and trained-checkpoint evaluation have not been run, so no S5 result or trained model is claimed.
 
 #### Preprocessing
 
-Decode every document-stage `image_bytes` PNG to RGBA at its original 256 × 256 dimensions, then map byte values to float32 `[0, 1]`. The encoder consumes all element types for document construction. Original PixelVAE training records select only `imageElement`, `maskElement`, and `svgElement`.
+The training data module reads the original image-record export under `.cache/pixel-vae/data/crello-image/`, which contains `count.json` and train/validation TFRecords with one `image` byte feature per example. The original transform selects only `imageElement`, `maskElement`, and `svgElement` and deduplicates identical PNG bytes within each split. The image processor decodes each selected PNG to its original 256 × 256 RGBA pixels and scales byte values to float32 `[0, 1]`.
 
 #### Training Hyperparameters
 
-- **Training regime:** not retrained; the original configuration uses batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6.
+- **Training regime:** batch size 64 for 250 epochs, `KerasAdam` at constant learning rate `1e-4`, KL weight 100, and L2 weight `1e-6`; validation selects the checkpoint with minimum reconstruction loss.
+
+Train from the repository root after preparing the filtered image-record export:
+
+```bash
+uv sync --package pixel-vae --extra training
+uv run --package pixel-vae --extra training traingen fit \
+  --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
+```
 
 ## Evaluation
 
@@ -198,7 +206,7 @@ The encoder uses Keras MobileNetV2 topology with a four-channel first convolutio
 
 #### Hardware
 
-The only verified runtime in this package is CPU; GPU training and S5 evaluation have no result and are not claimed.
+The existing model parity and serialization checks ran on CPU. No full GPU training or S5 evaluation result is claimed.
 
 #### Software
 
