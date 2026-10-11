@@ -329,6 +329,31 @@ def test_decode_space_restrictions() -> None:
     )
     assert torch.equal(unchanged, logits)
 
+    valid_geometry = torch.tensor(
+        [
+            [
+                config.bos_token_id,
+                0,
+                3,
+                4,
+                5,
+                6,
+                config.eos_token_id,
+                config.pad_token_id,
+            ]
+        ]
+    )
+    unrestricted_geometry = _apply_decode_space_restriction(
+        task="c",
+        step=3,
+        condition=valid_geometry,
+        logits=logits.clone(),
+        pad_id=config.pad_token_id,
+        eos_id=config.eos_token_id,
+        max_length=config.max_token_length,
+    )
+    assert torch.equal(unrestricted_geometry, logits)
+
     post_padding_geometry = _apply_decode_space_restriction(
         task="c",
         step=2,

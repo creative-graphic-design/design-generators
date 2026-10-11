@@ -1145,9 +1145,26 @@ def _apply_decode_space_restriction(
     max_length: int,
 ) -> Float[torch.Tensor, "batch vocab"]:
     if task in {"c", "cwh"}:
+        positions = torch.arange(
+            condition.size(1) if condition is not None else 0,
+            device=condition.device if condition is not None else logits.device,
+        )
+        attributes = (positions - 1).remainder(5)
+        constrained = attributes.eq(0) | (
+            (task == "cwh") & (attributes.eq(1) | attributes.eq(2))
+        )
+        restriction_condition = (
+            condition
+            if condition is None
+            else condition.masked_fill(
+                condition.ne(pad_id) & ~constrained,
+                -1,
+            )
+        )
+
         return _restrict_reliable_label_or_size(
             sampling_idx=step + 1,
-            condition=condition,
+            condition=restriction_condition,
             logits=logits,
             pad_id=pad_id,
             eos_id=eos_id,
