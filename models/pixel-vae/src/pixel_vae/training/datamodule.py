@@ -7,7 +7,7 @@ import math
 from collections.abc import Iterator, Mapping, Sequence
 from itertools import islice
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias, cast
 
 import lightning as L
 from torch.utils.data import DataLoader, IterableDataset
@@ -16,6 +16,10 @@ from tfrecord.iterator_utils import shuffle_iterator
 from tfrecord.reader import tfrecord_loader
 
 from ..image_processing_pixel_vae import PixelVAEImageProcessor
+
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
 
 
 class _PixelVAERecordDataset(IterableDataset[bytes]):
@@ -120,7 +124,9 @@ class PixelVAEDataModule(L.LightningDataModule):
 
         count_path = self.data_dir / "count.json"
         try:
-            raw_counts = json.loads(count_path.read_text(encoding="utf-8"))
+            raw_counts = cast(
+                JsonValue, json.loads(count_path.read_text(encoding="utf-8"))
+            )
         except FileNotFoundError as error:
             raise FileNotFoundError(
                 f"missing PixelVAE split counts: {count_path}"
@@ -129,11 +135,9 @@ class PixelVAEDataModule(L.LightningDataModule):
         if not isinstance(raw_counts, dict):
             raise ValueError("count.json must contain a split-to-count object")
 
-        counts = cast(dict[str, object], raw_counts)
-
         datasets: dict[str, _PixelVAERecordDataset] = {}
         for split in ("train", "val"):
-            count = counts.get(split)
+            count = raw_counts.get(split)
             if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
                 raise ValueError(f"count.json must contain a positive {split} count")
 
