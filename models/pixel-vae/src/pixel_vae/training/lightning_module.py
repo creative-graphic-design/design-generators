@@ -37,7 +37,9 @@ class PixelVAETrainingModule(L.LightningModule):
         )
 
     def training_step(
-        self, batch: Mapping[str, torch.Tensor], batch_idx: int
+        self,
+        batch: Mapping[str, Float[torch.Tensor, "batch 4 256 256"]],
+        batch_idx: int,
     ) -> Float[torch.Tensor, ""]:
         """Return and log the source objective for one image batch."""
         del batch_idx
@@ -62,7 +64,9 @@ class PixelVAETrainingModule(L.LightningModule):
         return output.loss
 
     def validation_step(
-        self, batch: Mapping[str, torch.Tensor], batch_idx: int
+        self,
+        batch: Mapping[str, Float[torch.Tensor, "batch 4 256 256"]],
+        batch_idx: int,
     ) -> None:
         """Log source validation reconstruction for best-checkpoint selection."""
         del batch_idx
