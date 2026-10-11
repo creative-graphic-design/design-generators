@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator, Mapping
 from io import BytesIO
+from itertools import islice
 from pathlib import Path
 from typing import cast
 
@@ -94,6 +95,43 @@ def test_datamodule_repeats_full_batches_and_shuffles_only_training(
     assert len(repeated_train_batches) == 2
     val_pixels = cast(BatchFeature, val_batches[0])["pixel_values"]
     assert torch.allclose(val_pixels[:, 0, 0, 0], torch.tensor([10, 20]) / 255)
+
+
+@pytest.mark.training
+def test_datamodule_deduplicates_to_crello_v1_split_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counts = {"train": 89_545, "val": 11_690, "test": 11_428}
+    data_dir = _prepared_data_dir(tmp_path, counts)
+
+    def load(
+        path: str, index_path: str | None, description: dict[str, str]
+    ) -> Iterator[dict[str, bytes]]:
+        assert index_path is None
+        assert description == {"image": "byte"}
+        count = counts[Path(path).name.split("-", maxsplit=1)[0]]
+        return (
+            {"image": image}
+            for value in range(count)
+            for image in (value.to_bytes(4, "big"), value.to_bytes(4, "big"))
+        )
+
+    monkeypatch.setattr(datamodule, "tfrecord_loader", load)
+    monkeypatch.setattr(datamodule, "shuffle_iterator", lambda records, _size: records)
+    data = PixelVAEDataModule(str(data_dir), batch_size=64)
+    data.setup("fit")
+
+    assert data.datasets["train"].record_count == 89_545
+    assert data.datasets["val"].record_count == 11_690
+    assert len(data.datasets["train"]) // 64 == 1_400
+    assert len(data.datasets["val"]) // 64 == 183
+
+    for split in ("train", "val"):
+        count = counts[split]
+        records = list(islice(iter(data.datasets[split]), count + 1))
+
+        assert len(set(records[:-1])) == count
+        assert records[-1] == records[0]
 
 
 @pytest.mark.training
