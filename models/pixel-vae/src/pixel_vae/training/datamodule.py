@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Iterator, Mapping, Sequence
+from hashlib import sha256
 from itertools import islice
 from pathlib import Path
 from typing import TypeAlias, cast
@@ -53,33 +54,35 @@ class _PixelVAERecordDataset(IterableDataset[bytes]):
 
     def _repeat_records(self) -> Iterator[bytes]:
         while True:
-            records = self._records()
+            records = self._checked_pass(self._records())
             if self.shuffle:
                 records = shuffle_iterator(records, self.record_count)
 
-            yield from self._checked_pass(records)
+            yield from records
 
     def _checked_pass(self, records: Iterator[Mapping[str, bytes]]) -> Iterator[bytes]:
-        for _ in range(self.record_count):
-            try:
-                record = next(records)
-            except StopIteration as error:
-                raise ValueError(
-                    "count.json record count exceeds the TFRecord contents"
-                ) from error
-
+        seen: set[bytes] = set()
+        for record in records:
             image = record.get("image")
             if not isinstance(image, bytes):
                 raise ValueError("PixelVAE TFRecord image feature must contain bytes")
 
+            image_hash = sha256(image).digest()
+            if image_hash in seen:
+                continue
+
+            seen.add(image_hash)
+            if len(seen) > self.record_count:
+                raise ValueError(
+                    "count.json record count is smaller than unique TFRecord contents"
+                )
+
             yield image
 
-        try:
-            next(records)
-        except StopIteration:
-            return
-
-        raise ValueError("count.json record count is smaller than TFRecord contents")
+        if len(seen) < self.record_count:
+            raise ValueError(
+                "count.json record count exceeds unique TFRecord contents"
+            )
 
     def _records(self) -> Iterator[Mapping[str, bytes]]:
         for path in self.record_paths:
