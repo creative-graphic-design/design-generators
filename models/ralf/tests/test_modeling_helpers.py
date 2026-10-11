@@ -328,3 +328,15 @@ def test_decode_space_restrictions() -> None:
         max_length=config.max_token_length,
     )
     assert torch.equal(unchanged, logits)
+
+    post_padding_geometry = _apply_decode_space_restriction(
+        task="c",
+        step=2,
+        condition=condition,
+        logits=logits.clone(),
+        pad_id=config.pad_token_id,
+        eos_id=config.eos_token_id,
+        max_length=config.max_token_length,
+    )
+    assert torch.isfinite(post_padding_geometry[0, config.eos_token_id])
+    assert post_padding_geometry[0].isneginf().sum().item() == config.vocab_size - 1

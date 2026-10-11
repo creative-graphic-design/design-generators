@@ -727,7 +727,7 @@ def vendor_prediction_dir(
             f"cond_type={CONDITIONS[args.condition]}",
             "test_split=test",
             "+num_workers=2" if args.condition == "relation" else "+num_workers=0",
-            f"num_seeds={len(INFERENCE_SEEDS)}",
+            f"num_seeds={args.seed + 1 if args.seed is not None else len(INFERENCE_SEEDS)}",
             "+run_on_local=True",
         ]
     )

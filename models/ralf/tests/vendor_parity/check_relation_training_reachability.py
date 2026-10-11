@@ -18,6 +18,8 @@ SHARED_MODEL_MODULES = {"ralf.modeling_ralf"}
 INFERENCE_ONLY_MODEL_SYMBOLS = {
     "_apply_decode_space_restriction",
     "_generate_sequences",
+    "_restrict_only_category",
+    "_restrict_reliable_label_or_size",
     "multinomial",
 }
 
@@ -107,19 +109,22 @@ def modeling_inference_calls() -> set[str]:
     """Return inference-only modeling symbols reachable from model.forward."""
     module = "ralf.modeling_ralf"
     tree = ast.parse(module_path(module).read_text(encoding="utf-8"))
-    methods: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
-    for node in tree.body:
-        if (
-            isinstance(node, ast.ClassDef)
-            and node.name == "RalfForConditionalLayoutGeneration"
-        ):
-            methods.update(
-                {
-                    node_item.name: node_item
-                    for node_item in node.body
-                    if isinstance(node_item, (ast.FunctionDef, ast.AsyncFunctionDef))
-                }
-            )
+    methods = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    model = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and node.name == "RalfForConditionalLayoutGeneration"
+    )
+    model_methods = {
+        node.name
+        for node in model.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
 
     reachable: set[str] = set()
     pending = ["forward"]
@@ -140,13 +145,15 @@ def modeling_inference_calls() -> set[str]:
                 and isinstance(call.func.value, ast.Name)
                 and call.func.value.id == "self"
             ):
-                if call.func.attr in INFERENCE_ONLY_MODEL_SYMBOLS:
-                    found.add(call.func.attr)
-                pending.append(call.func.attr)
-            elif isinstance(call.func, ast.Name) and call.func.id in (
-                INFERENCE_ONLY_MODEL_SYMBOLS - {"_generate_sequences"}
-            ):
-                found.add(call.func.id)
+                target = call.func.attr
+            elif isinstance(call.func, ast.Name):
+                target = call.func.id
+            else:
+                continue
+            if target in INFERENCE_ONLY_MODEL_SYMBOLS:
+                found.add(target)
+            if target in model_methods or target in methods:
+                pending.append(target)
     return found
 
 
