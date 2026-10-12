@@ -315,11 +315,10 @@ fit_args=(
 if [[ -n "$resume_path" ]]; then
     fit_args+=(--ckpt_path "$resume_path")
 fi
+TIMEFORMAT='%3R %P'
 set +e
-/usr/bin/time -f '%e %P' -o "$time_file" \
-    uv run --locked --package pixel-vae --extra training traingen fit \
-    "${fit_args[@]}" \
-    >>"$private_log" 2>&1
+{ time uv run --locked --package pixel-vae --extra training traingen fit \
+    "${fit_args[@]}" >>"$private_log" 2>&1; } 2>"$time_file"
 train_status=$?
 set -e
 stop_sampler
