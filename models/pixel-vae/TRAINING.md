@@ -41,7 +41,7 @@ Training configs live under `models/pixel-vae/configs/training/`.
 
 ## Scheduler and Recipe Notes
 
-The package uses batch size 64 for 250 epochs, `KerasAdam` at a constant learning rate of `1e-4`, KL weight 100, L2 weight `1e-6`, float32, and validation after every epoch. The shared PixelVAE model computes the alpha-masked RGB and alpha reconstruction objective, weighted KL divergence, and variational-head L2 penalty. The best checkpoint minimizes `val_reconstruction`; only its weights are saved.
+The package uses batch size 64 for 250 epochs, `KerasAdam` at a constant learning rate of `1e-4`, KL weight 100, L2 weight `1e-6`, float32, and validation after every epoch. The shared PixelVAE model computes the alpha-masked RGB and alpha reconstruction objective, weighted KL divergence, and variational-head L2 penalty. The best checkpoint minimizes `val_reconstruction` and stores weights only; a separate full-state `last.ckpt` stores optimizer and epoch state at every epoch boundary for resuming segmented runs.
 
 The original image-record transform selects `imageElement`, `maskElement`, and `svgElement` images, then deduplicates identical PNG bytes within each split. [The Crello amendment records this selection.](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6065470695)
 
@@ -114,4 +114,6 @@ uv run --package pixel-vae --extra training traingen fit \
   --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
 ```
 
-The selected checkpoint is saved under `.cache/pixel-vae/training-runs/crello/`. Full training and S5 evaluation are pending; this command has not been run for a full reproduction.
+For a full GPU run, use the [segmented Crello job script](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/scripts/run_crello_training_segment.sh) through `colab-gpu-run`. Name each job `pixelvae-<40-hex-source-sha>-e<3-digit-epoch>-a<unique-attempt-id>` and use target epochs 010, 060, 110, 160, 210, and 250. The first 10-epoch segment records GPU utilization and power, CPU use, and measured training time as part of the package run. Each later segment downloads both `last.ckpt` and `best.ckpt` from the preceding attempt so Lightning can resume optimizer state and keep the best-checkpoint selection history. Declare the commit-pinned source archive as `--hub-input source=...` and pass the data export as one staged tar through `--hub-input data_tar=...`; the tar root contains `count.json` and the train/validation TFRecord shards. The script keeps raw training output out of upload paths until it passes a scan for Hugging Face token-shaped strings (`hf_` followed by at least 20 letters or digits); its wrapper log contains only the checked summary and is scanned before final upload.
+
+The direct `traingen fit` command above runs the full 250-epoch config in one process; its selected best checkpoint is saved under `.cache/pixel-vae/training-runs/crello/`. Full training and S5 evaluation are pending, so trained-checkpoint reproduction is not claimed.
