@@ -52,13 +52,15 @@ CACHE = ROOT / ".cache" / "ds-gan"
 EVIDENCE_ROOT = CACHE / "stage-evidence"
 EVIDENCE_RUN = os.environ.get("DSGAN_EVIDENCE_RUN")
 EVIDENCE = EVIDENCE_ROOT / EVIDENCE_RUN if EVIDENCE_RUN else EVIDENCE_ROOT
+LOCALIZATION_REFERENCE_RUN = os.environ.get(
+    "DSGAN_LOCALIZATION_REFERENCE_RUN", "round-5"
+)
 TRAINING_BATCH_SIZE = 128
 TEST_BATCH_SIZE = 4
 MAX_ELEM = 32
 SEED = 0
 TRAIN_BATCHES_PER_EPOCH = 78
 LOCKSTEP_STEPS = 300
-SYNCHRONIZED_LOCALIZATION_STEP = 4
 S2_SELF_REPEATS = 12
 S1_SELF_REPEATS = 12
 S1_LOSS_COMPONENTS = ("loss_ce", "loss_bbox", "loss_giou")
@@ -3976,6 +3978,30 @@ def _inside_larger_self_envelope(
     )
 
 
+def _synchronized_row_passes_declared_rule(row: dict[str, Any]) -> bool:
+    return (
+        row["self_pair_restored_from_pre_step"]
+        and all(
+            row["repeat_run_envelope"][field]["cross_inside_larger_self_envelope"]
+            for field in ("trace", "gradients", "optimizer_state", "parameters")
+        )
+        and row["rng_equal_after_resynchronization"]
+        and row["repeat_rng_equal_after_resynchronization"]
+        and row["scheduler"]["vendor"] == row["scheduler"]["package"]
+        and row["repeat_scheduler"]["vendor"] == row["repeat_scheduler"]["package"]
+    )
+
+
+def _first_declared_failure_step(trace_path: Path) -> int:
+    with trace_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            row = cast(dict[str, Any], json.loads(line))
+            if not _synchronized_row_passes_declared_rule(row):
+                return int(row["step"])
+
+    raise RuntimeError(f"no declared synchronized failure in {trace_path}")
+
+
 def _state_max_summary(
     reference: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
 ) -> dict[str, float]:
@@ -4103,7 +4129,7 @@ def _localize_synchronized_step(
         first_forward_difference = forward_comparison["first_difference"]
         first_gradient_difference = gradient_comparison["first_difference"]
         tensor_artifact = (
-            EVIDENCE / "s3-lockstep-synchronized" / "step-4-localization.pt"
+            EVIDENCE / "s3-lockstep-synchronized" / f"step-{step}-localization.pt"
         )
         _write_tensor_artifact(
             tensor_artifact,
@@ -4512,6 +4538,12 @@ def run_s3_synchronized() -> Path:
     loader_alignments = [{"epoch": 1, **loader_alignment}]
     rows: list[dict[str, Any]] = []
     pre_synchronization_mismatches = 0
+    localization_step = _first_declared_failure_step(
+        EVIDENCE_ROOT
+        / LOCALIZATION_REFERENCE_RUN
+        / "s3-lockstep-synchronized"
+        / "trace.jsonl"
+    )
     for step in range(1, LOCKSTEP_STEPS + 1):
         epoch = (step - 1) // TRAIN_BATCHES_PER_EPOCH + 1
         if step > 1 and (step - 1) % TRAIN_BATCHES_PER_EPOCH == 0:
@@ -4528,7 +4560,7 @@ def run_s3_synchronized() -> Path:
                 key: value.detach().clone() for key, value in vendor_batch.items()
             }
         localization = None
-        if step == SYNCHRONIZED_LOCALIZATION_STEP:
+        if step == localization_step:
             localization = _localize_synchronized_step(
                 vendor_generator,
                 vendor_discriminator,
@@ -4567,7 +4599,7 @@ def run_s3_synchronized() -> Path:
             ),
         }
         if localization is not None:
-            row["step_4_localization"] = localization
+            row[f"step_{step}_localization"] = localization
         rows.append(row)
         if step % TRAIN_BATCHES_PER_EPOCH == 0:
             for scheduler in (*vendor_schedulers, *package_schedulers):
@@ -4635,24 +4667,7 @@ def run_s3_synchronized() -> Path:
         trace_envelope_pass and rng_pass and scheduler_pass and numeric_envelope_pass
     )
     first_divergence = next(
-        (
-            row
-            for row in rows
-            if not (
-                row["self_pair_restored_from_pre_step"]
-                and all(
-                    row["repeat_run_envelope"][field][
-                        "cross_inside_larger_self_envelope"
-                    ]
-                    for field in ("trace", "gradients", "optimizer_state", "parameters")
-                )
-                and row["rng_equal_after_resynchronization"]
-                and row["repeat_rng_equal_after_resynchronization"]
-                and row["scheduler"]["vendor"] == row["scheduler"]["package"]
-                and row["repeat_scheduler"]["vendor"]
-                == row["repeat_scheduler"]["package"]
-            )
-        ),
+        (row for row in rows if not _synchronized_row_passes_declared_rule(row)),
         None,
     )
     return _write(
@@ -4663,6 +4678,15 @@ def run_s3_synchronized() -> Path:
             "evidence_layer": "synchronized",
             "result": "PASS" if passed else "FAIL",
             "steps": len(rows),
+            "localization_reference_trace": str(
+                (
+                    EVIDENCE_ROOT
+                    / LOCALIZATION_REFERENCE_RUN
+                    / "s3-lockstep-synchronized"
+                    / "trace.jsonl"
+                ).relative_to(ROOT)
+            ),
+            "localization_step": localization_step,
             "first_divergence": first_divergence,
             "trace": str(trace_path.relative_to(ROOT)),
             "per_step_equivalence": {
