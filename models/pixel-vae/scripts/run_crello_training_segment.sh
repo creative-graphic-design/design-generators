@@ -156,15 +156,6 @@ shutil.copyfile(downloaded, target)
 PY
 }
 
-uv_install_dir="$work_root/uv-bin"
-if ! uv_version="$(uv --version 2>/dev/null)" || [[ ! "$uv_version" =~ ^uv[[:space:]]0\.12\.22([[:space:]]|$) ]]; then
-    mkdir -p "$uv_install_dir"
-    run_logged bash -o pipefail -c '
-        curl --fail --silent --show-error --location https://astral.sh/uv/0.12.22/install.sh |
-            env UV_UNMANAGED_INSTALL="$1" sh
-    ' _ "$uv_install_dir"
-fi
-export PATH="$uv_install_dir:$PATH"
 uv_version="$(uv --version 2>/dev/null)" || { printf 'uv 0.12.22 is required; uv is unavailable\n' >&2; exit 2; }
 [[ "$uv_version" =~ ^uv[[:space:]]0\.12\.22([[:space:]]|$) ]] || {
     printf 'uv 0.12.22 is required, found: %s\n' "$uv_version" >&2
