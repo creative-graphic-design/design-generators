@@ -17,7 +17,7 @@ git submodule update --init vendor/layout-dm
 This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+uv run --package layout-dm models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original
 ```
 
@@ -31,7 +31,7 @@ This writes local-only parity fixtures for each dataset:
 - `models/layout-dm/tests/vendor_parity/fixtures/<dataset>/meta.json`
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/rico25 \
@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor pytho
   --seed 0 \
   --batch-size 1
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset publaynet \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/publaynet \
@@ -72,12 +72,12 @@ Expected local output roots:
 ```
 
 ```bash
-uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25
 
-uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-publaynet
@@ -86,7 +86,7 @@ uv run --package layout-dm --extra convert python models/layout-dm/scripts/conve
 Smoke test both converted checkpoints:
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/smoke_from_pretrained.py \
+uv run --package layout-dm models/layout-dm/scripts/smoke_from_pretrained.py \
   --path .cache/layout-dm/converted/layoutdm-rico25 \
   --path .cache/layout-dm/converted/layoutdm-publaynet
 ```

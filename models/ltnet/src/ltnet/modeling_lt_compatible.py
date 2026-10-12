@@ -11,6 +11,8 @@ import torch
 import torch.nn as nn
 from jaxtyping import Bool, Float, Int
 
+from laygen.common.randomness import multinomial, randn
+
 from .configuration_ltnet import LTNetConfig
 
 
@@ -690,13 +692,9 @@ class GMMHead(nn.Module):
         if temp is not None:
             pi = self.adjust_temp(pi, temp)
         try:
-            sample_pi = pi
-            generator_device = None if generator is None else generator.device
-            if generator_device is not None:
-                sample_pi = pi.to(generator_device)
-            pi_idx = torch.multinomial(sample_pi, 1, generator=generator).cpu()
+            pi_idx = multinomial(pi, 1, generator=generator, device=torch.device("cpu"))
         except RuntimeError:
-            pi_idx = torch.multinomial(pi, 1)
+            pi_idx = multinomial(pi, 1, device=pi.device)
         except Exception:
             pi_idx = pi.argmax(1).unsqueeze(-1)
         u_x = torch.gather(u_x, dim=1, index=pi_idx)
@@ -767,7 +765,7 @@ class GMMHead(nn.Module):
             cov[idx, 0, 0] += 1.0
             cov[idx, 1, 1] += 1.0
 
-        noise = torch.randn(mean.shape, generator=generator, device=sample_device)
+        noise = randn(mean.shape, generator=generator, device=sample_device)
         sample = mean + torch.bmm(
             torch.linalg.cholesky(cov), noise.unsqueeze(-1)
         ).squeeze(-1)

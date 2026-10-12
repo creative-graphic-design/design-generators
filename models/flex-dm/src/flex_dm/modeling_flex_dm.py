@@ -13,6 +13,8 @@ from torch.nn import functional as F
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
+from laygen.nn import MultiHeadSelfAttention
+
 from .configuration_flex_dm import FlexDmColumnSpec, FlexDmConfig
 
 
@@ -178,49 +180,6 @@ class FlexDmInputEncoder(nn.Module):
         return hidden, seq_mask
 
 
-class FlexDmMultiHeadSelfAttention(nn.Module):
-    """Explicit explicit multi-head self-attention."""
-
-    def __init__(self, hidden_size: int, num_heads: int = 8) -> None:
-        """Create attention projections."""
-        super().__init__()
-        if hidden_size % num_heads:
-            raise ValueError("hidden_size must be divisible by num_heads")
-
-        self.num_heads = num_heads
-        self.head_dim = hidden_size // num_heads
-        self.q_proj = nn.Linear(hidden_size, hidden_size)
-        self.k_proj = nn.Linear(hidden_size, hidden_size)
-        self.v_proj = nn.Linear(hidden_size, hidden_size)
-        self.out_proj = nn.Linear(hidden_size, hidden_size)
-
-    def _split(
-        self, x: Float[torch.Tensor, "batch seq channels"]
-    ) -> Float[torch.Tensor, "batch heads seq head_dim"]:
-        batch, seq_len, hidden = x.shape
-        return x.view(
-            batch, seq_len, self.num_heads, hidden // self.num_heads
-        ).transpose(1, 2)
-
-    def forward(
-        self,
-        hidden_states: Float[torch.Tensor, "batch seq channels"],
-        attention_mask: Bool[torch.Tensor, "batch seq"],
-    ) -> Float[torch.Tensor, "batch seq channels"]:
-        """Apply self-attention using an additive ``-1e9`` padding mask."""
-        query = self._split(self.q_proj(hidden_states))
-        key = self._split(self.k_proj(hidden_states))
-        value = self._split(self.v_proj(hidden_states))
-        scores = torch.matmul(query, key.transpose(-2, -1)) / (self.head_dim**0.5)
-        additive = (~attention_mask).to(scores.device).unsqueeze(1).unsqueeze(2)
-        scores = scores.masked_fill(additive, -1e9)
-        weights = scores.softmax(dim=-1)
-        context = torch.matmul(weights, value).transpose(1, 2).contiguous()
-        batch, seq_len = hidden_states.shape[:2]
-        context = context.view(batch, seq_len, self.num_heads * self.head_dim)
-        return self.out_proj(context)
-
-
 class FlexDmDeepSvgBlock(nn.Module):
     """DeepSVG-style pre-norm transformer block."""
 
@@ -228,7 +187,7 @@ class FlexDmDeepSvgBlock(nn.Module):
         """Create one transformer block."""
         super().__init__()
         self.norm1 = nn.LayerNorm(config.latent_dim, eps=config.layer_norm_epsilon)
-        self.attention = FlexDmMultiHeadSelfAttention(config.latent_dim)
+        self.attention = MultiHeadSelfAttention(config.latent_dim, num_heads=8)
         self.norm2 = nn.LayerNorm(config.latent_dim, eps=config.layer_norm_epsilon)
         self.mlp = nn.Sequential(
             nn.Linear(config.latent_dim, config.latent_dim * 2),

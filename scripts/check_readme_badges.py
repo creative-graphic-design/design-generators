@@ -16,6 +16,7 @@ BADGE_RE = re.compile(
 )
 BADGE_DOCS = [
     REPO_ROOT / "README.md",
+    REPO_ROOT / "docs" / "index.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md")),
@@ -82,17 +83,23 @@ ROOT_VENUE_BADGE_COLORS = {
     "ECCV 2020": "009688",
     "ECCV 2024": "009688",
     "ICCV 2019": "0066cc",
+    "ICCV 2021": "0066cc",
     "ICCV 2023": "0066cc",
     "ICCV 2025": "0066cc",
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
 }
-ROOT_TASK_LEGEND_BADGE_COLORS = {
+ROOT_TASK_BADGE_COLORS = {
+    "task-agnostic": "2f80ed",
+    "task-aware": "9b51e0",
+    "single-task": "6b7280",
+    "evaluation": "6b7280",
+    "saliency": "f39c12",
+}
+ROOT_CONTENT_BADGE_COLORS = {
     "content-agnostic": "2f80ed",
     "content-aware": "eb5757",
-    "layout-evaluation": "6b7280",
-    "mixed": "9b51e0",
 }
 ROOT_LIBRARY_BADGE_COLORS = {
     "laygen": "2f80ed",
@@ -139,6 +146,7 @@ PAPER_LINKS = {
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2108.00871"): "https://arxiv.org/abs/2108.00871",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
+    ("arXiv", "2108.01249"): "https://arxiv.org/abs/2108.01249",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
     ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
@@ -187,7 +195,7 @@ class Badge:
 
 
 def _is_root_readme(path: Path) -> bool:
-    return path == REPO_ROOT / "README.md"
+    return path in {REPO_ROOT / "README.md", REPO_ROOT / "docs" / "index.md"}
 
 
 def _semantic_label(alt: str, query_label: str) -> str:
@@ -197,18 +205,6 @@ def _semantic_label(alt: str, query_label: str) -> str:
             f"badge with label=> must use '<semantic label>: ...' alt text: {alt!r}"
         )
 
-    semantic_alt_prefixes = {
-        "checkpoint",
-        "dataset",
-        "framework",
-        "library",
-        "model",
-        "task",
-        "training",
-        "venue",
-    }
-    if separator and alt_prefix in semantic_alt_prefixes:
-        return alt_prefix
     return alt_prefix
 
 
@@ -255,6 +251,9 @@ def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | Non
         return {None}
 
     if label == "task":
+        return {None}
+
+    if label == "content":
         return {None}
 
     if label == "framework":
@@ -318,8 +317,13 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
         return "blue"
 
     if label == "task":
-        if _is_root_readme(path) and message in ROOT_TASK_LEGEND_BADGE_COLORS:
-            return ROOT_TASK_LEGEND_BADGE_COLORS[message]
+        if _is_root_readme(path) and message in ROOT_TASK_BADGE_COLORS:
+            return ROOT_TASK_BADGE_COLORS[message]
+        return "purple"
+
+    if label == "content":
+        if _is_root_readme(path) and message in ROOT_CONTENT_BADGE_COLORS:
+            return ROOT_CONTENT_BADGE_COLORS[message]
         return "purple"
 
     if label == "framework" and message:
@@ -498,7 +502,11 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        return f"lib/{badge.message}/README.md"
+        return (
+            f"api/libraries/{badge.message}/"
+            if badge.path == REPO_ROOT / "docs" / "index.md"
+            else f"lib/{badge.message}/README.md"
+        )
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]
     return None

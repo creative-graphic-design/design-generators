@@ -217,7 +217,7 @@ def test_full_generation_reference_json_is_validated_when_present() -> None:
             "PosterLLaVA full-generation reference JSON is not present.",
             missing_paths=[REFERENCE_JSON],
             regeneration_hint=(
-                "uv run --package posterllava python "
+                "uv run --package posterllava "
                 "models/posterllava/scripts/generate_reference_outputs.py --help"
             ),
         )

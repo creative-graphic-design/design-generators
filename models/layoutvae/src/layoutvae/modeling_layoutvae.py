@@ -14,6 +14,7 @@ from transformers.utils import ModelOutput
 
 from laygen.common.bbox import clamp_boxes, ltwh_to_xywh
 from laygen.common.enums import normalize_enum_value
+from laygen.common.randomness import poisson, rand, randn
 
 from .configuration_layoutvae import LayoutVAEConfig
 
@@ -253,9 +254,7 @@ def _sample_diag_gaussian(
     generator: torch.Generator | None,
 ) -> Float[torch.Tensor, "batch latent"]:
     std = torch.exp(logvar / 2)
-    eps = torch.randn(
-        std.shape, generator=generator, device=std.device, dtype=std.dtype
-    )
+    eps = randn(std.shape, generator=generator, device=std.device, dtype=std.dtype)
     return eps * std + mu
 
 
@@ -301,7 +300,7 @@ class CountVAEModel(nn.Module):
             q = (
                 samples[:, i].view(-1, 1)
                 if samples is not None
-                else torch.poisson(rate, generator=generator)
+                else poisson(rate, generator=generator, device=rate.device)
             )
             previous_counts = previous_counts + current_label * (
                 q.view(-1, 1) + x_i.view(-1, 1)
@@ -374,7 +373,7 @@ class BboxVAEModel(nn.Module):
             )
             decoded = self.decoder((embedding, z))
             if output_noise is None:
-                eps = torch.rand(
+                eps = rand(
                     decoded.shape,
                     generator=generator,
                     device=decoded.device,

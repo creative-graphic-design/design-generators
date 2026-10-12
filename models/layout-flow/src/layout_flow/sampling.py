@@ -8,6 +8,8 @@ from typing import assert_never
 import torch
 from jaxtyping import Float, Int
 
+from laygen.common.randomness import rand, randn
+
 
 class InitialDistribution(StrEnum):
     """Supported initial-state distributions."""
@@ -53,7 +55,7 @@ def sample_initial_state(
     device = torch.device(device) if device is not None else lengths.device
     dist = InitialDistribution(distribution)
     if dist is InitialDistribution.gaussian:
-        sample = torch.randn(
+        sample = randn(
             batch_size,
             max_length,
             dim,
@@ -64,7 +66,7 @@ def sample_initial_state(
     elif dist is InitialDistribution.uniform:
         sample = (
             2
-            * torch.rand(
+            * rand(
                 batch_size,
                 max_length,
                 dim,

@@ -30,11 +30,13 @@ vendor-tf = [
     "selenium",
     "tinycss",
     "tqdm",
+    "traingen-parity",
 ]
 
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "transformers"

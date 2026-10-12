@@ -28,6 +28,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LACE
 
 [![OpenReview](https://img.shields.io/static/v1?label=OpenReview&message=kJ0qp9Xdsh&color=blue&style=flat-square)](https://openreview.net/forum?id=kJ0qp9Xdsh)
@@ -50,7 +52,7 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 
 - **Developed by:** Jian Chen et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -61,11 +63,11 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published; denoiser forward exact-match parity only |
-| RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public original-implementation checkpoint not present in model.tar.gz |
-| RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published; denoiser forward exact-match parity only |
+| Checkpoint | Hub ID                                                                                                    | Status                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| PubLayNet  | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published; denoiser forward exact-match parity only                        |
+| RICO13     | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13)       | planned; public original-implementation checkpoint not present in model.tar.gz |
+| RICO25     | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25)       | not-published; denoiser forward exact-match parity only                        |
 
 ## Uses
 
@@ -75,18 +77,18 @@ Use this package for research inference, conversion checks, and agreement checks
 
 LACE runs unconditional, label-conditioned, label-size-conditioned, completion, and refinement generation from converted PubLayNet and RICO checkpoints. `beautify=True` applies the aesthetic-constraint post-optimization used by the package.
 
-| `condition_type` | Required inputs | Effect |
-| --- | --- | --- |
-| `unconditional` | none | samples all labels and boxes |
-| `label` | `labels`, `bbox`, optional `mask` | keeps labels fixed and samples geometry |
-| `label_size` | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed |
-| `completion` | `labels`, `bbox`, optional `mask` | preserves a random valid subset and fills the rest |
-| `refinement` | `labels`, `bbox`, optional `mask` | starts from a noised layout and refines it |
+| `condition_type` | Required inputs                   | Effect                                             |
+| ---------------- | --------------------------------- | -------------------------------------------------- |
+| `unconditional`  | none                              | samples all labels and boxes                       |
+| `label`          | `labels`, `bbox`, optional `mask` | keeps labels fixed and samples geometry            |
+| `label_size`     | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed               |
+| `completion`     | `labels`, `bbox`, optional `mask` | preserves a random valid subset and fills the rest |
+| `refinement`     | `labels`, `bbox`, optional `mask` | starts from a noised layout and refines it         |
 
 Local original checkpoints can be converted with:
 
 ```bash
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
+uv run --package lace models/lace/scripts/convert_checkpoint.py \
   --dataset publaynet \
   --checkpoint .cache/lace/original/model/publaynet_best.pt \
   --output .cache/lace/converted/lace-publaynet
@@ -141,6 +143,13 @@ print(out.id2label[int(out.labels[out.mask][0])])
 print(out.mask.any().item())
 ```
 
+```text
+torch.Size([1, 25, 4])
+torch.Size([1, 25])
+text
+True
+```
+
 ```python
 out = pipe(
     condition_type="label_size",
@@ -157,17 +166,17 @@ print(out.bbox.shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | original-source-derived RICO13 mapping |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | original-source-derived RICO13 mapping                   |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
-The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.
+The original LACE project trains on PubLayNet and RICO25 annotations prepared as max-25 layout sequences. RICO13 remains outside the package-local training claim because the approved archive has no authors' RICO13 checkpoint.
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Package-local reproduction passes the asserted staged gates for PubLayNet and RICO25 through the full TEST evaluation path; full-run statistical reproduction is not claimed. The final-head commands and machine-written evidence are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/TRAINING.md), and full-run reproduction is outside [issue 423](https://github.com/creative-graphic-design/design-generators/issues/423)'s scope.
 
 #### Preprocessing
 
@@ -175,7 +184,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** package-local training and exact agreement checks pass through the full TEST evaluation path for PubLayNet and RICO25; full-run statistical training is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -199,10 +208,10 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Test | Shape | Max abs | rtol | atol |
-| --- | --- | ---: | ---: | ---: | ---: |
-| PubLayNet | Denoiser logits | `(2, 25, 10)` | 0.0 | 0 | 0 |
-| Rico25 | Denoiser logits | `(2, 25, 30)` | 0.0 | 0 | 0 |
+| Dataset   | Test            |         Shape | Max abs | rtol | atol |
+| --------- | --------------- | ------------: | ------: | ---: | ---: |
+| PubLayNet | Denoiser logits | `(2, 25, 10)` |     0.0 |    0 |    0 |
+| Rico25    | Denoiser logits | `(2, 25, 30)` |     0.0 |    0 |    0 |
 
 Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion agreement checks are skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied, because the public `model.tar.gz` archive contains only `publaynet_best.pt` and `rico25_best.pt`. The committed agreement-check tests cover only the denoiser forward path; sampler loops, `beautify`, and conditional generation modes are not verified against the original implementation.
 
@@ -210,10 +219,9 @@ Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion agreemen
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
-
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+Package-local training support exists, but this PR did not perform full-run model training. Conversion, agreement checks, and any future training costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -255,3 +263,5 @@ Vendor links:
     url={https://openreview.net/forum?id=kJ0qp9Xdsh}
 }
 ```
+
+<!-- --8<-- [end:card] -->

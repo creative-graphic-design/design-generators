@@ -7,7 +7,7 @@ Workflow order: download assets, generate references, convert checkpoints, run p
 ## Download Original Assets
 
 ```bash
-uv run --package smarttext --extra download python models/smarttext/scripts/download_original_assets.py \
+uv run --package smarttext --extra download models/smarttext/scripts/download_original_assets.py \
   --output-dir .cache/smarttext/original \
   --download
 ```
@@ -35,7 +35,7 @@ The script sets `torch.use_deterministic_algorithms(True)`, disables TF32, disab
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=2 \
-  uv run --package smarttext --extra vendor python models/smarttext/scripts/generate_reference_outputs.py \
+  uv run --package smarttext --extra vendor models/smarttext/scripts/generate_reference_outputs.py \
   --vendor-dir vendor/smarttext \
   --smt-checkpoint .cache/smarttext/original/SMT.pth \
   --basnet-checkpoint .cache/smarttext/original/gdi-basnet.pth \
@@ -49,7 +49,7 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=
 ## Convert Checkpoints
 
 ```bash
-uv run --package smarttext --extra convert python models/smarttext/scripts/convert_original_checkpoint.py \
+uv run --package smarttext --extra convert models/smarttext/scripts/convert_original_checkpoint.py \
   --smt-checkpoint .cache/smarttext/original/SMT.pth \
   --basnet-checkpoint .cache/smarttext/original/gdi-basnet.pth \
   --output-dir .cache/smarttext/converted/smarttext-smt
@@ -71,6 +71,6 @@ case_count=3, candidate_total=43, saliency_max_abs_diff=0.0, scores_max_abs_diff
 ## Run From-Pretrained Smoke
 
 ```bash
-uv run --package smarttext python models/smarttext/scripts/smoke_from_pretrained.py \
+uv run --package smarttext models/smarttext/scripts/smoke_from_pretrained.py \
   --checkpoint-dir .cache/smarttext/converted/smarttext-smt
 ```

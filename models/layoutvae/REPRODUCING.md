@@ -21,7 +21,7 @@ git submodule update --init vendor/layout-generation-baselines
 Generate reference goldens under `.cache/layoutvae/reference`. The script loads the released `countvae.h5` and `bboxvae.h5` modules through the original source shim, fixes count latents, count Poisson samples, box latents, and box output noise, then writes the original-module forward outputs to `fixed_forward.pt`.
 
 ```bash
-uv run --package layoutvae python models/layoutvae/scripts/save_reference_outputs.py \
+uv run --package layoutvae models/layoutvae/scripts/save_reference_outputs.py \
   --source-root vendor/layout-generation-baselines/LayoutVAE \
   --output-dir .cache/layoutvae/reference
 ```
@@ -45,7 +45,7 @@ The parity suite verifies state-dict conversion for 74 tensors and fixed-latent 
 Convert the released checkpoint files into standard `config.json`, `model.safetensors`, `preprocessor_config.json`, and `README.md` artifacts.
 
 ```bash
-uv run --package layoutvae python models/layoutvae/scripts/convert_original_checkpoint.py \
+uv run --package layoutvae models/layoutvae/scripts/convert_original_checkpoint.py \
   --output-dir .cache/layoutvae/converted/layoutvae-publaynet
 ```
 

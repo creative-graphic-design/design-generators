@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
-import sys
+import tempfile
 import textwrap
 from dataclasses import dataclass
 
@@ -23,6 +24,17 @@ class TrainingImportContract:
 
 
 CONTRACTS = (
+    TrainingImportContract(
+        package_name="canvas_vae",
+        training_module="canvas_vae.training",
+        eager_exports=("CrossEpochBatchSampler", "KerasAdam"),
+        lightning_exports=("CanvasVAEDataModule", "CanvasVAETrainingModule"),
+        optional_roots=("lightning",),
+        training_leaf_modules=(
+            "canvas_vae.training.datamodule",
+            "canvas_vae.training.lightning_module",
+        ),
+    ),
     TrainingImportContract(
         package_name="cgb_dm",
         training_module="cgb_dm.training",
@@ -163,7 +175,25 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
         )
         """
     )
-    subprocess.run([sys.executable, "-c", script], check=True)
+    environment = os.environ.copy()
+    with tempfile.TemporaryDirectory() as member_environment:
+        environment["UV_PROJECT_ENVIRONMENT"] = member_environment
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "--package",
+                contract.package_name.replace("_", "-"),
+                "--extra",
+                "training",
+                "python",
+                "-c",
+                script,
+            ],
+            check=True,
+            env=environment,
+        )
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=lambda value: value.package_name)

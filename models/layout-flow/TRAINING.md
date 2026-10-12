@@ -1,6 +1,6 @@
 # LayoutFlow Training
 
-This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity checks described in the [training reproduction protocol](docs/training-reproduction.md).
+This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity checks described in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md).
 
 Run commands from the repository root. Training data, generated checkpoints, CSV logs, and converted local pipelines stay under `.cache/layout-flow`.
 
@@ -86,8 +86,8 @@ RICO25 and PubLayNet full-run evidence is reported at `training-seed n=3` with t
 | S0 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Static state parity is exact on a synthetic PubLayNet-shaped batch. |
 | S1 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Fixed-batch pre-optimizer trace parity is exact on a synthetic PubLayNet-shaped batch. |
 | S2 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | One optimizer-step parity is exact on a synthetic PubLayNet-shaped batch. |
-| S3 | `CUDA_VISIBLE_DEVICES=2 CUBLAS_WORKSPACE_CONFIG=:4096:8 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning python models/layout-flow/scripts/training_stage_evidence.py s3-short-run` | `.cache/layout-flow/stage-evidence/s3-short-run/summary.json` | PASS on the PubLayNet fixture using GPU2 with seed 42975: 4 deterministic training steps, accumulation=2, gradient clipping=0.5, CSV logging, and three checkpoints were written; the scheduler probe records ReduceLROnPlateau monitor `FID_Layout` with frequency 20 while runtime scheduling remains disabled like current full-run commands. |
-| S4 | `PARITY_REQUIRE=1 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning python models/layout-flow/scripts/training_stage_evidence.py s4-loader-stream` | `.cache/layout-flow/stage-evidence/s4-loader-stream/summary.json` | PASS on PubLayNet fixture with seed 314159: 4 shuffled train batches and 2 validation batches match the original-implementation sample order, xywh transform, masks, padding, and class ids. |
+| S3 | `CUDA_VISIBLE_DEVICES=2 CUBLAS_WORKSPACE_CONFIG=:4096:8 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning models/layout-flow/scripts/training_stage_evidence.py s3-short-run` | `.cache/layout-flow/stage-evidence/s3-short-run/summary.json` | PASS on the PubLayNet fixture using GPU2 with seed 42975: 4 deterministic training steps, accumulation=2, gradient clipping=0.5, CSV logging, and three checkpoints were written; the scheduler probe records ReduceLROnPlateau monitor `FID_Layout` with frequency 20 while runtime scheduling remains disabled like current full-run commands. |
+| S4 | `PARITY_REQUIRE=1 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning models/layout-flow/scripts/training_stage_evidence.py s4-loader-stream` | `.cache/layout-flow/stage-evidence/s4-loader-stream/summary.json` | PASS on PubLayNet fixture with seed 314159: 4 shuffled train batches and 2 validation batches match the original-implementation sample order, xywh transform, masks, padding, and class ids. |
 | S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra training traingen fit --config models/layout-flow/configs/training/layoutflow_<rico25\|publaynet>.yaml --model.init_args.scheduler=null --model.init_args.fid_calc_every_n=0 --trainer.accelerator=gpu --trainer.devices=1 --trainer.max_epochs=1000` | `.cache/layout-flow/full-run/` | RICO25 is statistically equivalent at training-seed n=3; PubLayNet is acceptable at training-seed n=3. |
 
 ## Reproduction Results
@@ -102,6 +102,19 @@ The RICO25 and PubLayNet numbers use training seeds `42975`, `42976`, and `42977
 | RICO25 | ours | `s5-practical-reproduction` | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
 | PubLayNet | original implementation | `s5-practical-reproduction` | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
 | PubLayNet | ours | `s5-practical-reproduction` | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
+
+### Authors' Released-Checkpoint Reference
+
+The authors' released-checkpoint reference uses the [JulianGuerreiro/LayoutFlow Hugging Face release](https://huggingface.co/JulianGuerreiro/LayoutFlow): `checkpoints/checkpoint_RICO_LayoutFlow.ckpt` (SHA-256 `c684dbc71ed20a0fd6b49a7ba794055bcfcd494b81856015189d31152d86bc7c`) and `checkpoints/checkpoint_PubLayNet_LayoutFlow.ckpt` (SHA-256 `af5d5ca96009e2f373c3659760e0297678f9cb994a08239cb316ad6b3386e4ee`), under the pinned [JulianGuerreiro/LayoutFlow vendor commit](https://github.com/JulianGuerreiro/LayoutFlow/tree/8e0b8b697540c32bcfc10f21125c1dd3ce8df287). Evaluation protocol: vendor `src/test.py` with `task=uncond`, `cond_mask=uncond`, `ode_solver=euler`, `model.inference_steps=100`, `calc_miou=True`, `multirun=False`, fixed evaluation seed `42975`, and 2000 generated samples compared with the full test sets (3729 RICO25 and 10998 PubLayNet layouts). Model-specific caveat: “The provided weights are also not the original weights we used in the paper, as we re-trained the model after refactoring.”
+
+These values are reference only and are excluded from the package/original statistical test.
+
+| Dataset   |    FID | Alignment | Overlap |   mIoU |
+| --------- | -----: | --------: | ------: | -----: |
+| RICO25    | 2.2276 |    0.1400 |  0.4992 | 0.5872 |
+| PubLayNet | 8.6823 |    0.0707 |  0.0117 | 0.4195 |
+
+Reference interpretation: the RICO25 reference FID is 2.2276 versus 6.3907 for this section's original-implementation result. The released weights are post-refactor retrained weights; this is a single released checkpoint with fixed evaluation seed 42975, and this comparison makes no claim about the cause of the difference.
 
 ## Regeneration Metadata
 
@@ -142,7 +155,7 @@ cd vendor/layout-flow
 CUDA_VISIBLE_DEVICES=<gpu-index> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
 uv run --project ../.. --package layout-flow --extra vendor --with rootutils \
-  python src/test.py \
+  src/test.py \
   checkpoint=../../.cache/layout-flow/full-run/<vendor-dataset>/checkpoints/last.ckpt \
   model=LayoutFlow dataset=<RICO|PubLayNet> task=uncond cond_mask=uncond \
   ode_solver=euler model.inference_steps=100 calc_miou=True multirun=False \
@@ -300,7 +313,7 @@ Use `deterministic` configs when rerunning S0-S2 or debugging equivalence failur
 After training, convert a Lightning checkpoint to a local `diffusers` pipeline directory. The converter accepts both original `model.*` keys and package-local training `model.backbone.*` keys.
 
 ```bash
-uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py \
+uv run --package layout-flow models/layout-flow/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --checkpoint .cache/layout-flow/training-runs/rico25/checkpoints/<ckpt>.ckpt \
   --output-dir .cache/layout-flow/converted-trained/rico25

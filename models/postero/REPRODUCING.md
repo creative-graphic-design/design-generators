@@ -18,7 +18,7 @@ Regenerate the prompt golden metadata from deterministic in-memory records.
 
 ```bash
 POSTERO_VENDOR_ROOT=vendor/postero \
-  uv run --package postero --extra vendor python models/postero/scripts/generate_vendor_golden.py
+  uv run --package postero --extra vendor models/postero/scripts/generate_vendor_golden.py
 ```
 
 ## Parity
@@ -31,11 +31,11 @@ POSTERO_VENDOR_ROOT=vendor/postero \
 ## Prompt Configuration
 
 ```bash
-uv run --package postero python models/postero/scripts/save_prompt_config.py --output-dir .cache/postero/prompt-config
+uv run --package postero models/postero/scripts/save_prompt_config.py --output-dir .cache/postero/prompt-config
 ```
 
 ## Smoke
 
 ```bash
-uv run --package postero python models/postero/scripts/smoke_from_pretrained.py --work-dir .cache/postero/smoke
+uv run --package postero models/postero/scripts/smoke_from_pretrained.py --work-dir .cache/postero/smoke
 ```

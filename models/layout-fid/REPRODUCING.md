@@ -29,13 +29,13 @@ Run the commands below from the repository root. The original source under `vend
 1. Inspect the expected local assets.
 
 ```bash
-uv run --package layout-fid python models/layout-fid/scripts/download_original.py
+uv run --package layout-fid models/layout-fid/scripts/download_original.py
 ```
 
 2. Generate a deterministic reference batch for CPU parity debugging.
 
 ```bash
-uv run --package layout-fid python models/layout-fid/scripts/generate_reference_outputs.py \
+uv run --package layout-fid models/layout-fid/scripts/generate_reference_outputs.py \
   --output .cache/layout-fid/references/tiny-layout-batch.pt
 ```
 
@@ -56,7 +56,7 @@ PARITY_REQUIRE=1 uv run --package layout-fid --extra vendor pytest \
 5. Convert the LayoutFlow RICO25 evaluator checkpoint and reference statistics.
 
 ```bash
-uv run --package layout-fid --extra vendor python models/layout-fid/scripts/convert_original_checkpoint.py \
+uv run --package layout-fid --extra vendor models/layout-fid/scripts/convert_original_checkpoint.py \
   --source layoutflow \
   --dataset rico25 \
   --checkpoint vendor/layout-flow/pretrained/fid_rico.pth.tar \
@@ -68,7 +68,7 @@ uv run --package layout-fid --extra vendor python models/layout-fid/scripts/conv
 6. Convert the LayoutFlow PubLayNet evaluator checkpoint and reference statistics.
 
 ```bash
-uv run --package layout-fid --extra vendor python models/layout-fid/scripts/convert_original_checkpoint.py \
+uv run --package layout-fid --extra vendor models/layout-fid/scripts/convert_original_checkpoint.py \
   --source layoutflow \
   --dataset publaynet \
   --checkpoint vendor/layout-flow/pretrained/fid_publaynet.pth.tar \
@@ -80,17 +80,17 @@ uv run --package layout-fid --extra vendor python models/layout-fid/scripts/conv
 7. Smoke-test local `from_pretrained` loading.
 
 ```bash
-uv run --package layout-fid python models/layout-fid/scripts/smoke_from_pretrained.py \
+uv run --package layout-fid models/layout-fid/scripts/smoke_from_pretrained.py \
   --model-id .cache/layout-fid/converted/layout-fid-rico25-layoutflow
-uv run --package layout-fid python models/layout-fid/scripts/smoke_from_pretrained.py \
+uv run --package layout-fid models/layout-fid/scripts/smoke_from_pretrained.py \
   --model-id .cache/layout-fid/converted/layout-fid-publaynet-layoutflow
 ```
 
 Each script supports `--help` with defaults documented:
 
 ```bash
-uv run --package layout-fid python models/layout-fid/scripts/download_original.py --help
-uv run --package layout-fid python models/layout-fid/scripts/generate_reference_outputs.py --help
-uv run --package layout-fid python models/layout-fid/scripts/convert_original_checkpoint.py --help
-uv run --package layout-fid python models/layout-fid/scripts/smoke_from_pretrained.py --help
+uv run --package layout-fid models/layout-fid/scripts/download_original.py --help
+uv run --package layout-fid models/layout-fid/scripts/generate_reference_outputs.py --help
+uv run --package layout-fid models/layout-fid/scripts/convert_original_checkpoint.py --help
+uv run --package layout-fid models/layout-fid/scripts/smoke_from_pretrained.py --help
 ```

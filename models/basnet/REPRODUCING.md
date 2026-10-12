@@ -12,7 +12,7 @@ Place the released BASNet checkpoint outside git before conversion. SmartText
 uses the same GDI checkpoint path for its consumer parity fixture.
 
 ```bash
-uv run --package smarttext --extra download python models/smarttext/scripts/download_original_assets.py \
+uv run --package smarttext --extra download models/smarttext/scripts/download_original_assets.py \
   --output-dir .cache/smarttext/original \
   --download
 
@@ -30,7 +30,7 @@ Generate golden saliency tensors through the reference path and keep the results
 under `.cache/basnet/references`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package basnet --extra vendor python \
+CUDA_VISIBLE_DEVICES=0 uv run --package basnet --extra vendor \
   models/basnet/scripts/generate_reference_outputs.py \
   --vendor-dir vendor/smarttext \
   --checkpoint .cache/basnet/original/gdi-basnet.pth \
@@ -42,7 +42,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package basnet --extra vendor python \
 ## Convert A Checkpoint
 
 ```bash
-uv run --package basnet python models/basnet/scripts/convert_original_checkpoint.py \
+uv run --package basnet models/basnet/scripts/convert_original_checkpoint.py \
   --checkpoint .cache/basnet/original/gdi-basnet.pth \
   --output-dir .cache/basnet/converted/basnet-gdi
 ```

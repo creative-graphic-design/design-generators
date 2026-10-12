@@ -15,6 +15,7 @@ from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, model_processor_component_specs
+from laygen.common.randomness import resolve_torch_generator
 
 from .configuration_flex_dm import FlexDmConfig
 from .masking import apply_token, iterative_decode
@@ -181,8 +182,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         """
         _ = model_kwargs
         model_device = next(self.model.parameters()).device
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=model_device).manual_seed(seed)
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             condition_type=condition_type,
             labels=labels,

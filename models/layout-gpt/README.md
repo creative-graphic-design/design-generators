@@ -12,6 +12,8 @@ datasets:
   - "NSR-1K"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutGPT
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2305.15393&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2305.15393)
@@ -32,7 +34,7 @@ LayoutGPT is a prompt-based layout agent that turns natural-language scene descr
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, text.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
 
@@ -43,9 +45,9 @@ LayoutGPT is a prompt-based layout agent that turns natural-language scene descr
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| prompt configuration | n/a | no learned checkpoint; `save_pretrained` stores reloadable prompt configuration |
+| Checkpoint           | Hub ID | Status                                                                          |
+| -------------------- | ------ | ------------------------------------------------------------------------------- |
+| prompt configuration | n/a    | no learned checkpoint; `save_pretrained` stores reloadable prompt configuration |
 
 ## Uses
 
@@ -125,9 +127,9 @@ tensor([[[0.5000, 0.5000, 0.5000, 0.5000]]])
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| NSR-1K | vendor/layout-gpt dataset metadata | not mirrored |
+| Dataset | Dataset ID                         | Notes        |
+| ------- | ---------------------------------- | ------------ |
+| NSR-1K  | vendor/layout-gpt dataset metadata | not mirrored |
 
 NSR-1K examples are loaded from the original dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
 
@@ -165,20 +167,19 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Fixed-random exemplar ids | 3 ids | exact list equality against original-implementation golden seed 42 | pass |
-| Fixed-random chat prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
-| Fixed-random completion prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
-| K-similar exemplar ids | 3 ids | exact list equality against original-implementation golden seed 42 | pass |
-| K-similar completion prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
-| 2D parser output | golden parser lines | exact normalized original-implementation parse equality | pass |
-| 3D parser output | golden parser lines | exact normalized original-implementation parse equality | pass |
+| Check                                |               Cases | Criterion                                                          | Result |
+| ------------------------------------ | ------------------: | ------------------------------------------------------------------ | ------ |
+| Fixed-random exemplar ids            |               3 ids | exact list equality against original-implementation golden seed 42 | pass   |
+| Fixed-random chat prompt bytes       |            1 prompt | exact UTF-8 byte equality                                          | pass   |
+| Fixed-random completion prompt bytes |            1 prompt | exact UTF-8 byte equality                                          | pass   |
+| K-similar exemplar ids               |               3 ids | exact list equality against original-implementation golden seed 42 | pass   |
+| K-similar completion prompt bytes    |            1 prompt | exact UTF-8 byte equality                                          | pass   |
+| 2D parser output                     | golden parser lines | exact normalized original-implementation parse equality            | pass   |
+| 3D parser output                     | golden parser lines | exact normalized original-implementation parse equality            | pass   |
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run agreement checks, save prompt configuration, and smoke-test local loading.
-
 
 ## Environmental Impact
 
@@ -218,3 +219,5 @@ Repository wrapper code is Apache-2.0. The original LayoutGPT repository is MIT 
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

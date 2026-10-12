@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from devharness import baselines
+
 
 def load_check_module_naming() -> ModuleType:
     module_path = (
@@ -150,7 +152,7 @@ def test_check_module_naming_fails_on_new_and_stale_entries(
 def test_check_module_naming_passes_when_baseline_matches(tmp_path: Path) -> None:
     write_module(tmp_path, "layout-dm", "pipeline.py")
     baseline = tmp_path / "baseline.txt"
-    check_module_naming.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_module_naming.current_entries(tmp_path),
     )

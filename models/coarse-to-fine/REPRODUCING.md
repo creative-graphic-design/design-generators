@@ -15,21 +15,21 @@ Prerequisites:
 1. Download the public checkpoints into `.cache/coarse-to-fine/original`.
 
 ```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/download_original.py \
+uv run --package coarse-to-fine models/coarse-to-fine/scripts/download_original.py \
   --output-dir .cache/coarse-to-fine/original
 ```
 
 2. Generate vendor reference tensors.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor models/coarse-to-fine/scripts/export_reference.py \
   --dataset rico25 \
   --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
   --seed 0 \
   --batch-size 2 \
   --output-dir .cache/coarse-to-fine/reference/rico25
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor models/coarse-to-fine/scripts/export_reference.py \
   --dataset publaynet \
   --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
   --seed 0 \
@@ -40,12 +40,12 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor 
 3. Convert both public checkpoints into [`🤗transformers`](https://huggingface.co/docs/transformers/index) format.
 
 ```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
+uv run --package coarse-to-fine models/coarse-to-fine/scripts/convert_checkpoint.py \
   --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
   --dataset rico25 \
   --output-dir .cache/coarse-to-fine/converted/rico25
 
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
+uv run --package coarse-to-fine models/coarse-to-fine/scripts/convert_checkpoint.py \
   --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
   --dataset publaynet \
   --output-dir .cache/coarse-to-fine/converted/publaynet
@@ -69,7 +69,7 @@ Expected result with the fixtures above:
 5. Smoke-test local `from_pretrained`.
 
 ```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/smoke_from_pretrained.py \
+uv run --package coarse-to-fine models/coarse-to-fine/scripts/smoke_from_pretrained.py \
   --path .cache/coarse-to-fine/converted/rico25 \
   --path .cache/coarse-to-fine/converted/publaynet
 ```

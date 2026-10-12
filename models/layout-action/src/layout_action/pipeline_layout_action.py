@@ -170,7 +170,6 @@ class LayoutActionPipeline(LayoutGenerationPipeline):
         prepared_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=model_device,
         )
         input_ids = encoded["input_ids"].to(model_device)
         forced_token_ids = encoded.get("forced_token_ids")

@@ -26,6 +26,8 @@ model-index:
             name: Vendor reference task cases
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for Flex-DM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.18248&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.18248)
@@ -47,7 +49,7 @@ Flex-DM models document elements as rows with element class, position, size, col
 
 - **Developed by:** Naoto Inoue et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** masked document layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 
@@ -58,10 +60,10 @@ Flex-DM models document elements as rows with element class, position, size, col
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint           | Hub ID                                   | Status        |
+| -------------------- | ---------------------------------------- | ------------- |
 | Crello `ours-exp-ft` | `creative-graphic-design/flex-dm-crello` | not-published |
-| RICO `ours-exp-ft` | `creative-graphic-design/flex-dm-rico` | not-published |
+| RICO `ours-exp-ft`   | `creative-graphic-design/flex-dm-rico`   | not-published |
 
 ## Uses
 
@@ -102,8 +104,8 @@ The Hub repos are not published yet. Until then, create a local converted checkp
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package flex-dm
-uv run --package flex-dm --extra data python models/flex-dm/scripts/download_original_assets.py --output-dir .cache/flex-dm/original --dataset all --assets weights
-uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
+uv run --package flex-dm --extra data models/flex-dm/scripts/download_original_assets.py --output-dir .cache/flex-dm/original --dataset all --assets weights
+uv run --package flex-dm --extra convert models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
 ```
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full original-implementation reference-generation and agreement-check workflow.
@@ -136,10 +138,10 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint | dataset | original-implementation reference cases | exact state tensors | forward/layer probe | result |
-| --- | --- | ---: | ---: | --- | --- |
-| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | 10 forward cases / 25 forward steps; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
-| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | 6 forward cases / 15 forward steps; max logit abs diff within `atol=5.5e-6`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
+| checkpoint    | dataset | original-implementation reference cases |               exact state tensors | forward/layer probe                                                                    | result                                                      |
+| ------------- | ------- | --------------------------------------: | --------------------------------: | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `ours-exp-ft` | Crello  |                                      10 | 98 / 98 tensors, 2,812,257 params | 10 forward cases / 25 forward steps; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
+| `ours-exp-ft` | RICO    |                                       6 | 88 / 88 tensors, 2,296,679 params | 6 forward cases / 15 forward steps; max logit abs diff within `atol=5.5e-6`, `rtol=0`  | reference generated with TF32 disabled; state mapping exact |
 
 Agreement-check tests load the saved TF32-disabled reference inputs from `forward_cases/*.npz`, load the converted checkpoints with `from_pretrained`, and execute every saved original-implementation forward step inside pytest. This covers Crello's 10 task/iteration cases and RICO's 6 cases, including the four forward steps used by `num_iter=4`. Layer probes also use one original-implementation test batch after `preprocess_for_test` for every supported task (`elem`, `pos`, `attr`, plus Crello `img` and `txt`). The first divergent block-0 operation in the default original-implementation GPU path was the attention score matmul `tf.matmul(q, k^T)`: TensorFlow 2.15 on A100 used TF32 there, while the public PyTorch model used fp32. Direct q/k isolation showed the TF32 score differed from NumPy/PyTorch fp32 by `7.92e-3`, and PyTorch CUDA TF32 matched the TensorFlow score. Final agreement checks instead disable TensorFlow TF32 during original-implementation reference and probe generation with `NVIDIA_TF32_OVERRIDE=0` plus `--disable-tf32`, so the public PyTorch model keeps its ordinary fp32 attention path. GELU was not involved because the original-implementation MLP uses ReLU; Keras LayerNormalization epsilon is `1e-3` and is matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask remains `-1e9` before softmax.
 
@@ -162,3 +164,5 @@ Repository code is Apache-2.0. The original Flex-DM implementation is Apache-2.0
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

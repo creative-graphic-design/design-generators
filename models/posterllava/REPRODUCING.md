@@ -83,7 +83,7 @@ Converted org checkpoints are blocked pending license review. Keep local artifac
 ## Local Smoke
 
 ```bash
-uv run --package posterllava python models/posterllava/scripts/smoke_from_pretrained.py \
+uv run --package posterllava models/posterllava/scripts/smoke_from_pretrained.py \
   --model-id posterllava/posterllava_v0 \
   --image ./poster-background.png \
   --num-elements 5 \

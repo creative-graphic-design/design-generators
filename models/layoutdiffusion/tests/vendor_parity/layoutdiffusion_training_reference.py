@@ -14,8 +14,8 @@ from typing import Protocol, cast
 import torch
 from layoutdiffusion import LayoutDiffusionConfig
 from layoutdiffusion.training.dataset import LayoutDiffusionSyntheticDataset
+from layoutdiffusion.training.parity import TRACE_POINTS
 from layoutdiffusion.training.vocab import build_training_tokenizer
-from laygen.common.training import LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 from torch.utils.data import DataLoader
 from traingen_parity.trace import StepTrace, build_step_trace
 from transformers import BertConfig
@@ -38,11 +38,8 @@ class _TraceableOriginalDiffusion(Protocol):
     q_posterior: Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]
 
 
-TRACE_POINTS: tuple[str, ...] = LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
-
-
 def tiny_training_config(dataset_name: str) -> LayoutDiffusionConfig:
-    """Return the deterministic tiny config used by S0-S2 reference traces."""
+    """Return the deterministic tiny config used by single-step package-versus-vendor parity reference traces."""
     config = LayoutDiffusionConfig(
         dataset_name=dataset_name,
         seq_length=19,
@@ -75,7 +72,7 @@ def tiny_reference_batch(
     batch_size: int = 2,
     preconsume_batches: int = 1,
 ) -> dict[str, torch.Tensor]:
-    """Build the deterministic S0 batch after the vendor loader pre-consumption."""
+    """Build the deterministic initial-state batch after the vendor loader pre-consumption."""
     return tiny_reference_batches(
         dataset_name,
         batch_size=batch_size,
@@ -110,12 +107,12 @@ def tiny_reference_batches(
 
 
 def reference_fixture_path(dataset_name: str) -> Path:
-    """Return the cache path for one generated S0-S2 reference fixture."""
+    """Return the cache path for one generated single-step package-versus-vendor parity reference fixture."""
     return REFERENCE_ROOT / dataset_name / "s0_s2_reference.pt"
 
 
 def reference_s3_s4_fixture_path(dataset_name: str) -> Path:
-    """Return the cache path for one generated S3/S4 reference fixture."""
+    """Return the cache path for one generated repeated-step reference fixture."""
     return REFERENCE_ROOT / dataset_name / "s3_s4_reference.pt"
 
 
@@ -130,7 +127,7 @@ def generate_reference_fixture(
     auxiliary_loss_weight: float = 1e-3,
     device: str = "cuda",
 ) -> dict[str, object]:
-    """Generate a one-step original-code reference fixture for S0-S2 parity."""
+    """Generate a one-step original-code reference fixture for single-step package-versus-vendor parity."""
     _add_vendor_to_path()
     from improved_diffusion.discrete_diffusion import (
         DiffusionTransformer,
@@ -242,6 +239,7 @@ def generate_reference_fixture(
         .cpu(),
         "train_loss": train_loss.detach().cpu(),
     }
+    assert tuple(trace_tensors) == TRACE_POINTS
     trace = build_step_trace(
         "layoutdiffusion_original_train_loop_step",
         trace_tensors,
@@ -307,7 +305,7 @@ def generate_s3_s4_reference_fixture(
     steps: int = 3,
     device: str = "cuda",
 ) -> dict[str, object]:
-    """Generate a repeated-step original-code reference fixture for S3/S4 parity."""
+    """Generate a repeated-step original-code reference fixture."""
     _install_single_rank_mpi_stub()
     _add_vendor_to_path()
     from improved_diffusion import dist_util, logger
@@ -637,7 +635,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-s3-s4",
         action="store_true",
-        help="Also regenerate the repeated-step S3/S4 reference fixture.",
+        help="Also regenerate the repeated-step reference fixture.",
     )
     return parser.parse_args()
 

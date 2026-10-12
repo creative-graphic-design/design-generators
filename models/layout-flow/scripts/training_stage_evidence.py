@@ -1,4 +1,4 @@
-"""Generate LayoutFlow S3/S4 training reproduction evidence."""
+"""Generate LayoutFlow repeated-step and loader-stream (data-order) evidence."""
 
 import argparse
 import functools

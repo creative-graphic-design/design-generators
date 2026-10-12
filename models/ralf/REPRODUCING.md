@@ -9,7 +9,7 @@ Prerequisites: run these commands from the repository root. Initialize the origi
 Step 1 downloads and unpacks the original cache bundle. Generated metadata is `.cache/ralf/cache_manifest.json`.
 
 ```bash
-uv run --package ralf --extra download python models/ralf/scripts/download_original_assets.py \
+uv run --package ralf --extra download models/ralf/scripts/download_original_assets.py \
   --cache-dir .cache/ralf/cache \
   --zip-path .cache/ralf/cache.zip \
   --manifest .cache/ralf/cache_manifest.json \
@@ -20,7 +20,7 @@ uv run --package ralf --extra download python models/ralf/scripts/download_origi
 Step 2 generates golden vendor reference metadata and, when the vendor environment is available, runs vendor inference on GPU 0.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor models/ralf/scripts/generate_reference_outputs.py \
   --job-dir .cache/ralf/cache/training_logs/ralf_uncond_cgl \
   --cache-dir .cache/ralf/cache \
   --output-dir .cache/ralf/references \
@@ -35,7 +35,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/s
 Step 3 converts the CGL and PKU checkpoints to local [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style directories. The PKU original wrapper calls the label-size task `chw`; the converter normalizes both `chw` and `cwh` to canonical `label_size`.
 
 ```bash
-uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+uv run --package ralf --extra vendor models/ralf/scripts/convert_original_checkpoint.py \
   --job-dir .cache/ralf/cache/training_logs/ralf_uncond_cgl \
   --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_cgl/gen_final_model.pt \
   --dataset cgl \
@@ -43,7 +43,7 @@ uv run --package ralf --extra vendor python models/ralf/scripts/convert_original
   --vocabulary-json .cache/ralf/cache/dataset/cgl/vocabulary.json \
   --output-dir .cache/ralf/converted/ralf-cgl-unconditional-strict
 
-uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+uv run --package ralf --extra vendor models/ralf/scripts/convert_original_checkpoint.py \
   --job-dir .cache/ralf/cache/training_logs/ralf_uncond_pku10 \
   --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_pku10/gen_final_model.pt \
   --dataset pku \
@@ -64,7 +64,7 @@ declare -A RALF_CGL_TASKS=(
 
 for task in label label_size completion refinement relation; do
   job="ralf_${RALF_CGL_TASKS[$task]}_cgl"
-  uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+  uv run --package ralf --extra vendor models/ralf/scripts/convert_original_checkpoint.py \
     --job-dir ".cache/ralf/cache/training_logs/${job}" \
     --checkpoint ".cache/ralf/cache/training_logs/${job}/gen_final_model.pt" \
     --dataset cgl \
@@ -83,7 +83,7 @@ declare -A RALF_PKU_TASKS=(
 
 for task in label label_size completion refinement relation; do
   job="ralf_${RALF_PKU_TASKS[$task]}_pku10"
-  uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+  uv run --package ralf --extra vendor models/ralf/scripts/convert_original_checkpoint.py \
     --job-dir ".cache/ralf/cache/training_logs/${job}" \
     --checkpoint ".cache/ralf/cache/training_logs/${job}/gen_final_model.pt" \
     --dataset pku \

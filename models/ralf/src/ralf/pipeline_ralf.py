@@ -262,7 +262,6 @@ class RalfPipeline(LayoutGenerationPipeline):
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=model_device,
         )
         intermediates: dict[str, Mapping[str, Shaped[torch.Tensor, "..."] | str]] = {}
         if "retrieval" in encoded:

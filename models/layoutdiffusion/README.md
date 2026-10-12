@@ -29,6 +29,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDiffusion
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.11589&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.11589)
@@ -50,7 +52,7 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 
@@ -143,7 +145,7 @@ print(out.bbox.shape)
 
 ### Training Procedure
 
-Package-local training is available through LightningCLI configs under [`configs/training`](configs/training). Staged training reproduction against the original implementation is complete for RICO25 and PubLayNet at training-seed n=3: RICO25 is statistically equivalent, and PubLayNet matches on structural metrics with small FID/Alignment endpoint residuals documented in [`TRAINING.md`](models/layoutdiffusion/TRAINING.md). The full-run configs reproduce the original code's effective GPU behavior, which uses uniform timestep sampling because the original loss-history importance sampler never activates in the documented GPU run configuration.
+Package-local training is available through LightningCLI configs under [`configs/training`](https://github.com/creative-graphic-design/design-generators/tree/main/models/layoutdiffusion/configs/training). Staged training reproduction against the original implementation is complete for RICO25 and PubLayNet at training-seed n=3: RICO25 is statistically equivalent, and PubLayNet matches on structural metrics with small FID/Alignment endpoint residuals documented in [`TRAINING.md`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/TRAINING.md). The full-run configs reproduce the original code's effective GPU behavior, which uses uniform timestep sampling because the original loss-history importance sampler never activates in the documented GPU run configuration.
 
 #### Preprocessing
 
@@ -190,7 +192,7 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](models/layoutdiffusion/TRAINING.md) for package-local LightningCLI training, staged training checks, and current training-reproduction status.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/TRAINING.md) for package-local LightningCLI training, staged training checks, and current training-reproduction status.
 
 ## Environmental Impact
 
@@ -228,3 +230,5 @@ Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout doe
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

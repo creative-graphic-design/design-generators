@@ -203,7 +203,6 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=model_device,
         )
         default_do_sample = condition in {
             ConditionType.unconditional,

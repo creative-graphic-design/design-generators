@@ -1,10 +1,9 @@
-"""LayoutDiffusion-specific S0-S2 training-parity helpers."""
+"""LayoutDiffusion-specific initial-state and single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 
 import torch
 from jaxtyping import Shaped
-from laygen.common.training import LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 from traingen_parity.compare import (
     OptimizerStepReport,
     StepReport,
@@ -15,11 +14,26 @@ from traingen_parity.compare import (
 from traingen_parity.determinism import RNGState
 from traingen_parity.trace import StepTrace, TrainingStepModule, trace_training_step
 
-TRACE_POINTS: tuple[str, ...] = LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
+TRACE_POINTS: tuple[str, ...] = (
+    "t",
+    "pt",
+    "xt",
+    "log_x_t",
+    "log_x0_recon",
+    "log_model_prob",
+    "log_true_prob",
+    "kl",
+    "decoder_nll",
+    "kl_loss",
+    "lt_history",
+    "lt_count",
+    "aux_loss",
+    "train_loss",
+)
 
 
 def trace_layoutdiffusion_step(
-    module: TrainingStepModule,
+    module: TrainingStepModule[dict[str, Shaped[torch.Tensor, ...]]],
     batch: dict[str, Shaped[torch.Tensor, ...]],
     rng_state: RNGState | None = None,
 ) -> StepTrace:
@@ -33,7 +47,7 @@ def compare_layoutdiffusion_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> StepReport:
-    """Compare S1 LayoutDiffusion pre-optimizer traces."""
+    """Perform a single-step pre-optimizer trace comparison for LayoutDiffusion."""
     tolerances = {name: tolerance or TensorTolerance() for name in TRACE_POINTS}
     return compare_step_trace(reference, target, tolerances)
 
@@ -44,6 +58,6 @@ def compare_layoutdiffusion_optimizer_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:
-    """Compare S2 LayoutDiffusion post-optimizer parameters."""
+    """Perform a post-optimizer parameter comparison for LayoutDiffusion."""
     tolerances = {name: tolerance or TensorTolerance() for name in reference_state}
     return compare_optimizer_step(reference_state, target_state, tolerances)

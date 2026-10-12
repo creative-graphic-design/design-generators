@@ -13,6 +13,7 @@ from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int, Shaped
 
 from laygen.schedulers.continuous import get_layousyn_beta_schedule
+from laygen.common.randomness import randn
 
 
 @dataclass
@@ -123,7 +124,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         generator: torch.Generator | None = None,
     ) -> Float[torch.Tensor, "batch elements channels"]:
         """Create initial Gaussian noise."""
-        return torch.randn(
+        return randn(
             batch_size,
             seq_len,
             channels,
@@ -201,7 +202,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
             * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
             * torch.sqrt(1 - alpha_bar / alpha_bar_prev)
         )
-        noise = torch.randn(
+        noise = randn(
             sample.shape, dtype=sample.dtype, device=sample.device, generator=generator
         )
         mean_pred = (
@@ -234,7 +235,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         max_log = self._extract(torch.log(self.betas), timestep, sample.shape)
         frac = (model_var_values + 1) / 2
         model_log_variance = frac * max_log + (1 - frac) * min_log
-        noise = torch.randn(
+        noise = randn(
             sample.shape, dtype=sample.dtype, device=sample.device, generator=generator
         )
         nonzero_mask = (timestep != 0).float().view(-1, 1, 1)

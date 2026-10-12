@@ -29,8 +29,9 @@ from dlt.training.lightning_module import (
     DLTTrainingModule,
     DLTWarmupCosineSchedulerFactory,
 )
-from dlt.training.parity import DLTSyntheticStepTraceAdapter
+from dlt.training.parity import TRACE_POINTS
 from dlt.training.seed import apply_seed_mode
+from traingen_parity.trace import trace_training_step
 
 
 CONFIG_DIR = Path("models/dlt/configs/training")
@@ -213,7 +214,7 @@ def test_warmup_cosine_scheduler_factory_requires_total_steps() -> None:
 
 
 @pytest.mark.training
-def test_datamodule_seed_and_trace_adapter() -> None:
+def test_datamodule_seed_and_shared_trace() -> None:
     apply_seed_mode(DLTSeedMode.default, 123)
     first = torch.rand(1)
     apply_seed_mode("default", 123)
@@ -226,10 +227,28 @@ def test_datamodule_seed_and_trace_adapter() -> None:
     assert train_batch["box"].shape == (2, 4, 4)
     assert val_batch["cat"].shape == (2, 4)
 
-    trace = DLTSyntheticStepTraceAdapter().trace_training_step(
-        tiny_training_module(), train_batch
+    # This test repeats the model-owned schema to catch trace-point drift.
+    # pylint: disable=duplicate-code
+    expected_trace_points = (
+        "box",
+        "box_cond",
+        "cat",
+        "mask_box",
+        "mask_cat",
+        "noise",
+        "t",
+        "noised_box",
+        "noised_cat",
+        "pred_box",
+        "pred_cat",
+        "masked_l2",
+        "masked_ce",
+        "loss",
     )
-    assert set(DLTSyntheticStepTraceAdapter.trace_points) <= set(trace.tensors)
+    # pylint: enable=duplicate-code
+    assert TRACE_POINTS == expected_trace_points
+    trace = trace_training_step(tiny_training_module(), train_batch, None, TRACE_POINTS)
+    assert set(trace.tensors) == set(TRACE_POINTS)
 
 
 @pytest.mark.training

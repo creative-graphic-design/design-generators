@@ -1,31 +1,14 @@
-"""Shared training-step helpers for layout generator Lightning modules."""
+"""Generic Lightning training-step logging and reduction helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from jaxtyping import Float, Shaped
 
 if TYPE_CHECKING:
     import torch
-
-LAYOUTDIFFUSION_TRAINING_TRACE_POINTS: Final[tuple[str, ...]] = (
-    "t",
-    "pt",
-    "xt",
-    "log_x_t",
-    "log_x0_recon",
-    "log_model_prob",
-    "log_true_prob",
-    "kl",
-    "decoder_nll",
-    "kl_loss",
-    "lt_history",
-    "lt_count",
-    "aux_loss",
-    "train_loss",
-)
 
 
 class ScalarLogger(Protocol):
@@ -95,6 +78,7 @@ def log_training_losses(
     """
     for key, value in losses.items():
         logger.log(key, value, on_step=True, on_epoch=True, batch_size=batch_size)
+
     logger.log(
         "train_loss",
         total,

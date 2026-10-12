@@ -61,6 +61,25 @@ def test_generate_seed_is_reproducible():
     torch.testing.assert_close(out1.bbox, out2.bbox)
 
 
+def test_generate_explicit_generator_wins_over_seed():
+    model = make_model()
+    labels = torch.tensor([[0, 1, 2]])
+    out1 = model.generate(
+        labels=labels,
+        seed=1,
+        generator=torch.Generator().manual_seed(7),
+    )
+    out2 = model.generate(
+        labels=labels,
+        seed=999,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    assert isinstance(out1, LayoutGenerationOutput)
+    assert isinstance(out2, LayoutGenerationOutput)
+    torch.testing.assert_close(out1.bbox, out2.bbox)
+
+
 def test_explicit_latents_are_deterministic():
     model = make_model()
     labels = torch.tensor([[0, 1, 2]])

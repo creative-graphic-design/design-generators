@@ -30,6 +30,30 @@ def test_pipeline_completion_schema_and_dict_output() -> None:
     assert set(as_dict) >= {"bbox", "labels", "mask", "id2label"}
 
 
+def test_pipeline_explicit_generator_wins_over_seed() -> None:
+    pipe = tiny_pipeline()
+    kwargs = {
+        "bbox": torch.tensor([[[0.5, 0.5, 0.25, 0.25]]]),
+        "labels": torch.tensor([[1]]),
+        "mask": torch.tensor([[True]]),
+        "feature_group": "pos",
+        "num_inference_steps": 2,
+    }
+    first = pipe(
+        **kwargs,
+        seed=1,
+        generator=torch.Generator().manual_seed(7),
+    )
+    second = pipe(
+        **kwargs,
+        seed=999,
+        generator=torch.Generator().manual_seed(7),
+    )
+
+    assert torch.equal(first.labels, second.labels)
+    assert torch.allclose(first.bbox, second.bbox)
+
+
 def test_pipeline_rejects_unsupported_conditions() -> None:
     """Unsupported canonical modes raise explicit errors."""
     pipe = tiny_pipeline()

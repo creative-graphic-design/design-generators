@@ -20,20 +20,36 @@ The protocol has six ordered stages, S0 through S5. S0-S2 are exact or near-exac
 
 Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures; parity here means agreement with the original implementation.
 
-| Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                       |
-| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                     |
-| S1    | Fixed-batch pre-optimizer trace     | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation.                                                                                                                                                                      |
-| S2    | One optimizer step                  | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate.                                                                                                                                                                                                                 |
-| S3    | N training batches                  | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
-| S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                           |
-| S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                    |
+Follow the stages in order. Record S0-S2 evidence in the model issue, then record S3-S4 evidence before launching any S5-scale training or evaluation or making an S5 claim. Keep all six stages in the package's `TRAINING.md`. Missing evidence stops the claim at the current stage; S5 cannot substitute for an earlier stage.
+
+| Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                                 |
+| ----- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                               |
+| S1    | Fixed-batch pre-optimizer trace     | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation.                                                                                                                                                                                |
+| S2    | One optimizer step                  | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate.                                                                                                                                                                                                                           |
+| S3    | N training batches                  | Always record the natural multi-step trajectory. If every step remains within the S0-S2 requirements, it is S3 numerical parity `PASS`; if any step leaves those requirements, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
+| S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                                     |
+| S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                              |
+
+Every full run that makes an S5 claim must have one launch manifest: a JSON file written before the S5 launch with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; the S5 Stage Evidence row's Artifact cell cites its repository- or cache-relative path, such as `.cache/<package>/full-run/<dataset>/manifest.json`.
+
+Before launching S5 or making an S5 claim, also complete the [evaluation-path parity prerequisite](#evaluation-path-parity-prerequisite).
 
 ## Stage Rules
 
+A rule applies when the package training loop contains the component the rule names: scheduler (here, a learning-rate scheduler), sampler (here, a timestep/importance sampler), exponential moving average (EMA), automatic mixed precision (AMP), or a multi-worker loader. The protocol also uses these terms in the detailed activation, effective-behavior, and topology rules for the same component senses. The 300-step lockstep minimum, the GPU-bound check, the data path used for S4 and S5 (approved sources in [Data Sources](data-sources.md)), and the evaluation-path parity prerequisite apply to every package that launches S5; only an amendment recorded in `Scheduler and Recipe Notes` can change them. A package without a runnable original evaluation entry point or with a nondeterministic original evaluator must record its approved route in an amendment there. Record each inapplicable rule once, with its reason, in the package `TRAINING.md` `Scheduler and Recipe Notes` section; for example, `Scheduler cadence — not applicable: the loop has no scheduler.` Do not use an inapplicable component to skip or weaken an applicable rule, and do not report an inapplicable rule as a missing check.
+
+Only an amendment comment on the model's issue can authorize a package-specific deviation from an applicable rule, including the 300-step lockstep minimum, GPU-bound check, S4/S5 data-path requirement, or evaluation-path parity prerequisite. Record the accepted value first, then the amendment URL and the rule it changes once in the same `Scheduler and Recipe Notes` section; for example, `S4/S5 data path: LACE uses its vendor constructors to create the InMemoryDataset stream from the approved PubLayNet and RICO25 sources at .cache/lace/data/<dataset>-max25/processed/{train,val,test}.pt. This replaces the planned LayoutDM-style processed stream; the departure is approved for LACE. Approval record: <amendment URL>.` Amendment comments are defined under [AGENTS.md Sources Of Truth](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth). Issues and pull requests may quote this citation.
+
+### Evaluation-path parity prerequisite
+
+The evaluation-path parity artifact is required before every S5 launch and for every S5 claim. Run the same weights, either the S0 initial state or a converted original checkpoint, and the same evaluation inputs through the package inference or evaluation path and the original evaluation entry point with the same evaluator settings and sampling seeds. Bitwise mode requires exact prediction equality and exact metric equality after the evaluator's own rounding; tolerance mode requires stated float tolerances for both predictions and metrics, with both comparisons within those tolerances. The artifact records the same weights, same evaluation inputs, same evaluator settings and sampling seeds (generative packages are stochastic), per-system predictions and per-system metric values, per-system prediction counts and out-of-bounds counts measured in the original input frame after mapping back from any resized frame, the evaluator source commit for both systems, the SHA-256 of the weights, the inputs, and each system's prediction file, and the artifact's path and SHA-256 recorded in the launch manifest's `artifacts` map. The S5 Stage Evidence Artifact cell cites both the launch manifest and the evaluation-path parity artifact; the stage-evidence checker rejects an S5 claim without the evaluation-path parity reference.
+
 ### Step Parity and Full-Run Parity
 
-S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
+S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. For each dataset covered by the claim, run S5 full-run parity and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
+
+For one-step optimizer parity, gate package-versus-original gradients and compare each system's update against its own float64 Keras-Adam reference computed from that system's gradients. Keep the package-versus-original updated-parameter difference report-only. This rule is recorded in the [CanvasVAE optimizer-update amendment](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6099737572).
 
 When S5 diverges, diagnose the gap in this order before claiming a bug:
 
@@ -48,7 +64,7 @@ Parity thresholds are per-dataset. Here, practical parity names an accepted full
 
 ### S3 Evidence Layers
 
-S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 contract, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves the contract, retain the natural record and add a synchronized diagnostic; its contract-internal agreement plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
+S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 requirements, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves those requirements, retain the natural record and add a synchronized diagnostic; agreement within those requirements plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
 
 ### Activation Thresholds
 
@@ -104,15 +120,15 @@ For schedulers that step every optimizer update, return the scheduler from `conf
 
 S5 must cover every dataset that the original implementation trains on for the checkpoints or claims being documented. Record status per dataset even when the PR implements only one package.
 
-Use these status labels in `TRAINING.md`:
+Use these status values in `TRAINING.md`:
 
-| Status        | Meaning                                                                               |
-| ------------- | ------------------------------------------------------------------------------------- |
-| `PASS`        | Full S5 evidence exists for this dataset and seed scope.                              |
-| `CHECK`       | Evidence is partially aligned or mixed, and the remaining interpretation is explicit. |
-| `BLOCKED`     | Required data, original code, assets, or compute are unavailable.                     |
-| `PENDING`     | The dataset is planned but not yet run.                                               |
-| `NOT CLAIMED` | The package does not claim trained-checkpoint support for this dataset.               |
+- `s5-bit-parity`: Package and original metrics and losses are bit-identical for this dataset and seed scope.
+- `s5-practical-reproduction`: Full S5 metrics fall within the accepted per-dataset parity thresholds without bit-level equality; see [Step Parity and Full-Run Parity](#step-parity-and-full-run-parity).
+- `recipe-unstable (documented)`: The original training recipe itself gives unstable results across seeds; the interpretation paragraph documents the instability.
+- `not-yet-run (<tracking ref>)`: S5 evidence is not yet available for this dataset; the parenthetical links the issue or pull request that tracks the run.
+- `blocked (<reason>)`: Required data, original code, assets, or compute are unavailable; the parenthetical states the reason.
+
+A dataset the package does not claim uses `not-yet-run (<tracking ref>)` or `blocked (<reason>)` and the conclusion states it is not claimed.
 
 Partial dataset coverage must be stated in the conclusion and table. A README or model card must not imply general training reproduction if S5 exists for only a subset of the original training datasets.
 
@@ -136,6 +152,8 @@ A seed-paired claim requires evidence from the real training entrypoints showing
 
 Use `scripts/pick_free_gpus.sh <N> [exclude_csv]` before launching S5-style multi-job verification runs. The helper sorts GPUs by used memory and prints indices for the least-loaded devices, so launchers can fill idle GPUs with one job per GPU instead of hard-coding a few indices. Pass currently reserved devices, such as long-running dataset jobs, through `exclude_csv`.
 
+Before launching the full-run seed set, run one seed briefly and confirm that the step loop is GPU-bound, with sustained GPU utilization and board power near the device limit and per-process CPU well below one saturated core. If the loop is CPU-bound, tune DataLoader workers and logging frequency within the vendor recipe first because a faster GPU shortens only the GPU fraction. The worker count changes the realized sequence of any randomness inside the dataset's `__getitem__` (PyTorch seeds each worker from the base seed plus its index), so keep the vendor's worker count for stages that compare a single seed bitwise and record any change made for full-run stages. Batch size and precision changes alter parity and require explicit approval.
+
 ```bash
 mapfile -t gpus < <(scripts/pick_free_gpus.sh 6 "3,7")
 CUDA_VISIBLE_DEVICES="${gpus[0]}" setsid ./train-one-seed.sh &
@@ -147,16 +165,20 @@ Each training-first package should include `models/<package>/TRAINING.md`. Its `
 
 When auditing a pickle or Torch artifact on CPU, set `CUDA_VISIBLE_DEVICES=""` and pass `map_location="cpu"` to loaders that support it. CUDA-tagged tensors retain their device tags in serialized artifacts, so a CPU audit that does not hide CUDA can initialize an unintended GPU or fail before the artifact is inspected.
 
-Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, `Reproduction Results` status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`.
+Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`; it does not validate every metadata field.
+
+Reviewers check that each evidence command produces the cited artifact and supports that stage's claim. A checker baseline records an existing gap; a passing check with that baseline does not establish missing stage evidence. Document an unavailable artifact or untracked helper as a replay limitation until its source or generation command is available. Keep historical measurements separate from evidence that authorizes a new run or a broader reproduction claim.
+
+Every reported number—count, metric, or tolerance—states the population (the tensors, keys, steps, elements, or samples) the check covers and whether it is an asserted gate or a report-only diagnostic. Each count names its unit and lists any excluded elements with the reasons for their exclusion. Each asserted gate states its limit and the test that asserts it. Any tolerance-headroom explanation uses the population to which that gate applies. Use the [documentation skill's claim-strength rules](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#reader-first-guidance) for exactness, p-value, and rounding wording.
 
 ### S3 Evidence Recording
 
 Record the natural multi-step layer for every model with the same seed and data
 on both systems. Repeat it to measure the run-to-run envelope, and preserve
 per-step state drift, loss, gradients, post-step parameters, learning rates,
-the first divergence, and the envelope even when every step is within contract.
+the first divergence, and the envelope even when every step is within those requirements.
 
-When natural evidence leaves the S0-S2 contract, record the synchronized layer
+When natural evidence leaves the S0-S2 requirements, record the synchronized layer
 at every optimizer boundary. Synchronize model parameters and buffers,
 optimizer state, and scheduler state before the next batch, then apply the
 existing S0-S2 comparisons. Copy optimizer state with a `deepcopy` before
@@ -186,10 +208,20 @@ Write `Reproduction Results` in this order:
 
 Use this table shape unless a model requires extra metric columns:
 
-| Dataset     | System   | Status | Seed scope          | Primary metrics         | Loss evidence    | Artifact summary       |
-| ----------- | -------- | ------ | ------------------- | ----------------------- | ---------------- | ---------------------- |
-| `<dataset>` | original | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package  | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| Dataset     | System   | Status                      | Seed scope          | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | --------------------------- | ------------------- | ----------------------- | ---------------- | ---------------------- |
+| `<dataset>` | original | `s5-practical-reproduction` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | `s5-practical-reproduction` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+
+### Comparison Scope
+
+Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
+
+| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
+| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
+| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 Commands must be executable from the repository root and must not depend on untracked helper scripts unless the helper creation command is also shown.
 
@@ -208,7 +240,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> \
 ```
 
 ```bash
-uv run --package <package> python models/<package>/scripts/convert_original_checkpoint.py \
+uv run --package <package> models/<package>/scripts/convert_original_checkpoint.py \
   --checkpoint .cache/<package>/training-runs/<dataset>/checkpoints/<checkpoint>.ckpt \
   --output-dir .cache/<package>/converted-trained/<dataset>
 ```
@@ -245,10 +277,4 @@ If a package run degenerates while the original self-recovers, or if a checkpoin
 
 ## Writing Rules for Reader-Facing Documentation
 
-- Start with what the reader needs to understand or decide, then order procedures by that reader path.
-- Define each internal term at first use, including evidence labels, hashes, and stage names.
-- Write facts and rules as reader-facing prose; do not expose work-history or evidence-receipt language without context.
-- Put a section where its subject belongs; do not grow a section merely where related work happened.
-- Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
-- The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.
-- Treat excessive emotional intensity, redundant enumeration, and hedging as model-review targets for the separately developing slop-review; do not add them to this checker.
+- Follow the [Reader-First Documentation](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#reader-first-documentation) rules in `AGENTS.md`.
