@@ -1,4 +1,4 @@
-"""Plain-PyTorch static reference adapter for LayoutFormer++ S0."""
+"""Plain-PyTorch static reference adapter for LayoutFormer++ training."""
 
 from __future__ import annotations
 

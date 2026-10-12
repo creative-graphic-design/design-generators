@@ -1,4 +1,4 @@
-"""Static-state comparison helpers for LayoutFormer++ S0 evidence."""
+"""Static-state comparison helpers for LayoutFormer++ training evidence."""
 
 from __future__ import annotations
 
