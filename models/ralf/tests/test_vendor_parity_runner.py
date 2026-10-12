@@ -6,6 +6,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+import torch
 
 
 def load_runner() -> ModuleType:
@@ -54,6 +55,25 @@ def test_full_test_counts_are_dataset_specific() -> None:
     runner = load_runner()
 
     assert runner.TEST_COUNTS == {"cgl": 6002, "pku": 1000}
+
+
+def test_localized_replay_restores_the_recorded_pre_batch_state() -> None:
+    runner = load_runner()
+    generator = torch.Generator(device="cpu").manual_seed(17)
+    torch.rand(11, generator=generator)
+    pre_batch_state = runner.capture_pre_batch_generator_state(generator)
+    expected = torch.rand(8, generator=generator)
+    expected_after = generator.get_state().clone()
+
+    generator.manual_seed(999)
+    replayed = runner.replay_batch_from_state(
+        generator,
+        pre_batch_state,
+        lambda active_generator: torch.rand(8, generator=active_generator),
+    )
+
+    assert torch.equal(replayed, expected)
+    assert torch.equal(generator.get_state(), expected_after)
 
 
 def test_relation_comparison_records_unavoidable_difference(

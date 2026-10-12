@@ -34,9 +34,9 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - external pickle/YAML payloads are heterogeneous.
+from typing import Any, TypeVar, cast  # noqa: TID251 - external pickle/YAML payloads are heterogeneous.
 
 import torch
 import yaml
@@ -69,6 +69,7 @@ TASK_TO_CONDITION = {value: key for key, value in CONDITIONS.items()}
 TEST_COUNTS = {"cgl": 6002, "pku": 1000}
 BATCH_SIZE = 128
 INFERENCE_SEEDS = (0, 1, 2)
+_ReplayResult = TypeVar("_ReplayResult")
 
 
 def sha256(path: Path) -> str:
@@ -81,6 +82,21 @@ def sha256(path: Path) -> str:
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def capture_pre_batch_generator_state(generator: torch.Generator) -> torch.Tensor:
+    """Capture the generator state immediately before a batch is evaluated."""
+    return generator.get_state().clone()
+
+
+def replay_batch_from_state(
+    generator: torch.Generator,
+    pre_batch_state: torch.Tensor,
+    run_batch: Callable[[torch.Generator], _ReplayResult],
+) -> _ReplayResult:
+    """Replay a batch from its recorded state without reseeding the generator."""
+    generator.set_state(pre_batch_state.clone())
+    return run_batch(generator)
 
 
 def repository_source_commit() -> str:
@@ -626,30 +642,35 @@ def generate_package_predictions(
                 max_seq_length=pipe.config.max_seq_length,
                 dataset_name="pku" if args.dataset == "pku" else "cgl",
             )
-            output = cast(
-                LayoutGenerationOutput,
-                pipe(
-                    images=images,
-                    saliency=saliency,
-                    condition_type=args.condition,
-                    labels=labels,
-                    bbox=bbox,
-                    mask=mask,
-                    retrieved_layouts={
-                        "bbox": retrieved.bbox,
-                        "labels": retrieved.labels,
-                        "mask": retrieved.mask,
-                    },
-                    retrieved_indexes=index_tensor,
-                    generator=generator,
-                    query_ids=ids,
-                    relations=relation,
-                    # The refinement campaign uses vendor deterministic
-                    # argmax sampling.  top_k=1 makes the package sampler
-                    # deterministic while preserving the same pipeline path.
-                    top_k=1 if args.condition == "refinement" else 5,
-                ),
-            )
+            pre_batch_state = capture_pre_batch_generator_state(generator)
+
+            def run_batch(active_generator: torch.Generator) -> LayoutGenerationOutput:
+                return cast(
+                    LayoutGenerationOutput,
+                    pipe(
+                        images=images,
+                        saliency=saliency,
+                        condition_type=args.condition,
+                        labels=labels,
+                        bbox=bbox,
+                        mask=mask,
+                        retrieved_layouts={
+                            "bbox": retrieved.bbox,
+                            "labels": retrieved.labels,
+                            "mask": retrieved.mask,
+                        },
+                        retrieved_indexes=index_tensor,
+                        generator=active_generator,
+                        query_ids=ids,
+                        relations=relation,
+                        # The refinement campaign uses vendor deterministic
+                        # argmax sampling.  top_k=1 makes the package sampler
+                        # deterministic while preserving the same pipeline path.
+                        top_k=1 if args.condition == "refinement" else 5,
+                    ),
+                )
+
+            output = replay_batch_from_state(generator, pre_batch_state, run_batch)
             results.extend(layout_output_to_vendor_samples(output, sample_ids=ids))
         payload = {
             "results": results,
