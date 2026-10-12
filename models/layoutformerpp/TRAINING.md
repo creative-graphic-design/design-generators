@@ -40,11 +40,17 @@ Training configs live under `models/layoutformerpp/configs/training`. The RICO25
 
 The reference mode is the plain-PyTorch basic training path. The parity harness compares the package scheduler, optimizer defaults, loss inputs, data encoding, task identifiers, and seed-order behavior with the original implementation. Scheduler cadence and state-dependent loader branches are exercised by the staged evidence before a full-run claim is considered.
 
+Sampler rule — not applicable: these recipes do not use a timestep or importance sampler. EMA rule — not applicable: the recipes disable EMA. AMP rule — not applicable: the training configs use `precision: 32-true`. Multi-worker loader rule — not applicable: the package DataModule uses `num_workers=0` for the compared streams. Scheduler cadence is applicable and is covered by the S2 and S3 evidence.
+
 The campaign preflight uses the dedicated cu126 Python runtime under `.cache/layoutformerpp/runtime/cu126-py311/`. Its normalized `uv pip freeze` is recorded at `.cache/layoutformerpp/runtime/cu126-py311/pip-freeze.txt` with SHA-256 `274f003252fc87c4361749bb83c4669c9cc746c509d17a33a8763466b2628638`. Sanitization replaces editable local file URLs with `<repo root>` and local Torch wheel URLs with package/version pins before hashing; package names and versions otherwise come from `uv pip freeze`.
 
 ## Seed Policy
 
 The staged records preserve each run's process boundary, runtime freeze reference, selected-device setting, and test report. A numeric seed match alone is not a seed-paired claim. The full-run stage has no accepted training-seed or evaluation-seed scope because it has not been launched.
+
+## Evidence Validity
+
+The staged S0-S4 evidence is for source commit `305e96c66b632f77781df7eade1a2d2fec5cbd19`. The rerun-rule check `git diff --stat 305e96c66b632f77781df7eade1a2d2fec5cbd19 HEAD -- models/layoutformerpp/src models/layoutformerpp/configs lib` is empty, so these records remain valid for the current training path. A historical bounded PubLayNet label-conditioned `gen_t` S5 comparison was produced at the older head `2512c25d0e7eae188afed43df94bbb06bb2c52ea`. The same training-path diff from that head to the current head is 40 files changed, 1383 insertions, and 251 deletions; the regression rule therefore invalidates that historical S5 comparison as current evidence. It is not claimed here, and no recipe family currently has accepted S5 evidence.
 
 ## Validation Stages
 
@@ -74,20 +80,20 @@ The S3 comparison gate is the fixed tolerance shown above. A separate S3 process
 
 The staged S0-S4 checks pass for every supported recipe family. Full-run trained-checkpoint reproduction is not claimed for any family because the full-run stage has not been launched.
 
-| Dataset                 | System  | Status                                      | Seed scope     | Primary metrics | Loss evidence | Artifact summary                              |
-| ----------------------- | ------- | ------------------------------------------- | -------------- | --------------- | ------------- | --------------------------------------------- |
-| RICO25 label            | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| RICO25 label-size       | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| RICO25 relation         | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| RICO25 refinement       | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| RICO25 completion       | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| RICO25 unconditional    | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet label         | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet label-size    | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet relation      | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet refinement    | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet completion    | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
-| PubLayNet unconditional | package | `not-yet-run (full-run stage not launched)` | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| Dataset                 | System  | Status                                                                                               | Seed scope     | Primary metrics | Loss evidence | Artifact summary                              |
+| ----------------------- | ------- | ---------------------------------------------------------------------------------------------------- | -------------- | --------------- | ------------- | --------------------------------------------- |
+| RICO25 label            | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| RICO25 label-size       | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| RICO25 relation         | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| RICO25 refinement       | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| RICO25 completion       | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| RICO25 unconditional    | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet label         | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet label-size    | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet relation      | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet refinement    | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet completion    | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
+| PubLayNet unconditional | package | `not-yet-run` ([issue 265](https://github.com/creative-graphic-design/design-generators/issues/265)) | not applicable | not evaluated   | not evaluated | `.cache/layoutformerpp/post-merge/attempt-2/` |
 
 ### Comparison Scope
 
@@ -110,7 +116,7 @@ The staged evaluator is the LayoutFormer++ training parity harness. It compares 
 
 ## Regeneration Metadata
 
-The launch manifest records the source commit, runtime freeze hash, selected-device setting, redacted data-root placeholder, fixed S3 tolerances, and every record and freeze path at `.cache/layoutformerpp/post-merge/attempt-2/launch_manifest.json`. The CUDA preflight output is at `.cache/layoutformerpp/post-merge/attempt-2/cuda-smoke.json`. The preflight uses a tiny matmul on logical `cuda:0` after `CUDA_VISIBLE_DEVICES=<device>` is applied and fails closed before launching a parity process when the smoke fails.
+The launch manifest records the source commit, runtime freeze hash, selected-device setting, redacted data-root placeholder, fixed S3 tolerances, and every record and freeze path at `.cache/layoutformerpp/post-merge/attempt-2/launch_manifest.json`. The CUDA preflight output is at `.cache/layoutformerpp/post-merge/attempt-2/cuda-smoke.json`. The preflight uses a tiny matmul on the selected logical CUDA device after `CUDA_VISIBLE_DEVICES=<device>` is applied and fails closed before launching a parity process when the smoke fails.
 
 The dedicated runtime freeze is reproducible from `.cache/layoutformerpp/runtime/cu126-py311/bin/python` with `uv pip freeze --no-config --python .cache/layoutformerpp/runtime/cu126-py311/bin/python`, followed by the sanitization described in `.cache/layoutformerpp/runtime/README.md`. The runtime and campaign artifacts are cache-local and ignored; no generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts belong in git.
 
