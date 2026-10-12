@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.metadata
 import json
 import os
 import pickle
@@ -37,6 +38,7 @@ import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TypeVar, cast  # noqa: TID251 - external pickle/YAML payloads are heterogeneous.
+from urllib.parse import unquote, urlparse
 
 import torch
 import yaml
@@ -82,6 +84,107 @@ def sha256(path: Path) -> str:
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def normalize_runtime_freeze(value: bytes, repo_root: Path) -> bytes:
+    """Normalize machine-local editable and PyTorch wheel URLs."""
+    normalized: list[str] = []
+    resolved_root = repo_root.resolve()
+    for raw_line in value.decode("utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("-e "):
+            reference = line[3:].strip()
+            path = (
+                Path(unquote(urlparse(reference).path))
+                if reference.startswith("file://")
+                else Path(reference)
+            )
+            path = (
+                path.resolve()
+                if path.is_absolute()
+                else (resolved_root / path).resolve()
+            )
+            try:
+                relative = path.relative_to(resolved_root).as_posix()
+            except ValueError:
+                relative = "<external>"
+            normalized.append(f"-e <repo root>/{relative}")
+            continue
+        match = re.match(r"^(torch(?:vision)?) @ (.+)$", line)
+        if match:
+            name, reference = match.groups()
+            wheel_name = Path(unquote(urlparse(reference).path)).name
+            version_match = re.match(rf"{name}-(.+?)-cp", wheel_name)
+            if version_match is None:
+                raise RuntimeError(f"cannot normalize runtime freeze line: {line}")
+            normalized.append(f"{name}=={version_match.group(1)}")
+            continue
+        normalized.append(line)
+    return ("\n".join(normalized) + "\n").encode("utf-8")
+
+
+def installed_cuda_package_family() -> tuple[str, list[str]]:
+    cuda_version = torch.version.cuda
+    if not cuda_version:
+        raise RuntimeError("torch does not report a CUDA build")
+    family = f"cu{cuda_version.split('.', 1)[0]}"
+    packages: dict[str, str] = {}
+    for distribution in importlib.metadata.distributions():
+        name = distribution.metadata["Name"] if "Name" in distribution.metadata else ""
+        name = name.lower()
+        if name.startswith("nvidia-"):
+            packages[name] = distribution.version
+    missing = [
+        name
+        for name in (f"nvidia-cudnn-{family}", f"nvidia-cuda-runtime-{family}")
+        if name not in packages
+    ]
+    mismatched = [
+        f"{name}=={version}"
+        for name, version in packages.items()
+        if not name.endswith(f"-{family}")
+    ]
+    if missing or mismatched:
+        details = ", ".join(
+            [
+                f"missing={missing}" if missing else "",
+                f"mismatched={mismatched}" if mismatched else "",
+            ]
+        ).strip(", ")
+        raise RuntimeError(
+            f"CUDA package family {family} does not match torch {cuda_version}: {details}"
+        )
+    return family, sorted(f"{name}=={version}" for name, version in packages.items())
+
+
+def cudnn_smoke() -> dict[str, int | float]:
+    if not torch.cuda.is_available():
+        raise RuntimeError("cuDNN preflight requires a visible CUDA device")
+    version = torch.backends.cudnn.version()
+    if version is None:
+        raise RuntimeError("cuDNN preflight could not load cuDNN")
+    device = torch.device("cuda", torch.cuda.current_device())
+    try:
+        input_tensor = torch.ones((1, 1, 5, 5), device=device)
+        kernel = torch.ones((1, 1, 3, 3), device=device)
+        output = torch.nn.functional.conv2d(input_tensor, kernel)
+        output_sum = float(output.sum().item())
+    except RuntimeError as exc:
+        raise RuntimeError("cuDNN preflight convolution failed") from exc
+    return {"cudnn_version": int(version), "output_sum": output_sum}
+
+
+def runtime_preflight(*, require_cudnn: bool) -> dict[str, Any]:
+    family, packages = installed_cuda_package_family()
+    result: dict[str, Any] = {
+        "cuda_package_family": family,
+        "cuda_version": torch.version.cuda,
+        "cudnn_required": require_cudnn,
+        "cuda_packages": packages,
+    }
+    if require_cudnn:
+        result["cudnn_smoke"] = cudnn_smoke()
+    return result
 
 
 def capture_pre_batch_generator_state(generator: torch.Generator) -> torch.Tensor:
@@ -1022,15 +1125,16 @@ def runtime_freeze(
     output_root: Path, runtime_python: Path, shared_path: Path | None
 ) -> dict[str, str]:
     record_path = (shared_path or output_root / "runtime-freeze.txt").resolve()
+    repo_root = Path(__file__).resolve().parents[4]
     result = subprocess.run(
         ["uv", "pip", "freeze", "--python", str(runtime_python)],
         check=True,
         capture_output=True,
     )
-    fresh_freeze = result.stdout
+    fresh_freeze = normalize_runtime_freeze(result.stdout, repo_root)
     if shared_path is not None:
         require_file(record_path, "shared runtime freeze")
-        expected_freeze = record_path.read_bytes()
+        expected_freeze = normalize_runtime_freeze(record_path.read_bytes(), repo_root)
         expected_hash = sha256(record_path)
         fresh_hash = sha256_bytes(fresh_freeze)
         if fresh_freeze != expected_freeze:
@@ -1041,7 +1145,6 @@ def runtime_freeze(
     else:
         record_path.parent.mkdir(parents=True, exist_ok=True)
         record_path.write_bytes(fresh_freeze)
-    repo_root = Path(__file__).resolve().parents[4]
     label_root = repo_root if shared_path is not None else output_root.resolve()
     return {
         "path": (
@@ -1253,6 +1356,7 @@ def artifact(
             "cuda": torch.version.cuda,
         },
         "runtime_provenance": runtime_provenance(args=args, freeze=freeze),
+        "runtime_preflight": args.runtime_preflight,
         "campaign_vendor": (
             compare_campaign_vendor(
                 args=args, vendor_prediction_root=vendor_prediction_root
@@ -1428,6 +1532,7 @@ def main() -> None:
         )
     if not (0 <= args.gpu):
         raise ValueError("gpu must be non-negative")
+    args.runtime_preflight = runtime_preflight(require_cudnn=not args.disable_cudnn)
     started = time.time()
     args.output_root.mkdir(parents=True, exist_ok=True)
     freeze = runtime_freeze(

@@ -51,6 +51,38 @@ def test_runtime_freeze_rejects_interpreter_mismatch(
         runner.runtime_freeze(tmp_path / "output", runtime_python, expected_path)
 
 
+def test_runtime_freeze_normalizes_local_urls(tmp_path: Path) -> None:
+    runner = load_runner()
+    repo_root = tmp_path / "repo"
+    editable = (repo_root / "lib" / "laygen").as_uri()
+    freeze = (
+        f"-e {editable}\n"
+        "torch @ file:///tmp/torch-2.8.0%2Bcu128-cp311-cp311.whl\n"
+        "torchvision==0.23.0+cu128\n"
+    ).encode()
+
+    assert runner.normalize_runtime_freeze(freeze, repo_root) == (
+        b"-e <repo root>/lib/laygen\ntorch==2.8.0+cu128\ntorchvision==0.23.0+cu128\n"
+    )
+
+
+def test_runtime_preflight_rejects_mismatched_cuda_packages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = load_runner()
+    distributions = [
+        SimpleNamespace(metadata={"Name": "nvidia-cudnn-cu13"}, version="9.20"),
+        SimpleNamespace(metadata={"Name": "nvidia-cuda-runtime"}, version="13.0"),
+    ]
+    monkeypatch.setattr(
+        runner.importlib.metadata, "distributions", lambda: distributions
+    )
+    monkeypatch.setattr(runner.torch.version, "cuda", "12.8")
+
+    with pytest.raises(RuntimeError, match="does not match"):
+        runner.installed_cuda_package_family()
+
+
 def test_full_test_counts_are_dataset_specific() -> None:
     runner = load_runner()
 
