@@ -38,8 +38,8 @@ from layoutformerpp.training.lightning_module import (
     vendor_effective_cross_entropy,
 )
 from layoutformerpp.training.parity import compare_static_state, state_dict_sha256
-from traingen_parity import capture_rng_state, restore_rng_state
 from traingen_parity.compare import TensorTolerance, compare_tensors
+from traingen_parity.determinism import capture_rng_state, restore_rng_state
 from layoutformerpp_training_reference import (
     package_tokenizer,
     reference_checkpoint_behavior,
