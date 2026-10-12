@@ -346,8 +346,12 @@ counts_path, last_path, best_path, start, end, batch, time_path, gpu_path, repor
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
 completed = int(checkpoint["epoch"]) + 1
-if completed != int(end) or not checkpoint.get("optimizer_states"):
-    raise SystemExit("last checkpoint is not a full-state epoch-boundary checkpoint")
+if completed != int(end):
+    raise SystemExit(f"last checkpoint epoch is {completed}; expected {end}")
+optimizer_states = checkpoint.get("optimizer_states")
+if not isinstance(optimizer_states, list) or not optimizer_states:
+    keys = ",".join(sorted(checkpoint))
+    raise SystemExit(f"last checkpoint has no optimizer state; keys={keys}")
 elapsed_text, cpu_text = Path(time_path).read_text(encoding="utf-8").split()
 train_steps = math.ceil(counts["train"] / int(batch))
 val_steps = math.ceil(counts["val"] / int(batch))
