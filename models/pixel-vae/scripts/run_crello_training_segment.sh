@@ -156,9 +156,15 @@ shutil.copyfile(downloaded, target)
 PY
 }
 
+uv_install_dir="$work_root/uv-bin"
 if ! command -v uv >/dev/null 2>&1 || [[ "$(uv --version)" != 'uv 0.12.22' ]]; then
-    run_logged python3 -m pip install --disable-pip-version-check --quiet 'uv==0.12.22'
+    mkdir -p "$uv_install_dir"
+    run_logged bash -o pipefail -c '
+        curl --fail --silent --show-error --location https://astral.sh/uv/0.12.22/install.sh |
+            env UV_UNMANAGED_INSTALL="$1" sh
+    ' _ "$uv_install_dir"
 fi
+export PATH="$uv_install_dir:$PATH"
 [[ "$(uv --version)" == 'uv 0.12.22' ]] || { printf 'uv 0.12.22 is required\n' >&2; exit 2; }
 export UV_CACHE_DIR="$work_root/uv-cache"
 export HF_HOME="$work_root/pixelvae-hf"
