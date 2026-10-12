@@ -88,6 +88,8 @@
 
 - Treat `AGENTS.md`, repo-local skills, PR templates, and checklist issues as living documents. When work exposes incorrect, stale, or missing guidance, fix it in the same PR if the change is small and in scope; otherwise open or propose a focused `meta` issue.
 - Do not silently work around guidance known to be wrong. If the same kind of mistake is raised repeatedly, add or revise a rule, template item, or check so future work can catch it mechanically.
+- When the same class of check failure recurs a second time, stop case-specific patching and redesign the check around its claim. Before adding a rule, exception, threshold, or check, first try to remove or replace a gate; gate only independent quantities and keep derived quantities report-only. State what an addition replaces or why nothing can be removed, and justify failure-triggered changes by the check's purpose, not observed results.
+- When asking the user to decide, list the simplest option, including removal or redesign, first. Keep reusable rules in their owning repository document so the rule set stays visible; issue amendments record package-specific decisions, while the document states the current rule.
 - Keep PR diffs minimal for the stated task. Do not move dependencies between core `dependencies` and `[project.optional-dependencies]`, or add/modify `[build-system]`, unless the task requires it and the PR explains why.
 
 ## Reader-First Documentation
