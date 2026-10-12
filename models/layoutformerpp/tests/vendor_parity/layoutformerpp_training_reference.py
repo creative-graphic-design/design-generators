@@ -8,7 +8,6 @@ import json
 import os
 import random
 import shlex
-import shutil
 import subprocess
 import sys
 import textwrap
@@ -274,13 +273,23 @@ def _deepspeed_pin() -> str:
     raise AssertionError("Original requirements do not pin deepspeed")
 
 
+def _audit_runtime_python() -> Path:
+    runtime = os.environ.get("LAYOUTFORMERPP_AUDIT_VENV")
+    if not runtime:
+        raise RuntimeError(
+            "LAYOUTFORMERPP_AUDIT_VENV must point to the audited runtime"
+        )
+    python = Path(runtime) / "bin/python"
+    if not python.is_file():
+        raise RuntimeError("the audited runtime is missing its Python interpreter")
+    return python
+
+
 def reference_optimizer_scheduler_state(
     warmup_steps: tuple[int, ...],
 ) -> _OptimizerSchedulerState:
-    """Construct the pinned original Adam/WarmupLR in an isolated uv overlay."""
-    uv = shutil.which("uv")
-    if uv is None:
-        raise RuntimeError("uv is required for original DeepSpeed construction")
+    """Construct the pinned original Adam/WarmupLR in the audited runtime."""
+    runtime_python = _audit_runtime_python()
     pin = _deepspeed_pin()
     script = textwrap.dedent(
         f"""
@@ -292,6 +301,10 @@ def reference_optimizer_scheduler_state(
         import types
         import torch
 
+        expected_pin = {pin!r}
+        actual_pin = importlib.metadata.version("deepspeed")
+        if actual_pin != expected_pin:
+            raise RuntimeError(f"expected deepspeed {{expected_pin}}, got {{actual_pin}}")
         path = importlib.metadata.distribution("deepspeed").locate_file(
             "deepspeed/runtime/lr_schedules.py"
         )
@@ -327,10 +340,9 @@ def reference_optimizer_scheduler_state(
                 warmup_num_steps=warmup_steps,
             )
             values = [optimizer.param_groups[0]["lr"]]
-            scheduler.step()
-            values.append(optimizer.param_groups[0]["lr"])
-            scheduler.step()
-            values.append(optimizer.param_groups[0]["lr"])
+            for _ in range(warmup_steps + 2):
+                scheduler.step()
+                values.append(optimizer.param_groups[0]["lr"])
             sequences[str(warmup_steps)] = values
             step_parameter = torch.nn.Parameter(torch.tensor(1.0))
             step_optimizer = torch.optim.Adam([step_parameter], lr=1e-4)
@@ -357,7 +369,7 @@ def reference_optimizer_scheduler_state(
                 "amsgrad": optimizer.defaults["amsgrad"],
             }}
         print(json.dumps({{
-            "deepspeed_version": importlib.metadata.version("deepspeed"),
+            "deepspeed_version": actual_pin,
             "deepspeed_source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             "optimizer": optimizer_name,
             "scheduler": scheduler_name,
@@ -368,7 +380,7 @@ def reference_optimizer_scheduler_state(
         """
     )
     completed = subprocess.run(
-        [uv, "run", "--with", f"deepspeed=={pin}", "python", "-c", script],
+        [str(runtime_python), "-c", script],
         cwd=PROJECT_ROOT,
         env={**os.environ, "UV_NO_PROGRESS": "1", "CUDA_VISIBLE_DEVICES": ""},
         check=True,

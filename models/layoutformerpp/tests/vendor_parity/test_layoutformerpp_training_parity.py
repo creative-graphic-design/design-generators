@@ -608,6 +608,35 @@ def _run_s1_case(recipe, device: torch.device) -> dict[str, object]:
         reference_outputs = _reference_pre_optimizer_trace(reference_model, batch)
         reference_after_rng = capture_rng_state()
         reference_after_hash = state_dict_sha256(reference_model.state_dict())
+        input_ids = cast(torch.Tensor, batch["input_ids"])
+        attention_mask = cast(torch.Tensor, batch["attention_mask"])
+        labels = cast(torch.Tensor, batch["labels"])
+        task_ids = batch["task_ids"]
+        restore_rng_state(boundary_rng)
+        with torch.no_grad():
+            vendor_forward = reference_model(
+                input_ids,
+                ~attention_mask.bool(),
+                labels,
+                task_ids=task_ids,
+            )
+        vendor_forward_after_rng = capture_rng_state()
+        torch.testing.assert_close(
+            cast(torch.Tensor, vendor_forward["logits"]),
+            cast(torch.Tensor, reference_outputs["logits"]),
+            rtol=S1_TOLERANCE.rtol,
+            atol=S1_TOLERANCE.atol,
+        )
+        torch.testing.assert_close(
+            cast(torch.Tensor, vendor_forward["loss"]),
+            cast(torch.Tensor, reference_outputs["loss"]),
+            rtol=S1_TOLERANCE.rtol,
+            atol=S1_TOLERANCE.atol,
+        )
+        if not _rng_equal(reference_after_rng, vendor_forward_after_rng):
+            raise AssertionError(
+                f"{recipe.name}: test-local and vendor forwards consumed different RNG"
+            )
         restore_rng_state(boundary_rng)
         package_before_hash = state_dict_sha256(module.model.state_dict())
         trace = module.pre_optimizer_trace(batch)
@@ -685,6 +714,7 @@ def _run_s1_case(recipe, device: torch.device) -> dict[str, object]:
         "initial_state_sha256": reference_initial_hash,
         "package_initial_state_sha256": package_initial_hash,
         "state_hashes_unchanged": True,
+        "vendor_forward_matches_reference": True,
         "rng_before_sha256": _rng_sha256(boundary_rng),
         "reference_rng_after_sha256": _rng_sha256(reference_after_rng),
         "package_rng_after_sha256": _rng_sha256(package_after_rng),
@@ -874,9 +904,7 @@ def _run_s2_case(recipe, device: torch.device) -> dict[str, object]:
         reference_gradients = _gradient_values(reference_model)
         reference_gradient_norm = _gradient_norm(reference_gradients)
         if recipe.use_gradient_clipping:
-            torch.nn.utils.clip_grad_norm_(
-                reference_model.parameters(), recipe.learning_rate
-            )
+            torch.nn.utils.clip_grad_norm_(reference_model.parameters(), 5.0)
         reference_post_gradient_norm = _gradient_norm(_gradient_values(reference_model))
         reference_optimizer.step()
         reference_scheduler = reference_optimizer_scheduler_state(
@@ -906,9 +934,7 @@ def _run_s2_case(recipe, device: torch.device) -> dict[str, object]:
         package_gradients = _gradient_values(module.model)
         package_gradient_norm = _gradient_norm(package_gradients)
         if recipe.use_gradient_clipping:
-            torch.nn.utils.clip_grad_norm_(
-                module.model.parameters(), recipe.learning_rate
-            )
+            torch.nn.utils.clip_grad_norm_(module.model.parameters(), 5.0)
         package_post_gradient_norm = _gradient_norm(_gradient_values(module.model))
         package_optimizer.step()
         package_scheduler.step()
@@ -1131,11 +1157,14 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
         LayoutFormerPPWarmupLR,
         cast(Mapping[str, object], package_configured["lr_scheduler"])["scheduler"],
     )
-    reference_scheduler = LayoutFormerPPWarmupLR(
-        reference_optimizer,
-        warmup_num_steps=recipe.warmup_num_steps,
-        warmup_max_lr=recipe.learning_rate,
+    reference_scheduler_state = reference_optimizer_scheduler_state(
+        (recipe.warmup_num_steps,)
     )
+    reference_lrs = reference_scheduler_state["lr_sequences"][
+        str(recipe.warmup_num_steps)
+    ]
+    if len(reference_lrs) < len(train_batches) + 1:
+        raise AssertionError(f"{recipe.name}: pinned scheduler trace is too short")
     caller_rng = capture_rng_state()
     first_divergence: dict[str, object] | None = None
     train_log: list[float] = []
@@ -1251,8 +1280,9 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
             reference_post_gradient_norm = _gradient_norm(
                 _gradient_values(reference_model)
             )
+            reference_optimizer.param_groups[0]["lr"] = reference_lrs[step]
             reference_optimizer.step()
-            reference_scheduler.step()
+            reference_optimizer.param_groups[0]["lr"] = reference_lrs[step + 1]
             reference_optimizer_state = _optimizer_state_values(
                 reference_model, reference_optimizer
             )
@@ -1285,10 +1315,8 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
                 "gradients": reference_gradients,
                 "parameters": reference_parameters,
                 "optimizer_state": reference_optimizer_state,
-                "scheduler_last_batch_iteration": float(
-                    reference_scheduler.last_batch_iteration
-                ),
-                "lr": float(reference_optimizer.param_groups[0]["lr"]),
+                "scheduler_last_batch_iteration": float(step),
+                "lr": float(reference_lrs[step + 1]),
                 "rng_after": _rng_sha256(reference_after_rng),
                 "zero_grad": {
                     name: parameter.grad is None
@@ -1450,10 +1478,13 @@ def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, o
     ]
     environment = {
         **os.environ,
-        "CUDA_VISIBLE_DEVICES": "0",
         "PARITY_REQUIRE": "1",
         "LAYOUTFORMERPP_PARITY_DATA_ROOT": str(_real_data_root()),
     }
+    if not environment.get("CUDA_VISIBLE_DEVICES"):
+        raise RuntimeError(
+            "production-fit child requires the parent CUDA_VISIBLE_DEVICES setting"
+        )
     completed = subprocess.run(
         command,
         cwd=project_root,
@@ -1686,14 +1717,16 @@ def test_s0_original_adam_and_warmuplr_are_actually_constructed() -> None:
             warmup_max_lr=1e-4,
         )
         package_lrs = [optimizer.param_groups[0]["lr"]]
-        package_scheduler.step()
-        package_lrs.append(optimizer.param_groups[0]["lr"])
-        package_scheduler.step()
-        package_lrs.append(optimizer.param_groups[0]["lr"])
+        for _ in range(warmup_steps + 2):
+            package_scheduler.step()
+            package_lrs.append(optimizer.param_groups[0]["lr"])
         assert package_lrs == pytest.approx(reference_lrs)
+        assert len(reference_lrs) == warmup_steps + 3
         assert reference_lrs[2] == pytest.approx(
             1e-4 * math.log(2.0) / math.log(float(warmup_steps))
         )
+        assert reference_lrs[warmup_steps] == pytest.approx(1e-4)
+        assert reference_lrs[warmup_steps + 1] == pytest.approx(1e-4)
         post_update = states["post_optimizer_steps"][str(warmup_steps)]
         assert post_update == {
             "optimizer_step": 1.0,
