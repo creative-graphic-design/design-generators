@@ -1,4 +1,4 @@
-"""Execute one pinned CanvasVAE full-run seed on a named Colab session.
+"""Execute one pinned CanvasVAE dataset seed on a named Colab session.
 
 The queue supervisor invokes this script once per run. It verifies both the
 local source and the remote checkout before starting the artifact-syncing
@@ -8,6 +8,7 @@ wrapper, then lets the bundled wrapper upload results and release the session.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -18,7 +19,7 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -26,7 +27,7 @@ DEFAULT_MANIFEST = REPOSITORY_ROOT / ".cache/canvas-vae/full-run/rico/manifest.j
 COLAB_COMMAND = ["mise", "exec", "--", "colab"]
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-HUB_REPOSITORY_PREFIX = "design-generators/canvas-vae/s5"
+HUB_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
@@ -35,6 +36,46 @@ JsonObject: TypeAlias = dict[str, JsonValue]
 
 class ExecutorError(Exception):
     """A run precondition or Colab operation failed."""
+
+
+def validate_hub_prefix(value: str | None, option: str) -> str | None:
+    if value is None:
+        return None
+    if HUB_PREFIX_PATTERN.fullmatch(value) is None or any(
+        part in {".", ".."} for part in value.split("/")
+    ):
+        raise ExecutorError(f"--{option} must be a relative Hub path prefix")
+
+    return value.strip("/")
+
+
+def resolve_runtime_prefixes(
+    value: JsonValue,
+    input_prefix: str | None,
+    output_prefix: str | None,
+) -> JsonValue:
+    if isinstance(value, str):
+        if "{input_prefix}" in value:
+            if input_prefix is None:
+                raise ExecutorError("--input-prefix is required by this manifest")
+            value = value.replace("{input_prefix}", input_prefix.strip("/"))
+        if "{output_prefix}" in value:
+            if output_prefix is None:
+                raise ExecutorError("--output-prefix is required by this manifest")
+            value = value.replace("{output_prefix}", output_prefix.strip("/"))
+        return value
+    if isinstance(value, list):
+        return [
+            resolve_runtime_prefixes(item, input_prefix, output_prefix)
+            for item in value
+        ]
+    if isinstance(value, dict):
+        return {
+            key: resolve_runtime_prefixes(item, input_prefix, output_prefix)
+            for key, item in value.items()
+        }
+
+    return value
 
 
 def load_json(path: Path) -> JsonObject:
@@ -47,6 +88,57 @@ def load_json(path: Path) -> JsonObject:
         raise ExecutorError(f"JSON file must contain an object: {path}")
 
     return value
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None:
+    if manifest.get("dataset") != "crello":
+        return
+
+    runtime_plan = manifest.get("runtime_plan")
+    rehearsal = manifest.get("cpu_rehearsal")
+    if (
+        not isinstance(runtime_plan, dict)
+        or runtime_plan.get("integrated_first_run_gates") is not True
+    ):
+        raise ExecutorError(
+            "Crello S5 dispatch requires implemented integrated lockstep and GPU-bound gates"
+        )
+    if (
+        not isinstance(rehearsal, dict)
+        or rehearsal.get("status") != "passed"
+        or rehearsal.get("source_commit") != pinned_commit
+    ):
+        raise ExecutorError(
+            "Crello S5 dispatch requires a same-environment CPU rehearsal for the pinned commit"
+        )
+    rehearsal_path = rehearsal.get("artifact_path")
+    rehearsal_sha256 = rehearsal.get("sha256")
+    if (
+        not isinstance(rehearsal_path, str)
+        or not isinstance(rehearsal_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
+    ):
+        raise ExecutorError("Crello CPU rehearsal needs a report path and SHA-256")
+    rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+    try:
+        rehearsal_file.relative_to(REPOSITORY_ROOT)
+    except ValueError as error:
+        raise ExecutorError(
+            "Crello CPU rehearsal report must stay inside the repository"
+        ) from error
+    if not rehearsal_file.is_file() or sha256_file(rehearsal_file) != rehearsal_sha256:
+        raise ExecutorError(
+            "Crello CPU rehearsal report is missing or its SHA-256 differs"
+        )
 
 
 def git_output(*args: str) -> str:
@@ -353,9 +445,18 @@ def remote_preflight_source() -> str:
 import json
 import hashlib
 import os
+import tarfile
 import shutil
 import subprocess
 from pathlib import Path
+from pathlib import PurePosixPath
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 config = json.loads(Path("/content/s5-preflight.json").read_text())
 repository = Path("/content/repo")
@@ -393,25 +494,144 @@ if config["download_inputs"]:
     environment = os.environ.copy()
     environment["HF_TOKEN"] = token_path.read_text().strip()
     stage = Path("/content/s5-inputs")
-    subprocess.run(
-        ["uvx", "--from", "huggingface_hub", "hf", "download",
-         config["hub_repository"], "--repo-type", "model", "--revision",
-         config["hub_revision"], "--include", config["hub_prefix"] + "/data/rico/**",
-         "--include", config["hub_prefix"] + "/original/data/rico/**",
-         "--local-dir", str(stage)],
-        check=True, env=environment,
-    )
-    sources = (
-        (stage / config["hub_prefix"] / "data" / "rico",
-         repository / ".cache/canvas-vae/data/rico"),
-        (stage / config["hub_prefix"] / "original" / "data" / "rico",
-         repository / ".cache/canvas-vae/original/data/rico"),
-    )
-    for source, target in sources:
-        if not source.is_dir() or not any(source.iterdir()):
-            raise SystemExit(f"input preflight is empty: {source}")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source, target)
+    if config["dataset"] == "crello":
+        data = config["input_data"]
+        archive = data["archive"]
+        hub_path = data["prefix"].rstrip("/") + "/" + archive["filename"]
+        subprocess.run(
+            ["uvx", "--from", "huggingface_hub", "hf", "download",
+             config["hub_repository"], "--repo-type", "model", "--revision",
+             data["revision"], "--include", hub_path, "--local-dir", str(stage)],
+            check=True, env=environment,
+        )
+        archive_path = stage / hub_path
+        digest = hashlib.sha256()
+        with archive_path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != archive["sha256"]:
+            raise SystemExit("Crello S5 input archive SHA-256 mismatch")
+        paths = config["dataset_paths"]
+        package_data = repository / paths["package_data_dir"]
+        package_fixture = repository / paths["package_fixture_dir"]
+        original_fixture = repository / paths["original_fixture_dir"]
+        original_data = repository / paths["original_data_dir"]
+        for destination in (
+            package_data,
+            package_fixture,
+            original_fixture,
+            original_data,
+        ):
+            if destination.exists():
+                raise SystemExit(f"refusing to overwrite existing Crello input: {destination}")
+        with tarfile.open(archive_path, "r:gz") as bundle:
+            members = bundle.getmembers()
+            seen = set()
+            allowed_roots = (
+                PurePosixPath(paths["package_data_dir"]),
+                PurePosixPath(paths["package_fixture_dir"]),
+                PurePosixPath(paths["original_fixture_dir"]),
+                PurePosixPath(paths["original_data_dir"]),
+            )
+            for member in members:
+                path = PurePosixPath(member.name)
+                if (path.is_absolute() or ".." in path.parts
+                        or member.issym() or member.islnk() or member.isdev()
+                        or not (member.isfile() or member.isdir())
+                        or member.name in seen
+                        or not any(path == root or root in path.parents for root in allowed_roots)):
+                    raise SystemExit("Crello S5 archive contains an unsafe member")
+                seen.add(member.name)
+            bundle.extractall(repository, members=members)
+        required = [
+            package_data / "vocabulary.json",
+            package_data / "count.json",
+            package_data / "crello-manifest.json",
+            package_fixture / "manifest.json",
+            package_fixture / "manifest.sha256",
+            package_fixture / "posterior_means.npy",
+            original_fixture / "manifest.json",
+            original_fixture / "manifest.sha256",
+            original_fixture / "posterior_means.npy",
+            original_data / "vocabulary.json",
+            original_data / "count.json",
+            original_data / "crello-s5-manifest.json",
+        ]
+        for split in ("train", "val", "test"):
+            required.extend((package_data / f"{split}.jsonl",))
+            if not list(original_data.glob(f"{split}-*")):
+                raise SystemExit(f"Crello S5 archive is missing original {split} records")
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            raise SystemExit("Crello S5 archive is missing required inputs: " + ", ".join(missing))
+        expected_counts = {"train": 18768, "val": 2315, "test": 2278}
+        for count_path in (package_data / "count.json", original_data / "count.json"):
+            if json.loads(count_path.read_text()) != expected_counts:
+                raise SystemExit(f"Crello S5 input counts differ: {count_path}")
+        original_data_manifest = json.loads(
+            (original_data / "crello-s5-manifest.json").read_text()
+        )
+        if (
+            original_data_manifest["source_archive_sha256"]
+            != data["source_archive_sha256"]
+            or original_data_manifest["document_counts"] != expected_counts
+        ):
+            raise SystemExit("Crello S5 materialized records use unexpected source data")
+        canonical_ids = json.loads(
+            (package_data / "crello-manifest.json").read_text()
+        )["document_stage_image_ids_first_occurrence"]
+        if len(canonical_ids) != 114007:
+            raise SystemExit("Crello S5 canonical visual-element count differs")
+        fixture_manifests = []
+        for fixture in (package_fixture, original_fixture):
+            manifest_path = fixture / "manifest.json"
+            if hashlib.sha256(manifest_path.read_bytes()).hexdigest() != (
+                fixture / "manifest.sha256"
+            ).read_text().strip():
+                raise SystemExit(f"Crello S5 fixture manifest hash differs: {fixture}")
+            fixture_manifest = json.loads(manifest_path.read_text())
+            array_path = fixture / "posterior_means.npy"
+            array_hash = file_sha256(array_path)
+            if (
+                fixture_manifest["dtype"] != "<f4"
+                or fixture_manifest["shape"] != [114007, 256]
+                or [row["image_id"] for row in fixture_manifest["records"]]
+                != canonical_ids
+                or fixture_manifest["array_sha256"] != array_hash
+                or fixture_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+            ):
+                raise SystemExit(f"Crello S5 fixture does not match its encoder data: {fixture}")
+            fixture_manifests.append(fixture_manifest)
+        if (
+            fixture_manifests[0]["source_archive_sha256"]
+            != fixture_manifests[1]["source_archive_sha256"]
+            or original_data_manifest["original_embedding_manifest_sha256"]
+            != hashlib.sha256((original_fixture / "manifest.json").read_bytes()).hexdigest()
+            or original_data_manifest["original_embedding_array_sha256"]
+            != file_sha256(original_fixture / "posterior_means.npy")
+        ):
+            raise SystemExit("Crello S5 data and encoder caches have inconsistent hashes")
+    else:
+        subprocess.run(
+            ["uvx", "--from", "huggingface_hub", "hf", "download",
+             config["hub_repository"], "--repo-type", "model", "--revision",
+             config["hub_revision"], "--include", config["hub_prefix"] + "/data/rico/**",
+             "--include", config["hub_prefix"] + "/original/data/rico/**",
+             "--local-dir", str(stage)],
+            check=True, env=environment,
+        )
+        sources = (
+            (stage / config["hub_prefix"] / "data" / "rico",
+             repository / ".cache/canvas-vae/data/rico"),
+            (stage / config["hub_prefix"] / "original" / "data" / "rico",
+             repository / ".cache/canvas-vae/original/data/rico"),
+        )
+        for source, target in sources:
+            if not source.is_dir() or not any(source.iterdir()):
+                raise SystemExit(f"input preflight is empty: {source}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source, target)
     print("input_preflight_passed")
 
 checkpoint_download = config.get("checkpoint_download")
@@ -469,6 +689,7 @@ def temporary_files(
     manifest: JsonObject,
     run: JsonObject,
     pinned_commit: str,
+    hub_repository: str,
     download_inputs: bool,
     checkpoint_download: JsonObject | None = None,
     phase: str = "training",
@@ -492,9 +713,12 @@ def temporary_files(
         "training_config": training_config,
         "config_sha256": manifest.get("config_sha256"),
         "download_inputs": download_inputs,
+        "dataset": manifest.get("dataset"),
+        "dataset_paths": manifest.get("dataset_paths"),
+        "input_data": input_data,
         "initialize_vendor_submodule": run.get("system") == "original"
         and run.get("cpu_postprocess") is not True,
-        "hub_repository": input_data.get("repository"),
+        "hub_repository": hub_repository,
         "hub_revision": input_data.get("revision"),
         "hub_prefix": input_data.get("prefix"),
         "checkpoint_download": checkpoint_download,
@@ -785,8 +1009,24 @@ def build_postprocess_job(
         )
     log_root = f"/content/out/logs/{run_id}/{segment_id}"
     result_root = f"/content/out/results/{run_id}/{segment_id}"
-    vocabulary = "/content/repo/.cache/canvas-vae/data/rico/vocabulary.json"
-    if system == "original":
+    dataset = manifest.get("dataset")
+    dataset_paths = manifest.get("dataset_paths")
+    if dataset == "crello":
+        if not isinstance(dataset_paths, dict):
+            raise ExecutorError("Crello manifest needs dataset_paths")
+        vocabulary_key = (
+            "package_vocabulary" if system == "package" else "original_vocabulary"
+        )
+        vocabulary_value = dataset_paths.get(vocabulary_key)
+        if (
+            not isinstance(vocabulary_value, str)
+            or Path(vocabulary_value).is_absolute()
+        ):
+            raise ExecutorError(f"Crello manifest needs relative {vocabulary_key}")
+        vocabulary = f"/content/repo/{vocabulary_value}"
+    elif system == "package":
+        vocabulary = "/content/repo/.cache/canvas-vae/data/rico/vocabulary.json"
+    else:
         vocabulary = (
             "/content/repo/.cache/canvas-vae/original/data/rico/vocabulary.json"
         )
@@ -815,6 +1055,8 @@ def build_postprocess_job(
             converted_root,
         ]
     )
+    if dataset == "crello":
+        converter_args.extend(["--dataset", "crello"])
     evaluator_args: list[str] = []
     for part in evaluator:
         if not isinstance(part, str):
@@ -1078,14 +1320,19 @@ def execute_run(
     segment_id: str,
     hub_repository: str,
     resume_checkpoint: Path | None,
+    input_prefix: str | None,
+    output_prefix: str | None,
 ) -> None:
-    manifest = load_json(manifest_path)
+    manifest = cast(
+        JsonObject,
+        resolve_runtime_prefixes(load_json(manifest_path), input_prefix, output_prefix),
+    )
     pinned = manifest.get("source_commit")
     if not isinstance(pinned, str):
         raise ExecutorError("manifest source_commit must be finalized")
     verify_local_source(pinned)
     if manifest.get("queue_status") != "ready":
-        raise ExecutorError("manifest queue_status is not ready; refusing B2 dispatch")
+        raise ExecutorError("manifest queue_status is not ready; refusing S5 dispatch")
     config_digest = manifest.get("config_sha256")
     if not isinstance(config_digest, str) or not re.fullmatch(
         r"[0-9a-f]{64}", config_digest
@@ -1158,11 +1405,12 @@ def execute_run(
         )
 
     runner = manifest.get("runner_command")
-    if runner != ["python3", "models/canvas-vae/scripts/s5_rico_seed_executor.py"]:
+    if runner != ["python3", "models/canvas-vae/scripts/s5_seed_executor.py"]:
         raise ExecutorError("manifest runner_command does not identify this executor")
     runtime_plan = manifest.get("runtime_plan")
     if not isinstance(runtime_plan, dict):
         raise ExecutorError("manifest runtime_plan must be an object")
+    verify_crello_launch_gates(manifest, pinned)
     if runtime_plan.get("source_commit") != pinned:
         raise ExecutorError(
             "runtime_plan source_commit must match the manifest source_commit"
@@ -1220,7 +1468,7 @@ def execute_run(
         runtime_plan.get("require_hub_wrapper_exit_code_after_each_session") is not True
         or runtime_plan.get("hub_wrapper_exit_code_path") != "logs/<job>/exit_code"
         or runtime_plan.get("checkpoint_presence_gate_before_cpu_dispatch") is not True
-        or runtime_plan.get("branch_must_remain_frozen_while_b2_running") is not True
+        or runtime_plan.get("branch_must_remain_frozen_while_s5_running") is not True
     ):
         raise ExecutorError(
             "runtime must verify Hub completion/checkpoint artifacts and freeze the source branch"
@@ -1305,6 +1553,7 @@ def execute_run(
             manifest,
             run,
             pinned,
+            hub_repository,
             download_inputs=True,
             phase="training",
         )
@@ -1330,9 +1579,14 @@ def execute_run(
             encoding="utf-8",
         )
         run_env.chmod(0o600)
+        dataset = manifest.get("dataset")
+        if not isinstance(dataset, str):
+            raise ExecutorError("manifest dataset must be a string")
         capture_path = (
             REPOSITORY_ROOT
-            / ".cache/canvas-vae/full-run/rico/executor-logs"
+            / ".cache/canvas-vae/full-run"
+            / dataset
+            / "executor-logs"
             / f"{run_id}-{segment_id}.log"
         )
         capture_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1391,6 +1645,7 @@ def execute_run(
             manifest,
             cpu_run,
             pinned,
+            hub_repository,
             download_inputs=True,
             checkpoint_download=checkpoint_download,
             phase="postprocess",
@@ -1512,7 +1767,10 @@ def execute_run(
 
 
 def execute_cpu_smoke(
-    session_name: str, source_commit: str, hub_repository: str
+    session_name: str,
+    source_commit: str,
+    hub_repository: str,
+    output_prefix: str,
 ) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
         raise ExecutorError("CPU smoke requires a valid smoke identifier")
@@ -1530,7 +1788,7 @@ def execute_cpu_smoke(
     base_manifest = load_json(DEFAULT_MANIFEST)
     raw_runs = base_manifest.get("runs")
     if not isinstance(raw_runs, list):
-        raise ExecutorError("B2 manifest does not define its source run templates")
+        raise ExecutorError("S5 manifest does not define its source run templates")
     package_template = next(
         (
             run
@@ -1549,7 +1807,7 @@ def execute_cpu_smoke(
     )
     if package_template is None or original_template is None:
         raise ExecutorError(
-            "B2 manifest must define package and original run templates"
+            "S5 manifest must define package and original run templates"
         )
 
     smoke_id = uuid.uuid4().hex[:8]
@@ -1557,7 +1815,7 @@ def execute_cpu_smoke(
         REPOSITORY_ROOT / ".cache/canvas-vae/s5" / f"cpu-e2e-{session_name}-{smoke_id}"
     )
     smoke_root.mkdir(parents=True, exist_ok=False)
-    hub_prefix = f"{HUB_REPOSITORY_PREFIX}/{session_name}-{smoke_id}"
+    hub_prefix = f"{output_prefix.strip('/')}/cpu-smoke/{session_name}-{smoke_id}"
     result_path = smoke_root / "smoke-result.json"
     result: JsonObject = {
         "source_commit": source_commit,
@@ -1569,7 +1827,7 @@ def execute_cpu_smoke(
 
     raw_runtime_plan = base_manifest.get("runtime_plan")
     if not isinstance(raw_runtime_plan, dict):
-        raise ExecutorError("B2 manifest runtime_plan must be an object")
+        raise ExecutorError("S5 manifest runtime_plan must be an object")
     runtime_plan = dict(raw_runtime_plan)
     runtime_root = "${S5_RUNTIME_ROOT}"
     runtime_plan.update(
@@ -1714,9 +1972,7 @@ def execute_cpu_smoke(
         completed = subprocess.run(
             [
                 sys.executable,
-                str(
-                    REPOSITORY_ROOT / "models/canvas-vae/scripts/s5_rico_seed_queue.py"
-                ),
+                str(REPOSITORY_ROOT / "models/canvas-vae/scripts/s5_seed_queue.py"),
                 "--manifest",
                 str(manifest_path),
                 "--launch",
@@ -1857,6 +2113,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--hub-repo", required=True)
+    parser.add_argument("--input-prefix")
+    parser.add_argument("--output-prefix")
     parser.add_argument("--run-id")
     parser.add_argument("--segment-id", default="segment-001")
     parser.add_argument("--resume-checkpoint", type=Path)
@@ -1867,6 +2125,11 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if not args.hub_repo.strip():
         parser.error("--hub-repo must not be empty")
+    try:
+        args.input_prefix = validate_hub_prefix(args.input_prefix, "input-prefix")
+        args.output_prefix = validate_hub_prefix(args.output_prefix, "output-prefix")
+    except ExecutorError as error:
+        parser.error(str(error))
 
     return args
 
@@ -1882,7 +2145,14 @@ def main() -> int:
             if args.run_id is None:
                 raise ExecutorError("--run-id is required for a dry run")
 
-            manifest = load_json(args.manifest.resolve())
+            manifest = cast(
+                JsonObject,
+                resolve_runtime_prefixes(
+                    load_json(args.manifest.resolve()),
+                    args.input_prefix,
+                    args.output_prefix,
+                ),
+            )
             pinned_commit = args.source_commit or manifest.get("source_commit")
             if not isinstance(pinned_commit, str):
                 raise ExecutorError("dry-run requires a full source_commit")
@@ -1982,7 +2252,14 @@ def main() -> int:
                 raise ExecutorError(
                     "CPU smoke requires --session-name and --source-commit"
                 )
-            execute_cpu_smoke(args.session_name, args.source_commit, args.hub_repo)
+            if args.output_prefix is None:
+                raise ExecutorError("CPU smoke requires --output-prefix")
+            execute_cpu_smoke(
+                args.session_name,
+                args.source_commit,
+                args.hub_repo,
+                args.output_prefix,
+            )
         else:
             if args.run_id is None:
                 raise ExecutorError("--run-id is required for a queue run")
@@ -1992,6 +2269,8 @@ def main() -> int:
                 args.segment_id,
                 args.hub_repo,
                 args.resume_checkpoint,
+                args.input_prefix,
+                args.output_prefix,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
         print(f"Full-run seed failed closed: {error}", file=sys.stderr)

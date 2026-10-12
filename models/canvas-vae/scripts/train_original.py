@@ -14,17 +14,38 @@ import argparse
 import logging
 from pathlib import Path
 
-from generate_vendor_reference import import_original
+
+def build_trainer_arguments(
+    dataset_name: str,
+    data_dir: Path,
+    job_dir: Path,
+    original_args: list[str],
+) -> list[str]:
+    """Build arguments for the unchanged vendor DataSpec and trainer."""
+    return [
+        "--dataset-name",
+        dataset_name,
+        "--data-dir",
+        str(data_dir),
+        "--job-dir",
+        str(job_dir),
+        *original_args,
+    ]
 
 
 def main() -> None:
     """Launch the original trainer."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--dataset-name",
+        choices=("rico", "crello-document"),
+        default="rico",
+        help="Original DataSpec dataset (default: %(default)s).",
+    )
+    parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/data/rico"),
-        help="Original TFRecord directory (default: %(default)s).",
+        help="Original TFRecord directory (defaults under .cache/canvas-vae/original/data).",
     )
     parser.add_argument(
         "--job-dir",
@@ -42,7 +63,12 @@ def main() -> None:
         "original_args", nargs="*", help="Extra original trainer arguments after `--`."
     )
     args = parser.parse_args()
+    data_dir = (
+        args.data_dir or Path(".cache/canvas-vae/original/data") / args.dataset_name
+    )
     logging.basicConfig(level=logging.INFO)
+    from generate_vendor_reference import import_original
+
     tf, _, _ = import_original()
     for device in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(device, True)
@@ -53,15 +79,12 @@ def main() -> None:
     from canvasvae.train import train_and_evaluate
 
     original = parse_args(
-        [
-            "--dataset-name",
-            "rico",
-            "--data-dir",
-            str(args.data_dir),
-            "--job-dir",
-            str(args.job_dir),
-            *args.original_args,
-        ]
+        build_trainer_arguments(
+            args.dataset_name,
+            data_dir,
+            args.job_dir,
+            args.original_args,
+        )
     )
     train_and_evaluate(original)
 
