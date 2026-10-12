@@ -236,7 +236,7 @@ import torch
 checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
 if not checkpoint.get("optimizer_states"):
     raise SystemExit("resume checkpoint has no optimizer state")
-print(int(checkpoint["epoch"]) + 1)
+print(int(checkpoint["epoch"]))
 PY
 )"
 fi
@@ -345,7 +345,7 @@ import torch
 counts_path, last_path, best_path, start, end, batch, time_path, gpu_path, report_path, source = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
-completed = int(checkpoint["epoch"]) + 1
+completed = int(checkpoint["epoch"])
 if completed != int(end):
     raise SystemExit(f"last checkpoint epoch is {completed}; expected {end}")
 optimizer_states = checkpoint.get("optimizer_states")
