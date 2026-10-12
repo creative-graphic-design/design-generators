@@ -327,6 +327,11 @@ if ((train_status != 0)); then
     printf 'training segment failed with exit code %s\n' "$train_status" >&2
     exit "$train_status"
 fi
+if [[ -f "$run_dir/config.yaml" ]]; then
+    config_archive="$run_dir/reports/config-e$(printf '%03d' "$end_epoch").yaml"
+    [[ ! -e "$config_archive" ]] || { printf 'segment config archive already exists\n' >&2; exit 2; }
+    mv "$run_dir/config.yaml" "$config_archive"
+fi
 
 report_path="$run_dir/reports/segment-e$(printf '%03d' "$end_epoch").json"
 run_logged uv run --locked --package pixel-vae --extra training python - \
