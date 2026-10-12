@@ -17,6 +17,12 @@ trainer:
         save_weights_only: true
         filename: best
         auto_insert_metric_name: false
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 0
+        save_last: true
+        save_weights_only: false
+        every_n_epochs: 1
 model:
   class_path: pixel_vae.training.PixelVAETrainingModule
   init_args:

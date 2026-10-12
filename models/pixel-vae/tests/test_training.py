@@ -302,3 +302,11 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert checkpoint.monitor == "val_reconstruction"
     assert checkpoint.mode == "min"
     assert checkpoint.save_weights_only
+    resumable_checkpoints = [
+        callback
+        for callback in cli.trainer.callbacks
+        if getattr(callback, "save_last", False)
+    ]
+    assert len(resumable_checkpoints) == 1
+    assert not resumable_checkpoints[0].save_weights_only
+    assert resumable_checkpoints[0].every_n_epochs == 1
