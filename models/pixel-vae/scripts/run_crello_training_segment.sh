@@ -203,7 +203,7 @@ for split, value in (("train", 64), ("val", 192)):
     encoded = BytesIO()
     image.save(encoded, format="PNG")
     writer = TFRecordWriter(str(data_dir / f"{split}-00000.tfrecord"))
-    writer.write({"image": encoded.getvalue()}, None)
+    writer.write({"image": (encoded.getvalue(), "byte")}, None)
     writer.close()
 PY
 fi
