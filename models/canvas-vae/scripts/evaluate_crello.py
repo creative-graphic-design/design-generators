@@ -59,6 +59,11 @@ def main() -> None:
         "--device", default="cpu", help="Torch device (default: %(default)s)."
     )
     parser.add_argument("--output", type=Path, required=True, help="Result JSON path.")
+    parser.add_argument(
+        "--expected-test-documents",
+        type=int,
+        help="Fail unless the test split contains this many documents.",
+    )
     args = parser.parse_args()
 
     model = CanvasVAECrelloModel.from_pretrained(args.checkpoint).to(args.device).eval()
@@ -69,6 +74,14 @@ def main() -> None:
     )
     data.setup()
     documents = data.splits[CrelloSplit.test].documents
+    if (
+        args.expected_test_documents is not None
+        and len(documents) != args.expected_test_documents
+    ):
+        raise ValueError(
+            f"expected {args.expected_test_documents} test documents, got {len(documents)}"
+        )
+
     sums: dict[str, float] = {}
     counts: dict[str, int] = {}
     kl_values = []
@@ -87,6 +100,7 @@ def main() -> None:
         kl_values.append(float(output.kl_divergence))
 
     results = {f"reconst_{key}": value / counts[key] for key, value in sums.items()}
+    results["test_document_count"] = len(documents)
     results["reconst_kl_divergence"] = sum(kl_values) / len(kl_values)
     if data.processor is None:
         raise RuntimeError("data module setup did not construct a processor")

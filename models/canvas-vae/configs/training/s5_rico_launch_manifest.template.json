@@ -45,7 +45,7 @@
   "launched_at": null,
   "runner_command": [
     "python3",
-    "models/canvas-vae/scripts/s5_rico_seed_executor.py"
+    "models/canvas-vae/scripts/s5_seed_executor.py"
   ],
   "runtime_plan": {
     "gpu": "A100",
@@ -146,8 +146,8 @@
       "allocated_session_elapsed_seconds": 502.404548,
       "evidence_scope": "CPU-only wrapper history records an 8m22s allocation from session_created to session_terminated while the job exercised both package and original evaluation paths; it exited 1 later at an ordered-target artifact assertion. The elapsed time supports an allowance only and is not parity-pass evidence."
     },
-    "branch_must_remain_frozen_while_b2_running": true,
-    "branch_freeze_reason": "Each named runtime shallow-clones the feat/canvas-vae branch tip at depth 1 before checking out the pinned source commit; do not push to feat/canvas-vae during B2.",
+    "branch_must_remain_frozen_while_s5_running": true,
+    "branch_freeze_reason": "Each named runtime shallow-clones the feat/canvas-vae branch tip at depth 1 before checking out the pinned source commit; do not push to feat/canvas-vae during S5.",
     "require_hub_wrapper_exit_code_after_each_session": true,
     "hub_wrapper_exit_code_path": "logs/<job>/exit_code",
     "checkpoint_presence_gate_before_cpu_dispatch": true
