@@ -178,6 +178,59 @@ def test_vendor_job_mapping_rejects_package_namespace(tmp_path: Path) -> None:
         runner.vendor_model_target(vendor_job)
 
 
+def test_condition_preflight_accepts_matching_job_and_campaign_metadata(
+    tmp_path: Path,
+) -> None:
+    runner = load_runner()
+    campaign_root = tmp_path / "campaign"
+    vendor_job = campaign_root / "s5" / "vendor-seed-1"
+    vendor_job.mkdir(parents=True)
+    (vendor_job / "config.yaml").write_text(
+        "generator:\n"
+        "  _target_: image2layout.train.models.VendorModel\n"
+        "  auxilary_task: uncond\n",
+        encoding="utf-8",
+    )
+    (campaign_root / "s5" / "evaluation-ledger.txt").write_text(
+        "cond_type=uncond\n", encoding="utf-8"
+    )
+    args = SimpleNamespace(
+        campaign_root=campaign_root,
+        condition="unconditional",
+    )
+
+    result = runner.validate_condition_job(args=args, vendor_job=vendor_job)
+
+    assert result["expected_vendor_condition"] == "uncond"
+    assert result["job_config"] == {"auxilary_task": "uncond"}
+    assert result["campaign_evaluation_metadata"] == {"campaign_metadata": "uncond"}
+
+
+def test_condition_preflight_rejects_mismatched_job_and_metadata(
+    tmp_path: Path,
+) -> None:
+    runner = load_runner()
+    campaign_root = tmp_path / "campaign"
+    vendor_job = campaign_root / "s5" / "vendor-seed-1"
+    vendor_job.mkdir(parents=True)
+    (vendor_job / "config.yaml").write_text(
+        "generator:\n"
+        "  _target_: image2layout.train.models.VendorModel\n"
+        "  auxilary_task: partial\n",
+        encoding="utf-8",
+    )
+    (campaign_root / "s5" / "evaluation-ledger.txt").write_text(
+        "cond_type=partial\n", encoding="utf-8"
+    )
+    args = SimpleNamespace(
+        campaign_root=campaign_root,
+        condition="unconditional",
+    )
+
+    with pytest.raises(RuntimeError, match="expected auxilary_task/cond_type='uncond'"):
+        runner.validate_condition_job(args=args, vendor_job=vendor_job)
+
+
 def test_localized_replay_restores_the_recorded_pre_batch_state() -> None:
     runner = load_runner()
     generator = torch.Generator(device="cpu").manual_seed(17)

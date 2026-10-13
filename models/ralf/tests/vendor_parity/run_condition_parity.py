@@ -54,6 +54,7 @@ from ralf.training.lightning_module import _load_relationship_table
 from ralf_evaluator_adapter import (
     VendorSample,
     layout_output_to_vendor_samples,
+    materialize_vendor_checkpoint,
 )
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -395,29 +396,118 @@ def prepare_input_dataset(
     return target
 
 
+def _job_candidates(args: argparse.Namespace, arm: str) -> list[Path]:
+    if arm == "package":
+        candidates = [
+            args.campaign_root / "s5" / "package-seed-1",
+            args.campaign_root / "s5" / "seed-1" / "lightning_logs" / "version_0",
+        ]
+        if args.checkpoint_path is not None:
+            candidates.insert(0, args.checkpoint_path)
+        candidates.insert(1, args.campaign_root / "s5" / "evals" / "package-seed-1")
+        return candidates
+    return [
+        args.campaign_root / "s5" / "evals" / "vendor-seed-1",
+        args.campaign_root / "s5" / "vendor-seed-1",
+        args.campaign_root / "evaluator" / "run-001" / "vendor-job" / "final",
+    ]
+
+
+def _first_job_with_config(candidates: Iterable[Path], description: str) -> Path:
+    for candidate in candidates:
+        if (candidate / "config.yaml").is_file():
+            return candidate
+    raise FileNotFoundError(f"missing {description} config")
+
+
 def campaign_package_job(args: argparse.Namespace) -> Path:
-    if args.checkpoint_path is not None:
-        return require_file(
-            args.checkpoint_path / "config.yaml", "checkpoint job config"
-        ).parent
-    return require_file(
-        args.campaign_root / "s5" / "evals" / "package-seed-1" / "config.yaml",
-        "campaign package config",
-    ).parent
+    return _first_job_with_config(_job_candidates(args, "package"), "campaign package")
 
 
 def campaign_vendor_job(args: argparse.Namespace) -> Path:
-    return require_file(
-        args.campaign_root / "s5" / "evals" / "vendor-seed-1" / "config.yaml",
-        "campaign vendor job config",
-    ).parent
+    return _first_job_with_config(
+        _job_candidates(args, "vendor"), "campaign vendor job"
+    )
+
+
+def _read_job_config(job_dir: Path) -> Mapping[str, Any]:
+    config = yaml.safe_load(
+        require_file(job_dir / "config.yaml", "vendor job config").read_text(
+            encoding="utf-8"
+        )
+    )
+    if not isinstance(config, Mapping):
+        raise RuntimeError(f"job config is not a mapping: {job_dir / 'config.yaml'}")
+    return config
+
+
+def _condition_values(config: Mapping[str, Any]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    generator = config.get("generator")
+    if isinstance(generator, Mapping):
+        for key in ("auxilary_task", "cond_type"):
+            value = generator.get(key)
+            if isinstance(value, str):
+                values[key] = value
+    for key in ("auxilary_task", "cond_type"):
+        value = config.get(key)
+        if isinstance(value, str):
+            values[key] = value
+    return values
+
+
+def _campaign_evaluation_condition(campaign_root: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    root = campaign_root / "s5"
+    if not root.is_dir():
+        return values
+    patterns = (
+        re.compile(r"\bauxilary_task\s*[:=]\s*['\"]?([A-Za-z_]+)"),
+        re.compile(r"\bcond_type\s*[:=]\s*['\"]?([A-Za-z_]+)"),
+    )
+    for path in record_files(root):
+        if not any(
+            token in path.name for token in ("prelaunch", "result", "ledger", "launch")
+        ):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for pattern in patterns:
+            matches = pattern.findall(text)
+            if matches:
+                values["campaign_metadata"] = matches[-1]
+    return values
+
+
+def validate_condition_job(
+    *, args: argparse.Namespace, vendor_job: Path
+) -> dict[str, Any]:
+    expected = CONDITIONS[args.condition]
+    job_values = _condition_values(_read_job_config(vendor_job))
+    metadata_values = _campaign_evaluation_condition(args.campaign_root)
+    observed = {**job_values, **metadata_values}
+    mismatches = {key: value for key, value in observed.items() if value != expected}
+    if not job_values:
+        raise RuntimeError(
+            "condition preflight failed: selected job config has no "
+            f"auxilary_task/cond_type; expected {expected!r} for {args.condition!r}"
+        )
+    if mismatches:
+        raise RuntimeError(
+            "condition preflight failed: "
+            f"requested={args.condition!r}, expected auxilary_task/cond_type={expected!r}, "
+            f"observed={observed!r}, job_dir={vendor_job}"
+        )
+    return {
+        "requested_condition": args.condition,
+        "expected_vendor_condition": expected,
+        "job_config": job_values,
+        "campaign_evaluation_metadata": metadata_values,
+        "job_dir": path_label(vendor_job, args.campaign_root),
+    }
 
 
 def vendor_model_target(job_dir: Path) -> str:
-    config_path = require_file(job_dir / "config.yaml", "vendor job config")
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    if not isinstance(config, Mapping):
-        raise RuntimeError("vendor job config is not a mapping")
+    config = _read_job_config(job_dir)
     generator = config.get("generator")
     if not isinstance(generator, Mapping):
         raise RuntimeError("vendor job config has no generator mapping")
@@ -431,26 +521,38 @@ def vendor_model_target(job_dir: Path) -> str:
 
 
 def materialize_vendor_job(
-    args: argparse.Namespace, output_root: Path
-) -> dict[str, str]:
+    args: argparse.Namespace,
+    output_root: Path,
+    condition_preflight: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     source_job = campaign_vendor_job(args)
     target = vendor_model_target(source_job)
     used_job = output_root / "vendor-job"
     if used_job.exists():
         raise FileExistsError(f"vendor job output already exists: {used_job}")
     used_job.mkdir(parents=True)
-    shutil.copy2(source_job / "config.yaml", used_job / "config.yaml")
     checkpoint = campaign_checkpoint(args)
-    try:
-        os.link(checkpoint, used_job / "gen_final_model.pt")
-    except OSError:
-        shutil.copy2(checkpoint, used_job / "gen_final_model.pt")
+    config = _read_job_config(source_job)
+    if checkpoint.suffix == ".ckpt":
+        materialize_vendor_checkpoint(
+            checkpoint,
+            used_job,
+            train_config=config,
+        )
+    else:
+        shutil.copy2(source_job / "config.yaml", used_job / "config.yaml")
+        try:
+            os.link(checkpoint, used_job / "gen_final_model.pt")
+        except OSError:
+            shutil.copy2(checkpoint, used_job / "gen_final_model.pt")
     return {
         "source_job_dir": path_label(source_job, args.campaign_root),
         "used_job_dir": path_label(used_job, output_root),
         "model_target": target,
         "checkpoint_path": args.checkpoint_artifact_path,
         "checkpoint_sha256": sha256(checkpoint),
+        "checkpoint_format": checkpoint.suffix or "none",
+        "condition_preflight": dict(condition_preflight or {}),
     }
 
 
@@ -469,13 +571,14 @@ def package_job_record(args: argparse.Namespace) -> dict[str, str]:
 
 
 def campaign_checkpoint(args: argparse.Namespace) -> Path:
-    if args.checkpoint_path is not None:
-        return require_file(
-            args.checkpoint_path / "gen_final_model.pt", "campaign package checkpoint"
-        )
-    return require_file(
-        campaign_package_job(args) / "gen_final_model.pt", "campaign package checkpoint"
-    )
+    package_job = campaign_package_job(args)
+    raw = package_job / "gen_final_model.pt"
+    if raw.is_file():
+        return raw
+    checkpoints = sorted((package_job / "checkpoints").glob("*.ckpt"))
+    if checkpoints:
+        return checkpoints[-1]
+    raise FileNotFoundError(f"missing campaign package checkpoint under {package_job}")
 
 
 def vendor_source(args: argparse.Namespace) -> Path:
@@ -563,6 +666,12 @@ def convert_checkpoint(
     converted = output_root / "converted"
     report_path = converted / "conversion_report.json"
     checkpoint = campaign_checkpoint(args)
+    conversion_checkpoint = checkpoint
+    if checkpoint.suffix == ".ckpt":
+        conversion_checkpoint = output_root / "vendor-job" / "gen_final_model.pt"
+    conversion_job = campaign_package_job(args)
+    if not isinstance(_read_job_config(conversion_job).get("generator"), Mapping):
+        conversion_job = campaign_vendor_job(args)
     if report_path.is_file():
         report = json.loads(report_path.read_text(encoding="utf-8"))
         if report.get("checkpoint_sha256") == sha256(checkpoint):
@@ -575,9 +684,9 @@ def convert_checkpoint(
         str(args.runtime_python),
         str(repo_root / "models/ralf/scripts/convert_original_checkpoint.py"),
         "--job-dir",
-        str(campaign_package_job(args)),
+        str(conversion_job),
         "--checkpoint",
-        str(checkpoint),
+        str(conversion_checkpoint),
         "--dataset",
         args.dataset,
         "--task",
@@ -1337,7 +1446,7 @@ def artifact(
     vendor_scores: Path,
     comparison: dict[str, Any],
     freeze: dict[str, str],
-    job_dirs: dict[str, dict[str, str]],
+    job_dirs: dict[str, Any],
     provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     package_predictions = load_results(output_root / "package-pipeline")
@@ -1726,10 +1835,20 @@ def main() -> None:
         dataset=args.dataset,
         test_count=args.test_count,
     )
-    vendor_job = materialize_vendor_job(args, args.output_root)
+    vendor_source_job = campaign_vendor_job(args)
+    condition_preflight = validate_condition_job(
+        args=args,
+        vendor_job=vendor_source_job,
+    )
+    vendor_job = materialize_vendor_job(
+        args,
+        args.output_root,
+        condition_preflight,
+    )
     job_dirs = {
         "package_pipeline": package_job_record(args),
         "vendor_inference": vendor_job,
+        "condition_preflight": condition_preflight,
     }
     converted = convert_checkpoint(
         args=args, input_root=input_root, output_root=args.output_root
