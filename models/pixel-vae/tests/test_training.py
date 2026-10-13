@@ -1,21 +1,26 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from collections.abc import Callable, Iterator, Mapping
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import cast
 
+import lightning as L
 import pytest
 import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
 from PIL import Image
 from torch import nn
+from torch.utils.data import DataLoader
 from transformers.image_processing_utils import BatchFeature
 
 import pixel_vae.training.datamodule as datamodule
 import pixel_vae.training.lightning_module as lightning_module
-from pixel_vae import PixelVAEOutput
+from pixel_vae import PixelVAEEncoder, PixelVAEOutput
 from pixel_vae.training import PixelVAEDataModule, PixelVAETrainingModule
 from traingen.lightning.cli import lightning_cli_class
 from traingen.optim import KerasAdam
@@ -310,3 +315,60 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert len(resumable_checkpoints) == 1
     assert not resumable_checkpoints[0].save_weights_only
     assert resumable_checkpoints[0].every_n_epochs == 1
+
+
+@pytest.mark.training
+def test_trained_encoder_export_round_trip(tmp_path: Path) -> None:
+    checkpoint_dir = tmp_path / "checkpoints"
+    module = PixelVAETrainingModule(latent_dim=2)
+    pixels = torch.rand(1, 4, 256, 256)
+    trainer = L.Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=1,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[
+            ModelCheckpoint(
+                dirpath=checkpoint_dir,
+                save_top_k=0,
+                save_last=True,
+                save_weights_only=False,
+            )
+        ],
+    )
+    trainer.fit(
+        module,
+        train_dataloaders=DataLoader([{"pixel_values": pixels}], batch_size=None),
+    )
+    checkpoint = checkpoint_dir / "last.ckpt"
+    output_dir = tmp_path / "encoder"
+    exporter_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "export_trained_encoder.py"
+    )
+    expected = module.model.encoder.eval()(pixels)
+    assert expected.posterior_mean is not None
+    assert expected.posterior_log_variance is not None
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(exporter_path),
+            "--checkpoint",
+            str(checkpoint),
+            "--output-dir",
+            str(output_dir),
+        ],
+        cwd=Path(__file__).resolve().parents[3],
+        check=True,
+    )
+    restored = PixelVAEEncoder.from_pretrained(output_dir).eval()
+    actual = restored(pixels)
+    assert actual.posterior_mean is not None
+    assert actual.posterior_log_variance is not None
+
+    torch.testing.assert_close(actual.posterior_mean, expected.posterior_mean)
+    torch.testing.assert_close(
+        actual.posterior_log_variance, expected.posterior_log_variance
+    )
