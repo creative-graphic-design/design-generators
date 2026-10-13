@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
@@ -12,10 +12,10 @@ from typing import cast
 import lightning as L
 import pytest
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from PIL import Image
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from transformers.image_processing_utils import BatchFeature
 
 import pixel_vae.training.datamodule as datamodule
@@ -304,13 +304,15 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert cli.trainer.max_epochs == 250
     assert cli.datamodule.batch_size == 64
     checkpoint = cli.trainer.checkpoint_callback
+    assert checkpoint is not None
     assert checkpoint.monitor == "val_reconstruction"
     assert checkpoint.mode == "min"
     assert checkpoint.save_weights_only
+    callbacks = cast(Sequence[Callback], getattr(cli.trainer, "callbacks"))
     resumable_checkpoints = [
         callback
-        for callback in cli.trainer.callbacks
-        if getattr(callback, "save_last", False)
+        for callback in callbacks
+        if isinstance(callback, ModelCheckpoint) and callback.save_last
     ]
     assert len(resumable_checkpoints) == 1
     assert not resumable_checkpoints[0].save_weights_only
@@ -340,7 +342,13 @@ def test_trained_encoder_export_round_trip(tmp_path: Path) -> None:
     )
     trainer.fit(
         module,
-        train_dataloaders=DataLoader([{"pixel_values": pixels}], batch_size=None),
+        train_dataloaders=DataLoader(
+            TensorDataset(pixels),
+            batch_size=1,
+            collate_fn=lambda items: {
+                "pixel_values": torch.stack([sample[0] for sample in items])
+            },
+        ),
     )
     checkpoint = checkpoint_dir / "last.ckpt"
     output_dir = tmp_path / "encoder"
