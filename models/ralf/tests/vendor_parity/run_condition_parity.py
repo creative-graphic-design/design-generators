@@ -599,6 +599,7 @@ def materialize_vendor_job(
     args: argparse.Namespace,
     output_root: Path,
     condition_preflight: Mapping[str, Any] | None = None,
+    input_root: Path | None = None,
 ) -> dict[str, Any]:
     source_job = campaign_vendor_job(args)
     target = vendor_model_target(source_job)
@@ -608,6 +609,12 @@ def materialize_vendor_job(
     used_job.mkdir(parents=True)
     checkpoint = campaign_checkpoint(args)
     config = _read_job_config(source_job)
+    if input_root is None:
+        raise ValueError("materialize_vendor_job requires the prepared input root")
+    config, dataset_path_mode = materialize_vendor_dataset_config(
+        config=config,
+        input_root=input_root,
+    )
     if checkpoint.suffix == ".ckpt":
         materialize_vendor_checkpoint(
             checkpoint,
@@ -615,7 +622,10 @@ def materialize_vendor_job(
             train_config=config,
         )
     else:
-        shutil.copy2(source_job / "config.yaml", used_job / "config.yaml")
+        (used_job / "config.yaml").write_text(
+            yaml.safe_dump(dict(config), sort_keys=False),
+            encoding="utf-8",
+        )
         try:
             os.link(checkpoint, used_job / "gen_final_model.pt")
         except OSError:
@@ -627,8 +637,30 @@ def materialize_vendor_job(
         "checkpoint_path": args.checkpoint_artifact_path,
         "checkpoint_sha256": sha256(checkpoint),
         "checkpoint_format": checkpoint.suffix or "none",
+        "dataset_path_mode": dataset_path_mode,
         "condition_preflight": dict(condition_preflight or {}),
     }
+
+
+def materialize_vendor_dataset_config(
+    *, config: Mapping[str, Any], input_root: Path
+) -> tuple[dict[str, Any], str]:
+    dataset = config.get("dataset")
+    dataset_path = dataset.get("path") if isinstance(dataset, Mapping) else None
+    if isinstance(dataset_path, str) and dataset_path.strip():
+        return dict(config), "config.dataset.path"
+
+    if not input_root.is_dir():
+        raise RuntimeError(
+            "vendor inference requires either config.dataset.path or an existing "
+            "prepared input directory"
+        )
+
+    materialized = dict(config)
+    materialized_dataset = dict(dataset) if isinstance(dataset, Mapping) else {}
+    materialized_dataset["path"] = str(input_root)
+    materialized["dataset"] = materialized_dataset
+    return materialized, "runner.dataset.path materialized override"
 
 
 def vendor_dataset_overrides(
@@ -645,8 +677,7 @@ def vendor_dataset_overrides(
             "prepared input directory"
         )
 
-    dataset_path_override = f"+dataset.path={input_root}"
-    return (f"dataset_path={input_root}", dataset_path_override)
+    return (f"dataset_path={input_root}",)
 
 
 def package_job_record(args: argparse.Namespace) -> dict[str, str]:
@@ -1078,10 +1109,9 @@ def vendor_prediction_dir(
         config=vendor_config,
         input_root=input_root,
     )
-    vendor_job["dataset_path_mode"] = (
-        "config.dataset.path"
-        if len(dataset_overrides) == 1
-        else "runner.dataset.path override"
+    vendor_job.setdefault(
+        "dataset_path_mode",
+        "config.dataset.path" if len(dataset_overrides) == 1 else "unknown",
     )
     command = [str(args.runtime_python), "-u"]
     module_wrapper = (
@@ -1939,6 +1969,7 @@ def main() -> None:
         args,
         args.output_root,
         condition_preflight,
+        input_root,
     )
     job_dirs = {
         "package_pipeline": package_job_record(args),

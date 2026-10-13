@@ -151,7 +151,11 @@ def test_vendor_job_mapping_uses_vendor_config_and_original_checkpoint(
     )
 
     assert runner.campaign_vendor_job(args) == vendor_job
-    record = runner.materialize_vendor_job(args, tmp_path / "output")
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    record = runner.materialize_vendor_job(
+        args, tmp_path / "output", input_root=input_root
+    )
 
     assert record["source_job_dir"] == "s5/evals/vendor-seed-1"
     assert record["used_job_dir"] == "vendor-job"
@@ -190,17 +194,35 @@ def test_vendor_dataset_overrides_keep_configured_path(tmp_path: Path) -> None:
     ) == (f"dataset_path={input_root}",)
 
 
-def test_vendor_dataset_overrides_supply_nested_path_for_missing_config_key(
+def test_vendor_dataset_config_materializes_missing_path(
     tmp_path: Path,
 ) -> None:
     runner = load_runner()
     input_root = tmp_path / "input"
     input_root.mkdir()
 
-    assert runner.vendor_dataset_overrides(
+    config, mode = runner.materialize_vendor_dataset_config(
         config={"dataset": {"name": "cgl"}},
         input_root=input_root,
-    ) == (f"dataset_path={input_root}", f"+dataset.path={input_root}")
+    )
+
+    assert config["dataset"]["path"] == str(input_root)
+    assert mode == "runner.dataset.path materialized override"
+
+
+def test_vendor_dataset_config_keeps_configured_path(tmp_path: Path) -> None:
+    runner = load_runner()
+    input_root = tmp_path / "input"
+    configured_path = tmp_path / "recorded" / "input"
+    input_root.mkdir()
+
+    config, mode = runner.materialize_vendor_dataset_config(
+        config={"dataset": {"name": "cgl", "path": str(configured_path)}},
+        input_root=input_root,
+    )
+
+    assert config["dataset"]["path"] == str(configured_path)
+    assert mode == "config.dataset.path"
 
 
 def test_vendor_dataset_overrides_fail_without_config_or_input(tmp_path: Path) -> None:
