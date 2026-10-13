@@ -219,7 +219,10 @@ def repository_source_commit() -> str:
 
 
 def path_label(path: Path, root: Path) -> str:
-    return path.relative_to(root).as_posix()
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return f"external/{path.name}"
 
 
 def require_file(path: Path, description: str) -> Path:
@@ -353,6 +356,12 @@ def parse_args() -> argparse.Namespace:
         help="optional checkpoint job directory for campaigns with a nonstandard layout",
     )
     parser.add_argument(
+        "--vendor-job-path",
+        type=Path,
+        default=None,
+        help="optional read-only vendor job directory used as the config template",
+    )
+    parser.add_argument(
         "--vendor-source-path",
         type=Path,
         default=None,
@@ -481,10 +490,12 @@ def _job_candidates(args: argparse.Namespace, arm: str) -> list[Path]:
             candidates.insert(0, args.checkpoint_path)
         candidates.insert(1, args.campaign_root / "s5" / "evals" / "package-seed-1")
         return candidates
+    vendor_job_path = getattr(args, "vendor_job_path", None)
+    if vendor_job_path is not None:
+        return [vendor_job_path]
     return [
         args.campaign_root / "s5" / "evals" / "vendor-seed-1",
         args.campaign_root / "s5" / "vendor-seed-1",
-        args.campaign_root / "evaluator" / "run-001" / "vendor-job" / "final",
     ]
 
 
@@ -608,13 +619,20 @@ def materialize_vendor_job(
         raise FileExistsError(f"vendor job output already exists: {used_job}")
     used_job.mkdir(parents=True)
     checkpoint = campaign_checkpoint(args)
+    source_config_path = require_file(source_job / "config.yaml", "vendor job config")
+    source_config_bytes = source_config_path.read_bytes()
     config = _read_job_config(source_job)
     if input_root is None:
         raise ValueError("materialize_vendor_job requires the prepared input root")
-    config, dataset_path_mode = materialize_vendor_dataset_config(
-        config=config,
-        input_root=input_root,
-    )
+    explicit_vendor_job = getattr(args, "vendor_job_path", None) is not None
+    if explicit_vendor_job:
+        vendor_dataset_overrides(config=config, input_root=input_root)
+        dataset_path_mode = "runner.dataset_path override"
+    else:
+        config, dataset_path_mode = materialize_vendor_dataset_config(
+            config=config,
+            input_root=input_root,
+        )
     if checkpoint.suffix == ".ckpt":
         materialize_vendor_checkpoint(
             checkpoint,
@@ -630,8 +648,19 @@ def materialize_vendor_job(
             os.link(checkpoint, used_job / "gen_final_model.pt")
         except OSError:
             shutil.copy2(checkpoint, used_job / "gen_final_model.pt")
+    if explicit_vendor_job:
+        # The released job is the original-implementation configuration. Keep
+        # its bytes intact; the runner supplies only the prepared dataset path
+        # as an invocation override and never writes to the read-only cache.
+        (used_job / "config.yaml").write_bytes(source_config_bytes)
+    source_job_label = path_label(source_job, args.campaign_root)
     return {
-        "source_job_dir": path_label(source_job, args.campaign_root),
+        "source_job_dir": source_job_label,
+        "source_config_path": f"{source_job_label}/config.yaml",
+        "source_config_sha256": sha256(source_config_path),
+        "source_job_selection": (
+            "explicit vendor job path" if explicit_vendor_job else "campaign vendor job"
+        ),
         "used_job_dir": path_label(used_job, output_root),
         "model_target": target,
         "checkpoint_path": args.checkpoint_artifact_path,
@@ -1810,6 +1839,8 @@ def main() -> None:
     args.output_root = args.output_root.resolve()
     if args.checkpoint_path is not None:
         args.checkpoint_path = args.checkpoint_path.resolve()
+    if args.vendor_job_path is not None:
+        args.vendor_job_path = args.vendor_job_path.resolve()
     if args.vendor_source_path is not None:
         args.vendor_source_path = args.vendor_source_path.resolve()
     if args.precomputed_root is not None:

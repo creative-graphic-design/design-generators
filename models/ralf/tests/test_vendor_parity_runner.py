@@ -182,6 +182,65 @@ def test_vendor_job_mapping_rejects_package_namespace(tmp_path: Path) -> None:
         runner.vendor_model_target(vendor_job)
 
 
+def test_vendor_job_mapping_prefers_explicit_read_only_job(tmp_path: Path) -> None:
+    runner = load_runner()
+    campaign_root = tmp_path / "campaign"
+    released_job = tmp_path / "cache" / "training_logs" / "ralf_uncond_cgl"
+    released_job.mkdir(parents=True)
+    (released_job / "config.yaml").write_text(
+        "generator:\n"
+        "  _target_: image2layout.train.models.retrieval_augmented_autoreg.Model\n"
+        "  auxilary_task: uncond\n",
+        encoding="utf-8",
+    )
+    args = SimpleNamespace(campaign_root=campaign_root, vendor_job_path=released_job)
+
+    assert runner.campaign_vendor_job(args) == released_job
+    assert runner.path_label(released_job, campaign_root) == "external/ralf_uncond_cgl"
+
+
+def test_explicit_vendor_job_preserves_source_config_bytes(tmp_path: Path) -> None:
+    runner = load_runner()
+    campaign_root = tmp_path / "campaign"
+    package_job = campaign_root / "s5" / "evals" / "package-seed-1"
+    released_job = tmp_path / "cache" / "training_logs" / "ralf_uncond_cgl"
+    package_job.mkdir(parents=True)
+    released_job.mkdir(parents=True)
+    source_config = (
+        "generator:\n"
+        "  _target_: image2layout.train.models.retrieval_augmented_autoreg.Model\n"
+        "  auxilary_task: uncond\n"
+        "dataset:\n"
+        "  path: ''\n"
+    ).encode()
+    (released_job / "config.yaml").write_bytes(source_config)
+    (package_job / "config.yaml").write_text(
+        "generator:\n  _target_: ralf.train.models.PackageModel\n",
+        encoding="utf-8",
+    )
+    checkpoint = package_job / "gen_final_model.pt"
+    checkpoint.write_bytes(b"converted package checkpoint")
+    args = SimpleNamespace(
+        campaign_root=campaign_root,
+        checkpoint_path=package_job,
+        vendor_job_path=released_job,
+        checkpoint_artifact_path="campaign/s5/evals/package-seed-1/gen_final_model.pt",
+    )
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+
+    record = runner.materialize_vendor_job(
+        args, tmp_path / "output", input_root=input_root
+    )
+    used_config = tmp_path / "output" / "vendor-job" / "config.yaml"
+
+    assert used_config.read_bytes() == source_config
+    assert record["source_config_path"] == "external/ralf_uncond_cgl/config.yaml"
+    assert record["source_config_sha256"] == runner.sha256(used_config)
+    assert record["source_job_selection"] == "explicit vendor job path"
+    assert record["dataset_path_mode"] == "runner.dataset_path override"
+
+
 def test_vendor_dataset_overrides_keep_configured_path(tmp_path: Path) -> None:
     runner = load_runner()
     input_root = tmp_path / "input"
