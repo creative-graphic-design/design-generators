@@ -80,9 +80,7 @@ class _PixelVAERecordDataset(IterableDataset[bytes]):
             yield image
 
         if len(seen) < self.record_count:
-            raise ValueError(
-                "count.json record count exceeds unique TFRecord contents"
-            )
+            raise ValueError("count.json record count exceeds unique TFRecord contents")
 
     def _records(self) -> Iterator[Mapping[str, bytes]]:
         for path in self.record_paths:
@@ -163,10 +161,13 @@ class PixelVAEDataModule(L.LightningDataModule):
         if split not in self.datasets:
             raise RuntimeError("call setup() before requesting data loaders")
 
-        return DataLoader(
-            self.datasets[split],
-            batch_size=self.batch_size,
-            collate_fn=self.processor,
+        return cast(
+            DataLoader[BatchFeature],
+            DataLoader(
+                self.datasets[split],
+                batch_size=self.batch_size,
+                collate_fn=self.processor,
+            ),
         )
 
     def train_dataloader(self) -> DataLoader[BatchFeature]:
