@@ -406,6 +406,68 @@ def campaign_package_job(args: argparse.Namespace) -> Path:
     ).parent
 
 
+def campaign_vendor_job(args: argparse.Namespace) -> Path:
+    return require_file(
+        args.campaign_root / "s5" / "evals" / "vendor-seed-1" / "config.yaml",
+        "campaign vendor job config",
+    ).parent
+
+
+def vendor_model_target(job_dir: Path) -> str:
+    config_path = require_file(job_dir / "config.yaml", "vendor job config")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, Mapping):
+        raise RuntimeError("vendor job config is not a mapping")
+    generator = config.get("generator")
+    if not isinstance(generator, Mapping):
+        raise RuntimeError("vendor job config has no generator mapping")
+    target = generator.get("_target_")
+    if not isinstance(target, str) or not target.startswith("image2layout."):
+        raise RuntimeError(
+            "refusing to launch vendor inference: model _target_ must use the "
+            f"vendor namespace image2layout., got {target!r}"
+        )
+    return target
+
+
+def materialize_vendor_job(
+    args: argparse.Namespace, output_root: Path
+) -> dict[str, str]:
+    source_job = campaign_vendor_job(args)
+    target = vendor_model_target(source_job)
+    used_job = output_root / "vendor-job"
+    if used_job.exists():
+        raise FileExistsError(f"vendor job output already exists: {used_job}")
+    used_job.mkdir(parents=True)
+    shutil.copy2(source_job / "config.yaml", used_job / "config.yaml")
+    checkpoint = campaign_checkpoint(args)
+    try:
+        os.link(checkpoint, used_job / "gen_final_model.pt")
+    except OSError:
+        shutil.copy2(checkpoint, used_job / "gen_final_model.pt")
+    return {
+        "source_job_dir": path_label(source_job, args.campaign_root),
+        "used_job_dir": path_label(used_job, output_root),
+        "model_target": target,
+        "checkpoint_path": args.checkpoint_artifact_path,
+        "checkpoint_sha256": sha256(checkpoint),
+    }
+
+
+def package_job_record(args: argparse.Namespace) -> dict[str, str]:
+    package_job = campaign_package_job(args)
+    try:
+        source_job_dir = path_label(package_job, args.campaign_root)
+    except ValueError:
+        source_job_dir = "checkpoint override"
+    return {
+        "source_job_dir": source_job_dir,
+        "used_job_dir": "converted",
+        "checkpoint_path": args.checkpoint_artifact_path,
+        "checkpoint_sha256": sha256(campaign_checkpoint(args)),
+    }
+
+
 def campaign_checkpoint(args: argparse.Namespace) -> Path:
     if args.checkpoint_path is not None:
         return require_file(
@@ -801,7 +863,11 @@ def generate_package_predictions(
 
 
 def vendor_prediction_dir(
-    *, args: argparse.Namespace, input_root: Path, output_root: Path
+    *,
+    args: argparse.Namespace,
+    input_root: Path,
+    output_root: Path,
+    vendor_job: dict[str, str],
 ) -> Path:
     root = output_root / "vendor-inference"
     expected_seed = INFERENCE_SEEDS[0]
@@ -842,7 +908,7 @@ def vendor_prediction_dir(
         command.extend(["-m", "image2layout.train.inference"])
     command.extend(
         [
-            f"job_dir={campaign_package_job(args)}",
+            f"job_dir={output_root / vendor_job['used_job_dir']}",
             f"result_dir={root}",
             f"dataset_path={input_root}",
             "+sampling=deterministic"
@@ -1271,6 +1337,7 @@ def artifact(
     vendor_scores: Path,
     comparison: dict[str, Any],
     freeze: dict[str, str],
+    job_dirs: dict[str, dict[str, str]],
     provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     package_predictions = load_results(output_root / "package-pipeline")
@@ -1306,6 +1373,7 @@ def artifact(
             "path": args.checkpoint_artifact_path,
             "sha256": sha256(campaign_checkpoint(args)),
         },
+        "job_dirs": job_dirs,
         "prediction_files": {
             "package_pipeline": [
                 {
@@ -1613,6 +1681,9 @@ def main() -> None:
             raise ValueError(
                 "refresh-existing requires producing runner and package source provenance"
             )
+        previous_job_dirs = previous.get("job_dirs")
+        if not isinstance(previous_job_dirs, dict):
+            previous_job_dirs = {}
         current_runner = sha256(Path(__file__).resolve())
         current_source = repository_source_commit()
         record = artifact(
@@ -1623,6 +1694,7 @@ def main() -> None:
             vendor_scores=vendor_scores,
             comparison=comparison,
             freeze=freeze,
+            job_dirs=previous_job_dirs,
             provenance={
                 "producing_runner_sha256": producing_runner,
                 "producing_package_source_commit": producing_source,
@@ -1654,6 +1726,11 @@ def main() -> None:
         dataset=args.dataset,
         test_count=args.test_count,
     )
+    vendor_job = materialize_vendor_job(args, args.output_root)
+    job_dirs = {
+        "package_pipeline": package_job_record(args),
+        "vendor_inference": vendor_job,
+    }
     converted = convert_checkpoint(
         args=args, input_root=input_root, output_root=args.output_root
     )
@@ -1664,7 +1741,10 @@ def main() -> None:
         output_root=args.output_root,
     )
     vendor_predictions = vendor_prediction_dir(
-        args=args, input_root=input_root, output_root=args.output_root
+        args=args,
+        input_root=input_root,
+        output_root=args.output_root,
+        vendor_job=vendor_job,
     )
     package_scores = evaluate(
         args=args,
@@ -1695,6 +1775,7 @@ def main() -> None:
         vendor_scores=vendor_scores,
         comparison=comparison,
         freeze=freeze,
+        job_dirs=job_dirs,
     )
     record["runtime_seconds"] = round(time.time() - started, 3)
     artifact_path = args.output_root / "evaluation-path-parity.json"

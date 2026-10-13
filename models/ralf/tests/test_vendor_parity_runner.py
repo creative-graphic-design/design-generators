@@ -125,6 +125,59 @@ def test_full_test_counts_are_dataset_specific() -> None:
     assert runner.TEST_COUNTS == {"cgl": 6002, "pku": 1000}
 
 
+def test_vendor_job_mapping_uses_vendor_config_and_original_checkpoint(
+    tmp_path: Path,
+) -> None:
+    runner = load_runner()
+    campaign_root = tmp_path / "campaign"
+    package_job = campaign_root / "s5" / "evals" / "package-seed-1"
+    vendor_job = campaign_root / "s5" / "evals" / "vendor-seed-1"
+    package_job.mkdir(parents=True)
+    vendor_job.mkdir(parents=True)
+    (package_job / "config.yaml").write_text(
+        "generator:\n  _target_: ralf.train.models.PackageModel\n",
+        encoding="utf-8",
+    )
+    (vendor_job / "config.yaml").write_text(
+        "generator:\n  _target_: image2layout.train.models.VendorModel\n",
+        encoding="utf-8",
+    )
+    checkpoint = package_job / "gen_final_model.pt"
+    checkpoint.write_bytes(b"unchanged checkpoint")
+    args = SimpleNamespace(
+        campaign_root=campaign_root,
+        checkpoint_path=package_job,
+        checkpoint_artifact_path="campaign/s5/evals/package-seed-1/gen_final_model.pt",
+    )
+
+    assert runner.campaign_vendor_job(args) == vendor_job
+    record = runner.materialize_vendor_job(args, tmp_path / "output")
+
+    assert record["source_job_dir"] == "s5/evals/vendor-seed-1"
+    assert record["used_job_dir"] == "vendor-job"
+    assert (
+        (tmp_path / "output" / "vendor-job" / "config.yaml")
+        .read_text(encoding="utf-8")
+        .startswith("generator:")
+    )
+    assert (tmp_path / "output" / "vendor-job" / "gen_final_model.pt").read_bytes() == (
+        checkpoint.read_bytes()
+    )
+
+
+def test_vendor_job_mapping_rejects_package_namespace(tmp_path: Path) -> None:
+    runner = load_runner()
+    vendor_job = tmp_path / "campaign" / "s5" / "evals" / "vendor-seed-1"
+    vendor_job.mkdir(parents=True)
+    (vendor_job / "config.yaml").write_text(
+        "generator:\n  _target_: ralf.train.models.PackageModel\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="vendor namespace"):
+        runner.vendor_model_target(vendor_job)
+
+
 def test_localized_replay_restores_the_recorded_pre_batch_state() -> None:
     runner = load_runner()
     generator = torch.Generator(device="cpu").manual_seed(17)
