@@ -303,12 +303,18 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert isinstance(cli.datamodule, PixelVAEDataModule)
     assert cli.trainer.max_epochs == 250
     assert cli.datamodule.batch_size == 64
-    checkpoint = cli.trainer.checkpoint_callback
-    assert checkpoint is not None
+    callbacks = cast(Sequence[Callback], getattr(cli.trainer, "callbacks"))
+    checkpoints = [
+        callback
+        for callback in callbacks
+        if isinstance(callback, ModelCheckpoint)
+        and callback.monitor == "val_reconstruction"
+    ]
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0]
     assert checkpoint.monitor == "val_reconstruction"
     assert checkpoint.mode == "min"
     assert checkpoint.save_weights_only
-    callbacks = cast(Sequence[Callback], getattr(cli.trainer, "callbacks"))
     resumable_checkpoints = [
         callback
         for callback in callbacks

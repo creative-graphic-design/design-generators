@@ -84,9 +84,13 @@ class _PixelVAERecordDataset(IterableDataset[bytes]):
 
     def _records(self) -> Iterator[Mapping[str, bytes]]:
         for path in self.record_paths:
-            yield from tfrecord_loader(
-                str(path), index_path=None, description={"image": "byte"}
+            records = cast(
+                Iterator[Mapping[str, bytes]],
+                tfrecord_loader(
+                    str(path), index_path=None, description={"image": "byte"}
+                ),
             )
+            yield from records
 
 
 class PixelVAEDataModule(L.LightningDataModule):
