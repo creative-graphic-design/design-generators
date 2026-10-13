@@ -128,6 +128,57 @@ def test_crello_launch_stays_blocked_until_cpu_rehearsal_passes() -> None:
         QUEUE.launch_preconditions(manifest, path, "example-owner/test-artifacts")
 
 
+def test_crello_cpu_runtime_smoke_does_not_claim_production_gates() -> None:
+    path = (
+        QUEUE.REPOSITORY_ROOT
+        / "models/canvas-vae/configs/training/s5_crello_launch_manifest.template.json"
+    )
+    manifest = QUEUE.load_manifest(path)
+    pinned = "a" * 40
+    manifest["source_commit"] = pinned
+    manifest["queue_status"] = "ready"
+    manifest["runtime_plan"].update(
+        {
+            "cpu_runtime_smoke": True,
+            "gpu": "CPU",
+            "source_commit": pinned,
+            "a100_wrapper_ttl_by_system": {"original": "30m", "package": "30m"},
+            "cpu_wrapper_ttl": "30m",
+        }
+    )
+    for index, run in enumerate(manifest["runs"]):
+        run["run_id"] = f"cpu-smoke-crello-{index}"
+        run["a100_wrapper_ttl"] = "30m"
+        run["cpu_wrapper_ttl"] = "30m"
+
+    _, command = QUEUE.launch_preconditions(
+        manifest,
+        path,
+        "example-owner/test-artifacts",
+        input_prefix="inputs/project-a",
+        output_prefix="outputs/project-a",
+    )
+
+    assert command[-4:] == [
+        "--input-prefix",
+        "inputs/project-a",
+        "--output-prefix",
+        "outputs/project-a",
+    ]
+
+    manifest["dataset"] = "rico"
+    with pytest.raises(
+        QUEUE.QueueError, match="evaluation_path_parity SHA-256 is missing"
+    ):
+        QUEUE.launch_preconditions(
+            manifest,
+            path,
+            "example-owner/test-artifacts",
+            input_prefix="inputs/project-a",
+            output_prefix="outputs/project-a",
+        )
+
+
 @pytest.mark.parametrize("repository", [None, "   "])
 def test_queue_refuses_launch_without_hub_repository(
     monkeypatch: pytest.MonkeyPatch,
