@@ -92,6 +92,9 @@ def normalize_runtime_freeze(value: bytes, repo_root: Path) -> bytes:
     resolved_root = repo_root.resolve()
     for raw_line in value.decode("utf-8").splitlines():
         line = raw_line.strip()
+        if line.startswith("-e <repo root>/"):
+            normalized.append(line)
+            continue
         if line.startswith("-e "):
             reference = line[3:].strip()
             path = (
@@ -1134,8 +1137,8 @@ def runtime_freeze(
     fresh_freeze = normalize_runtime_freeze(result.stdout, repo_root)
     if shared_path is not None:
         require_file(record_path, "shared runtime freeze")
-        expected_freeze = normalize_runtime_freeze(record_path.read_bytes(), repo_root)
-        expected_hash = sha256(record_path)
+        expected_freeze = record_path.read_bytes()
+        expected_hash = sha256_bytes(expected_freeze)
         fresh_hash = sha256_bytes(fresh_freeze)
         if fresh_freeze != expected_freeze:
             raise RuntimeError(

@@ -51,6 +51,39 @@ def test_runtime_freeze_rejects_interpreter_mismatch(
         runner.runtime_freeze(tmp_path / "output", runtime_python, expected_path)
 
 
+def test_runtime_freeze_accepts_normalized_stored_freeze(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner_path = tmp_path / "a" / "b" / "c" / "d" / "runner.py"
+    runner_path.parent.mkdir(parents=True)
+    runner_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(runner := load_runner(), "__file__", str(runner_path))
+    expected_path = tmp_path / "runtime-freeze.txt"
+    expected_path.write_bytes(b"-e <repo root>/lib/laygen\npackage==same\n")
+    editable = tmp_path / "lib" / "laygen"
+    editable.mkdir(parents=True)
+    runtime_python = tmp_path / "venv" / "bin" / "python"
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        assert args[0] == [
+            "uv",
+            "pip",
+            "freeze",
+            "--python",
+            str(runtime_python),
+        ]
+        assert kwargs == {"check": True, "capture_output": True}
+        return SimpleNamespace(
+            stdout=f"-e {editable.as_uri()}\npackage==same\n".encode()
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.runtime_freeze(tmp_path / "output", runtime_python, expected_path)
+
+    assert result["sha256"] == runner.sha256(expected_path)
+
+
 def test_runtime_freeze_normalizes_local_urls(tmp_path: Path) -> None:
     runner = load_runner()
     repo_root = tmp_path / "repo"
@@ -61,9 +94,12 @@ def test_runtime_freeze_normalizes_local_urls(tmp_path: Path) -> None:
         "torchvision==0.23.0+cu128\n"
     ).encode()
 
-    assert runner.normalize_runtime_freeze(freeze, repo_root) == (
+    normalized = runner.normalize_runtime_freeze(freeze, repo_root)
+
+    assert normalized == (
         b"-e <repo root>/lib/laygen\ntorch==2.8.0+cu128\ntorchvision==0.23.0+cu128\n"
     )
+    assert runner.normalize_runtime_freeze(normalized, repo_root) == normalized
 
 
 def test_runtime_preflight_rejects_mismatched_cuda_packages(
