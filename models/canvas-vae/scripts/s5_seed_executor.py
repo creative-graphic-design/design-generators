@@ -104,6 +104,9 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
         return
 
     runtime_plan = manifest.get("runtime_plan")
+    if isinstance(runtime_plan, dict) and runtime_plan.get("cpu_runtime_smoke") is True:
+        return
+
     rehearsal = manifest.get("cpu_rehearsal")
     if (
         not isinstance(runtime_plan, dict)
@@ -909,10 +912,13 @@ def build_run_job(
     smoke_data_prep = []
     if run.get("cpu_smoke") is True and system == "original":
         smoke_data_dir = run.get("smoke_original_data_dir")
+        smoke_source_data_dir = run.get("smoke_original_source_data_dir")
         smoke_record_limit = run.get("smoke_original_record_limit")
         if (
             not isinstance(smoke_data_dir, str)
             or not smoke_data_dir.startswith("/content/repo/.cache/canvas-vae/")
+            or not isinstance(smoke_source_data_dir, str)
+            or not smoke_source_data_dir.startswith("/content/repo/.cache/canvas-vae/")
             or not isinstance(smoke_record_limit, int)
             or smoke_record_limit < 1
         ):
@@ -924,7 +930,7 @@ def build_run_job(
             "import json, shutil\n"
             "from pathlib import Path\n"
             "import tensorflow as tf\n"
-            "source = Path('/content/repo/.cache/canvas-vae/original/data/rico')\n"
+            f"source = Path({smoke_source_data_dir!r})\n"
             f"target = Path({smoke_data_dir!r})\n"
             f"limit = {smoke_record_limit}\n"
             "target.mkdir(parents=True, exist_ok=False)\n"
@@ -1150,6 +1156,48 @@ def cpu_smoke_training_config(run_id: str, segment_id: str) -> str:
         "    batch_size: 2\n"
         "    num_workers: 0\n"
     )
+
+
+def cpu_smoke_case_specs(
+    dataset: str,
+) -> list[tuple[str, str, str | None, bool, dict[str, int]]]:
+    if dataset == "crello":
+        return [
+            (
+                "original-success",
+                "original",
+                None,
+                True,
+                {"training_session": 0, "cpu_postprocess_session": 0},
+            )
+        ]
+    if dataset != "rico":
+        raise ExecutorError(f"unsupported CPU smoke dataset: {dataset}")
+
+    return [
+        (
+            "package-success",
+            "package",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        (
+            "original-success",
+            "original",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        ("training-failure", "package", "training", False, {"training_session": 37}),
+        (
+            "postprocess-failure",
+            "package",
+            "postprocess",
+            False,
+            {"training_session": 0, "cpu_postprocess_session": 37},
+        ),
+    ]
 
 
 def make_wrapper_cell(
@@ -1423,8 +1471,10 @@ def execute_run(
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
     ):
         raise ExecutorError("runtime must name one A100 and one CPU session per run")
-    if cpu_runtime_smoke and not run_id.startswith("cpu-smoke-"):
-        raise ExecutorError("CPU runtime smoke accepts only cpu-smoke run IDs")
+    if cpu_runtime_smoke and (
+        not run_id.startswith("cpu-smoke-") or run.get("cpu_smoke") is not True
+    ):
+        raise ExecutorError("CPU runtime smoke accepts only bounded smoke runs")
     if runtime_plan.get("one_training_run_at_a_time") is not True:
         raise ExecutorError("runtime must execute only one training run at a time")
     if runtime_plan.get("queue_supervisor_sequential") is not True:
@@ -1771,6 +1821,8 @@ def execute_cpu_smoke(
     source_commit: str,
     hub_repository: str,
     output_prefix: str,
+    manifest_path: Path = DEFAULT_MANIFEST,
+    input_prefix: str | None = None,
 ) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
         raise ExecutorError("CPU smoke requires a valid smoke identifier")
@@ -1785,7 +1837,19 @@ def execute_cpu_smoke(
     if not wrapper_path.is_file():
         raise ExecutorError("installed bundled wrapper was not found")
     token_path = require_token_file()
-    base_manifest = load_json(DEFAULT_MANIFEST)
+    base_manifest = cast(
+        JsonObject,
+        resolve_runtime_prefixes(
+            load_json(manifest_path.resolve()), input_prefix, output_prefix
+        ),
+    )
+    dataset = base_manifest.get("dataset")
+    if dataset not in {"rico", "crello"}:
+        raise ExecutorError("CPU smoke supports only RICO and Crello manifests")
+    dataset_paths = base_manifest.get("dataset_paths")
+    if dataset == "crello" and not isinstance(dataset_paths, dict):
+        raise ExecutorError("Crello CPU smoke needs manifest dataset_paths")
+
     raw_runs = base_manifest.get("runs")
     if not isinstance(raw_runs, list):
         raise ExecutorError("S5 manifest does not define its source run templates")
@@ -1819,6 +1883,7 @@ def execute_cpu_smoke(
     result_path = smoke_root / "smoke-result.json"
     result: JsonObject = {
         "source_commit": source_commit,
+        "dataset": dataset,
         "hub_prefix": hub_prefix,
         "session_exit_codes": {},
         "cases": {},
@@ -1868,6 +1933,31 @@ def execute_cpu_smoke(
         training_prefix = f"{artifact_prefix}/train/{{segment_id}}"
         postprocess_prefix = f"{artifact_prefix}/postprocess/{{segment_id}}"
         run: JsonObject = dict(template)
+        if dataset == "rico":
+            run["evaluator_command"] = [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "--package",
+                "canvas-vae",
+                "--extra",
+                "training",
+                "models/canvas-vae/scripts/evaluate.py",
+                "--checkpoint",
+                "{converted_checkpoint}",
+                "--data-dir",
+                "/content/repo/.cache/canvas-vae/data/rico",
+                "--seeds",
+                "0",
+                "--batch-size",
+                "1024",
+                "--device",
+                "cpu",
+                "--output",
+                "{evaluation_output}",
+            ]
+
         run.update(
             {
                 "run_id": run_id,
@@ -1888,32 +1978,48 @@ def execute_cpu_smoke(
                 "a100_wrapper_ttl": "30m",
                 "cpu_wrapper_ttl": "30m",
                 "cpu_smoke": True,
-                "evaluator_command": [
-                    "uv",
-                    "run",
-                    "--frozen",
-                    "--no-sync",
-                    "--package",
-                    "canvas-vae",
-                    "--extra",
-                    "training",
-                    "models/canvas-vae/scripts/evaluate.py",
-                    "--checkpoint",
-                    "{converted_checkpoint}",
-                    "--data-dir",
-                    "/content/repo/.cache/canvas-vae/data/rico",
-                    "--seeds",
-                    "0",
-                    "--batch-size",
-                    "1024",
-                    "--device",
-                    "cpu",
-                    "--output",
-                    "{evaluation_output}",
-                ],
             }
         )
-        if system == "original":
+        if dataset == "crello" and system == "original":
+            if not isinstance(dataset_paths, dict):
+                raise ExecutorError("Crello CPU smoke needs manifest dataset_paths")
+            original_data_dir = dataset_paths.get("original_data_dir")
+            if (
+                not isinstance(original_data_dir, str)
+                or Path(original_data_dir).is_absolute()
+                or ".." in Path(original_data_dir).parts
+                or Path(original_data_dir).parts[:3]
+                != (".cache", "canvas-vae", "original")
+            ):
+                raise ExecutorError("Crello original data path must stay in cache")
+            smoke_data_dir = f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/crello-s5"
+            original_arguments = template.get("train_original_arguments")
+            if not isinstance(original_arguments, list) or not all(
+                isinstance(value, str) for value in original_arguments
+            ):
+                raise ExecutorError("Crello original run is missing trainer arguments")
+            resolved_arguments = list(original_arguments)
+            replacements = {
+                "--data-dir": smoke_data_dir,
+                "--batch-size": "2",
+                "--num-epochs": "1",
+                "--validation-freq": "1",
+            }
+            for option, value in replacements.items():
+                try:
+                    position = resolved_arguments.index(option) + 1
+                except ValueError as error:
+                    raise ExecutorError(
+                        f"Crello original trainer arguments are missing {option}"
+                    ) from error
+                resolved_arguments[position] = value
+            run["train_original_arguments"] = [
+                value.replace("{seed}", "0") for value in resolved_arguments
+            ]
+            run["smoke_original_data_dir"] = smoke_data_dir
+            run["smoke_original_source_data_dir"] = f"/content/repo/{original_data_dir}"
+            run["smoke_original_record_limit"] = 2
+        elif system == "original":
             run["train_original_arguments"] = [
                 "--data-dir",
                 f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico",
@@ -1932,10 +2038,14 @@ def execute_cpu_smoke(
             run["smoke_original_data_dir"] = (
                 f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
             )
+            run["smoke_original_source_data_dir"] = (
+                "/content/repo/.cache/canvas-vae/original/data/rico"
+            )
             run["smoke_original_record_limit"] = 4
         else:
             run["training_config_override"] = "/content/s5-smoke.yaml"
-            run["training_overrides"] = []
+            if dataset == "rico":
+                run["training_overrides"] = []
         if failure_stage is not None:
             run["smoke_failure_stage"] = failure_stage
             run["smoke_failure_exit_code"] = 37
@@ -2050,41 +2160,10 @@ def execute_cpu_smoke(
             json.dumps(smoke_result, indent=2) + "\n", encoding="utf-8"
         )
 
-    cases = [
-        (
-            "package-success",
-            package_template,
-            "package",
-            None,
-            True,
-            {"training_session": 0, "cpu_postprocess_session": 0},
-        ),
-        (
-            "original-success",
-            original_template,
-            "original",
-            None,
-            True,
-            {"training_session": 0, "cpu_postprocess_session": 0},
-        ),
-        (
-            "training-failure",
-            package_template,
-            "package",
-            "training",
-            False,
-            {"training_session": 37},
-        ),
-        (
-            "postprocess-failure",
-            package_template,
-            "package",
-            "postprocess",
-            False,
-            {"training_session": 0, "cpu_postprocess_session": 37},
-        ),
-    ]
-    for case_id, template, system, failure_stage, success, expected_codes in cases:
+    for case_id, system, failure_stage, success, expected_codes in cpu_smoke_case_specs(
+        cast(str, dataset)
+    ):
+        template = original_template if system == "original" else package_template
         target = make_run(template, case_id, system, failure_stage)
         runs = [target]
         if not success:
@@ -2259,6 +2338,8 @@ def main() -> int:
                 args.source_commit,
                 args.hub_repo,
                 args.output_prefix,
+                args.manifest,
+                args.input_prefix,
             )
         else:
             if args.run_id is None:

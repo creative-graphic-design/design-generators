@@ -134,3 +134,68 @@ def test_crello_executor_blocks_without_rehearsed_launch_gates() -> None:
 
     with pytest.raises(EXECUTOR.ExecutorError, match="integrated lockstep"):
         EXECUTOR.verify_crello_launch_gates(manifest, "a" * 40)
+
+
+def test_crello_cpu_smoke_runs_only_original_seed_path() -> None:
+    cases = EXECUTOR.cpu_smoke_case_specs("crello")
+
+    assert [(case[0], case[1]) for case in cases] == [("original-success", "original")]
+    assert EXECUTOR.cpu_smoke_case_specs("rico")[-2][2] == "training"
+
+
+def test_crello_cpu_smoke_original_job_uses_manifest_source_and_one_epoch() -> None:
+    command = EXECUTOR.build_run_job(
+        {
+            "dataset": "crello",
+            "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+        },
+        {
+            "run_id": "cpu-smoke-crello-original-success",
+            "system": "original",
+            "seed": 0,
+            "runtime_output_root": "/content/out/checkpoints/cpu-smoke-crello-original-success/segment-001",
+            "cpu_smoke": True,
+            "smoke_original_data_dir": "/content/repo/.cache/canvas-vae/original-smoke/run/data/crello-s5",
+            "smoke_original_source_data_dir": "/content/repo/.cache/canvas-vae/original/data/crello-s5",
+            "smoke_original_record_limit": 2,
+            "train_original_arguments": [
+                "--dataset-name",
+                "crello-document",
+                "--data-dir",
+                "/content/repo/.cache/canvas-vae/original-smoke/run/data/crello-s5",
+                "--job-dir",
+                "{output_root}/original-training",
+                "--seed",
+                "0",
+                "--",
+                "--batch-size",
+                "2",
+                "--num-epochs",
+                "1",
+                "--validation-freq",
+                "1",
+            ],
+        },
+        "a" * 40,
+        "segment-001",
+        resume_checkpoint=None,
+    )
+
+    assert (
+        "source = Path('/content/repo/.cache/canvas-vae/original/data/crello-s5')"
+        in command
+    )
+    assert "crello-document" in command
+    assert "--num-epochs 1" in command
+    assert "canvas-vae/original/data/rico" not in command
+
+
+def test_crello_executor_skips_production_gates_only_for_cpu_smoke() -> None:
+    EXECUTOR.verify_crello_launch_gates(
+        {
+            "dataset": "crello",
+            "runtime_plan": {"cpu_runtime_smoke": True},
+            "cpu_rehearsal": {"status": "pending"},
+        },
+        "a" * 40,
+    )

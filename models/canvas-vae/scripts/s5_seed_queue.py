@@ -350,82 +350,89 @@ def launch_preconditions(
             "launch refused: manifest queue_status is not ready", BLOCKED_EXIT
         )
 
-    parity = manifest["evaluation_path_parity"]
-    parity_path = parity.get("path")
-    parity_sha256 = parity.get("sha256")
-    if not isinstance(parity_path, str) or not parity_path:
-        raise QueueError(
-            "launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT
-        )
-    if not isinstance(parity_sha256, str) or not re.fullmatch(
-        r"[0-9a-f]{64}", parity_sha256
-    ):
-        raise QueueError(
-            "launch refused: evaluation_path_parity SHA-256 is missing", BLOCKED_EXIT
-        )
-    parity_file = (REPOSITORY_ROOT / parity_path).resolve()
-    try:
-        parity_file.relative_to(REPOSITORY_ROOT)
-    except ValueError as error:
-        raise QueueError(
-            "evaluation_path_parity path must stay inside the repository"
-        ) from error
-    if not parity_file.is_file():
-        raise QueueError(
-            "launch refused: evaluation_path_parity artifact is not present",
-            BLOCKED_EXIT,
-        )
-    digest = sha256_file(parity_file)
-    if digest != parity_sha256:
-        raise QueueError(
-            "launch refused: evaluation_path_parity SHA-256 does not match",
-            BLOCKED_EXIT,
-        )
-
-    if manifest["dataset"] == "crello":
-        runtime_plan = manifest["runtime_plan"]
-        if runtime_plan.get("integrated_first_run_gates") is not True:
+    runtime_plan = manifest["runtime_plan"]
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    cpu_crello_smoke = manifest["dataset"] == "crello" and cpu_runtime_smoke
+    if not cpu_crello_smoke:
+        parity = manifest["evaluation_path_parity"]
+        parity_path = parity.get("path")
+        parity_sha256 = parity.get("sha256")
+        if not isinstance(parity_path, str) or not parity_path:
             raise QueueError(
-                "launch refused: the integrated lockstep and GPU-bound gates are not implemented",
-                BLOCKED_EXIT,
+                "launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT
             )
-        rehearsal = manifest["cpu_rehearsal"]
-        if (
-            not isinstance(rehearsal, dict)
-            or rehearsal.get("status") != "passed"
-            or rehearsal.get("source_commit") != pinned_commit
+        if not isinstance(parity_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", parity_sha256
         ):
             raise QueueError(
-                "launch refused: a same-environment CPU rehearsal is missing for this commit",
+                "launch refused: evaluation_path_parity SHA-256 is missing",
                 BLOCKED_EXIT,
             )
-        rehearsal_path = rehearsal.get("artifact_path")
-        rehearsal_sha256 = rehearsal.get("sha256")
-        if (
-            not isinstance(rehearsal_path, str)
-            or not rehearsal_path
-            or not isinstance(rehearsal_sha256, str)
-            or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
-        ):
-            raise QueueError(
-                "launch refused: CPU rehearsal artifact path and SHA-256 are required",
-                BLOCKED_EXIT,
-            )
-        rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+        parity_file = (REPOSITORY_ROOT / parity_path).resolve()
         try:
-            rehearsal_file.relative_to(REPOSITORY_ROOT)
+            parity_file.relative_to(REPOSITORY_ROOT)
         except ValueError as error:
             raise QueueError(
-                "cpu_rehearsal artifact path must stay inside the repository"
+                "evaluation_path_parity path must stay inside the repository"
             ) from error
-        if (
-            not rehearsal_file.is_file()
-            or sha256_file(rehearsal_file) != rehearsal_sha256
-        ):
+        if not parity_file.is_file():
             raise QueueError(
-                "launch refused: CPU rehearsal artifact is missing or its SHA-256 differs",
+                "launch refused: evaluation_path_parity artifact is not present",
                 BLOCKED_EXIT,
             )
+        digest = sha256_file(parity_file)
+        if digest != parity_sha256:
+            raise QueueError(
+                "launch refused: evaluation_path_parity SHA-256 does not match",
+                BLOCKED_EXIT,
+            )
+
+    if manifest["dataset"] == "crello":
+        if not cpu_crello_smoke:
+            if runtime_plan.get("integrated_first_run_gates") is not True:
+                raise QueueError(
+                    "launch refused: the integrated lockstep and GPU-bound gates are not implemented",
+                    BLOCKED_EXIT,
+                )
+
+            rehearsal = manifest["cpu_rehearsal"]
+            if (
+                not isinstance(rehearsal, dict)
+                or rehearsal.get("status") != "passed"
+                or rehearsal.get("source_commit") != pinned_commit
+            ):
+                raise QueueError(
+                    "launch refused: a same-environment CPU rehearsal is missing for this commit",
+                    BLOCKED_EXIT,
+                )
+
+            rehearsal_path = rehearsal.get("artifact_path")
+            rehearsal_sha256 = rehearsal.get("sha256")
+            if (
+                not isinstance(rehearsal_path, str)
+                or not rehearsal_path
+                or not isinstance(rehearsal_sha256, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
+            ):
+                raise QueueError(
+                    "launch refused: CPU rehearsal artifact path and SHA-256 are required",
+                    BLOCKED_EXIT,
+                )
+            rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+            try:
+                rehearsal_file.relative_to(REPOSITORY_ROOT)
+            except ValueError as error:
+                raise QueueError(
+                    "cpu_rehearsal artifact path must stay inside the repository"
+                ) from error
+            if (
+                not rehearsal_file.is_file()
+                or sha256_file(rehearsal_file) != rehearsal_sha256
+            ):
+                raise QueueError(
+                    "launch refused: CPU rehearsal artifact is missing or its SHA-256 differs",
+                    BLOCKED_EXIT,
+                )
 
     runner = manifest.get("runner_command")
     if not isinstance(runner, list) or runner != [
