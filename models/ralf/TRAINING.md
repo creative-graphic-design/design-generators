@@ -81,6 +81,8 @@ The CGL staged records below use the audited interpreter and worktree source pre
 
 Each system trained seeds 1-3 to 30 epochs, and every resulting checkpoint was evaluated with the original implementation's own chain: its inference entrypoint with `cond_type=uncond`, `test_split=test`, and `top_k` sampling, followed by its `eval.py` with the authors' FIDNet weights. Package checkpoints enter that chain through the evaluator adapter, which removes the single Lightning `model.` prefix and reuses the seed-matched vendor `config.yaml`. The evaluation command uses `num_workers=0`; this setting is part of the evaluator configuration and does not change the reported outputs.
 
+The oldest CGL unconditional campaign predates the later campaigns' layout, so the runner bridges three shape differences: the vendor job namespace, the `dataset.path` override, and the evaluator-source location (`eval-vendor-source` versus the pinned `vendor/ralf` evaluator).
+
 | Metric (test average)   | Package mean [min, max] | Vendor mean [min, max]  |
 | ----------------------- | ----------------------- | ----------------------- |
 | Layout FID              | 2.1271 [1.9648, 2.2164] | 2.1751 [2.0229, 2.2628] |

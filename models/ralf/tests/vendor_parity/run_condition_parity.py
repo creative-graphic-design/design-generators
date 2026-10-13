@@ -228,6 +228,81 @@ def require_file(path: Path, description: str) -> Path:
     return path
 
 
+def tracked_vendor_source() -> Path:
+    repo_root = Path(__file__).resolve().parents[4]
+    source = repo_root / "vendor" / "ralf"
+    require_file(source / "eval.py", "tracked vendor evaluator")
+    pinned = subprocess.run(
+        ["git", "rev-parse", "HEAD:vendor/ralf"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    actual = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    pinned_revision = pinned.stdout.strip()
+    actual_revision = actual.stdout.strip()
+    if (
+        pinned.returncode != 0
+        or actual.returncode != 0
+        or not re.fullmatch(r"[0-9a-f]{40}", pinned_revision)
+        or actual_revision != pinned_revision
+    ):
+        raise RuntimeError(
+            "tracked vendor evaluator revision does not match the pinned "
+            f"vendor/ralf gitlink: pinned={pinned_revision!r}, "
+            f"actual={actual_revision!r}"
+        )
+    return source
+
+
+def vendor_source(args: argparse.Namespace) -> Path:
+    if args.vendor_source_path is not None:
+        return require_file(
+            args.vendor_source_path / "eval.py", "explicit evaluator source"
+        ).parent
+    campaign_source = args.campaign_root / "s5" / "eval-vendor-source"
+    if (campaign_source / "eval.py").is_file():
+        return campaign_source
+    return tracked_vendor_source()
+
+
+def evaluator_source_record(args: argparse.Namespace) -> dict[str, str]:
+    source = vendor_source(args)
+    evaluator = require_file(source / "eval.py", "evaluator source")
+    repo_root = Path(__file__).resolve().parents[4]
+    campaign_source = (args.campaign_root / "s5" / "eval-vendor-source").resolve()
+    tracked_source = (repo_root / "vendor" / "ralf").resolve()
+    if source.resolve() == campaign_source:
+        source_kind = "campaign eval-vendor-source"
+        source_path = "campaign/s5/eval-vendor-source"
+        vendor_revision = evaluator_source_commit(args)
+    elif source.resolve() == tracked_source:
+        source_kind = "tracked vendor/ralf"
+        source_path = "vendor/ralf"
+        vendor_revision = subprocess.run(
+            ["git", "-C", str(source), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    else:
+        source_kind = "explicit evaluator source"
+        source_path = "operator-supplied evaluator source"
+        vendor_revision = evaluator_source_commit(args)
+    return {
+        "kind": source_kind,
+        "path": source_path,
+        "sha256": sha256(evaluator),
+        "vendor_revision": vendor_revision,
+    }
+
+
 def record_files(root: Path) -> list[Path]:
     text_suffixes = {
         ".json",
@@ -599,17 +674,6 @@ def campaign_checkpoint(args: argparse.Namespace) -> Path:
     if checkpoints:
         return checkpoints[-1]
     raise FileNotFoundError(f"missing campaign package checkpoint under {package_job}")
-
-
-def vendor_source(args: argparse.Namespace) -> Path:
-    if args.vendor_source_path is not None:
-        return require_file(
-            args.vendor_source_path / "eval.py", "campaign evaluator source"
-        ).parent
-    return require_file(
-        args.campaign_root / "s5" / "eval-vendor-source" / "eval.py",
-        "campaign evaluator source",
-    ).parent
 
 
 def precomputed_root(args: argparse.Namespace) -> Path:
@@ -1559,6 +1623,7 @@ def artifact(
         },
         "evaluator": {
             "source_commit": evaluator_source_commit(args),
+            "source": getattr(args, "evaluator_source", None),
             "interpreter": str(args.runtime_python),
             "runtime_freeze_record": freeze["path"],
             "runtime_freeze_sha256": freeze["sha256"],
@@ -1748,6 +1813,8 @@ def main() -> None:
     freeze = runtime_freeze(
         args.output_root, args.runtime_python, args.runtime_freeze_path
     )
+    if not args.refresh_existing:
+        args.evaluator_source = evaluator_source_record(args)
     if args.refresh_existing:
         expected_seed = INFERENCE_SEEDS[0]
         input_root = require_file(

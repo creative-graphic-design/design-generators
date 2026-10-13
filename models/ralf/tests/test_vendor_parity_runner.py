@@ -213,6 +213,54 @@ def test_vendor_dataset_overrides_fail_without_config_or_input(tmp_path: Path) -
         )
 
 
+def test_evaluator_source_prefers_campaign_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_runner()
+    source = tmp_path / "campaign" / "s5" / "eval-vendor-source"
+    source.mkdir(parents=True)
+    (source / "eval.py").write_text("print('campaign')\n", encoding="utf-8")
+    args = SimpleNamespace(campaign_root=tmp_path / "campaign", vendor_source_path=None)
+    monkeypatch.setattr(runner, "evaluator_source_commit", lambda _: "a" * 40)
+
+    assert runner.vendor_source(args) == source
+    record = runner.evaluator_source_record(args)
+    assert record["kind"] == "campaign eval-vendor-source"
+    assert record["path"] == "campaign/s5/eval-vendor-source"
+    assert record["sha256"] == runner.sha256(source / "eval.py")
+
+
+def test_evaluator_source_falls_back_to_pinned_vendor(tmp_path: Path) -> None:
+    runner = load_runner()
+    args = SimpleNamespace(campaign_root=tmp_path / "campaign", vendor_source_path=None)
+
+    result = runner.evaluator_source_record(args)
+
+    assert result["kind"] == "tracked vendor/ralf"
+    assert result["path"] == "vendor/ralf"
+    assert result["sha256"] == runner.sha256(
+        Path(__file__).parents[3] / "vendor" / "ralf" / "eval.py"
+    )
+    assert len(result["vendor_revision"]) == 40
+
+
+def test_evaluator_source_fails_closed_without_either_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_runner()
+    monkeypatch.setattr(
+        runner,
+        "tracked_vendor_source",
+        lambda: (_ for _ in ()).throw(
+            FileNotFoundError("missing tracked vendor evaluator")
+        ),
+    )
+    args = SimpleNamespace(campaign_root=tmp_path / "campaign", vendor_source_path=None)
+
+    with pytest.raises(FileNotFoundError, match="tracked vendor evaluator"):
+        runner.vendor_source(args)
+
+
 def test_condition_preflight_accepts_matching_job_and_campaign_metadata(
     tmp_path: Path,
 ) -> None:
