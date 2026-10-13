@@ -178,6 +178,41 @@ def test_vendor_job_mapping_rejects_package_namespace(tmp_path: Path) -> None:
         runner.vendor_model_target(vendor_job)
 
 
+def test_vendor_dataset_overrides_keep_configured_path(tmp_path: Path) -> None:
+    runner = load_runner()
+    input_root = tmp_path / "input"
+    configured_path = tmp_path / "recorded" / "input"
+    input_root.mkdir()
+
+    assert runner.vendor_dataset_overrides(
+        config={"dataset": {"path": str(configured_path)}},
+        input_root=input_root,
+    ) == (f"dataset_path={input_root}",)
+
+
+def test_vendor_dataset_overrides_supply_nested_path_for_missing_config_key(
+    tmp_path: Path,
+) -> None:
+    runner = load_runner()
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+
+    assert runner.vendor_dataset_overrides(
+        config={"dataset": {"name": "cgl"}},
+        input_root=input_root,
+    ) == (f"dataset_path={input_root}", f"dataset.path={input_root}")
+
+
+def test_vendor_dataset_overrides_fail_without_config_or_input(tmp_path: Path) -> None:
+    runner = load_runner()
+
+    with pytest.raises(RuntimeError, match="prepared input directory"):
+        runner.vendor_dataset_overrides(
+            config={},
+            input_root=tmp_path / "missing",
+        )
+
+
 def test_condition_preflight_accepts_matching_job_and_campaign_metadata(
     tmp_path: Path,
 ) -> None:

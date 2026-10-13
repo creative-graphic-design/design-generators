@@ -556,6 +556,26 @@ def materialize_vendor_job(
     }
 
 
+def vendor_dataset_overrides(
+    *, config: Mapping[str, Any], input_root: Path
+) -> tuple[str, ...]:
+    dataset = config.get("dataset")
+    dataset_path = dataset.get("path") if isinstance(dataset, Mapping) else None
+    if isinstance(dataset_path, str) and dataset_path.strip():
+        return (f"dataset_path={input_root}",)
+
+    if not input_root.is_dir():
+        raise RuntimeError(
+            "vendor inference requires either config.dataset.path or an existing "
+            "prepared input directory"
+        )
+
+    dataset_path_override = f"dataset.path={input_root}"
+    if not isinstance(dataset, Mapping):
+        dataset_path_override = "+" + dataset_path_override
+    return (f"dataset_path={input_root}", dataset_path_override)
+
+
 def package_job_record(args: argparse.Namespace) -> dict[str, str]:
     package_job = campaign_package_job(args)
     try:
@@ -991,6 +1011,16 @@ def vendor_prediction_dir(
     if root.exists():
         shutil.rmtree(root)
     root.mkdir(parents=True, exist_ok=True)
+    vendor_config = _read_job_config(output_root / vendor_job["used_job_dir"])
+    dataset_overrides = vendor_dataset_overrides(
+        config=vendor_config,
+        input_root=input_root,
+    )
+    vendor_job["dataset_path_mode"] = (
+        "config.dataset.path"
+        if len(dataset_overrides) == 1
+        else "runner.dataset.path override"
+    )
     command = [str(args.runtime_python), "-u"]
     module_wrapper = (
         "import torch; torch.backends.cudnn.enabled=False; "
@@ -1019,7 +1049,7 @@ def vendor_prediction_dir(
         [
             f"job_dir={output_root / vendor_job['used_job_dir']}",
             f"result_dir={root}",
-            f"dataset_path={input_root}",
+            *dataset_overrides,
             "+sampling=deterministic"
             if args.condition == "refinement"
             else "+sampling=top_k",
