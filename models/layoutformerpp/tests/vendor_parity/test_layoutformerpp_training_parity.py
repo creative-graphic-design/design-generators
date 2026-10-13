@@ -1697,8 +1697,11 @@ def test_s0_per_family_serialization_and_task_ids_match(recipe) -> None:
         assert reference["task_id"] == recipe.task_ids[task_index]
 
 
-def test_s0_original_adam_and_warmuplr_are_actually_constructed() -> None:
-    learning_rate = next(iter(TRAINING_RECIPES.values())).learning_rate
+@pytest.mark.parametrize(
+    "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
+)
+def test_s0_original_adam_and_warmuplr_are_actually_constructed(recipe) -> None:
+    learning_rate = recipe.learning_rate
     states = reference_optimizer_scheduler_state(
         (1000, 2000, 3000, 4000), learning_rate
     )

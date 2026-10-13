@@ -23,11 +23,7 @@ uv sync --package layoutformerpp --extra training --extra vendor
 
 The vendor extra is needed for original-implementation reference checks. The package training path uses the package-local DataModule and Lightning module.
 
-Build the audited runtime with the committed requirements. The builder fails if the target directory already exists, so each rebuild starts from a fresh directory. The committed normalized freeze records the exact installed package versions for the evidence runtime; a fresh build is expected to match those versions, not the byte hash. The recorded hash binds each evidence record to the runtime used for that campaign.
-
-```bash
-models/layoutformerpp/scripts/build_audit_runtime.sh --runtime-dir .cache/layoutformerpp/runtime/cu126-py311
-```
+The audited runtime is recorded in `models/layoutformerpp/scripts/audit_runtime_requirements.txt` and `models/layoutformerpp/scripts/audit_runtime.freeze`; obtain torch-family packages from the cu126 PyTorch index and all other packages from PyPI, using the pinned versions in those files.
 
 ## Data
 
@@ -48,7 +44,7 @@ The reference mode is the plain-PyTorch basic training path. The parity harness 
 
 Sampler rule — not applicable: these recipes do not use a timestep or importance sampler. EMA rule — not applicable: the recipes disable EMA. AMP rule — not applicable: the training configs use `precision: 32-true`. Multi-worker loader rule — not applicable: the package DataModule uses `num_workers=0` for the compared streams. Scheduler cadence is applicable and is covered by the S2 and S3 evidence.
 
-The committed runtime builder reads `models/layoutformerpp/scripts/audit_runtime_requirements.txt`, which pins the complete audited stack including `torch==2.12.0+cu126`, `torchvision==0.27.0+cu126`, `triton==3.7.0`, and `deepspeed==0.5.10` from the cu126 index. It normalizes wheel URLs and editable paths before writing the fresh freeze. The committed campaign runner runs the CUDA smoke first and then the six recorded staged processes, while `models/layoutformerpp/scripts/training_parity_record_plugin.py` writes create-only redacted records.
+The campaign runner regenerates and normalizes the selected interpreter's freeze at launch, compares it with `models/layoutformerpp/scripts/audit_runtime.freeze`, runs the CUDA smoke first, and then runs the six recorded staged processes; `models/layoutformerpp/scripts/training_parity_record_plugin.py` writes create-only redacted records.
 
 ## Seed Policy
 
@@ -126,17 +122,11 @@ The staged evaluator is the LayoutFormer++ training parity harness. It compares 
 
 The launch manifest records the source commit, runtime freeze hash, selected-device setting, redacted data-root placeholder, fixed S3 tolerances, and every record and freeze path under `.cache/layoutformerpp/post-merge/attempt-3/launch_manifest.json`. The CUDA preflight output is under `.cache/layoutformerpp/post-merge/attempt-3/cuda-smoke.json`. The preflight uses a tiny matmul on the selected logical CUDA device after `CUDA_VISIBLE_DEVICES=<device>` is applied and fails closed before launching a parity process when the smoke fails.
 
-The committed builder can install the pinned runtime versions into a fresh directory by running `models/layoutformerpp/scripts/build_audit_runtime.sh` from the repository root; this documents version reproducibility, not byte-identical wheel reproduction. The runtime and campaign artifacts are cache-local and ignored; no generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts belong in git.
+The runtime and campaign artifacts are cache-local and ignored; no generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts belong in git.
 
 ## Training Commands
 
-Build the audited runtime before running the staged parity campaign.
-
-```bash
-models/layoutformerpp/scripts/build_audit_runtime.sh
-```
-
-Set `LAYOUTFORMERPP_AUDIT_VENV` to `.cache/layoutformerpp/runtime/cu126-py311` before the campaign command.
+Set `LAYOUTFORMERPP_AUDIT_VENV=<your audit venv>` to the selected audited interpreter directory before the campaign command.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<device> PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT=<your data root> \

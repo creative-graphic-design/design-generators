@@ -10,8 +10,9 @@ import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
-from build_audit_runtime import normalized_freeze
+from packaging.utils import parse_wheel_filename
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -19,7 +20,6 @@ SCRIPT_ROOT = Path(__file__).resolve().parent
 TEST = (
     "models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py"
 )
-DEFAULT_RUNTIME = ".cache/layoutformerpp/runtime/cu126-py311"
 EXPECTED_FREEZE = SCRIPT_ROOT / "audit_runtime.freeze"
 
 
@@ -47,13 +47,60 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _runtime_paths() -> tuple[str, Path, Path]:
-    relative = os.environ.get("LAYOUTFORMERPP_AUDIT_VENV", DEFAULT_RUNTIME)
+def normalized_freeze(raw: str) -> str:
+    """Return a stable freeze without machine-specific wheel or source paths."""
+    lines: list[str] = []
+    for raw_line in raw.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        if line.startswith("-e "):
+            location = line[3:].strip()
+            if location.startswith("file://<repo root>/"):
+                line = f"-e {location.removeprefix('file://<repo root>/')}"
+            elif location.startswith("file://"):
+                parsed = urlparse(location)
+                path = Path(unquote(parsed.path)).resolve()
+                try:
+                    relative = path.relative_to(REPO_ROOT)
+                except ValueError as error:
+                    raise RuntimeError(
+                        f"editable install is outside the repository: {path}"
+                    ) from error
+                line = f"-e {relative.as_posix()}"
+            else:
+                line = line.replace(str(REPO_ROOT), "<repo root>")
+        elif " @ file://" in line:
+            # The evidence runtime installs local torch wheels; normalize their file URLs.
+            distribution, _, location = line.partition(" @ ")
+            wheel_path = Path(unquote(urlparse(location).path))
+            try:
+                wheel_distribution, wheel_version, _, _ = parse_wheel_filename(
+                    wheel_path.name
+                )
+            except Exception as error:
+                raise RuntimeError(f"cannot normalize wheel URL: {line}") from error
+            if distribution != str(wheel_distribution):
+                raise RuntimeError(
+                    f"wheel distribution mismatch: {distribution} != {wheel_distribution}"
+                )
+            line = f"{wheel_distribution}=={wheel_version}"
+        else:
+            line = line.replace(str(REPO_ROOT), "<repo root>")
+        lines.append(line)
+    return "\n".join(sorted(lines, key=str.casefold)) + "\n"
+
+
+def _runtime_paths() -> tuple[str, Path]:
+    relative = os.environ.get("LAYOUTFORMERPP_AUDIT_VENV")
+    if not relative:
+        raise SystemExit("LAYOUTFORMERPP_AUDIT_VENV must point to the audited runtime")
     path = Path(relative)
     if path.is_absolute() or ".." in path.parts:
         raise SystemExit("LAYOUTFORMERPP_AUDIT_VENV must be repository-relative")
     runtime = REPO_ROOT / path
-    return relative.rstrip("/"), runtime / "bin/python", runtime / "pip-freeze.txt"
+    return relative.rstrip("/"), runtime / "bin/python"
 
 
 def _runtime_freeze(runtime_python: Path) -> str:
@@ -79,17 +126,15 @@ def main() -> int:
     visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
     if not visible_devices:
         raise SystemExit("CUDA_VISIBLE_DEVICES must be set")
-    runtime_relative, runtime_python, runtime_freeze = _runtime_paths()
-    if not runtime_python.is_file() or not runtime_freeze.is_file():
-        raise SystemExit("audited runtime or its freeze file is missing")
+    runtime_relative, runtime_python = _runtime_paths()
+    if not runtime_python.is_file():
+        raise SystemExit("audited runtime is missing its Python interpreter")
     expected_freeze = EXPECTED_FREEZE.read_text(encoding="utf-8")
     actual_freeze = _runtime_freeze(runtime_python)
     if actual_freeze != expected_freeze:
         raise SystemExit(
             "audited runtime freeze differs from committed expected freeze"
         )
-    if runtime_freeze.read_text(encoding="utf-8") != actual_freeze:
-        raise SystemExit("audited runtime pip-freeze.txt is not freshly normalized")
     tracked_changes = (
         subprocess.run(
             ["git", "diff", "--quiet"], cwd=REPO_ROOT, check=False
@@ -103,7 +148,7 @@ def main() -> int:
     source_commit = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
-    runtime_freeze_sha256 = sha256(runtime_freeze)
+    runtime_freeze_sha256 = sha256(EXPECTED_FREEZE)
     run_root = REPO_ROOT / ".cache/layoutformerpp/post-merge" / args.attempt
     if run_root.exists():
         raise SystemExit(f"refusing to reuse existing campaign directory: {run_root}")
@@ -122,7 +167,8 @@ def main() -> int:
         check=False,
     )
     preflight = {
-        "runtime_freeze": f"{runtime_relative}/pip-freeze.txt",
+        "runtime_interpreter": f"{runtime_relative}/bin/python",
+        "runtime_freeze": "models/layoutformerpp/scripts/audit_runtime.freeze",
         "runtime_freeze_sha256": runtime_freeze_sha256,
         "cuda_visible_devices": visible_devices,
         "command": "import torch; assert torch.cuda.is_available(); tiny matmul on the current CUDA device",
@@ -151,7 +197,8 @@ def main() -> int:
         "manifest_version": 2,
         "source_commit": source_commit,
         "created_at": now(),
-        "runtime": f"{runtime_relative}/pip-freeze.txt",
+        "runtime_interpreter": f"{runtime_relative}/bin/python",
+        "runtime_freeze": "models/layoutformerpp/scripts/audit_runtime.freeze",
         "runtime_freeze_sha256": runtime_freeze_sha256,
         "cuda_visible_devices": visible_devices,
         "data_root": "<your data root>",
@@ -210,7 +257,7 @@ def main() -> int:
             "LAYOUTFORMERPP_RUN_STARTED_AT": started_at,
             "LAYOUTFORMERPP_SOURCE_COMMIT": source_commit,
             "LAYOUTFORMERPP_RUNTIME_FREEZE_SHA256": runtime_freeze_sha256,
-            "LAYOUTFORMERPP_RUNTIME_FREEZE_RELATIVE": f"{runtime_relative}/pip-freeze.txt",
+            "LAYOUTFORMERPP_RUNTIME_FREEZE_RELATIVE": "models/layoutformerpp/scripts/audit_runtime.freeze",
             "LAYOUTFORMERPP_REPORT_DATA_ROOT": data_root,
             "LAYOUTFORMERPP_REPORT_REPO_ROOT": str(REPO_ROOT),
         }
@@ -224,7 +271,8 @@ def main() -> int:
             ],
             "data_root": "<your data root>",
             "source_commit": source_commit,
-            "runtime_freeze": f"{runtime_relative}/pip-freeze.txt",
+            "runtime_interpreter": f"{runtime_relative}/bin/python",
+            "runtime_freeze": "models/layoutformerpp/scripts/audit_runtime.freeze",
             "runtime_freeze_sha256": runtime_freeze_sha256,
         }
         write_new(
