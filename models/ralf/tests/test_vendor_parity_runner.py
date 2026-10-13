@@ -200,7 +200,7 @@ def test_vendor_dataset_overrides_supply_nested_path_for_missing_config_key(
     assert runner.vendor_dataset_overrides(
         config={"dataset": {"name": "cgl"}},
         input_root=input_root,
-    ) == (f"dataset_path={input_root}", f"dataset.path={input_root}")
+    ) == (f"dataset_path={input_root}", f"+dataset.path={input_root}")
 
 
 def test_vendor_dataset_overrides_fail_without_config_or_input(tmp_path: Path) -> None:

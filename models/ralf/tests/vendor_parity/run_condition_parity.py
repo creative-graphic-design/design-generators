@@ -645,9 +645,7 @@ def vendor_dataset_overrides(
             "prepared input directory"
         )
 
-    dataset_path_override = f"dataset.path={input_root}"
-    if not isinstance(dataset, Mapping):
-        dataset_path_override = "+" + dataset_path_override
+    dataset_path_override = f"+dataset.path={input_root}"
     return (f"dataset_path={input_root}", dataset_path_override)
 
 
