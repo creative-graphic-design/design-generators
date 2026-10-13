@@ -109,15 +109,12 @@ def main() -> int:
             "install",
             "--python",
             str(python),
-            "--no-build-isolation",
-            "--index-url",
-            "https://pypi.org/simple",
-            "--extra-index-url",
-            "https://download.pytorch.org/whl/cu126",
-            "--index-strategy",
-            "unsafe-best-match",
             "-r",
             str(REQUIREMENTS),
+            "--index-url",
+            "https://download.pytorch.org/whl/cu126",
+            "--extra-index-url",
+            "https://pypi.org/simple",
         ]
     )
     normalized = normalized_runtime_freeze(python)

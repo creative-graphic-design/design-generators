@@ -8,9 +8,9 @@ tags:
 
 # LayoutFormer++ Training
 
-The package has staged S0-S4 evidence for all twelve LayoutFormer++ recipe families covered by this package; trained-checkpoint reproduction is not claimed because the full-run stage has not been launched. The latest campaign rerun is pending after the audited runtime and campaign tooling were made reproducible.
+The package has passing staged S0-S4 evidence for all twelve LayoutFormer++ recipe families covered by this package. Full-run trained-checkpoint reproduction is not claimed because S5 has not been launched.
 
-The covered recipe families are RICO25 label, RICO25 label-size, RICO25 relation, RICO25 refinement, RICO25 completion, RICO25 unconditional, PubLayNet label, PubLayNet label-size, PubLayNet relation, PubLayNet refinement, PubLayNet completion, and PubLayNet unconditional. The superseded campaign used source commit `080c492bd893f21c6e8add85b322ec26a78e7fb0` and runtime freeze `408012a8b7451384836b3d7bf6f2c0cc1efeb3c30521a4c0817ba6891a635ebb`; the replacement campaign will record its own source commit and freeze after the fresh-runtime preflight.
+The covered recipe families are RICO25 label, RICO25 label-size, RICO25 relation, RICO25 refinement, RICO25 completion, RICO25 unconditional, PubLayNet label, PubLayNet label-size, PubLayNet relation, PubLayNet refinement, PubLayNet completion, and PubLayNet unconditional. The evidence campaign used source commit `080c492bd893f21c6e8add85b322ec26a78e7fb0` and the normalized runtime freeze `408012a8b7451384836b3d7bf6f2c0cc1efeb3c30521a4c0817ba6891a635ebb`, which every attempt-3 record cites.
 
 Run commands from the repository root. Keep generated evidence, logs, data, and checkpoints under `.cache/layoutformerpp/`. Keep the authoritative processed data outside repository artifacts and provide it through `LAYOUTFORMERPP_PARITY_DATA_ROOT=<your data root>`.
 
@@ -23,7 +23,7 @@ uv sync --package layoutformerpp --extra training --extra vendor
 
 The vendor extra is needed for original-implementation reference checks. The package training path uses the package-local DataModule and Lightning module.
 
-Build the audited runtime with the committed requirements and expected normalized freeze. The builder fails if the target directory already exists, so each rebuild starts from a fresh directory.
+Build the audited runtime with the committed requirements. The builder fails if the target directory already exists, so each rebuild starts from a fresh directory. The committed normalized freeze records the exact installed package versions for the evidence runtime; a fresh build is expected to match those versions, not the byte hash. The recorded hash binds each evidence record to the runtime used for that campaign.
 
 ```bash
 models/layoutformerpp/scripts/build_audit_runtime.sh --runtime-dir .cache/layoutformerpp/runtime/cu126-py311
@@ -48,7 +48,7 @@ The reference mode is the plain-PyTorch basic training path. The parity harness 
 
 Sampler rule — not applicable: these recipes do not use a timestep or importance sampler. EMA rule — not applicable: the recipes disable EMA. AMP rule — not applicable: the training configs use `precision: 32-true`. Multi-worker loader rule — not applicable: the package DataModule uses `num_workers=0` for the compared streams. Scheduler cadence is applicable and is covered by the S2 and S3 evidence.
 
-The committed runtime builder reads `models/layoutformerpp/scripts/audit_runtime_requirements.txt`, which pins the complete audited stack including `torch==2.12.0+cu126`, `torchvision==0.27.0+cu126`, and `deepspeed==0.5.10` from the cu126 index. It normalizes wheel URLs and editable paths before comparing the fresh freeze with `models/layoutformerpp/scripts/audit_runtime.freeze`. The committed campaign runner runs the CUDA smoke first and then the six recorded staged processes, while `models/layoutformerpp/scripts/training_parity_record_plugin.py` writes create-only redacted records.
+The committed runtime builder reads `models/layoutformerpp/scripts/audit_runtime_requirements.txt`, which pins the complete audited stack including `torch==2.12.0+cu126`, `torchvision==0.27.0+cu126`, `triton==3.7.0`, and `deepspeed==0.5.10` from the cu126 index. It normalizes wheel URLs and editable paths before writing the fresh freeze. The committed campaign runner runs the CUDA smoke first and then the six recorded staged processes, while `models/layoutformerpp/scripts/training_parity_record_plugin.py` writes create-only redacted records.
 
 ## Seed Policy
 
@@ -56,7 +56,7 @@ The staged records preserve each run's process boundary, runtime freeze referenc
 
 ## Evidence Validity
 
-The superseded attempt-3 records are not current evidence because the runner, runtime builder, reference scheduler, and parity tests changed afterward. The rerun-rule check for the replacement campaign is `git diff --stat <evidence head> HEAD -- models/layoutformerpp/src models/layoutformerpp/configs models/layoutformerpp/tests models/layoutformerpp/scripts vendor lib`; it must be empty before the campaign launch. A historical bounded PubLayNet label-conditioned `gen_t` comparison was produced at the older head `2512c25d0e7eae188afed43df94bbb06bb2c52ea`. The same training-path diff from that head to the current head is 43 files changed, 1553 insertions, and 284 deletions; the regression rule invalidates that historical comparison as current evidence, so it is excluded.
+The attempt-3 records are current staged evidence for source commit `080c492bd893f21c6e8add85b322ec26a78e7fb0` and normalized runtime freeze `408012a8b7451384836b3d7bf6f2c0cc1efeb3c30521a4c0817ba6891a635ebb`. The rerun-rule path set is `models/layoutformerpp/src models/layoutformerpp/configs models/layoutformerpp/tests models/layoutformerpp/scripts vendor lib`. Its training-path diff command, `git diff --stat 080c492bd893f21c6e8add85b322ec26a78e7fb0 HEAD -- models/layoutformerpp/src models/layoutformerpp/configs lib`, is empty. The changes under `models/layoutformerpp/tests` and `models/layoutformerpp/scripts` are harness-only, so they do not invalidate attempt-3; no package source, model configuration, or shared-library training path changed. A historical bounded PubLayNet label-conditioned `gen_t` comparison was produced at the older head `2512c25d0e7eae188afed43df94bbb06bb2c52ea`. The same training-path diff from that head to the current head is 40 files changed, 1383 insertions, and 251 deletions; the regression rule invalidates that historical comparison as current evidence, so it is excluded.
 
 ## Validation Stages
 
@@ -126,7 +126,7 @@ The staged evaluator is the LayoutFormer++ training parity harness. It compares 
 
 The launch manifest records the source commit, runtime freeze hash, selected-device setting, redacted data-root placeholder, fixed S3 tolerances, and every record and freeze path under `.cache/layoutformerpp/post-merge/attempt-3/launch_manifest.json`. The CUDA preflight output is under `.cache/layoutformerpp/post-merge/attempt-3/cuda-smoke.json`. The preflight uses a tiny matmul on the selected logical CUDA device after `CUDA_VISIBLE_DEVICES=<device>` is applied and fails closed before launching a parity process when the smoke fails.
 
-The dedicated runtime freeze is reproducible by running `models/layoutformerpp/scripts/build_audit_runtime.sh` from the repository root. The runtime and campaign artifacts are cache-local and ignored; no generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts belong in git.
+The committed builder can install the pinned runtime versions into a fresh directory by running `models/layoutformerpp/scripts/build_audit_runtime.sh` from the repository root; this documents version reproducibility, not byte-identical wheel reproduction. The runtime and campaign artifacts are cache-local and ignored; no generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts belong in git.
 
 ## Training Commands
 
@@ -141,8 +141,10 @@ Set `LAYOUTFORMERPP_AUDIT_VENV` to `.cache/layoutformerpp/runtime/cu126-py311` b
 ```bash
 CUDA_VISIBLE_DEVICES=<device> PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT=<your data root> \
   "$LAYOUTFORMERPP_AUDIT_VENV/bin/python" \
-  models/layoutformerpp/scripts/run_training_parity_campaign.py --attempt attempt-4
+  models/layoutformerpp/scripts/run_training_parity_campaign.py --attempt "$LAYOUTFORMERPP_ATTEMPT"
 ```
+
+Set `LAYOUTFORMERPP_ATTEMPT` to a new name before running the campaign. The runner refuses to overwrite an existing attempt directory.
 
 Train one recipe after the staged evidence and a separate user-owned full-run decision.
 
