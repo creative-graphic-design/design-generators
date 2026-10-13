@@ -908,7 +908,7 @@ def _run_s2_case(recipe, device: torch.device) -> dict[str, object]:
         reference_post_gradient_norm = _gradient_norm(_gradient_values(reference_model))
         reference_optimizer.step()
         reference_scheduler = reference_optimizer_scheduler_state(
-            (recipe.warmup_num_steps,)
+            (recipe.warmup_num_steps,), recipe.learning_rate
         )
         reference_scheduler_state = reference_scheduler["post_optimizer_steps"][
             str(recipe.warmup_num_steps)
@@ -1158,7 +1158,7 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
         cast(Mapping[str, object], package_configured["lr_scheduler"])["scheduler"],
     )
     reference_scheduler_state = reference_optimizer_scheduler_state(
-        (recipe.warmup_num_steps,)
+        (recipe.warmup_num_steps,), recipe.learning_rate
     )
     reference_lrs = reference_scheduler_state["lr_sequences"][
         str(recipe.warmup_num_steps)
@@ -1315,7 +1315,9 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
                 "gradients": reference_gradients,
                 "parameters": reference_parameters,
                 "optimizer_state": reference_optimizer_state,
-                "scheduler_last_batch_iteration": float(step),
+                "scheduler_last_batch_iteration": reference_scheduler_state[
+                    "last_batch_iterations"
+                ][str(recipe.warmup_num_steps)][step],
                 "lr": float(reference_lrs[step + 1]),
                 "rng_after": _rng_sha256(reference_after_rng),
                 "zero_grad": {
@@ -1696,7 +1698,10 @@ def test_s0_per_family_serialization_and_task_ids_match(recipe) -> None:
 
 
 def test_s0_original_adam_and_warmuplr_are_actually_constructed() -> None:
-    states = reference_optimizer_scheduler_state((1000, 2000, 3000, 4000))
+    learning_rate = next(iter(TRAINING_RECIPES.values())).learning_rate
+    states = reference_optimizer_scheduler_state(
+        (1000, 2000, 3000, 4000), learning_rate
+    )
     assert states["deepspeed_version"] == "0.5.10"
     assert states["optimizer"] == "torch.optim.adam.Adam"
     assert states["scheduler"] == "deepspeed.runtime.lr_schedules.WarmupLR"
@@ -1710,11 +1715,11 @@ def test_s0_original_adam_and_warmuplr_are_actually_constructed() -> None:
     for warmup_steps in (1000, 2000, 3000, 4000):
         reference_lrs = states["lr_sequences"][str(warmup_steps)]
         parameter = torch.nn.Parameter(torch.tensor(1.0))
-        optimizer = torch.optim.Adam([parameter], lr=1e-4)
+        optimizer = torch.optim.Adam([parameter], lr=learning_rate)
         package_scheduler = LayoutFormerPPWarmupLR(
             optimizer,
             warmup_num_steps=warmup_steps,
-            warmup_max_lr=1e-4,
+            warmup_max_lr=learning_rate,
         )
         package_lrs = [optimizer.param_groups[0]["lr"]]
         for _ in range(warmup_steps + 2):
@@ -1723,10 +1728,10 @@ def test_s0_original_adam_and_warmuplr_are_actually_constructed() -> None:
         assert package_lrs == pytest.approx(reference_lrs)
         assert len(reference_lrs) == warmup_steps + 3
         assert reference_lrs[2] == pytest.approx(
-            1e-4 * math.log(2.0) / math.log(float(warmup_steps))
+            learning_rate * math.log(2.0) / math.log(float(warmup_steps))
         )
-        assert reference_lrs[warmup_steps] == pytest.approx(1e-4)
-        assert reference_lrs[warmup_steps + 1] == pytest.approx(1e-4)
+        assert reference_lrs[warmup_steps] == pytest.approx(learning_rate)
+        assert reference_lrs[warmup_steps + 1] == pytest.approx(learning_rate)
         post_update = states["post_optimizer_steps"][str(warmup_steps)]
         assert post_update == {
             "optimizer_step": 1.0,

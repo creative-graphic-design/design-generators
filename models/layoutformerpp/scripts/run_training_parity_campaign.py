@@ -11,6 +11,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+from build_audit_runtime import normalized_freeze
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_ROOT = Path(__file__).resolve().parent
@@ -18,17 +20,17 @@ TEST = (
     "models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py"
 )
 DEFAULT_RUNTIME = ".cache/layoutformerpp/runtime/cu126-py311"
+EXPECTED_FREEZE = SCRIPT_ROOT / "audit_runtime.freeze"
 
 
 def now() -> str:
     return datetime.now().astimezone().isoformat()
 
 
-def write_once(path: Path, value: str) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
+def write_new(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary.write_text(value, encoding="utf-8")
-    temporary.replace(path)
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(value)
 
 
 def redact(value: str, data_root: str) -> str:
@@ -54,22 +56,40 @@ def _runtime_paths() -> tuple[str, Path, Path]:
     return relative.rstrip("/"), runtime / "bin/python", runtime / "pip-freeze.txt"
 
 
+def _runtime_freeze(runtime_python: Path) -> str:
+    raw = subprocess.check_output(
+        ["uv", "pip", "freeze", "--no-config", "--python", str(runtime_python)],
+        cwd=REPO_ROOT,
+        text=True,
+    )
+    return normalized_freeze(raw)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--attempt", default="attempt-3")
+    parser.add_argument("--attempt", required=True)
     args = parser.parse_args()
-    if args.attempt != "attempt-3":
-        raise SystemExit("this runner is reserved for the approved attempt-3 campaign")
+    if not args.attempt or not args.attempt.replace("-", "").replace("_", "").isalnum():
+        raise SystemExit("--attempt must be a simple directory name")
     data_root = os.environ.get("LAYOUTFORMERPP_PARITY_DATA_ROOT")
     if not data_root or not Path(data_root).is_dir():
         raise SystemExit(
             "LAYOUTFORMERPP_PARITY_DATA_ROOT must name the approved processed-data root"
         )
-    if os.environ.get("CUDA_VISIBLE_DEVICES") != "4":
-        raise SystemExit("attempt-3 requires CUDA_VISIBLE_DEVICES=4")
+    visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if not visible_devices:
+        raise SystemExit("CUDA_VISIBLE_DEVICES must be set")
     runtime_relative, runtime_python, runtime_freeze = _runtime_paths()
     if not runtime_python.is_file() or not runtime_freeze.is_file():
         raise SystemExit("audited runtime or its freeze file is missing")
+    expected_freeze = EXPECTED_FREEZE.read_text(encoding="utf-8")
+    actual_freeze = _runtime_freeze(runtime_python)
+    if actual_freeze != expected_freeze:
+        raise SystemExit(
+            "audited runtime freeze differs from committed expected freeze"
+        )
+    if runtime_freeze.read_text(encoding="utf-8") != actual_freeze:
+        raise SystemExit("audited runtime pip-freeze.txt is not freshly normalized")
     tracked_changes = (
         subprocess.run(
             ["git", "diff", "--quiet"], cwd=REPO_ROOT, check=False
@@ -85,12 +105,15 @@ def main() -> int:
     ).strip()
     runtime_freeze_sha256 = sha256(runtime_freeze)
     run_root = REPO_ROOT / ".cache/layoutformerpp/post-merge" / args.attempt
-    preflight_environment = {**os.environ, "CUDA_VISIBLE_DEVICES": "4"}
+    if run_root.exists():
+        raise SystemExit(f"refusing to reuse existing campaign directory: {run_root}")
+    run_root.mkdir(parents=True)
+    preflight_environment = os.environ.copy()
     smoke = subprocess.run(
         [
             str(runtime_python),
             "-c",
-            "import torch; assert torch.cuda.is_available(); x=torch.ones((2,2), device='cuda:0'); print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0), (x @ x).tolist())",
+            "import torch; assert torch.cuda.is_available(); device=torch.cuda.current_device(); x=torch.ones((2,2), device='cuda'); print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(device), (x @ x).tolist())",
         ],
         cwd=REPO_ROOT,
         env=preflight_environment,
@@ -101,13 +124,13 @@ def main() -> int:
     preflight = {
         "runtime_freeze": f"{runtime_relative}/pip-freeze.txt",
         "runtime_freeze_sha256": runtime_freeze_sha256,
-        "cuda_visible_devices": "4",
-        "command": "import torch; assert torch.cuda.is_available(); tiny matmul on cuda:0",
+        "cuda_visible_devices": visible_devices,
+        "command": "import torch; assert torch.cuda.is_available(); tiny matmul on the current CUDA device",
         "returncode": smoke.returncode,
         "stdout": redact(smoke.stdout, data_root),
         "stderr": redact(smoke.stderr, data_root),
     }
-    write_once(
+    write_new(
         run_root / "cuda-smoke.json",
         json.dumps(preflight, indent=2, sort_keys=True) + "\n",
     )
@@ -130,7 +153,7 @@ def main() -> int:
         "created_at": now(),
         "runtime": f"{runtime_relative}/pip-freeze.txt",
         "runtime_freeze_sha256": runtime_freeze_sha256,
-        "cuda_visible_devices": "4",
+        "cuda_visible_devices": visible_devices,
         "data_root": "<your data root>",
         "runner": "models/layoutformerpp/scripts/run_training_parity_campaign.py",
         "record_plugin": "models/layoutformerpp/scripts/training_parity_record_plugin.py",
@@ -151,7 +174,7 @@ def main() -> int:
             for stage, repeat, _ in runs
         ],
     }
-    write_once(
+    write_new(
         run_root / "launch_manifest.json",
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
     )
@@ -160,6 +183,7 @@ def main() -> int:
     for stage, repeat, selector in runs:
         name = stage if repeat == 1 else f"{stage}-repeat-2"
         output_dir = run_root / name
+        output_dir.mkdir()
         started_at = now()
         command = [
             str(runtime_python),
@@ -176,7 +200,7 @@ def main() -> int:
         ]
         environment = {
             **os.environ,
-            "CUDA_VISIBLE_DEVICES": "4",
+            "CUDA_VISIBLE_DEVICES": visible_devices,
             "PARITY_REQUIRE": "1",
             "LAYOUTFORMERPP_AUDIT_VENV": runtime_relative,
             "PYTHONPATH": f"{SCRIPT_ROOT}{os.pathsep}{os.environ.get('PYTHONPATH', '')}",
@@ -203,7 +227,7 @@ def main() -> int:
             "runtime_freeze": f"{runtime_relative}/pip-freeze.txt",
             "runtime_freeze_sha256": runtime_freeze_sha256,
         }
-        write_once(
+        write_new(
             output_dir / "run_started.json",
             json.dumps(command_record, indent=2, sort_keys=True) + "\n",
         )
@@ -220,12 +244,12 @@ def main() -> int:
                 check=False,
             )
         log_path = output_dir / "pytest.log"
-        write_once(
+        write_new(
             log_path,
             redact(raw_log.read_text(encoding="utf-8", errors="replace"), data_root),
         )
         raw_log.unlink(missing_ok=True)
-        write_once(
+        write_new(
             log_path.with_name("pytest.log.sha256"),
             f"sha256:{sha256(log_path)} pytest.log\n",
         )

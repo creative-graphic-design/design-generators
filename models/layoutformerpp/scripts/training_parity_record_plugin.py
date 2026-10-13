@@ -60,10 +60,10 @@ def _redact(value: JSONValue) -> JSONValue:
     return value
 
 
-def _write_once(path: Path, value: str) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(value, encoding="utf-8")
-    temporary.replace(path)
+def _write_new(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(value)
 
 
 class _RunRecorder:
@@ -125,9 +125,9 @@ class _RunRecorder:
             json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         )
         record_path = self.output_dir / "record.json"
-        _write_once(record_path, encoded)
+        _write_new(record_path, encoded)
         digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-        _write_once(self.output_dir / "record.freeze", f"sha256:{digest} record.json\n")
+        _write_new(self.output_dir / "record.freeze", f"sha256:{digest} record.json\n")
 
 
 def pytest_configure(config: _Config) -> None:

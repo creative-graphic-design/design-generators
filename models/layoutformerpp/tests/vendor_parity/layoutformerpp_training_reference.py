@@ -48,6 +48,7 @@ class _OptimizerSchedulerState(TypedDict):
     scheduler: str
     optimizer_defaults: _OptimizerDefaults
     lr_sequences: dict[str, list[float]]
+    last_batch_iterations: dict[str, list[float]]
     post_optimizer_steps: dict[str, dict[str, float]]
 
 
@@ -287,6 +288,7 @@ def _audit_runtime_python() -> Path:
 
 def reference_optimizer_scheduler_state(
     warmup_steps: tuple[int, ...],
+    learning_rate: float,
 ) -> _OptimizerSchedulerState:
     """Construct the pinned original Adam/WarmupLR in the audited runtime."""
     runtime_python = _audit_runtime_python()
@@ -327,28 +329,32 @@ def reference_optimizer_scheduler_state(
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         sequences = {{}}
+        last_batch_iterations = {{}}
         post_optimizer_steps = {{}}
         optimizer_defaults = None
         optimizer_name = None
         scheduler_name = None
         for warmup_steps in {list(warmup_steps)!r}:
             parameter = torch.nn.Parameter(torch.tensor(1.0))
-            optimizer = torch.optim.Adam([parameter], lr=1e-4)
+            optimizer = torch.optim.Adam([parameter], lr={learning_rate!r})
             scheduler = module.WarmupLR(
                 optimizer,
-                warmup_max_lr=1e-4,
+                warmup_max_lr={learning_rate!r},
                 warmup_num_steps=warmup_steps,
             )
             values = [optimizer.param_groups[0]["lr"]]
+            iterations = []
             for _ in range(warmup_steps + 2):
                 scheduler.step()
                 values.append(optimizer.param_groups[0]["lr"])
+                iterations.append(float(scheduler.last_batch_iteration))
             sequences[str(warmup_steps)] = values
+            last_batch_iterations[str(warmup_steps)] = iterations
             step_parameter = torch.nn.Parameter(torch.tensor(1.0))
-            step_optimizer = torch.optim.Adam([step_parameter], lr=1e-4)
+            step_optimizer = torch.optim.Adam([step_parameter], lr={learning_rate!r})
             step_scheduler = module.WarmupLR(
                 step_optimizer,
-                warmup_max_lr=1e-4,
+                warmup_max_lr={learning_rate!r},
                 warmup_num_steps=warmup_steps,
             )
             step_parameter.grad = torch.ones_like(step_parameter)
@@ -375,6 +381,7 @@ def reference_optimizer_scheduler_state(
             "scheduler": scheduler_name,
             "optimizer_defaults": optimizer_defaults,
             "lr_sequences": sequences,
+            "last_batch_iterations": last_batch_iterations,
             "post_optimizer_steps": post_optimizer_steps,
         }}, sort_keys=True))
         """
