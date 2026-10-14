@@ -8,9 +8,10 @@
 # @option --package NAME Workspace package to sync.
 # @option --extra NAME Repeatable uv extra to install.
 # @option --submodules Initialize recursive git submodules.
-# @option --uv-environment PATH Set UV_PROJECT_ENVIRONMENT for the sync.
+# @option --uv-environment PATH Set the sync environment and emit its shell export.
+# @stdout A shell-quoted UV_PROJECT_ENVIRONMENT export when --uv-environment is set.
 # @example
-#   bash colab_uv_setup.sh --source-url URL --source-branch BRANCH --source-commit SHA --repo-dir /content/repo --package canvas-vae --extra training --extra vendor --submodules
+#   eval "$(bash colab_uv_setup.sh --source-url URL --source-branch BRANCH --source-commit SHA --repo-dir /content/repo --package canvas-vae --extra training --extra vendor --submodules --uv-environment /content/vendor-env)"
 set -Eeuo pipefail
 
 function usage() {
@@ -86,5 +87,8 @@ uv_arguments=(sync --frozen --project "$repo_dir" --package "$package")
 for extra in "${extras[@]}"; do
     uv_arguments+=(--extra "$extra")
 done
-uv "${uv_arguments[@]}"
-printf 'colab_setup_passed commit=%s package=%s\n' "$head" "$package"
+uv "${uv_arguments[@]}" >&2
+printf 'colab_setup_passed commit=%s package=%s\n' "$head" "$package" >&2
+if [ -n "$uv_environment" ]; then
+    printf 'export UV_PROJECT_ENVIRONMENT=%q\n' "$uv_environment"
+fi

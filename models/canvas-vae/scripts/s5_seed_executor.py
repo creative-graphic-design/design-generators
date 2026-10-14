@@ -1107,10 +1107,7 @@ def build_postprocess_job(
             "--uv-environment",
             "/content/canvas-vae-convert-env",
         ]
-        uv_setup += (
-            f"{shlex.join(setup_args)}\n"
-            "export UV_PROJECT_ENVIRONMENT=/content/canvas-vae-convert-env\n"
-        )
+        uv_setup += f'eval "$(\n{shlex.join(setup_args)}\n)"\n'
     return (
         "\n".join(
             [
