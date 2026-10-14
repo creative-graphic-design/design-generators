@@ -2005,7 +2005,9 @@ def execute_cpu_smoke(
                 value.replace("{seed}", "0") for value in resolved_arguments
             ]
         elif system == "original":
-            smoke_data_dir = f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
+            smoke_data_dir = (
+                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
+            )
             run["train_original_arguments"] = [
                 "--data-dir",
                 smoke_data_dir,

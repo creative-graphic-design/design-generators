@@ -398,9 +398,7 @@ def main() -> None:
             batch_size=args.batch_size,
         )
         if args.system == "original" and "torch" in sys.modules:
-            raise RuntimeError(
-                "original TensorFlow cache extraction imported PyTorch"
-            )
+            raise RuntimeError("original TensorFlow cache extraction imported PyTorch")
 
         print(
             json.dumps(

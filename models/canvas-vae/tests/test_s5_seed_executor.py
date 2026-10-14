@@ -219,7 +219,10 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
 
     for command in (full_command, tiny_command):
         assert "git rev-parse HEAD" in command
-        assert "uv sync --frozen --package canvas-vae --extra training --extra vendor" in command
+        assert (
+            "uv sync --frozen --package canvas-vae --extra training --extra vendor"
+            in command
+        )
         assert "tiny_original_input_subset_passed" not in command
         assert "cpu_smoke" not in command
         assert "smoke_original" not in command
@@ -232,7 +235,10 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
     assert "--batch-size 2" in tiny_command
     assert "--num-epochs 1" in tiny_command
     assert "canvas-vae/original/data/crello-s5" in tiny_command
-    assert "--data-dir /content/repo/.cache/canvas-vae/original/data/crello-s5" in tiny_command
+    assert (
+        "--data-dir /content/repo/.cache/canvas-vae/original/data/crello-s5"
+        in tiny_command
+    )
 
 
 def test_crello_executor_skips_production_gates_only_for_cpu_smoke() -> None:
