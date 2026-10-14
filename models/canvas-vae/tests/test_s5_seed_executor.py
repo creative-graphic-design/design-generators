@@ -250,7 +250,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
             "runtime_output_root": "/content/out/checkpoints/crello-original-seed0/{segment_id}",
             "lockstep_probe_inputs": {
                 "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
-                "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache",
+                "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache/cache",
                 "fixture_archive": {
                     "prefix": "inputs/full-cache",
                     "revision": "d" * 40,
@@ -303,7 +303,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
                     "revision": "b" * 40,
                     "archive": {"filename": "tiny.tar", "sha256": "c" * 64},
                 },
-                "fixture_dir": ".cache/canvas-vae/crello/s5/probe-original-cache-tiny",
+                "fixture_dir": ".cache/canvas-vae/crello/s5/probe-original-cache-tiny/cache",
                 "fixture_archive": {
                     "prefix": "inputs/tiny-cache",
                     "revision": "f" * 40,
@@ -350,7 +350,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         in full_command
     )
     assert (
-        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/original-seed0-encoder-cache"
+        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/original-seed0-encoder-cache/cache"
         in full_command
     )
     assert "relative_loss_difference" in full_command
@@ -365,7 +365,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         in tiny_command
     )
     assert (
-        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/probe-original-cache-tiny"
+        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/probe-original-cache-tiny/cache"
         in tiny_command
     )
     assert tiny_command.index("crello_lockstep_probe.py") < tiny_command.index(

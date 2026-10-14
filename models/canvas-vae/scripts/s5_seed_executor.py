@@ -820,8 +820,8 @@ if config["download_inputs"]:
             fixture_dir = repository / probe_inputs["fixture_dir"]
             extract_archive_root(
                 fixture_archive_path,
-                fixture_dir,
-                "original-encoder-cache/cache",
+                fixture_dir.parent,
+                "original-encoder-cache",
                 "fixture",
             )
             probe_data_manifest = json.loads(
