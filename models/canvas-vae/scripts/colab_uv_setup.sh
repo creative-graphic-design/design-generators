@@ -76,7 +76,7 @@ head="$(git -C "$repo_dir" rev-parse HEAD)"
 [ "$head" = "$source_commit" ] || { echo 'source checkout differs from the requested commit' >&2; exit 78; }
 [ -z "$(git -C "$repo_dir" status --porcelain)" ] || { echo 'source checkout is dirty' >&2; exit 78; }
 if [ "$initialize_submodules" = true ]; then
-    git -C "$repo_dir" submodule update --init --recursive
+    git -C "$repo_dir" submodule update --init --recursive >&2
 fi
 
 unset PYTHONPATH MPLBACKEND UV_SYSTEM_PYTHON UV_PROJECT_ENVIRONMENT

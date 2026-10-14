@@ -25,6 +25,8 @@ def _fake_tools(tmp_path: Path, commit: str) -> tuple[Path, dict[str, str]]:
         "    Path(arguments[-1]).mkdir(parents=True)\n"
         "if len(arguments) >= 4 and arguments[2:4] == ['rev-parse', 'HEAD']:\n"
         "    print(os.environ['FAKE_COMMIT'])\n"
+        "if len(arguments) >= 4 and arguments[2:4] == ['submodule', 'update']:\n"
+        "    print(\"Submodule 'vendor/canvas-vae' registered for path 'vendor/canvas-vae'\")\n"
         "",
         encoding="utf-8",
     )
@@ -160,6 +162,7 @@ def test_shared_setup_emits_export_for_synced_environment(tmp_path: Path) -> Non
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == f"{environment_path}\n"
+    assert "Submodule 'vendor/canvas-vae' registered" in result.stderr
     assert "colab_setup_passed" in result.stderr
     assert calls[-1] == [
         "uv",
