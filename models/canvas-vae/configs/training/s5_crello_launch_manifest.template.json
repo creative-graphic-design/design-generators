@@ -113,6 +113,18 @@
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-original-seed0/postprocess/{segment_id}",
       "a100_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
+      "lockstep_probe_inputs": {
+        "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
+        "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache",
+        "fixture_archive": {
+          "prefix": "{probe_fixture_prefix}",
+          "revision": "main",
+          "archive": {
+            "filename": "original-encoder-cache.tar",
+            "sha256": "c782898e20784cb4717f9bd0493748087db7d48f9f590ea39de008274ab0819a"
+          }
+        }
+      },
       "evaluator_command": [
         "uv",
         "run",

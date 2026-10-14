@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TypeAlias, cast
 
 
@@ -54,16 +54,84 @@ def validate_hub_prefix(value: str | None, option: str) -> str | None:
     return value.strip("/")
 
 
+def validate_lockstep_probe_inputs(value: JsonValue) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ExecutorError(
+            "Crello original seed 0 needs explicit lockstep probe inputs"
+        )
+    for field in ("package_data_dir", "fixture_dir"):
+        path_value = value.get(field)
+        if (
+            not isinstance(path_value, str)
+            or Path(path_value).is_absolute()
+            or ".." in Path(path_value).parts
+            or "." in Path(path_value).parts
+            or "{" in path_value
+            or "}" in path_value
+        ):
+            raise ExecutorError(
+                f"Crello lockstep {field} must be a resolved repository-relative path"
+            )
+
+    for field in ("package_data_archive", "fixture_archive"):
+        archive_config = value.get(field)
+        if archive_config is None and field == "package_data_archive":
+            continue
+        if not isinstance(archive_config, dict):
+            raise ExecutorError(f"Crello lockstep {field} metadata is missing")
+        prefix = archive_config.get("prefix")
+        revision = archive_config.get("revision")
+        archive = archive_config.get("archive")
+        if (
+            not isinstance(prefix, str)
+            or validate_hub_prefix(prefix, f"lockstep-{field}-prefix") is None
+        ):
+            raise ExecutorError(f"Crello lockstep {field} prefix is missing")
+        if (
+            not isinstance(revision, str)
+            or not revision
+            or "{" in revision
+            or "}" in revision
+        ):
+            raise ExecutorError(f"Crello lockstep {field} revision is missing")
+        if not isinstance(archive, dict):
+            raise ExecutorError(f"Crello lockstep {field} archive metadata is missing")
+        filename = archive.get("filename")
+        sha256 = archive.get("sha256")
+        archive_path = PurePosixPath(filename) if isinstance(filename, str) else None
+        if (
+            archive_path is None
+            or archive_path.is_absolute()
+            or ".." in archive_path.parts
+            or "." in archive_path.parts
+            or not archive_path.parts
+            or not isinstance(sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+        ):
+            raise ExecutorError(f"Crello lockstep {field} file hash is invalid")
+
+    return cast(JsonObject, value)
+
+
 def resolve_runtime_prefixes(
     value: JsonValue,
     input_prefix: str | None,
     output_prefix: str | None,
+    probe_fixture_prefix: str | None = None,
 ) -> JsonValue:
     if isinstance(value, str):
         if "{input_prefix}" in value:
             if input_prefix is None:
                 raise ExecutorError("--input-prefix is required by this manifest")
             value = value.replace("{input_prefix}", input_prefix.strip("/"))
+        if "{probe_fixture_prefix}" in value:
+            if probe_fixture_prefix is None:
+                raise ExecutorError(
+                    "--probe-fixture-prefix is required by this manifest"
+                )
+            value = value.replace(
+                "{probe_fixture_prefix}", probe_fixture_prefix.strip("/")
+            )
         if "{output_prefix}" in value:
             if output_prefix is None:
                 raise ExecutorError("--output-prefix is required by this manifest")
@@ -71,12 +139,16 @@ def resolve_runtime_prefixes(
         return value
     if isinstance(value, list):
         return [
-            resolve_runtime_prefixes(item, input_prefix, output_prefix)
+            resolve_runtime_prefixes(
+                item, input_prefix, output_prefix, probe_fixture_prefix
+            )
             for item in value
         ]
     if isinstance(value, dict):
         return {
-            key: resolve_runtime_prefixes(item, input_prefix, output_prefix)
+            key: resolve_runtime_prefixes(
+                item, input_prefix, output_prefix, probe_fixture_prefix
+            )
             for key, item in value.items()
         }
 
@@ -462,6 +534,73 @@ def file_sha256(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+def download_probe_archive(archive_config, archive_label):
+    if not isinstance(archive_config, dict):
+        raise SystemExit(f"Crello lockstep {archive_label} archive is missing")
+    prefix = archive_config.get("prefix")
+    revision = archive_config.get("revision")
+    archive = archive_config.get("archive")
+    if not isinstance(prefix, str) or not isinstance(revision, str):
+        raise SystemExit(f"Crello lockstep {archive_label} Hub reference is incomplete")
+    if not isinstance(archive, dict):
+        raise SystemExit(f"Crello lockstep {archive_label} archive metadata is missing")
+    filename = archive.get("filename")
+    expected_sha256 = archive.get("sha256")
+    if not isinstance(filename, str) or not isinstance(expected_sha256, str):
+        raise SystemExit(f"Crello lockstep {archive_label} hash is missing")
+    hub_path = prefix.rstrip("/") + "/" + filename
+    probe_stage = Path("/content/s5-probe-inputs")
+    subprocess.run(
+        ["uvx", "--from", "huggingface_hub", "hf", "download",
+         config["hub_repository"], "--repo-type", "model", "--revision",
+         revision, "--include", hub_path, "--local-dir", str(probe_stage)],
+        check=True, env=environment,
+    )
+    archive_path = probe_stage / hub_path
+    if not archive_path.is_file() or file_sha256(archive_path) != expected_sha256:
+        raise SystemExit(f"Crello lockstep {archive_label} archive SHA-256 mismatch")
+
+    return archive_path
+
+def extract_archive_root(archive_path, target, archive_root, label):
+    root = PurePosixPath(archive_root)
+    if root.is_absolute() or ".." in root.parts or not root.parts:
+        raise SystemExit(f"Crello lockstep {label} archive root is invalid")
+    if target.exists():
+        raise SystemExit(f"refusing to overwrite Crello lockstep {label}: {target}")
+    target.mkdir(parents=True)
+    extracted_files = 0
+    with tarfile.open(archive_path, "r:*") as bundle:
+        members = bundle.getmembers()
+        seen = set()
+        for member in members:
+            path = PurePosixPath(member.name)
+            if (path.is_absolute() or ".." in path.parts
+                    or member.issym() or member.islnk() or member.isdev()
+                    or not (member.isfile() or member.isdir())
+                    or member.name in seen
+                    or path.parts[:len(root.parts)] != root.parts):
+                raise SystemExit(f"Crello lockstep {label} archive contains an unsafe member")
+            seen.add(member.name)
+            relative = path.parts[len(root.parts):]
+            if not relative:
+                if member.isfile():
+                    raise SystemExit(f"Crello lockstep {label} archive root is a file")
+                continue
+            destination = target.joinpath(*relative)
+            if member.isdir():
+                destination.mkdir(parents=True, exist_ok=True)
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            source = bundle.extractfile(member)
+            if source is None:
+                raise SystemExit(f"Crello lockstep {label} archive member is unreadable")
+            with source, destination.open("xb") as output:
+                shutil.copyfileobj(source, output)
+            extracted_files += 1
+    if extracted_files == 0:
+        raise SystemExit(f"Crello lockstep {label} archive is empty")
+
 def validate_original_document_counts(
     original_data_manifest, count_data, record_counts
 ):
@@ -658,6 +797,53 @@ if config["download_inputs"]:
             != file_sha256(original_fixture / "posterior_means.npy")
         ):
             raise SystemExit("Crello S5 data and encoder caches have inconsistent hashes")
+
+        probe_inputs = config.get("lockstep_probe_inputs")
+        if probe_inputs is not None:
+            if not isinstance(probe_inputs, dict):
+                raise SystemExit("Crello lockstep probe inputs must be an object")
+            probe_data_dir = repository / probe_inputs["package_data_dir"]
+            data_archive = probe_inputs.get("package_data_archive")
+            if data_archive is not None:
+                data_archive_path = download_probe_archive(data_archive, "data")
+                extract_archive_root(
+                    data_archive_path,
+                    probe_data_dir,
+                    "package-run-1",
+                    "data",
+                )
+            if not probe_data_dir.is_dir():
+                raise SystemExit("Crello lockstep package data directory is missing")
+            fixture_archive_path = download_probe_archive(
+                probe_inputs["fixture_archive"], "fixture"
+            )
+            fixture_dir = repository / probe_inputs["fixture_dir"]
+            extract_archive_root(
+                fixture_archive_path,
+                fixture_dir,
+                "original-encoder-cache/cache",
+                "fixture",
+            )
+            probe_data_manifest = json.loads(
+                (probe_data_dir / "crello-manifest.json").read_text()
+            )
+            probe_fixture_manifest_path = fixture_dir / "manifest.json"
+            probe_fixture_manifest = json.loads(
+                probe_fixture_manifest_path.read_text()
+            )
+            if (
+                probe_data_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+                or probe_fixture_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+                or hashlib.sha256(probe_fixture_manifest_path.read_bytes()).hexdigest()
+                != (fixture_dir / "manifest.sha256").read_text().strip()
+                or file_sha256(fixture_dir / "posterior_means.npy")
+                != probe_fixture_manifest["array_sha256"]
+            ):
+                raise SystemExit(
+                    "Crello lockstep probe data and fixture sources or hashes differ"
+                )
     else:
         subprocess.run(
             ["uvx", "--from", "huggingface_hub", "hf", "download",
@@ -767,6 +953,11 @@ def temporary_files(
         "dataset": manifest.get("dataset"),
         "dataset_paths": manifest.get("dataset_paths"),
         "input_data": input_data,
+        "lockstep_probe_inputs": (
+            run.get("lockstep_probe_inputs")
+            if run.get("cpu_postprocess") is not True
+            else None
+        ),
         "initialize_vendor_submodule": run.get("system") == "original"
         and run.get("cpu_postprocess") is not True,
         "hub_repository": hub_repository,
@@ -925,9 +1116,10 @@ def build_run_job(
         dataset_paths = manifest.get("dataset_paths")
         if not isinstance(dataset_paths, dict):
             raise ExecutorError("Crello lockstep probe requires dataset_paths")
-        package_data = dataset_paths.get("package_data_dir")
+        probe_inputs = validate_lockstep_probe_inputs(run.get("lockstep_probe_inputs"))
+        package_data = probe_inputs.get("package_data_dir")
         original_data = dataset_paths.get("original_data_dir")
-        fixture_dir = dataset_paths.get("original_fixture_dir")
+        fixture_dir = probe_inputs.get("fixture_dir")
         for value in (package_data, original_data, fixture_dir):
             if (
                 not isinstance(value, str)
@@ -1490,10 +1682,16 @@ def execute_run(
     input_prefix: str | None,
     output_prefix: str | None,
     lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
+    probe_fixture_prefix: str | None = None,
 ) -> None:
     manifest = cast(
         JsonObject,
-        resolve_runtime_prefixes(load_json(manifest_path), input_prefix, output_prefix),
+        resolve_runtime_prefixes(
+            load_json(manifest_path),
+            input_prefix,
+            output_prefix,
+            probe_fixture_prefix,
+        ),
     )
     pinned = manifest.get("source_commit")
     if not isinstance(pinned, str):
@@ -1956,6 +2154,7 @@ def execute_cpu_smoke(
     manifest_path: Path = DEFAULT_MANIFEST,
     input_prefix: str | None = None,
     lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
+    probe_fixture_prefix: str | None = None,
 ) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
         raise ExecutorError("CPU smoke requires a valid smoke identifier")
@@ -1975,7 +2174,10 @@ def execute_cpu_smoke(
     base_manifest = cast(
         JsonObject,
         resolve_runtime_prefixes(
-            load_json(manifest_path.resolve()), input_prefix, output_prefix
+            load_json(manifest_path.resolve()),
+            input_prefix,
+            output_prefix,
+            probe_fixture_prefix,
         ),
     )
     dataset = base_manifest.get("dataset")
@@ -2356,6 +2558,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--hub-repo", required=True)
     parser.add_argument("--input-prefix")
+    parser.add_argument("--probe-fixture-prefix")
     parser.add_argument("--output-prefix")
     parser.add_argument("--run-id")
     parser.add_argument("--segment-id", default="segment-001")
@@ -2374,6 +2577,9 @@ def parse_args() -> argparse.Namespace:
         parser.error("--lockstep-probe-steps must be between 1 and 300")
     try:
         args.input_prefix = validate_hub_prefix(args.input_prefix, "input-prefix")
+        args.probe_fixture_prefix = validate_hub_prefix(
+            args.probe_fixture_prefix, "probe-fixture-prefix"
+        )
         args.output_prefix = validate_hub_prefix(args.output_prefix, "output-prefix")
     except ExecutorError as error:
         parser.error(str(error))
@@ -2398,6 +2604,7 @@ def main() -> int:
                     load_json(args.manifest.resolve()),
                     args.input_prefix,
                     args.output_prefix,
+                    args.probe_fixture_prefix,
                 ),
             )
             pinned_commit = args.source_commit or manifest.get("source_commit")
@@ -2509,6 +2716,7 @@ def main() -> int:
                 args.manifest,
                 args.input_prefix,
                 args.lockstep_probe_steps,
+                args.probe_fixture_prefix,
             )
         else:
             if args.run_id is None:
@@ -2522,6 +2730,7 @@ def main() -> int:
                 args.input_prefix,
                 args.output_prefix,
                 args.lockstep_probe_steps,
+                args.probe_fixture_prefix,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
         print(f"Full-run seed failed closed: {error}", file=sys.stderr)
