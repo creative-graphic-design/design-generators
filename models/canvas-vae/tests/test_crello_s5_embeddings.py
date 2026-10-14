@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -16,6 +18,20 @@ SPEC = importlib.util.spec_from_file_location("prepare_crello_s5_embeddings", SC
 assert SPEC is not None and SPEC.loader is not None
 PREPARE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PREPARE)
+
+
+def test_importing_crello_data_does_not_load_torch() -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys\nsys.path.insert(0, sys.argv[1])\n"
+            "import prepare_crello_s5_embeddings\n"
+            "assert 'torch' not in sys.modules",
+            str(SCRIPT.parent),
+        ],
+        check=True,
+    )
 
 
 def _document(split: str, document_id: str, image_ids: list[str]) -> dict[str, object]:
