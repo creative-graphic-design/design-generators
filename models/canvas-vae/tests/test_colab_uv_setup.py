@@ -76,6 +76,10 @@ def _setup_command(repo_path: Path, commit: str) -> list[str]:
         "training",
         "--extra",
         "vendor",
+        "--group",
+        "dev",
+        "--group",
+        "docs",
         "--submodules",
         "--uv-environment",
         "/content/canvas-vae-training-env",
@@ -122,6 +126,10 @@ def test_shared_setup_checks_out_submodules_and_syncs_requested_extras(
         "training",
         "--extra",
         "vendor",
+        "--group",
+        "dev",
+        "--group",
+        "docs",
     ]
     assert calls[-1] == [
         "uv",
@@ -137,6 +145,10 @@ def test_shared_setup_checks_out_submodules_and_syncs_requested_extras(
         "training",
         "--extra",
         "vendor",
+        "--group",
+        "dev",
+        "--group",
+        "docs",
         "python",
         str(repo_path / "models/canvas-vae/scripts/check_colab_nccl.py"),
         "--repo-dir",
@@ -206,6 +218,10 @@ def test_shared_setup_emits_export_for_synced_environment(tmp_path: Path) -> Non
         "training",
         "--extra",
         "vendor",
+        "--group",
+        "dev",
+        "--group",
+        "docs",
     ]
     assert calls[-1][0:5] == [
         "uv",
