@@ -103,6 +103,7 @@ def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> Non
             "run_id": "crello-package-seed0",
             "system": "package",
             "seed": 0,
+            "device": "cuda",
             "runtime_output_root": "/content/out/checkpoints/crello-package-seed0/{segment_id}",
             "training_overrides": ["--model.init_args.fixture_dir=.cache/embeddings"],
         },
@@ -123,6 +124,8 @@ def test_crello_remote_preflight_checks_both_encoder_caches() -> None:
     assert 'paths["original_fixture_dir"]' in source
     assert 'paths["package_fixture_dir"]' in source
     assert "original_embedding_manifest_sha256" in source
+    assert 'original_data_manifest["document_counts"]' in source
+    assert "tfrecord_record_count" in source
 
 
 def test_crello_executor_blocks_without_rehearsed_launch_gates() -> None:
@@ -143,8 +146,43 @@ def test_crello_cpu_smoke_runs_only_original_seed_path() -> None:
     assert EXECUTOR.cpu_smoke_case_specs("rico")[-2][2] == "training"
 
 
-def test_crello_cpu_smoke_original_job_uses_manifest_source_and_one_epoch() -> None:
-    command = EXECUTOR.build_run_job(
+def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
+    manifest = {
+        "dataset": "crello",
+        "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+    }
+    full_command = EXECUTOR.build_run_job(
+        manifest,
+        {
+            "run_id": "crello-original-seed0",
+            "system": "original",
+            "seed": 0,
+            "device": "cuda",
+            "cuda_visible_devices": "0",
+            "runtime_output_root": "/content/out/checkpoints/crello-original-seed0/{segment_id}",
+            "train_original_arguments": [
+                "--dataset-name",
+                "crello-document",
+                "--data-dir",
+                "/content/repo/.cache/canvas-vae/original/data/crello-s5",
+                "--job-dir",
+                "{output_root}/original-training",
+                "--seed",
+                "{seed}",
+                "--",
+                "--batch-size",
+                "1024",
+                "--num-epochs",
+                "500",
+                "--validation-freq",
+                "20",
+            ],
+        },
+        "a" * 40,
+        "segment-001",
+        resume_checkpoint=None,
+    )
+    tiny_command = EXECUTOR.build_run_job(
         {
             "dataset": "crello",
             "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
@@ -153,16 +191,14 @@ def test_crello_cpu_smoke_original_job_uses_manifest_source_and_one_epoch() -> N
             "run_id": "cpu-smoke-crello-original-success",
             "system": "original",
             "seed": 0,
+            "device": "cpu",
+            "cuda_visible_devices": "",
             "runtime_output_root": "/content/out/checkpoints/cpu-smoke-crello-original-success/segment-001",
-            "cpu_smoke": True,
-            "smoke_original_data_dir": "/content/repo/.cache/canvas-vae/original-smoke/run/data/crello-s5",
-            "smoke_original_source_data_dir": "/content/repo/.cache/canvas-vae/original/data/crello-s5",
-            "smoke_original_record_limit": 2,
             "train_original_arguments": [
                 "--dataset-name",
                 "crello-document",
                 "--data-dir",
-                "/content/repo/.cache/canvas-vae/original-smoke/run/data/crello-s5",
+                "/content/repo/.cache/canvas-vae/original/data/crello-s5",
                 "--job-dir",
                 "{output_root}/original-training",
                 "--seed",
@@ -181,13 +217,22 @@ def test_crello_cpu_smoke_original_job_uses_manifest_source_and_one_epoch() -> N
         resume_checkpoint=None,
     )
 
-    assert (
-        "source = Path('/content/repo/.cache/canvas-vae/original/data/crello-s5')"
-        in command
-    )
-    assert "crello-document" in command
-    assert "--num-epochs 1" in command
-    assert "canvas-vae/original/data/rico" not in command
+    for command in (full_command, tiny_command):
+        assert "git rev-parse HEAD" in command
+        assert "uv sync --frozen --package canvas-vae --extra training --extra vendor" in command
+        assert "tiny_original_input_subset_passed" not in command
+        assert "cpu_smoke" not in command
+        assert "smoke_original" not in command
+        assert "pre_training_commands" not in command
+        assert "if [" not in command
+    assert "export CUDA_VISIBLE_DEVICES=0" in full_command
+    assert "export CUDA_VISIBLE_DEVICES=''" in tiny_command
+    assert "--batch-size 1024" in full_command
+    assert "--num-epochs 500" in full_command
+    assert "--batch-size 2" in tiny_command
+    assert "--num-epochs 1" in tiny_command
+    assert "canvas-vae/original/data/crello-s5" in tiny_command
+    assert "--data-dir /content/repo/.cache/canvas-vae/original/data/crello-s5" in tiny_command
 
 
 def test_crello_executor_skips_production_gates_only_for_cpu_smoke() -> None:

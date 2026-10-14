@@ -99,6 +99,7 @@
     {
       "run_id": "crello-original-seed0",
       "system": "original",
+      "device": "cuda",
       "seed": 0,
       "session_name": "cvae-s5-crello-original-seed0",
       "cpu_session_name": "cvae-s5-crello-original-seed0-cpu",
@@ -172,6 +173,7 @@
     {
       "run_id": "crello-original-seed1",
       "system": "original",
+      "device": "cuda",
       "seed": 1,
       "session_name": "cvae-s5-crello-original-seed1",
       "cpu_session_name": "cvae-s5-crello-original-seed1-cpu",
@@ -245,6 +247,7 @@
     {
       "run_id": "crello-original-seed2",
       "system": "original",
+      "device": "cuda",
       "seed": 2,
       "session_name": "cvae-s5-crello-original-seed2",
       "cpu_session_name": "cvae-s5-crello-original-seed2-cpu",
@@ -318,6 +321,7 @@
     {
       "run_id": "crello-package-seed0",
       "system": "package",
+      "device": "cuda",
       "seed": 0,
       "session_name": "cvae-s5-crello-package-seed0",
       "cpu_session_name": "cvae-s5-crello-package-seed0-cpu",
@@ -368,6 +372,7 @@
     {
       "run_id": "crello-package-seed1",
       "system": "package",
+      "device": "cuda",
       "seed": 1,
       "session_name": "cvae-s5-crello-package-seed1",
       "cpu_session_name": "cvae-s5-crello-package-seed1-cpu",
@@ -418,6 +423,7 @@
     {
       "run_id": "crello-package-seed2",
       "system": "package",
+      "device": "cuda",
       "seed": 2,
       "session_name": "cvae-s5-crello-package-seed2",
       "cpu_session_name": "cvae-s5-crello-package-seed2-cpu",

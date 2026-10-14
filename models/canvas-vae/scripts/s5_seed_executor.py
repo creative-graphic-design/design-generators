@@ -445,12 +445,13 @@ def assert_session_is_free(session_name: str) -> None:
 def remote_preflight_source() -> str:
     return """from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
-import tarfile
 import shutil
+import struct
 import subprocess
+import tarfile
 from pathlib import Path
 from pathlib import PurePosixPath
 
@@ -562,24 +563,54 @@ if config["download_inputs"]:
         ]
         for split in ("train", "val", "test"):
             required.extend((package_data / f"{split}.jsonl",))
-            if not list(original_data.glob(f"{split}-*")):
+            if not list(original_data.glob(f"{split}-*.tfrecord")):
                 raise SystemExit(f"Crello S5 archive is missing original {split} records")
         missing = [str(path) for path in required if not path.is_file()]
         if missing:
             raise SystemExit("Crello S5 archive is missing required inputs: " + ", ".join(missing))
-        expected_counts = {"train": 18768, "val": 2315, "test": 2278}
-        for count_path in (package_data / "count.json", original_data / "count.json"):
-            if json.loads(count_path.read_text()) != expected_counts:
-                raise SystemExit(f"Crello S5 input counts differ: {count_path}")
+        package_counts = {"train": 18768, "val": 2315, "test": 2278}
+        if json.loads((package_data / "count.json").read_text()) != package_counts:
+            raise SystemExit("Crello S5 package document counts differ")
         original_data_manifest = json.loads(
             (original_data / "crello-s5-manifest.json").read_text()
         )
+        original_counts = original_data_manifest.get("document_counts")
+        if (
+            not isinstance(original_counts, dict)
+            or set(original_counts) != {"train", "val", "test"}
+            or not all(type(count) is int and count > 0 for count in original_counts.values())
+            or json.loads((original_data / "count.json").read_text()) != original_counts
+        ):
+            raise SystemExit("Crello S5 original document counts differ from their manifest")
+
         if (
             original_data_manifest["source_archive_sha256"]
             != data["source_archive_sha256"]
-            or original_data_manifest["document_counts"] != expected_counts
         ):
             raise SystemExit("Crello S5 materialized records use unexpected source data")
+
+        def tfrecord_record_count(path):
+            count = 0
+            with path.open("rb") as source:
+                while True:
+                    length_bytes = source.read(8)
+                    if not length_bytes:
+                        break
+                    if len(length_bytes) != 8 or len(source.read(4)) != 4:
+                        raise SystemExit(f"truncated TFRecord header: {path}")
+                    record_length = struct.unpack("<Q", length_bytes)[0]
+                    if len(source.read(record_length)) != record_length or len(source.read(4)) != 4:
+                        raise SystemExit(f"truncated TFRecord payload: {path}")
+                    count += 1
+
+            return count
+
+        for split in ("train", "val", "test"):
+            files = sorted(original_data.glob(f"{split}-*.tfrecord"))
+            if sum(tfrecord_record_count(path) for path in files) != original_counts[split]:
+                raise SystemExit(
+                    f"Crello S5 original {split} record count differs from manifest"
+                )
         canonical_ids = json.loads(
             (package_data / "crello-manifest.json").read_text()
         )["document_stage_image_ids_first_occurrence"]
@@ -760,6 +791,10 @@ def build_run_job(
     training_config = run.get("training_config_override", config)
     if not isinstance(training_config, str):
         raise ExecutorError("training_config_override must be a path string")
+    device = run.get("device")
+    if not isinstance(device, str) or device not in {"cpu", "cuda"}:
+        raise ExecutorError("run device must be cpu or cuda")
+    cuda_visible_devices = {"cpu": "", "cuda": "0"}[device]
     output_template = run.get("runtime_output_root")
     if not isinstance(output_template, str):
         raise ExecutorError("run needs a runtime_output_root template")
@@ -783,9 +818,7 @@ def build_run_job(
         "unset UV_PROJECT_ENVIRONMENT",
         "export NVIDIA_TF32_OVERRIDE=0",
         "export TF_ENABLE_ONEDNN_OPTS=0",
-        "export CUDA_VISIBLE_DEVICES=''"
-        if run.get("cpu_smoke") is True
-        else "export CUDA_VISIBLE_DEVICES=0",
+        f"export CUDA_VISIBLE_DEVICES={shlex.quote(cuda_visible_devices)}",
         f"for output_path in {shlex.quote(output_root)} {shlex.quote(log_root)}; do test ! -e \"$output_path\" || {{ echo 'run output exists; refusing overwrite' >&2; exit 78; }}; done",
         f"mkdir -p {shlex.quote(training_root)} {shlex.quote(log_root)}",
     )
@@ -813,28 +846,25 @@ def build_run_job(
         if resume_checkpoint is not None:
             training_args.append("--ckpt_path=/content/out/resume/checkpoint.ckpt")
         checkpoint_path = f"{training_root}/checkpoints/last.ckpt"
-        if run.get("cpu_smoke") is True:
-            checkpoint_max_epochs = 1
-            checkpoint_global_step = 2
-        else:
-            checkpoint_expectation = manifest.get("package_checkpoint_expectation")
-            if not isinstance(checkpoint_expectation, dict):
-                raise ExecutorError(
-                    "manifest package_checkpoint_expectation is required"
-                )
-            max_epochs = checkpoint_expectation.get("max_epochs")
-            global_step = checkpoint_expectation.get("global_step")
-            if (
-                type(max_epochs) is not int
-                or type(global_step) is not int
-                or max_epochs < 1
-                or global_step < 0
-            ):
-                raise ExecutorError(
-                    "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
-                )
-            checkpoint_max_epochs = max_epochs
-            checkpoint_global_step = global_step
+        checkpoint_expectation = run.get(
+            "package_checkpoint_expectation",
+            manifest.get("package_checkpoint_expectation"),
+        )
+        if not isinstance(checkpoint_expectation, dict):
+            raise ExecutorError("manifest package_checkpoint_expectation is required")
+        max_epochs = checkpoint_expectation.get("max_epochs")
+        global_step = checkpoint_expectation.get("global_step")
+        if (
+            type(max_epochs) is not int
+            or type(global_step) is not int
+            or max_epochs < 1
+            or global_step < 0
+        ):
+            raise ExecutorError(
+                "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
+            )
+        checkpoint_max_epochs = max_epochs
+        checkpoint_global_step = global_step
     elif system == "original":
         if resume_checkpoint is not None:
             raise ExecutorError(
@@ -900,65 +930,22 @@ def build_run_job(
             + '${suffix}"; done',
             f"test -s {shlex.quote(epoch_500_checkpoint + '.index')}",
         ]
-    if run.get("cpu_smoke") is True and system == "package":
-        training_args.append("--trainer.enable_checkpointing=true")
     training_overrides = run.get("training_overrides", [])
     if not isinstance(training_overrides, list) or not all(
         isinstance(value, str) for value in training_overrides
     ):
         raise ExecutorError("training_overrides must be a list of strings")
     training_args.extend(training_overrides)
-
-    smoke_data_prep = []
-    if run.get("cpu_smoke") is True and system == "original":
-        smoke_data_dir = run.get("smoke_original_data_dir")
-        smoke_source_data_dir = run.get("smoke_original_source_data_dir")
-        smoke_record_limit = run.get("smoke_original_record_limit")
-        if (
-            not isinstance(smoke_data_dir, str)
-            or not smoke_data_dir.startswith("/content/repo/.cache/canvas-vae/")
-            or not isinstance(smoke_source_data_dir, str)
-            or not smoke_source_data_dir.startswith("/content/repo/.cache/canvas-vae/")
-            or not isinstance(smoke_record_limit, int)
-            or smoke_record_limit < 1
-        ):
-            raise ExecutorError(
-                "original CPU smoke needs a bounded local TFRecord subset"
-            )
-        smoke_data_prep = [
-            "python - <<'PY'\n"
-            "import json, shutil\n"
-            "from pathlib import Path\n"
-            "import tensorflow as tf\n"
-            f"source = Path({smoke_source_data_dir!r})\n"
-            f"target = Path({smoke_data_dir!r})\n"
-            f"limit = {smoke_record_limit}\n"
-            "target.mkdir(parents=True, exist_ok=False)\n"
-            "counts = {}\n"
-            "for split in ('train', 'val', 'test'):\n"
-            "    files = sorted(source.glob(split + '-*.tfrecord'))\n"
-            "    if not files:\n"
-            "        raise SystemExit(f'missing downloaded {split} TFRecords')\n"
-            "    output = target / f'{split}-00000-of-00001.tfrecord'\n"
-            "    count = 0\n"
-            "    with tf.io.TFRecordWriter(str(output)) as writer:\n"
-            "        for record in tf.data.TFRecordDataset([str(path) for path in files]).take(limit):\n"
-            "            writer.write(record.numpy())\n"
-            "            count += 1\n"
-            "    if count != limit:\n"
-            "        raise SystemExit(f'expected {limit} {split} records, got {count}')\n"
-            "    counts[split] = count\n"
-            "for name in ('vocabulary.json',):\n"
-            "    shutil.copy2(source / name, target / name)\n"
-            "(target / 'count.json').write_text(json.dumps(counts), encoding='utf-8')\n"
-            "print(f'tiny_original_input_subset_passed counts={counts}')\n"
-            "PY",
-        ]
+    pre_training_commands = run.get("pre_training_commands", [])
+    if not isinstance(pre_training_commands, list) or not all(
+        isinstance(value, str) for value in pre_training_commands
+    ):
+        raise ExecutorError("pre_training_commands must be a list of shell commands")
 
     command_lines = [
         *env_lines,
         uv_sync,
-        *smoke_data_prep,
+        *pre_training_commands,
         f"{shlex.join(training_args)} > {log_root}/train.log 2>&1",
         *post_train_lines,
     ]
@@ -1977,6 +1964,7 @@ def execute_cpu_smoke(
                 "postprocess_artifact_prefix": postprocess_prefix,
                 "a100_wrapper_ttl": "30m",
                 "cpu_wrapper_ttl": "30m",
+                "device": "cpu",
                 "cpu_smoke": True,
             }
         )
@@ -1992,7 +1980,7 @@ def execute_cpu_smoke(
                 != (".cache", "canvas-vae", "original")
             ):
                 raise ExecutorError("Crello original data path must stay in cache")
-            smoke_data_dir = f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/crello-s5"
+            original_data_dir = f"/content/repo/{original_data_dir}"
             original_arguments = template.get("train_original_arguments")
             if not isinstance(original_arguments, list) or not all(
                 isinstance(value, str) for value in original_arguments
@@ -2000,7 +1988,7 @@ def execute_cpu_smoke(
                 raise ExecutorError("Crello original run is missing trainer arguments")
             resolved_arguments = list(original_arguments)
             replacements = {
-                "--data-dir": smoke_data_dir,
+                "--data-dir": original_data_dir,
                 "--batch-size": "2",
                 "--num-epochs": "1",
                 "--validation-freq": "1",
@@ -2016,13 +2004,11 @@ def execute_cpu_smoke(
             run["train_original_arguments"] = [
                 value.replace("{seed}", "0") for value in resolved_arguments
             ]
-            run["smoke_original_data_dir"] = smoke_data_dir
-            run["smoke_original_source_data_dir"] = f"/content/repo/{original_data_dir}"
-            run["smoke_original_record_limit"] = 2
         elif system == "original":
+            smoke_data_dir = f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
             run["train_original_arguments"] = [
                 "--data-dir",
-                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico",
+                smoke_data_dir,
                 "--job-dir",
                 "{output_root}/original-training",
                 "--seed",
@@ -2035,15 +2021,41 @@ def execute_cpu_smoke(
                 "--validation-freq",
                 "1",
             ]
-            run["smoke_original_data_dir"] = (
-                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
-            )
-            run["smoke_original_source_data_dir"] = (
-                "/content/repo/.cache/canvas-vae/original/data/rico"
-            )
-            run["smoke_original_record_limit"] = 4
+            run["pre_training_commands"] = [
+                "python - <<'PY'\n"
+                "import json, shutil\n"
+                "from pathlib import Path\n"
+                "import tensorflow as tf\n"
+                "source = Path('/content/repo/.cache/canvas-vae/original/data/rico')\n"
+                f"target = Path({smoke_data_dir!r})\n"
+                "target.mkdir(parents=True, exist_ok=False)\n"
+                "counts = {}\n"
+                "for split in ('train', 'val', 'test'):\n"
+                "    files = sorted(source.glob(split + '-*.tfrecord'))\n"
+                "    if not files:\n"
+                "        raise SystemExit(f'missing downloaded {split} TFRecords')\n"
+                "    output = target / f'{split}-00000-of-00001.tfrecord'\n"
+                "    count = 0\n"
+                "    with tf.io.TFRecordWriter(str(output)) as writer:\n"
+                "        for record in tf.data.TFRecordDataset([str(path) for path in files]).take(4):\n"
+                "            writer.write(record.numpy())\n"
+                "            count += 1\n"
+                "    if count != 4:\n"
+                "        raise SystemExit(f'expected 4 {split} records, got {count}')\n"
+                "    counts[split] = count\n"
+                "shutil.copy2(source / 'vocabulary.json', target / 'vocabulary.json')\n"
+                "(target / 'count.json').write_text(json.dumps(counts), encoding='utf-8')\n"
+                "print(f'bounded_input_archive_ready counts={counts}')\n"
+                "PY",
+            ]
         else:
             run["training_config_override"] = "/content/s5-smoke.yaml"
+            if system == "package":
+                run["package_checkpoint_expectation"] = {
+                    "max_epochs": 1,
+                    "global_step": 2,
+                }
+                run["training_overrides"] = ["--trainer.enable_checkpointing=true"]
             if dataset == "rico":
                 run["training_overrides"] = []
         if failure_stage is not None:
