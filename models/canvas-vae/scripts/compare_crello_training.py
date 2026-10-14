@@ -20,7 +20,6 @@ from types import MethodType
 from typing import Final, NamedTuple, Protocol, TypeAlias, TypedDict, cast
 from urllib.parse import unquote, urlsplit
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
 os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -1518,6 +1517,50 @@ def _largest_s2_tensor_diagnostics(
     return summary
 
 
+def _clip_training_gradients(tf, vendor_model, vendor_gradients, package_model):
+    vendor_clipped = {
+        id(variable): tf.clip_by_norm(gradient, CLIP_NORM).numpy()
+        for variable, gradient in zip(
+            vendor_model.trainable_variables, vendor_gradients, strict=True
+        )
+        if gradient is not None
+    }
+    clip_gradients_by_norm(package_model.parameters(), CLIP_NORM)
+
+    return vendor_clipped
+
+
+def _apply_training_optimizers(
+    vendor_model, vendor_gradients, package_model, optimizer
+) -> None:
+    vendor_model.optimizer.apply_gradients(
+        zip(vendor_gradients, vendor_model.trainable_variables, strict=True)
+    )
+    optimizer.step()
+
+
+def _record_probe_parameter_difference(
+    vendor_model,
+    package_model: CanvasVAECrelloModel,
+    summary: dict[str, JSONValue],
+) -> None:
+    original_state = convert_tensorflow_crello_variables(
+        _vendor_variables(vendor_model), package_model.config
+    )
+    largest_parameter_name: str | None = None
+    largest_parameter_difference = 0.0
+    for name, parameter in package_model.named_parameters():
+        difference = float(
+            (parameter.detach().cpu() - original_state[name]).abs().max()
+        )
+        if difference > largest_parameter_difference:
+            largest_parameter_name = name
+            largest_parameter_difference = difference
+
+    summary["parameter_max_abs_difference"] = largest_parameter_difference
+    summary["parameter_with_max_difference"] = largest_parameter_name
+
+
 def _train_step(
     tf,
     vendor_model,
@@ -1531,6 +1574,7 @@ def _train_step(
     s2_tensor_diagnostics: list[dict[str, JSONValue]],
     s3_tensor_diagnostics: list[dict[str, JSONValue]],
     static_errors: list[str],
+    probe_summary: dict[str, JSONValue] | None = None,
 ) -> None:
     tf_inputs = _reference_inputs(tf, batch, vendor_model.input_columns)
     noise_box = [noise]
@@ -1542,6 +1586,14 @@ def _train_step(
         vendor_loss = vendor_model.compute_loss(tf_inputs, None, vendor_outputs, None)
 
     vendor_gradients = tape.gradient(vendor_loss, vendor_model.trainable_variables)
+    if probe_summary is not None:
+        probe_summary["loss_original"] = float(vendor_loss.numpy())
+        probe_summary["gradient_norm_original"] = float(
+            tf.linalg.global_norm(
+                [gradient for gradient in vendor_gradients if gradient is not None]
+            ).numpy()
+        )
+
     vendor_paths = {
         id(variable): path.replace(".", "/")
         for path, variable in vendor_model.get_weight_paths().items()
@@ -1563,6 +1615,8 @@ def _train_step(
 
     package_penalty = l2_penalty(package_model, L2_WEIGHT)
     package_loss = package_output.loss + package_penalty
+    if probe_summary is not None:
+        probe_summary["loss_package"] = float(package_loss.detach().cpu())
     records.append(
         _comparison(
             "s1_training_total_loss",
@@ -1655,6 +1709,23 @@ def _train_step(
         )
 
     package_loss.backward()
+    if probe_summary is not None:
+        package_gradient_norms = [
+            torch.linalg.vector_norm(parameter.grad.detach())
+            for parameter in package_model.parameters()
+            if parameter.grad is not None
+        ]
+        probe_summary["gradient_norm_package"] = float(
+            torch.linalg.vector_norm(torch.stack(package_gradient_norms)).detach().cpu()
+        )
+        _clip_training_gradients(tf, vendor_model, vendor_gradients, package_model)
+        _apply_training_optimizers(
+            vendor_model, vendor_gradients, package_model, optimizer
+        )
+        _record_probe_parameter_difference(vendor_model, package_model, probe_summary)
+
+        return
+
     mapping = tensorflow_crello_key_map(package_model.config)
     relative_mapping, zero_gradient_mapping = split_attention_key_biases(mapping)
     all_mapping = {**relative_mapping, **zero_gradient_mapping}
@@ -1829,14 +1900,9 @@ def _train_step(
             )
         )
 
-    vendor_clipped = {
-        id(variable): tf.clip_by_norm(gradient, CLIP_NORM).numpy()
-        for variable, gradient in zip(
-            vendor_model.trainable_variables, vendor_gradients, strict=True
-        )
-        if gradient is not None
-    }
-    clip_gradients_by_norm(package_model.parameters(), CLIP_NORM)
+    vendor_clipped = _clip_training_gradients(
+        tf, vendor_model, vendor_gradients, package_model
+    )
     for state_key, source in relative_mapping.items():
         if state_key not in package_parameters:
             continue
@@ -1889,10 +1955,7 @@ def _train_step(
             )
         )
 
-    vendor_model.optimizer.apply_gradients(
-        zip(vendor_gradients, vendor_model.trainable_variables, strict=True)
-    )
-    optimizer.step()
+    _apply_training_optimizers(vendor_model, vendor_gradients, package_model, optimizer)
     for state_key, source in all_mapping.items():
         package_parameter = package_parameters.get(state_key)
         tf_variable = vendor_variables.get(source.key)

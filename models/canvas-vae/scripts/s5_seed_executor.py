@@ -28,6 +28,11 @@ COLAB_COMMAND = ["mise", "exec", "--", "colab"]
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 HUB_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+LOCKSTEP_PROBE_STEPS = 300
+LOCKSTEP_LOSS_RELATIVE_LIMIT = 1e-3
+LOCKSTEP_PROBE_SCRIPT = Path(
+    "models/canvas-vae/tests/vendor_parity/crello_lockstep_probe.py"
+)
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
@@ -108,13 +113,8 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
         return
 
     rehearsal = manifest.get("cpu_rehearsal")
-    if (
-        not isinstance(runtime_plan, dict)
-        or runtime_plan.get("integrated_first_run_gates") is not True
-    ):
-        raise ExecutorError(
-            "Crello S5 dispatch requires implemented integrated lockstep and GPU-bound gates"
-        )
+    if not (REPOSITORY_ROOT / LOCKSTEP_PROBE_SCRIPT).is_file():
+        raise ExecutorError("Crello S5 real-scale lockstep probe tool is missing")
     if (
         not isinstance(rehearsal, dict)
         or rehearsal.get("status") != "passed"
@@ -792,6 +792,7 @@ def build_run_job(
     segment_id: str,
     resume_checkpoint: Path | None,
     failure_exit_code: int | None = None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
 ) -> str:
     run_id = run.get("run_id")
     system = run.get("system")
@@ -917,6 +918,96 @@ def build_run_job(
     else:
         raise ExecutorError(f"unsupported CanvasVAE run system: {system}")
 
+    lockstep_probe_commands: list[str] = []
+    if manifest.get("dataset") == "crello" and system == "original" and seed == 0:
+        if not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+            raise ExecutorError("Crello lockstep probe steps must be between 1 and 300")
+        dataset_paths = manifest.get("dataset_paths")
+        if not isinstance(dataset_paths, dict):
+            raise ExecutorError("Crello lockstep probe requires dataset_paths")
+        package_data = dataset_paths.get("package_data_dir")
+        original_data = dataset_paths.get("original_data_dir")
+        fixture_dir = dataset_paths.get("original_fixture_dir")
+        for value in (package_data, original_data, fixture_dir):
+            if (
+                not isinstance(value, str)
+                or Path(value).is_absolute()
+                or ".." in Path(value).parts
+            ):
+                raise ExecutorError(
+                    "Crello lockstep probe input paths must be repository-relative"
+                )
+
+        probe_jsonl = f"{log_root}/lockstep-probe.jsonl"
+        probe_summary = f"{log_root}/lockstep-probe-summary.json"
+        probe_arguments = [
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "--extra",
+            "vendor",
+            "python",
+            str(LOCKSTEP_PROBE_SCRIPT),
+            "--data-dir",
+            f"/content/repo/{package_data}",
+            "--original-data-dir",
+            f"/content/repo/{original_data}",
+            "--fixture-dir",
+            f"/content/repo/{fixture_dir}",
+            "--device",
+            device,
+            "--steps",
+            str(lockstep_probe_steps),
+            "--batch-size",
+            "1024",
+            "--seed",
+            str(seed),
+            "--jsonl-output",
+            probe_jsonl,
+            "--summary-output",
+            probe_summary,
+        ]
+        probe_validation_script = "\n".join(
+            [
+                "import json, math",
+                "from pathlib import Path",
+                f"summary = json.loads(Path({probe_summary!r}).read_text(encoding='utf-8'))",
+                f"records = [json.loads(line) for line in Path({probe_jsonl!r}).read_text(encoding='utf-8').splitlines()]",
+                f"limit = {LOCKSTEP_LOSS_RELATIVE_LIMIT!r}",
+                f"required_steps = {lockstep_probe_steps}",
+                f"expected_commit = {pinned_commit!r}",
+                "if summary.get('protocol') != 'crello-real-scale-lockstep-v1' or summary.get('status') != 'passed':",
+                "    raise SystemExit('Crello lockstep probe report did not pass')",
+                "if summary.get('source_commit') != expected_commit:",
+                "    raise SystemExit('Crello lockstep probe source commit differs from the seed job')",
+                "if summary.get('required_steps') != required_steps or summary.get('completed_steps') != required_steps or summary.get('relative_loss_limit') != limit or summary.get('first_step_over_tolerance') is not None:",
+                "    raise SystemExit('Crello lockstep probe summary is incomplete or inconsistent')",
+                "if summary.get('gate_fields') != ['relative_loss_difference'] or summary.get('throughput_fields_are_report_only') is not True:",
+                "    raise SystemExit('Crello lockstep probe gate metadata is inconsistent')",
+                "if len(records) != required_steps or any(record.get('step') != index + 1 for index, record in enumerate(records)):",
+                "    raise SystemExit('Crello lockstep probe JSONL does not contain every required step')",
+                "numeric_fields = ('loss_original', 'loss_package', 'relative_loss_difference', 'gradient_norm_original', 'gradient_norm_package', 'parameter_max_abs_difference')",
+                "if any(any(not math.isfinite(record[field]) for field in numeric_fields) for record in records):",
+                "    raise SystemExit('Crello lockstep probe JSONL contains a non-finite metric')",
+                "if any(record['relative_loss_difference'] > limit for record in records):",
+                "    raise SystemExit('Crello lockstep probe JSONL contains a loss difference over the gate')",
+                "if any(record.get('parameter_with_max_difference') is not None and not isinstance(record['parameter_with_max_difference'], str) for record in records):",
+                "    raise SystemExit('Crello lockstep probe JSONL has an invalid differing-state name')",
+                "print(f'crello_lockstep_probe_result_passed steps={required_steps}')",
+            ]
+        )
+        lockstep_probe_commands.extend(
+            (
+                shlex.join(probe_arguments),
+                "python - <<'PY'\n" + probe_validation_script + "\nPY",
+            )
+        )
+
     if system == "package":
         if checkpoint_max_epochs is None or checkpoint_global_step is None:
             raise ExecutorError("package checkpoint gate was not configured")
@@ -957,6 +1048,7 @@ def build_run_job(
 
     command_lines = [
         *env_lines,
+        *lockstep_probe_commands,
         *pre_training_commands,
         f"{shlex.join(training_args)} > {log_root}/train.log 2>&1",
         *post_train_lines,
@@ -1397,6 +1489,7 @@ def execute_run(
     resume_checkpoint: Path | None,
     input_prefix: str | None,
     output_prefix: str | None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
 ) -> None:
     manifest = cast(
         JsonObject,
@@ -1491,6 +1584,16 @@ def execute_run(
             "runtime_plan source_commit must match the manifest source_commit"
         )
     cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    planned_probe_steps = runtime_plan.get("lockstep_probe_steps")
+    if manifest.get("dataset") == "crello" and (
+        type(planned_probe_steps) is not int
+        or planned_probe_steps != lockstep_probe_steps
+        or not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS
+        or (not cpu_runtime_smoke and lockstep_probe_steps != LOCKSTEP_PROBE_STEPS)
+    ):
+        raise ExecutorError(
+            "Crello lockstep probe steps must match the runtime plan and production requires 300"
+        )
     expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
     if (
         runtime_plan.get("gpu") != expected_gpu
@@ -1642,6 +1745,7 @@ def execute_run(
                 segment_id,
                 resume_checkpoint,
                 failure_exit_code if failure_stage == "training" else None,
+                lockstep_probe_steps,
             ),
             encoding="utf-8",
         )
@@ -1851,11 +1955,14 @@ def execute_cpu_smoke(
     output_prefix: str,
     manifest_path: Path = DEFAULT_MANIFEST,
     input_prefix: str | None = None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
 ) -> None:
     if not RUN_ID_PATTERN.fullmatch(session_name):
         raise ExecutorError("CPU smoke requires a valid smoke identifier")
     if not COMMIT_PATTERN.fullmatch(source_commit):
         raise ExecutorError("CPU smoke source must be a full commit SHA")
+    if not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+        raise ExecutorError("CPU smoke lockstep probe steps must be between 1 and 300")
     verify_local_source(source_commit)
 
     wrapper_value = os.environ.get("S5_WRAPPER_PATH")
@@ -1926,6 +2033,7 @@ def execute_cpu_smoke(
     runtime_plan.update(
         {
             "cpu_runtime_smoke": True,
+            "lockstep_probe_steps": lockstep_probe_steps,
             "gpu": "CPU",
             "source_commit": source_commit,
             "one_named_a100_session_per_run": True,
@@ -2254,11 +2362,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume-checkpoint", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--cpu-smoke", action="store_true")
+    parser.add_argument(
+        "--lockstep-probe-steps", type=int, default=LOCKSTEP_PROBE_STEPS
+    )
     parser.add_argument("--session-name")
     parser.add_argument("--source-commit")
     args = parser.parse_args()
     if not args.hub_repo.strip():
         parser.error("--hub-repo must not be empty")
+    if not 1 <= args.lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+        parser.error("--lockstep-probe-steps must be between 1 and 300")
     try:
         args.input_prefix = validate_hub_prefix(args.input_prefix, "input-prefix")
         args.output_prefix = validate_hub_prefix(args.output_prefix, "output-prefix")
@@ -2395,6 +2508,7 @@ def main() -> int:
                 args.output_prefix,
                 args.manifest,
                 args.input_prefix,
+                args.lockstep_probe_steps,
             )
         else:
             if args.run_id is None:
@@ -2407,6 +2521,7 @@ def main() -> int:
                 args.resume_checkpoint,
                 args.input_prefix,
                 args.output_prefix,
+                args.lockstep_probe_steps,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
         print(f"Full-run seed failed closed: {error}", file=sys.stderr)

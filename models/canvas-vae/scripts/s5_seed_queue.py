@@ -353,6 +353,17 @@ def launch_preconditions(
     runtime_plan = manifest["runtime_plan"]
     cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
     cpu_crello_smoke = manifest["dataset"] == "crello" and cpu_runtime_smoke
+    if manifest["dataset"] == "crello":
+        probe_steps = runtime_plan.get("lockstep_probe_steps")
+        if (
+            type(probe_steps) is not int
+            or not 1 <= probe_steps <= 300
+            or (not cpu_crello_smoke and probe_steps != 300)
+        ):
+            raise QueueError(
+                "launch refused: Crello lockstep probe requires 300 production steps",
+                BLOCKED_EXIT,
+            )
     if not cpu_crello_smoke:
         parity = manifest["evaluation_path_parity"]
         parity_path = parity.get("path")
@@ -387,52 +398,45 @@ def launch_preconditions(
                 BLOCKED_EXIT,
             )
 
-    if manifest["dataset"] == "crello":
-        if not cpu_crello_smoke:
-            if runtime_plan.get("integrated_first_run_gates") is not True:
-                raise QueueError(
-                    "launch refused: the integrated lockstep and GPU-bound gates are not implemented",
-                    BLOCKED_EXIT,
-                )
+    if manifest["dataset"] == "crello" and not cpu_crello_smoke:
+        rehearsal = manifest["cpu_rehearsal"]
+        if (
+            not isinstance(rehearsal, dict)
+            or rehearsal.get("status") != "passed"
+            or rehearsal.get("source_commit") != pinned_commit
+        ):
+            raise QueueError(
+                "launch refused: a same-environment CPU rehearsal is missing for this commit",
+                BLOCKED_EXIT,
+            )
 
-            rehearsal = manifest["cpu_rehearsal"]
-            if (
-                not isinstance(rehearsal, dict)
-                or rehearsal.get("status") != "passed"
-                or rehearsal.get("source_commit") != pinned_commit
-            ):
-                raise QueueError(
-                    "launch refused: a same-environment CPU rehearsal is missing for this commit",
-                    BLOCKED_EXIT,
-                )
-
-            rehearsal_path = rehearsal.get("artifact_path")
-            rehearsal_sha256 = rehearsal.get("sha256")
-            if (
-                not isinstance(rehearsal_path, str)
-                or not rehearsal_path
-                or not isinstance(rehearsal_sha256, str)
-                or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
-            ):
-                raise QueueError(
-                    "launch refused: CPU rehearsal artifact path and SHA-256 are required",
-                    BLOCKED_EXIT,
-                )
-            rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
-            try:
-                rehearsal_file.relative_to(REPOSITORY_ROOT)
-            except ValueError as error:
-                raise QueueError(
-                    "cpu_rehearsal artifact path must stay inside the repository"
-                ) from error
-            if (
-                not rehearsal_file.is_file()
-                or sha256_file(rehearsal_file) != rehearsal_sha256
-            ):
-                raise QueueError(
-                    "launch refused: CPU rehearsal artifact is missing or its SHA-256 differs",
-                    BLOCKED_EXIT,
-                )
+        rehearsal_path = rehearsal.get("artifact_path")
+        rehearsal_sha256 = rehearsal.get("sha256")
+        if (
+            not isinstance(rehearsal_path, str)
+            or not rehearsal_path
+            or not isinstance(rehearsal_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
+        ):
+            raise QueueError(
+                "launch refused: CPU rehearsal artifact path and SHA-256 are required",
+                BLOCKED_EXIT,
+            )
+        rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+        try:
+            rehearsal_file.relative_to(REPOSITORY_ROOT)
+        except ValueError as error:
+            raise QueueError(
+                "cpu_rehearsal artifact path must stay inside the repository"
+            ) from error
+        if (
+            not rehearsal_file.is_file()
+            or sha256_file(rehearsal_file) != rehearsal_sha256
+        ):
+            raise QueueError(
+                "launch refused: CPU rehearsal artifact is missing or its SHA-256 differs",
+                BLOCKED_EXIT,
+            )
 
     runner = manifest.get("runner_command")
     if not isinstance(runner, list) or runner != [
@@ -582,8 +586,16 @@ def run_queue(
             }
         )
         emit({"event": "run_dispatch", "run_id": run["run_id"]})
+        runner_arguments = [*runner_command, "--run-id", run["run_id"]]
+        if manifest["dataset"] == "crello":
+            runner_arguments.extend(
+                [
+                    "--lockstep-probe-steps",
+                    str(manifest["runtime_plan"]["lockstep_probe_steps"]),
+                ]
+            )
         result = subprocess.run(
-            [*runner_command, "--run-id", run["run_id"]],
+            runner_arguments,
             cwd=REPOSITORY_ROOT,
             check=False,
             env=environment,
