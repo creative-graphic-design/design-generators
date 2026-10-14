@@ -57,15 +57,8 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
     sys.path.insert(0, str(scripts_path))
     import compare_crello_training as comparison
     from canvas_vae.configuration_canvas_vae import CanvasVAECrelloConfig
-    from canvas_vae.data import (
-        CrelloBatch,
-        CrelloProcessor,
-        CrelloSplit,
-        fixture_image_ids,
-        load_crello_split,
-        load_crello_vocabularies,
-        load_embedding_fixture,
-    )
+    from canvas_vae.data import CrelloBatch, CrelloSplit
+    from canvas_vae.training.datamodule import CanvasVAECrelloDataModule
     from canvas_vae.training.sampling import CrossEpochBatchSampler
     from traingen.optim import KerasAdam
 
@@ -97,15 +90,21 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
     if config.device == "cuda":
         torch.cuda.manual_seed_all(config.seed)
 
-    documents = load_crello_split(config.data_dir, CrelloSplit.train)
+    data_module = CanvasVAECrelloDataModule(
+        data_dir=str(config.data_dir),
+        fixture_dir=str(config.fixture_dir),
+        batch_size=config.batch_size,
+        seed=config.seed,
+    )
+    data_module.setup("fit")
+    documents = data_module.splits[CrelloSplit.train].documents
     if not documents:
         raise ValueError("the Crello training split is empty")
+    if data_module.processor is None:
+        raise RuntimeError("the Crello data module did not construct its processor")
 
-    vocabularies = load_crello_vocabularies(config.data_dir)
-    embeddings = load_embedding_fixture(
-        config.fixture_dir, fixture_image_ids(documents)
-    )
-    processor = CrelloProcessor(vocabularies, embeddings)
+    processor = data_module.processor
+    vocabularies = processor.vocabularies
     model_config = CanvasVAECrelloConfig(
         vocabularies=vocabularies,
         latent_dim=comparison.LATENT_DIM,
