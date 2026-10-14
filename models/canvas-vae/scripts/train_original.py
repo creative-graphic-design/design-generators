@@ -1,9 +1,8 @@
 """Train and evaluate the original CanvasVAE TensorFlow code with a fixed seed.
 
 Calls the unmodified ``canvasvae.train.train_and_evaluate`` after
-``tf.keras.utils.set_random_seed(seed)``, with the TensorFlow 2.15 shims of
-``generate_vendor_reference.py`` (Keras preprocessing import path and a
-``BatchNormalization`` that ignores propagated masks) and TF32 disabled.
+``tf.keras.utils.set_random_seed(seed)``, with the TensorFlow compatibility
+shims of ``generate_vendor_reference.py`` and TF32 disabled.
 Arguments after ``--`` are passed to the original trainer, for example
 ``-- --num-epochs 1``.
 """

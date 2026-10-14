@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 import tempfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -396,6 +397,11 @@ def main() -> None:
             encoder_sha256=digest,
             batch_size=args.batch_size,
         )
+        if args.system == "original" and "torch" in sys.modules:
+            raise RuntimeError(
+                "original TensorFlow cache extraction imported PyTorch"
+            )
+
         print(
             json.dumps(
                 {

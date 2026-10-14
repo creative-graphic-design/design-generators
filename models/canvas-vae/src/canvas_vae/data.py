@@ -11,12 +11,14 @@ import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from enum import StrEnum, auto
 from pathlib import Path, PurePosixPath
-from typing import Final, Literal, TypedDict, cast, overload
+from typing import TYPE_CHECKING, Final, Literal, TypedDict, cast, overload
 
 import numpy as np
-import torch
 from jaxtyping import Bool, Float, Int
 from transformers import BatchFeature
+
+if TYPE_CHECKING:
+    import torch
 
 CRELLO_V1_URL: Final = (
     "https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip"
@@ -463,6 +465,8 @@ class CrelloProcessor:
 
     def __call__(self, documents: Sequence[CrelloDocument]) -> BatchFeature:
         """Process a document batch and pad every field to its longest row."""
+        import torch
+
         if not documents:
             raise ValueError("a Crello batch needs at least one document")
 
