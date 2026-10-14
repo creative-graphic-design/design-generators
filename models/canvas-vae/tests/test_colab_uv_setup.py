@@ -132,3 +132,45 @@ def test_shared_setup_fails_closed_when_checkout_commit_differs(
     assert result.returncode == 78
     assert "source checkout differs" in result.stderr
     assert calls[-1] == ["git", "-C", str(tmp_path / "repo"), "rev-parse", "HEAD"]
+
+
+def test_shared_setup_emits_export_for_synced_environment(tmp_path: Path) -> None:
+    commit = "c" * 40
+    calls_path, environment = _fake_tools(tmp_path, commit)
+    repo_path = tmp_path / "repo"
+    environment_path = tmp_path / "vendor environment"
+    command = [
+        "bash",
+        "-c",
+        'eval "$("$@")"; printf "%s\\n" "$UV_PROJECT_ENVIRONMENT"',
+        "environment-probe",
+        *_setup_command(repo_path, commit),
+        "--uv-environment",
+        str(environment_path),
+    ]
+
+    result = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    calls = [json.loads(line) for line in calls_path.read_text().splitlines()]
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f"{environment_path}\n"
+    assert "colab_setup_passed" in result.stderr
+    assert calls[-1] == [
+        "uv",
+        "sync",
+        "--frozen",
+        "--project",
+        str(repo_path),
+        "--package",
+        "canvas-vae",
+        "--extra",
+        "training",
+        "--extra",
+        "vendor",
+    ]
