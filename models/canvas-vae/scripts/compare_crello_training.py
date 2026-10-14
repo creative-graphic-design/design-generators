@@ -310,6 +310,17 @@ def _torch_state_sha256(state: Mapping[str, Shaped[torch.Tensor, "..."]]) -> str
     return digest.hexdigest()
 
 
+def _tensor_on_model_device(
+    value: np.ndarray | torch.Tensor,
+    model: CanvasVAECrelloModel,
+) -> torch.Tensor:
+    parameter = next(model.parameters(), None)
+    if parameter is None:
+        raise ValueError("package model has no parameters")
+
+    return torch.as_tensor(value, device=parameter.device)
+
+
 def _reference_inputs(
     tf: _TensorFlowModule,
     batch: CrelloBatch,
@@ -1547,11 +1558,15 @@ def _record_probe_parameter_difference(
     original_state = convert_tensorflow_crello_variables(
         _vendor_variables(vendor_model), package_model.config
     )
+    original_state_on_device = {
+        name: _tensor_on_model_device(value, package_model)
+        for name, value in original_state.items()
+    }
     largest_parameter_name: str | None = None
     largest_parameter_difference = 0.0
     for name, parameter in package_model.named_parameters():
         difference = float(
-            (parameter.detach().cpu() - original_state[name]).abs().max()
+            (parameter.detach() - original_state_on_device[name]).abs().max().cpu()
         )
         if difference > largest_parameter_difference:
             largest_parameter_name = name
@@ -1577,6 +1592,15 @@ def _train_step(
     probe_summary: dict[str, JSONValue] | None = None,
 ) -> None:
     tf_inputs = _reference_inputs(tf, batch, vendor_model.input_columns)
+    package_batch = cast(
+        CrelloBatch,
+        {
+            key: _tensor_on_model_device(value, package_model)
+            if isinstance(value, (np.ndarray, torch.Tensor))
+            else value
+            for key, value in batch.items()
+        },
+    )
     noise_box = [noise]
     trace_box: list[_TrainingTrace] = []
     _install_fixed_noise_call(tf, vendor_model, noise_box, trace_box)
@@ -1609,7 +1633,9 @@ def _train_step(
         for path, variable in vendor_model.get_weight_paths().items()
     }
     package_model.train()
-    package_output = package_model(batch, posterior_noise=torch.from_numpy(noise))
+    package_output = package_model(
+        package_batch, posterior_noise=_tensor_on_model_device(noise, package_model)
+    )
     if package_output.loss is None or package_output.kl_divergence is None:
         raise RuntimeError("package training forward returned no losses")
 

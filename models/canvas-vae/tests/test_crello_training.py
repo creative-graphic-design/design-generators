@@ -140,6 +140,26 @@ def test_crello_calibration_threshold_rounds_up_to_two_significant_figures():
     assert ceil_two_significant_digits(0.0) == 0.0
 
 
+def test_tensor_on_model_device_moves_host_values_to_reference_device():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    tensor_on_model_device = cast(
+        Callable[[np.ndarray | torch.Tensor, torch.nn.Module], torch.Tensor],
+        namespace["_tensor_on_model_device"],
+    )
+    model = torch.nn.Linear(2, 2, device="meta")
+    values = np.arange(4, dtype=np.float32).reshape(2, 2)
+
+    for source in (values, torch.from_numpy(values.copy())):
+        result = tensor_on_model_device(source, model)
+
+        assert result.device == model.weight.device
+        assert result.dtype == torch.float32
+        assert result.shape == (2, 2)
+
+
 def test_crello_updated_parameter_differences_are_report_only():
     script = (
         Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"

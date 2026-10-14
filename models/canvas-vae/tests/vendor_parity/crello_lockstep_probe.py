@@ -122,16 +122,22 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
         comparison._vendor_variables(original_model), model_config
     )
     package_model = comparison.CanvasVAECrelloModel(model_config).to(torch_device)
+    original_initial_state_on_device = {
+        key: comparison._tensor_on_model_device(value, package_model)
+        for key, value in original_initial_state.items()
+    }
     package_model.load_state_dict(
-        {key: value.to(torch_device) for key, value in original_initial_state.items()},
+        original_initial_state_on_device,
         strict=True,
     )
     initial_state_sha256 = comparison._torch_state_sha256(package_model.state_dict())
     initial_state_errors = [
         key
         for key, value in package_model.state_dict().items()
-        if not torch.equal(value, original_initial_state[key].to(torch_device))
+        if not torch.equal(value, original_initial_state_on_device[key])
     ]
+    del original_initial_state_on_device
+    del original_initial_state
     static_errors = comparison._common(original_model, package_model)
     if initial_state_errors or static_errors:
         raise RuntimeError(
@@ -169,16 +175,7 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
                 batch_indices = next(sampler_batches)
 
             rows = [documents[index] for index in batch_indices]
-            cpu_batch = processor(rows)
-            batch = cast(
-                CrelloBatch,
-                {
-                    key: value.to(torch_device)
-                    if isinstance(value, torch.Tensor)
-                    else value
-                    for key, value in cpu_batch.items()
-                },
-            )
+            batch = cast(CrelloBatch, processor(rows))
             batch_digest = comparison._batch_digest(batch)
             batch_digests.append(batch_digest)
             noise = noise_generator.standard_normal(
