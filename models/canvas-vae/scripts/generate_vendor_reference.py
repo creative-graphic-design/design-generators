@@ -218,6 +218,13 @@ def import_original():
     return tf, spec, encoder
 
 
+def disable_tensorflow_tf32(tf) -> None:
+    """Disable TensorFlow TF32 and verify the framework reports it off."""
+    tf.config.experimental.enable_tensor_float_32_execution(False)
+    if tf.config.experimental.tensor_float_32_execution_enabled():
+        raise RuntimeError("TensorFlow float32 TF32 execution must be disabled")
+
+
 def recording_spec(tf, spec):
     """Return a ``DataSpec`` subclass whose parsed batches also carry ``id``."""
 

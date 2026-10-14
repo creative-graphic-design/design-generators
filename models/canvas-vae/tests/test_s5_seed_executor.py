@@ -1,11 +1,12 @@
 import ast
+import hashlib
 import importlib.util
 import json
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias, cast
 
 import pytest
 
@@ -17,6 +18,10 @@ EXECUTOR_SPEC = importlib.util.spec_from_file_location(
 assert EXECUTOR_SPEC is not None and EXECUTOR_SPEC.loader is not None
 EXECUTOR = importlib.util.module_from_spec(EXECUTOR_SPEC)
 EXECUTOR_SPEC.loader.exec_module(EXECUTOR)
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
+JsonObject: TypeAlias = dict[str, JsonValue]
 
 
 def test_executor_requires_and_passes_hub_repository(
@@ -221,6 +226,14 @@ def test_crello_postprocess_uses_crello_vocab_and_evaluator() -> None:
         "evaluator_command": [
             "uv",
             "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
             "models/canvas-vae/scripts/evaluate_crello.py",
             "--checkpoint",
             "{converted_checkpoint}",
@@ -241,9 +254,14 @@ def test_crello_postprocess_uses_crello_vocab_and_evaluator() -> None:
     assert "--dataset crello" in command
     assert ".cache/canvas-vae/original/data/crello-s5/vocabulary.json" in command
     assert "models/canvas-vae/scripts/evaluate_crello.py" in command
-    assert "/content/colab-uv-setup.sh" in command
+    assert "/content/colab-uv-setup.sh" not in command
     assert "--extra convert" in command
+    assert "--extra training" in command
+    assert "--no-sync" in command
     assert "uv sync" not in command
+    assert "UV_PROJECT_ENVIRONMENT=/content/canvas-vae-postprocess-env" in command
+    assert "unset UV_PROJECT_ENVIRONMENT" not in command
+    assert "repository .venv exists; refusing environment drift" in command
 
 
 def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> None:
@@ -269,6 +287,8 @@ def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> Non
     assert "--expected-global-step 9500" in command
     assert "--max-epochs 500" in command
     assert "--model.init_args.fixture_dir=.cache/embeddings" in command
+    assert "UV_PROJECT_ENVIRONMENT=/content/canvas-vae-training-env" in command
+    assert "repository .venv exists; refusing environment drift" in command
 
 
 def test_crello_remote_preflight_rejects_wrong_original_document_counts() -> None:
@@ -438,6 +458,10 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
     for command in (full_command, tiny_command):
         assert "git rev-parse HEAD" in command
         assert "uv sync" not in command
+        assert "UV_PROJECT_ENVIRONMENT=/content/canvas-vae-training-env" in command
+        assert "repository .venv exists; refusing environment drift" in command
+        assert "unset UV_PROJECT_ENVIRONMENT" not in command
+        assert "uv run --frozen --no-sync" in command
         assert "tiny_original_input_subset_passed" not in command
         assert "cpu_smoke" not in command
         assert "smoke_original" not in command
@@ -454,7 +478,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/original-seed0-encoder-cache/cache"
         in full_command
     )
-    assert "relative_loss_difference" in full_command
+    assert "validate_lockstep_probe_report" in full_command
     assert full_command.index("crello_lockstep_probe.py") < full_command.index(
         "train_original.py"
     )
@@ -483,6 +507,138 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         "--data-dir /content/repo/.cache/canvas-vae/original/data/crello-s5"
         in tiny_command
     )
+
+
+def _lockstep_report(
+    cross_differences: list[float], noise_differences: list[float]
+) -> tuple[JsonObject, list[JsonObject]]:
+    records: list[JsonObject] = []
+    phases: dict[str, JsonValue] = {}
+    for phase, comparison, differences in (
+        ("cross_system", "tensorflow_vs_package", cross_differences),
+        (
+            "noise_floor",
+            "package_vs_one_ulp_perturbed_package",
+            noise_differences,
+        ),
+    ):
+        phase_rows: list[JsonObject] = []
+        for step, difference in enumerate(differences, start=1):
+            row: JsonObject = {
+                "phase": phase,
+                "comparison": comparison,
+                "step": step,
+                "loss_left": 1.0,
+                "loss_right": 1.0 + difference,
+                "relative_loss_difference": difference,
+                "gradient_norm_left": 1.0,
+                "gradient_norm_right": 1.0,
+                "parameter_max_abs_difference": difference,
+                "parameter_with_max_difference": "encoder.weight",
+                "step_seconds_report_only": 1.0,
+                "documents_per_second_report_only": 1.0,
+                "sampler_state": {
+                    "seed": 0,
+                    "source_indices": [step],
+                    "batch_sha256": f"{step:064x}",
+                    "posterior_noise_sha256": f"{step + 10:064x}",
+                },
+            }
+            phase_rows.append(row)
+            records.append(row)
+
+        first = next(
+            (
+                row
+                for row in phase_rows
+                if cast(float, row["relative_loss_difference"]) > 1e-3
+            ),
+            None,
+        )
+        phases[phase] = {
+            "required_steps": len(differences),
+            "completed_steps": len(differences),
+            "first_step_over_tolerance": None
+            if first is None
+            else {
+                key: first[key]
+                for key in (
+                    "step",
+                    "relative_loss_difference",
+                    "parameter_with_max_difference",
+                    "parameter_max_abs_difference",
+                )
+            },
+            "sampler_batch_sha256": hashlib.sha256(
+                "\n".join(
+                    f"{step:064x}" for step in range(1, len(differences) + 1)
+                ).encode("ascii")
+            ).hexdigest(),
+        }
+
+    cross_phase = cast(JsonObject, phases["cross_system"])
+    noise_phase = cast(JsonObject, phases["noise_floor"])
+    cross_first = cast(JsonObject | None, cross_phase["first_step_over_tolerance"])
+    noise_first = cast(JsonObject | None, noise_phase["first_step_over_tolerance"])
+    passed = cross_first is None or (
+        noise_first is not None
+        and cast(int, cross_first["step"]) >= cast(int, noise_first["step"])
+    )
+    return (
+        {
+            "protocol": "crello-real-scale-lockstep-v2",
+            "status": "completed",
+            "source_commit": "a" * 40,
+            "required_steps": len(cross_differences),
+            "completed_steps_per_phase": len(cross_differences),
+            "relative_loss_limit": 1e-3,
+            "gate_fields": ["finite_metrics", "noise_floor_attribution"],
+            "throughput_fields_are_report_only": True,
+            "initial_state_sha256": "b" * 64,
+            "noise_floor_initial_state_sha256": "b" * 64,
+            "noise_floor_perturbed_parameter_values": 42,
+            "phases": phases,
+            "first_step_over_tolerance": cross_first,
+            "noise_floor_first_step_over_tolerance": noise_first,
+            "noise_floor_attribution_passed": passed,
+        },
+        records,
+    )
+
+
+@pytest.mark.parametrize(
+    ("cross_differences", "noise_differences", "passes"),
+    [
+        ([0.0, 0.0012, 0.0013], [0.0, 0.0011, 0.0014], True),
+        ([0.0, 0.0012, 0.0013], [0.0, 0.0, 0.0], False),
+        ([0.0, 0.0, 0.0], [0.0, 0.0011, 0.0013], True),
+    ],
+)
+def test_lockstep_noise_floor_gate_uses_fixed_first_exceedance_rule(
+    cross_differences: list[float],
+    noise_differences: list[float],
+    passes: bool,
+) -> None:
+    summary, records = _lockstep_report(cross_differences, noise_differences)
+
+    if passes:
+        EXECUTOR.validate_lockstep_probe_report(
+            summary,
+            records,
+            required_steps=3,
+            expected_commit="a" * 40,
+        )
+    else:
+        with pytest.raises(
+            EXECUTOR.ExecutorError,
+            match="cross-system divergence exceeds the package-only noise floor",
+        ):
+            EXECUTOR.validate_lockstep_probe_report(
+                summary,
+                records,
+                required_steps=3,
+                expected_commit="a" * 40,
+            )
 
 
 def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
@@ -521,6 +677,7 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
     source = preflight_script.read_text()
 
     assert preflight["uv_extras"] == ["training", "vendor"]
+    assert preflight["uv_environment"] == "/content/canvas-vae-training-env"
     assert (
         preflight["lockstep_probe_inputs"]["fixture_archive"]["archive"]["sha256"]
         == "d" * 64
@@ -536,6 +693,29 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
     assert "git clone" not in source
     assert "submodule update" not in source
     assert "uv sync" not in source
+
+
+def test_original_postprocess_preflight_uses_one_combined_environment(
+    tmp_path: Path,
+) -> None:
+    preflight_path, _, _ = EXECUTOR.temporary_files(
+        tmp_path,
+        {
+            "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+            "dataset": "crello",
+            "input_data": {"revision": "a" * 40, "prefix": "inputs"},
+            "runtime_plan": {"source_branch": "feat/canvas-vae-crello-model"},
+        },
+        {"system": "original", "cpu_postprocess": True},
+        "b" * 40,
+        "example-owner/artifacts",
+        download_inputs=False,
+        phase="postprocess",
+    )
+    preflight = json.loads(preflight_path.read_text())
+
+    assert preflight["uv_extras"] == ["training", "convert"]
+    assert preflight["uv_environment"] == "/content/canvas-vae-postprocess-env"
 
 
 def test_crello_executor_skips_production_gates_only_for_cpu_smoke() -> None:

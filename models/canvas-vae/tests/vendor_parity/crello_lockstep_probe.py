@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -56,9 +58,11 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
     scripts_path = repository_root / "models" / "canvas-vae" / "scripts"
     sys.path.insert(0, str(scripts_path))
     import compare_crello_training as comparison
+    from generate_vendor_reference import disable_tensorflow_tf32
     from canvas_vae.configuration_canvas_vae import CanvasVAECrelloConfig
     from canvas_vae.data import CrelloBatch, CrelloSplit
     from canvas_vae.training.datamodule import CanvasVAECrelloDataModule
+    from canvas_vae.training.precision import disable_torch_tf32
     from canvas_vae.training.sampling import CrossEpochBatchSampler
     from traingen.optim import KerasAdam
 
@@ -70,6 +74,8 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
 
     if config.steps < 1 or config.batch_size < 1:
         raise ValueError("probe steps and batch size must be positive")
+    disable_tensorflow_tf32(tf)
+    disable_torch_tf32()
     if config.device == "cuda":
         if not tf.config.list_physical_devices("GPU") or not torch.cuda.is_available():
             raise RuntimeError(
@@ -151,23 +157,33 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
             )
         )
 
-    package_optimizer = KerasAdam(
-        package_model.parameters(), lr=comparison.LEARNING_RATE
+    noise_floor_package = copy.deepcopy(package_model)
+    noise_floor_perturbed = copy.deepcopy(package_model)
+    noise_floor_initial_sha256 = comparison._torch_state_sha256(
+        noise_floor_package.state_dict()
     )
-    sampler_generator = torch.Generator(device="cpu").manual_seed(config.seed)
-    sampler = CrossEpochBatchSampler(
-        len(documents), config.batch_size, sampler_generator
+    perturbed_parameter_values = comparison._perturb_parameters_by_one_ulp(
+        noise_floor_perturbed
     )
-    sampler_batches = iter(sampler)
-    noise_generator = np.random.default_rng(config.seed)
-    batch_digests: list[str] = []
-    maximum_relative_loss_difference = 0.0
-    first_failure: dict[str, ProbeJson] | None = None
+    if comparison._torch_state_sha256(noise_floor_package.state_dict()) != (
+        initial_state_sha256
+    ):
+        raise RuntimeError(
+            "noise-floor package copy differs from the cross-system initialization"
+        )
+    if noise_floor_initial_sha256 != initial_state_sha256:
+        raise RuntimeError(
+            "noise-floor initial state does not match the cross-system state"
+        )
 
-    config.jsonl_output.parent.mkdir(parents=True, exist_ok=True)
-    with config.jsonl_output.open("x", encoding="utf-8") as output:
+    def batch_stream():
+        sampler_generator = torch.Generator(device="cpu").manual_seed(config.seed)
+        sampler = CrossEpochBatchSampler(
+            len(documents), config.batch_size, sampler_generator
+        )
+        sampler_batches = iter(sampler)
+        noise_generator = np.random.default_rng(config.seed)
         for step in range(config.steps):
-            step_started = time.monotonic()
             try:
                 batch_indices = next(sampler_batches)
             except StopIteration:
@@ -177,35 +193,9 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
             rows = [documents[index] for index in batch_indices]
             batch = cast(CrelloBatch, processor(rows))
             batch_digest = comparison._batch_digest(batch)
-            batch_digests.append(batch_digest)
             noise = noise_generator.standard_normal(
                 (len(rows), comparison.LATENT_DIM), dtype=np.float32
             )
-            step_summary: dict[str, ProbeJson] = {}
-            comparison._train_step(
-                tf,
-                original_model,
-                package_model,
-                package_optimizer,
-                batch,
-                noise,
-                step,
-                [],
-                [],
-                [],
-                [],
-                [],
-                step_summary,
-            )
-            loss_original = cast(float, step_summary["loss_original"])
-            loss_package = cast(float, step_summary["loss_package"])
-            relative_loss_difference = abs(loss_package - loss_original) / max(
-                abs(loss_original), 1e-12
-            )
-            maximum_relative_loss_difference = max(
-                maximum_relative_loss_difference, relative_loss_difference
-            )
-            step_seconds = time.monotonic() - step_started
             sampler_state: dict[str, ProbeJson] = {
                 "seed": config.seed,
                 "epoch": step // len(sampler),
@@ -215,64 +205,204 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
                     sampler_generator.get_state().numpy().tobytes()
                 ),
                 "batch_sha256": batch_digest,
+                "posterior_noise_sha256": _sha256_bytes(noise.tobytes()),
             }
-            record: dict[str, ProbeJson] = {
-                "step": step + 1,
-                "loss_original": loss_original,
-                "loss_package": loss_package,
-                "relative_loss_difference": relative_loss_difference,
-                "gradient_norm_original": cast(
-                    float, step_summary["gradient_norm_original"]
-                ),
-                "gradient_norm_package": cast(
-                    float, step_summary["gradient_norm_package"]
-                ),
-                "parameter_max_abs_difference": cast(
-                    float, step_summary["parameter_max_abs_difference"]
-                ),
-                "parameter_with_max_difference": cast(
-                    str | None, step_summary["parameter_with_max_difference"]
-                ),
-                "sampler_state": sampler_state,
-                "step_seconds_report_only": step_seconds,
-                "documents_per_second_report_only": len(rows)
-                / max(step_seconds, 1e-12),
-            }
-            output.write(json.dumps(record, sort_keys=True, allow_nan=False) + "\n")
-            output.flush()
+            yield batch, noise, sampler_state
 
-            if relative_loss_difference > LOSS_RELATIVE_LIMIT:
-                first_failure = {
-                    "step": step + 1,
-                    "relative_loss_difference": relative_loss_difference,
-                    "parameter_with_max_difference": cast(
-                        str | None, step_summary["parameter_with_max_difference"]
-                    ),
-                    "parameter_max_abs_difference": cast(
-                        float, step_summary["parameter_max_abs_difference"]
-                    ),
+    def ensure_finite(record: dict[str, ProbeJson]) -> None:
+        for key in (
+            "loss_left",
+            "loss_right",
+            "relative_loss_difference",
+            "gradient_norm_left",
+            "gradient_norm_right",
+            "parameter_max_abs_difference",
+        ):
+            value = record[key]
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise RuntimeError(f"lockstep probe produced a non-finite {key}")
+
+    def first_over_tolerance(
+        records: list[dict[str, ProbeJson]],
+    ) -> dict[str, ProbeJson] | None:
+        for record in records:
+            difference = cast(float, record["relative_loss_difference"])
+            if difference > LOSS_RELATIVE_LIMIT:
+                return {
+                    "step": record["step"],
+                    "relative_loss_difference": difference,
+                    "parameter_with_max_difference": record[
+                        "parameter_with_max_difference"
+                    ],
+                    "parameter_max_abs_difference": record[
+                        "parameter_max_abs_difference"
+                    ],
                 }
-                break
 
-    completed_steps = len(batch_digests)
+        return None
+
+    phase_records: dict[str, list[dict[str, ProbeJson]]] = {
+        "cross_system": [],
+        "noise_floor": [],
+    }
+    sampler_signatures: dict[str, list[str]] = {
+        "cross_system": [],
+        "noise_floor": [],
+    }
+    package_optimizer = KerasAdam(
+        package_model.parameters(), lr=comparison.LEARNING_RATE
+    )
+    noise_floor_optimizer = KerasAdam(
+        noise_floor_package.parameters(), lr=comparison.LEARNING_RATE
+    )
+    noise_floor_perturbed_optimizer = KerasAdam(
+        noise_floor_perturbed.parameters(), lr=comparison.LEARNING_RATE
+    )
+
+    config.jsonl_output.parent.mkdir(parents=True, exist_ok=True)
+    with config.jsonl_output.open("x", encoding="utf-8") as output:
+        for phase in ("cross_system", "noise_floor"):
+            for step, (batch, noise, sampler_state) in enumerate(batch_stream()):
+                step_started = time.monotonic()
+                sampler_signatures[phase].append(
+                    json.dumps(sampler_state, sort_keys=True)
+                )
+                if phase == "cross_system":
+                    reseed = config.seed + step
+                    torch.manual_seed(reseed)
+                    if config.device == "cuda":
+                        torch.cuda.manual_seed_all(reseed)
+
+                    step_summary: dict[str, ProbeJson] = {}
+                    comparison._train_step(
+                        tf,
+                        original_model,
+                        package_model,
+                        package_optimizer,
+                        batch,
+                        noise,
+                        step,
+                        [],
+                        [],
+                        [],
+                        [],
+                        [],
+                        step_summary,
+                    )
+                    metric_values = {
+                        "loss_left": step_summary["loss_original"],
+                        "loss_right": step_summary["loss_package"],
+                        "relative_loss_difference": abs(
+                            cast(float, step_summary["loss_package"])
+                            - cast(float, step_summary["loss_original"])
+                        )
+                        / max(abs(cast(float, step_summary["loss_original"])), 1e-12),
+                        "gradient_norm_left": step_summary["gradient_norm_original"],
+                        "gradient_norm_right": step_summary["gradient_norm_package"],
+                        "parameter_max_abs_difference": step_summary[
+                            "parameter_max_abs_difference"
+                        ],
+                        "parameter_with_max_difference": step_summary[
+                            "parameter_with_max_difference"
+                        ],
+                    }
+                    comparison_name = "tensorflow_vs_package"
+                else:
+                    metric_values = comparison._package_lockstep_step(
+                        noise_floor_package,
+                        noise_floor_perturbed,
+                        noise_floor_optimizer,
+                        noise_floor_perturbed_optimizer,
+                        batch,
+                        noise,
+                        config.seed + step,
+                    )
+                    comparison_name = "package_vs_one_ulp_perturbed_package"
+
+                step_seconds = time.monotonic() - step_started
+                record: dict[str, ProbeJson] = {
+                    "phase": phase,
+                    "comparison": comparison_name,
+                    "step": step + 1,
+                    **metric_values,
+                    "sampler_state": sampler_state,
+                    "step_seconds_report_only": step_seconds,
+                    "documents_per_second_report_only": len(
+                        cast(list[str], sampler_state["source_indices"])
+                    )
+                    / max(step_seconds, 1e-12),
+                }
+                ensure_finite(record)
+                output.write(json.dumps(record, sort_keys=True, allow_nan=False) + "\n")
+                output.flush()
+                phase_records[phase].append(record)
+
+    if sampler_signatures["cross_system"] != sampler_signatures["noise_floor"]:
+        raise RuntimeError(
+            "noise-floor sampler or posterior reseeding differs from cross-system probe"
+        )
+
+    cross_first = first_over_tolerance(phase_records["cross_system"])
+    noise_first = first_over_tolerance(phase_records["noise_floor"])
+    cross_step = cast(int | None, cross_first["step"] if cross_first else None)
+    noise_step = cast(int | None, noise_first["step"] if noise_first else None)
+    attribution_passed = cross_step is None or (
+        noise_step is not None and cross_step >= noise_step
+    )
+    phases: dict[str, ProbeJson] = {}
+    cross_sampler_batch_sha256 = ""
+    for phase, records in phase_records.items():
+        first = cross_first if phase == "cross_system" else noise_first
+        batch_hashes: list[str] = []
+        for record in records:
+            sampler_state = record.get("sampler_state")
+            batch_hash = (
+                sampler_state.get("batch_sha256")
+                if isinstance(sampler_state, dict)
+                else None
+            )
+            if not isinstance(batch_hash, str):
+                raise RuntimeError("lockstep probe sampler batch hash is missing")
+            batch_hashes.append(batch_hash)
+        phase_sampler_batch_sha256 = _sha256_bytes(
+            "\n".join(batch_hashes).encode("ascii")
+        )
+        if phase == "cross_system":
+            cross_sampler_batch_sha256 = phase_sampler_batch_sha256
+
+        phases[phase] = {
+            "required_steps": config.steps,
+            "completed_steps": len(records),
+            "first_step_over_tolerance": first,
+            "maximum_relative_loss_difference": max(
+                cast(float, record["relative_loss_difference"]) for record in records
+            ),
+            "sampler_batch_sha256": phase_sampler_batch_sha256,
+        }
+
     return {
-        "protocol": "crello-real-scale-lockstep-v1",
+        "protocol": "crello-real-scale-lockstep-v2",
         "source_commit": os.environ.get("CANVAS_VAE_S5_SOURCE_COMMIT", "unknown"),
         "probe_script_sha256": _sha256_bytes(Path(__file__).read_bytes()),
         "comparison_script_sha256": _sha256_bytes(comparison_path.read_bytes()),
-        "status": "failed" if first_failure is not None else "passed",
+        "status": "completed",
         "device": config.device,
         "required_steps": config.steps,
-        "completed_steps": completed_steps,
+        "completed_steps": config.steps,
+        "completed_steps_per_phase": config.steps,
         "batch_size": config.batch_size,
         "document_count": len(documents),
         "initial_state_sha256": initial_state_sha256,
+        "noise_floor_initial_state_sha256": noise_floor_initial_sha256,
+        "noise_floor_perturbed_parameter_values": perturbed_parameter_values,
         "relative_loss_limit": LOSS_RELATIVE_LIMIT,
-        "maximum_relative_loss_difference": maximum_relative_loss_difference,
-        "first_step_over_tolerance": first_failure,
+        "phases": phases,
+        "first_step_over_tolerance": cross_first,
+        "noise_floor_first_step_over_tolerance": noise_first,
+        "noise_floor_attribution_passed": attribution_passed,
         "sampler": "CrossEpochBatchSampler",
-        "sampler_batch_sha256": _sha256_bytes("\n".join(batch_digests).encode("ascii")),
-        "gate_fields": ["relative_loss_difference"],
+        "sampler_batch_sha256": cross_sampler_batch_sha256,
+        "gate_fields": ["finite_metrics", "noise_floor_attribution"],
         "throughput_fields_are_report_only": True,
     }
 
@@ -313,7 +443,7 @@ def main() -> None:
         _write_summary(
             config.summary_output,
             {
-                "protocol": "crello-real-scale-lockstep-v1",
+                "protocol": "crello-real-scale-lockstep-v2",
                 "status": "error",
                 "error": f"{type(error).__name__}: {error}",
                 "completed_steps": 0,
@@ -324,7 +454,10 @@ def main() -> None:
 
     _write_summary(config.summary_output, summary)
     print(json.dumps(summary, sort_keys=True, allow_nan=False))
-    if summary["status"] != "passed" or summary["completed_steps"] != config.steps:
+    if (
+        summary["status"] != "completed"
+        or summary["completed_steps_per_phase"] != config.steps
+    ):
         raise SystemExit(1)
 
 
