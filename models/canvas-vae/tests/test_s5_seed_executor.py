@@ -66,6 +66,7 @@ def test_runtime_hub_prefixes_are_resolved_without_committing_private_paths() ->
 def test_crello_postprocess_uses_crello_vocab_and_evaluator() -> None:
     manifest = {
         "dataset": "crello",
+        "runtime_plan": {"source_branch": "feat/canvas-vae-crello-model"},
         "dataset_paths": {
             "package_vocabulary": ".cache/canvas-vae/crello/package-run-1/vocabulary.json",
             "original_vocabulary": ".cache/canvas-vae/original/data/crello-s5/vocabulary.json",
@@ -88,11 +89,14 @@ def test_crello_postprocess_uses_crello_vocab_and_evaluator() -> None:
         "epoch_500_checkpoint": "/content/out/checkpoints/crello-original-seed0/{segment_id}/epoch-500.ckpt",
     }
 
-    command = EXECUTOR.build_postprocess_job(manifest, run, "segment-001")
+    command = EXECUTOR.build_postprocess_job(manifest, run, "segment-001", "a" * 40)
 
     assert "--dataset crello" in command
     assert ".cache/canvas-vae/original/data/crello-s5/vocabulary.json" in command
     assert "models/canvas-vae/scripts/evaluate_crello.py" in command
+    assert "/content/colab-uv-setup.sh" in command
+    assert "--extra convert" in command
+    assert "uv sync" not in command
 
 
 def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> None:
@@ -252,10 +256,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
 
     for command in (full_command, tiny_command):
         assert "git rev-parse HEAD" in command
-        assert (
-            "uv sync --frozen --package canvas-vae --extra training --extra vendor"
-            in command
-        )
+        assert "uv sync" not in command
         assert "tiny_original_input_subset_passed" not in command
         assert "cpu_smoke" not in command
         assert "smoke_original" not in command
@@ -272,6 +273,33 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         "--data-dir /content/repo/.cache/canvas-vae/original/data/crello-s5"
         in tiny_command
     )
+
+
+def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
+    tmp_path: Path,
+) -> None:
+    preflight_path, preflight_script, _ = EXECUTOR.temporary_files(
+        tmp_path,
+        {
+            "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+            "dataset": "crello",
+            "input_data": {"revision": "a" * 40, "prefix": "inputs"},
+            "runtime_plan": {"source_branch": "feat/canvas-vae-crello-model"},
+        },
+        {"system": "original"},
+        "b" * 40,
+        "example-owner/artifacts",
+        download_inputs=True,
+    )
+    preflight = json.loads(preflight_path.read_text())
+    source = preflight_script.read_text()
+
+    assert preflight["uv_extras"] == ["training", "vendor"]
+    assert preflight["initialize_vendor_submodule"] is True
+    assert '"/content/colab-uv-setup.sh"' in source
+    assert "git clone" not in source
+    assert "submodule update" not in source
+    assert "uv sync" not in source
 
 
 def test_crello_executor_skips_production_gates_only_for_cpu_smoke() -> None:
