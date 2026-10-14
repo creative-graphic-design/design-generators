@@ -7,6 +7,7 @@
 # @option --repo-dir PATH Remote checkout directory.
 # @option --package NAME Workspace package to sync.
 # @option --extra NAME Repeatable uv extra to install.
+# @option --group NAME Repeatable uv dependency group to install.
 # @option --submodules Initialize recursive git submodules.
 # @option --uv-environment PATH Required explicit sync environment; emit its shell export.
 # @stdout A shell-quoted UV_PROJECT_ENVIRONMENT export.
@@ -16,7 +17,7 @@ set -Eeuo pipefail
 
 function usage() {
     cat >&2 <<'USAGE'
-usage: colab_uv_setup.sh --source-url URL --source-branch NAME --source-commit SHA --repo-dir PATH --package NAME --extra NAME [--extra NAME]... --uv-environment PATH [--submodules]
+usage: colab_uv_setup.sh --source-url URL --source-branch NAME --source-commit SHA --repo-dir PATH --package NAME --extra NAME [--extra NAME]... [--group NAME]... --uv-environment PATH [--submodules]
 USAGE
     exit 2
 }
@@ -29,10 +30,11 @@ package=''
 uv_environment=''
 initialize_submodules=false
 extras=()
+groups=()
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --source-url | --source-branch | --source-commit | --repo-dir | --package | --extra | --uv-environment)
+        --source-url | --source-branch | --source-commit | --repo-dir | --package | --extra | --group | --uv-environment)
             [ "$#" -ge 2 ] || usage
             case "$1" in
                 --source-url) source_url="$2" ;;
@@ -41,6 +43,7 @@ while [ "$#" -gt 0 ]; do
                 --repo-dir) repo_dir="$2" ;;
                 --package) package="$2" ;;
                 --extra) extras+=("$2") ;;
+                --group) groups+=("$2") ;;
                 --uv-environment) uv_environment="$2" ;;
             esac
             shift 2
@@ -69,6 +72,9 @@ case "$uv_environment/" in
 esac
 for extra in "${extras[@]}"; do
     [[ "$extra" =~ ^[A-Za-z0-9_-]+$ ]] || usage
+done
+for group in "${groups[@]}"; do
+    [[ "$group" =~ ^[A-Za-z0-9_-]+$ ]] || usage
 done
 git check-ref-format --branch "$source_branch" >/dev/null
 
@@ -101,12 +107,18 @@ uv_arguments=(sync --frozen --project "$repo_dir" --package "$package")
 for extra in "${extras[@]}"; do
     uv_arguments+=(--extra "$extra")
 done
+for group in "${groups[@]}"; do
+    uv_arguments+=(--group "$group")
+done
 uv "${uv_arguments[@]}" >&2
 check_arguments=(
     run --frozen --no-sync --project "$repo_dir" --package "$package"
 )
 for extra in "${extras[@]}"; do
     check_arguments+=(--extra "$extra")
+done
+for group in "${groups[@]}"; do
+    check_arguments+=(--group "$group")
 done
 uv "${check_arguments[@]}" python \
     "$repo_dir/models/canvas-vae/scripts/check_colab_nccl.py" \
