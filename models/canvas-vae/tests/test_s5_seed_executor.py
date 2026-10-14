@@ -112,6 +112,74 @@ def test_colab_exec_steps_persist_deliberate_failure_exit_codes(
     assert "deliberate step failure" in job_result.stdout
 
 
+def test_local_upload_preflight_checks_recorded_sha256(tmp_path: Path) -> None:
+    upload = tmp_path / "upload.txt"
+    upload.write_text("expected payload", encoding="utf-8")
+    expected_sha256 = EXECUTOR.sha256_file(upload)
+
+    EXECUTOR.validate_local_uploads(((upload, "/content/upload.txt", expected_sha256),))
+
+    with pytest.raises(EXECUTOR.ExecutorError, match="SHA-256 differs"):
+        EXECUTOR.validate_local_uploads(((upload, "/content/upload.txt", "0" * 64),))
+
+
+def test_missing_local_upload_fails_before_colab_session_creation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper_path = tmp_path / "wrapper.sh"
+    preflight_path = tmp_path / "preflight.json"
+    preflight_script = tmp_path / "preflight.py"
+    run_script = tmp_path / "run.sh"
+    token_path = tmp_path / "token"
+    run_env = tmp_path / "run.env"
+    for path in (
+        wrapper_path,
+        preflight_path,
+        preflight_script,
+        run_script,
+        token_path,
+        run_env,
+    ):
+        path.write_text("placeholder", encoding="utf-8")
+
+    colab_calls: list[tuple[object, ...]] = []
+
+    def record_colab_call(*args: object, **kwargs: object) -> str:
+        colab_calls.append(args)
+        return ""
+
+    monkeypatch.setattr(EXECUTOR, "colab", record_colab_call)
+
+    with pytest.raises(
+        EXECUTOR.ExecutorError,
+        match="local upload for /content/missing.txt is missing",
+    ):
+        EXECUTOR.run_named_session(
+            session_name="missing-upload-test",
+            gpu=None,
+            wrapper_path=wrapper_path,
+            token_path=token_path,
+            preflight_path=preflight_path,
+            preflight_script=preflight_script,
+            run_script=run_script,
+            job_name="missing-upload-test",
+            hub_prefix="test/output",
+            ttl="30m",
+            run_command="bash /content/run-job.sh",
+            sync_paths=("/content/out/logs",),
+            run_env=run_env,
+            output_capture=tmp_path / "output.log",
+            hub_repository="example-owner/test-artifacts",
+            download_inputs=False,
+            additional_uploads=(
+                (tmp_path / "missing.txt", "/content/missing.txt", None),
+            ),
+        )
+
+    assert colab_calls == []
+
+
 def test_executor_refuses_to_run_without_hub_repository(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

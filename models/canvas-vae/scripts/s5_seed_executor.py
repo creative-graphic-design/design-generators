@@ -37,6 +37,7 @@ JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
 JsonObject: TypeAlias = dict[str, JsonValue]
+LocalUpload: TypeAlias = tuple[Path, str, str | None]
 
 
 class ExecutorError(Exception):
@@ -174,6 +175,31 @@ def sha256_file(path: Path) -> str:
             digest.update(chunk)
 
     return digest.hexdigest()
+
+
+def validate_local_uploads(
+    uploads: tuple[LocalUpload, ...],
+    exec_files: tuple[Path, ...] = (),
+) -> None:
+    for local_path, remote_path, expected_sha256 in uploads:
+        if not local_path.is_file():
+            raise ExecutorError(
+                f"local upload for {remote_path} is missing: {local_path}"
+            )
+        if expected_sha256 is None:
+            continue
+        if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+            raise ExecutorError(
+                f"local upload for {remote_path} has an invalid expected SHA-256"
+            )
+        if sha256_file(local_path) != expected_sha256:
+            raise ExecutorError(
+                f"local upload SHA-256 differs for {remote_path}: {local_path}"
+            )
+
+    for local_path in exec_files:
+        if not local_path.is_file():
+            raise ExecutorError(f"local Colab exec file is missing: {local_path}")
 
 
 def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None:
@@ -1629,9 +1655,8 @@ def run_named_session(
     hub_repository: str,
     resume_checkpoint: Path | None = None,
     download_inputs: bool = True,
-    additional_uploads: tuple[tuple[Path, str], ...] = (),
+    additional_uploads: tuple[LocalUpload, ...] = (),
 ) -> int:
-    assert_session_is_free(session_name)
     create_args = ["new", "--session", session_name]
     if gpu is not None:
         create_args.extend(["--gpu", gpu])
@@ -1642,49 +1667,71 @@ def run_named_session(
         encoding="utf-8",
     )
     exec_step_script.chmod(0o700)
+    preflight_command = (
+        "set -Eeuo pipefail\n"
+        "restricted=(/content/s5-upload-token /content/s5-run.env)\n"
+        "if [ -e /content/s5-download-token ]; then "
+        "restricted+=(/content/s5-download-token); fi\n"
+        'chmod 600 "${restricted[@]}"\n'
+        "chmod 700 /content/colab-job.sh /content/colab-uv-setup.sh "
+        "/content/run-job.sh /content/s5-exec-step.sh\n"
+        "mkdir -p /content/out/resume\n"
+        "python /content/s5-preflight.py"
+    )
+    cell_path = preflight_path.with_name("preflight-cell.py")
+    cell_path.write_text(
+        make_colab_exec_cell(
+            ["bash", "-lc", preflight_command],
+            "/content/s5-preflight-exit-code",
+            "/content/s5-preflight.log",
+        ),
+        encoding="utf-8",
+    )
+    launch_cell = preflight_path.with_name("launch-cell.py")
+    launch_cell.write_text(
+        make_wrapper_cell(
+            job_name,
+            hub_repository,
+            hub_prefix,
+            ttl,
+            list(sync_paths),
+        ),
+        encoding="utf-8",
+    )
+    uploads: list[LocalUpload] = [
+        (wrapper_path, "/content/colab-job.sh", None),
+        (
+            Path(__file__).with_name("colab_uv_setup.sh"),
+            "/content/colab-uv-setup.sh",
+            None,
+        ),
+        (preflight_path, "/content/s5-preflight.json", None),
+        (preflight_script, "/content/s5-preflight.py", None),
+        (run_script, "/content/run-job.sh", None),
+        (exec_step_script, "/content/s5-exec-step.sh", None),
+        (run_env, "/content/s5-run.env", None),
+        (token_path, "/content/s5-upload-token", None),
+        *additional_uploads,
+    ]
+    if download_inputs:
+        uploads.append((token_path, "/content/s5-download-token", None))
+    deferred_uploads: list[LocalUpload] = []
+    if resume_checkpoint is not None:
+        deferred_uploads.append(
+            (resume_checkpoint, "/content/out/resume/checkpoint.ckpt", None)
+        )
+    validate_local_uploads(
+        tuple((*uploads, *deferred_uploads)),
+        exec_files=(cell_path, launch_cell),
+    )
+    assert_session_is_free(session_name)
     colab(*create_args, timeout=300)
 
     wrapper_started = False
     try:
-        uploads = [
-            (wrapper_path, "/content/colab-job.sh"),
-            (
-                Path(__file__).with_name("colab_uv_setup.sh"),
-                "/content/colab-uv-setup.sh",
-            ),
-            (preflight_path, "/content/s5-preflight.json"),
-            (preflight_script, "/content/s5-preflight.py"),
-            (run_script, "/content/run-job.sh"),
-            (exec_step_script, "/content/s5-exec-step.sh"),
-            (run_env, "/content/s5-run.env"),
-            (token_path, "/content/s5-upload-token"),
-            *additional_uploads,
-        ]
-        if download_inputs:
-            uploads.append((token_path, "/content/s5-download-token"))
-        for local_path, remote_path in uploads:
+        for local_path, remote_path, _ in uploads:
             colab("upload", "--session", session_name, str(local_path), remote_path)
 
-        preflight_command = (
-            "set -Eeuo pipefail\n"
-            "restricted=(/content/s5-upload-token /content/s5-run.env)\n"
-            "if [ -e /content/s5-download-token ]; then "
-            "restricted+=(/content/s5-download-token); fi\n"
-            'chmod 600 "${restricted[@]}"\n'
-            "chmod 700 /content/colab-job.sh /content/colab-uv-setup.sh "
-            "/content/run-job.sh /content/s5-exec-step.sh\n"
-            "mkdir -p /content/out/resume\n"
-            "python /content/s5-preflight.py"
-        )
-        cell_path = preflight_path.with_name("preflight-cell.py")
-        cell_path.write_text(
-            make_colab_exec_cell(
-                ["bash", "-lc", preflight_command],
-                "/content/s5-preflight-exit-code",
-                "/content/s5-preflight.log",
-            ),
-            encoding="utf-8",
-        )
         preflight_cli_error: ExecutorError | subprocess.SubprocessError | None = None
         try:
             colab(
@@ -1736,26 +1783,15 @@ def run_named_session(
                 f"(redaction_count={redactions}):\n{log_text}"
             )
 
-        if resume_checkpoint is not None:
+        for local_path, remote_path, _ in deferred_uploads:
             colab(
                 "upload",
                 "--session",
                 session_name,
-                str(resume_checkpoint),
-                "/content/out/resume/checkpoint.ckpt",
+                str(local_path),
+                remote_path,
             )
 
-        launch_cell = preflight_path.with_name("launch-cell.py")
-        launch_cell.write_text(
-            make_wrapper_cell(
-                job_name,
-                hub_repository,
-                hub_prefix,
-                ttl,
-                list(sync_paths),
-            ),
-            encoding="utf-8",
-        )
         wrapper_started = True
         wrapper_cli_error: ExecutorError | subprocess.SubprocessError | None = None
         try:
@@ -2036,7 +2072,7 @@ def execute_run(
 
     with tempfile.TemporaryDirectory(prefix="cvae-s5-run-") as temporary:
         temporary_directory = Path(temporary)
-        additional_training_uploads: tuple[tuple[Path, str], ...] = ()
+        additional_training_uploads: tuple[LocalUpload, ...] = ()
         training_config_override = run.get("training_config_override")
         if cpu_runtime_smoke and system == "package":
             if training_config_override != "/content/s5-smoke.yaml":
@@ -2046,7 +2082,7 @@ def execute_run(
                 cpu_smoke_training_config(run_id, segment_id), encoding="utf-8"
             )
             additional_training_uploads = (
-                (smoke_config_path, "/content/s5-smoke.yaml"),
+                (smoke_config_path, "/content/s5-smoke.yaml", None),
             )
         if cpu_runtime_smoke and system == "original":
             original_arguments = run.get("train_original_arguments")
