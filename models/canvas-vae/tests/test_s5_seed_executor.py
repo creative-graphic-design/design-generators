@@ -38,6 +38,38 @@ def test_executor_requires_and_passes_hub_repository(
     assert remote_command[-2:] == ["bash", "/content/s5-exec-step.sh"]
 
 
+@pytest.mark.parametrize(
+    "caller_sync_paths",
+    [[], ["/content/out/checkpoints"], ["/content/out/logs"]],
+)
+def test_wrapper_always_syncs_its_log_directory(
+    caller_sync_paths: list[str],
+) -> None:
+    remote_source = EXECUTOR.make_wrapper_cell(
+        "test-job",
+        "example-owner/test-artifacts",
+        "s5/test-job",
+        "30m",
+        caller_sync_paths,
+    )
+    call = next(
+        node
+        for node in ast.walk(ast.parse(remote_source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "run"
+    )
+    remote_command = ast.literal_eval(call.args[0])
+    synced_paths = [
+        remote_command[index + 1]
+        for index, argument in enumerate(remote_command[:-1])
+        if argument == "--sync-path"
+    ]
+
+    assert synced_paths.count("/content/out/logs") == 1
+    assert all(path in synced_paths for path in caller_sync_paths)
+
+
 def test_colab_exec_steps_persist_deliberate_failure_exit_codes(
     tmp_path: Path,
 ) -> None:
@@ -96,6 +128,7 @@ def test_runtime_hub_prefixes_are_resolved_without_committing_private_paths() ->
         {
             "prefix": "{input_prefix}/crello-s5-inputs",
             "artifact_prefix": "{output_prefix}/crello/{run_id}",
+            "fixture_prefix": "{probe_fixture_prefix}/cache",
         },
         "inputs/project-a",
         "outputs/project-a",
@@ -105,7 +138,7 @@ def test_runtime_hub_prefixes_are_resolved_without_committing_private_paths() ->
     assert resolved == {
         "prefix": "inputs/project-a/crello-s5-inputs",
         "artifact_prefix": "outputs/project-a/crello/{run_id}",
-        "probe_fixture_prefix": "cache/project-a",
+        "fixture_prefix": "cache/project-a/cache",
     }
 
 

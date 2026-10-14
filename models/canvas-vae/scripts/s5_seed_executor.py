@@ -1514,6 +1514,8 @@ def make_wrapper_cell(
     ttl: str,
     sync_paths: list[str],
 ) -> str:
+    launcher_sync_paths = [path for path in sync_paths if path != "/content/out/logs"]
+    launcher_sync_paths.append("/content/out/logs")
     command = [
         "bash",
         "/content/colab-job.sh",
@@ -1525,7 +1527,7 @@ def make_wrapper_cell(
         hub_prefix,
         "--hub-token-file",
         "/content/s5-upload-token",
-        *[part for path in sync_paths for part in ("--sync-path", path)],
+        *[part for path in launcher_sync_paths for part in ("--sync-path", path)],
         "--sync-interval",
         "15m",
         "--ttl",

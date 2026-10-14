@@ -1,4 +1,4 @@
-"""Compare original and package Crello training for the S5 lockstep gate."""
+"""Compare original and package Crello training for the lockstep gate."""
 
 from __future__ import annotations
 
