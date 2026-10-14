@@ -1512,7 +1512,6 @@ def make_wrapper_cell(
     hub_repository: str,
     hub_prefix: str,
     ttl: str,
-    run_command: str,
     sync_paths: list[str],
 ) -> str:
     command = [
@@ -1534,12 +1533,80 @@ def make_wrapper_cell(
         "--env-file",
         "/content/s5-run.env",
         "--",
-        *shlex.split(run_command),
+        "bash",
+        "/content/s5-exec-step.sh",
     ]
 
     return (
         "import subprocess\nsubprocess.run(" + json.dumps(command) + ", check=True)\n"
     )
+
+
+def make_colab_exec_cell(command: list[str], exit_code_path: str, log_path: str) -> str:
+    if not command:
+        raise ExecutorError("Colab exec step command must not be empty")
+
+    return "\n".join(
+        (
+            "from pathlib import Path",
+            "import subprocess",
+            "import traceback",
+            f"command = {json.dumps(command)}",
+            f"exit_code_path = Path({json.dumps(exit_code_path)})",
+            f"log_path = Path({json.dumps(log_path)})",
+            "exit_code = 1",
+            "try:",
+            "    exit_code_path.parent.mkdir(parents=True, exist_ok=True)",
+            "    log_path.parent.mkdir(parents=True, exist_ok=True)",
+            "    with log_path.open('w', encoding='utf-8') as log:",
+            "        result = subprocess.run(",
+            "            command, stdout=log, stderr=subprocess.STDOUT, check=False",
+            "        )",
+            "    exit_code = result.returncode",
+            "except BaseException:",
+            "    log_path.write_text(traceback.format_exc(), encoding='utf-8')",
+            "finally:",
+            "    exit_code_path.write_text(f'{exit_code}\\n', encoding='ascii')",
+            "if exit_code != 0:",
+            "    raise SystemExit(exit_code)",
+            "",
+        )
+    )
+
+
+def make_exec_step_script(command: list[str], exit_code_path: str) -> str:
+    if not command:
+        raise ExecutorError("Colab exec step command must not be empty")
+
+    command_line = shlex.join(command)
+    exit_path = shlex.quote(exit_code_path)
+    exit_parent = shlex.quote(str(PurePosixPath(exit_code_path).parent))
+
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -uo pipefail\n"
+        "set +e\n"
+        f"{command_line}\n"
+        "exit_code=$?\n"
+        f"mkdir -p {exit_parent}\n"
+        f"printf '%s\\n' \"$exit_code\" > {exit_path}\n"
+        'exit "$exit_code"\n'
+    )
+
+
+def read_exit_code_file(path: Path, step_name: str) -> int:
+    try:
+        exit_code = int(path.read_text(encoding="ascii").strip())
+    except (OSError, ValueError) as error:
+        raise ExecutorError(
+            f"Colab exec step {step_name!r} did not produce an exit-code file"
+        ) from error
+    if not 0 <= exit_code <= 255:
+        raise ExecutorError(
+            f"Colab exec step {step_name!r} wrote an out-of-range exit code"
+        )
+
+    return exit_code
 
 
 def run_named_session(
@@ -1566,6 +1633,13 @@ def run_named_session(
     create_args = ["new", "--session", session_name]
     if gpu is not None:
         create_args.extend(["--gpu", gpu])
+    exec_step_status_path = f"/content/out/logs/colab-exec/{job_name}/exit_code"
+    exec_step_script = preflight_path.with_name(f"{job_name}-exec-step.sh")
+    exec_step_script.write_text(
+        make_exec_step_script(shlex.split(run_command), exec_step_status_path),
+        encoding="utf-8",
+    )
+    exec_step_script.chmod(0o700)
     colab(*create_args, timeout=300)
 
     wrapper_started = False
@@ -1579,6 +1653,7 @@ def run_named_session(
             (preflight_path, "/content/s5-preflight.json"),
             (preflight_script, "/content/s5-preflight.py"),
             (run_script, "/content/run-job.sh"),
+            (exec_step_script, "/content/s5-exec-step.sh"),
             (run_env, "/content/s5-run.env"),
             (token_path, "/content/s5-upload-token"),
             *additional_uploads,
@@ -1588,29 +1663,76 @@ def run_named_session(
         for local_path, remote_path in uploads:
             colab("upload", "--session", session_name, str(local_path), remote_path)
 
-        remote_preflight_cell = (
-            "from pathlib import Path\n"
-            "import subprocess\n"
-            "restricted=['/content/s5-upload-token','/content/s5-run.env']\n"
-            "if Path('/content/s5-download-token').exists(): restricted.append('/content/s5-download-token')\n"
-            "subprocess.run(['chmod','600',*restricted],check=True)\n"
-            "subprocess.run(['chmod', '700', '/content/colab-job.sh', "
-            "'/content/colab-uv-setup.sh', '/content/run-job.sh'], check=True)\n"
-            "Path('/content/out/resume').mkdir(parents=True, exist_ok=True)\n"
-            "subprocess.run(['python', '/content/s5-preflight.py'], check=True)\n"
+        preflight_command = (
+            "set -Eeuo pipefail\n"
+            "restricted=(/content/s5-upload-token /content/s5-run.env)\n"
+            "if [ -e /content/s5-download-token ]; then "
+            "restricted+=(/content/s5-download-token); fi\n"
+            'chmod 600 "${restricted[@]}"\n'
+            "chmod 700 /content/colab-job.sh /content/colab-uv-setup.sh "
+            "/content/run-job.sh /content/s5-exec-step.sh\n"
+            "mkdir -p /content/out/resume\n"
+            "python /content/s5-preflight.py"
         )
         cell_path = preflight_path.with_name("preflight-cell.py")
-        cell_path.write_text(remote_preflight_cell, encoding="utf-8")
+        cell_path.write_text(
+            make_colab_exec_cell(
+                ["bash", "-lc", preflight_command],
+                "/content/s5-preflight-exit-code",
+                "/content/s5-preflight.log",
+            ),
+            encoding="utf-8",
+        )
+        preflight_cli_error: ExecutorError | subprocess.SubprocessError | None = None
+        try:
+            colab(
+                "exec",
+                "--session",
+                session_name,
+                "--timeout",
+                "1800",
+                "-f",
+                str(cell_path.resolve()),
+                timeout=1900,
+            )
+        except (ExecutorError, subprocess.SubprocessError) as error:
+            preflight_cli_error = error
+
+        remote_preflight_exit = preflight_path.with_name("remote-preflight-exit-code")
         colab(
-            "exec",
+            "download",
             "--session",
             session_name,
-            "--timeout",
-            "1800",
-            "-f",
-            str(cell_path.resolve()),
-            timeout=1900,
+            "/content/s5-preflight-exit-code",
+            str(remote_preflight_exit),
         )
+        preflight_exit_code = read_exit_code_file(
+            remote_preflight_exit, "staged-input preflight"
+        )
+        if preflight_exit_code != 0 or preflight_cli_error is not None:
+            remote_preflight_log = preflight_path.with_name("remote-preflight.log")
+            colab(
+                "download",
+                "--session",
+                session_name,
+                "/content/s5-preflight.log",
+                str(remote_preflight_log),
+            )
+            log_bytes = remote_preflight_log.read_bytes()
+            token_pattern = re.compile(rb"hf_[A-Za-z0-9]{30,}")
+            redactions = len(token_pattern.findall(log_bytes))
+            safe_log = token_pattern.sub(b"[REDACTED_HF_TOKEN]", log_bytes)
+            log_text = safe_log.decode("utf-8", errors="replace")[-8000:]
+            cli_detail = (
+                f"; Colab CLI error: {preflight_cli_error}"
+                if preflight_cli_error is not None
+                else ""
+            )
+            raise ExecutorError(
+                "remote staged-input preflight failed with exit code "
+                f"{preflight_exit_code}{cli_detail} "
+                f"(redaction_count={redactions}):\n{log_text}"
+            )
 
         if resume_checkpoint is not None:
             colab(
@@ -1628,13 +1750,12 @@ def run_named_session(
                 hub_repository,
                 hub_prefix,
                 ttl,
-                run_command,
                 list(sync_paths),
             ),
             encoding="utf-8",
         )
         wrapper_started = True
-        wrapper_cli_error: ExecutorError | None = None
+        wrapper_cli_error: ExecutorError | subprocess.SubprocessError | None = None
         try:
             colab(
                 "exec",
@@ -1647,7 +1768,7 @@ def run_named_session(
                 output_path=output_capture,
                 timeout=7920,
             )
-        except ExecutorError as error:
+        except (ExecutorError, subprocess.SubprocessError) as error:
             # A nonzero wrapper exit is read from its authoritative Hub artifact below.
             wrapper_cli_error = error
     except (ExecutorError, OSError, subprocess.SubprocessError):
@@ -1660,6 +1781,16 @@ def run_named_session(
     exit_code = read_hub_exit_code(
         token_path, hub_repository, f"{hub_prefix}/logs/{job_name}/exit_code"
     )
+    exec_step_exit_code = read_hub_exit_code(
+        token_path,
+        hub_repository,
+        f"{hub_prefix}/logs/colab-exec/{job_name}/exit_code",
+    )
+    if exec_step_exit_code != exit_code:
+        raise ExecutorError(
+            "Colab exec step exit code differs from its wrapper exit code: "
+            f"{exec_step_exit_code} != {exit_code}"
+        )
     sessions = colab("sessions", capture=True)
     if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
         raise ExecutorError(

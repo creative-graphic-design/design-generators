@@ -1,6 +1,7 @@
 import ast
 import importlib.util
 import json
+import subprocess
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -26,7 +27,7 @@ def test_executor_requires_and_passes_hub_repository(
     args = EXECUTOR.parse_args()
 
     remote_source = EXECUTOR.make_wrapper_cell(
-        "test-job", args.hub_repo, "s5/test-job", "30m", "true", []
+        "test-job", args.hub_repo, "s5/test-job", "30m", []
     )
     command_data = remote_source.split("subprocess.run(", maxsplit=1)[1].split(
         ", check=True)", maxsplit=1
@@ -34,6 +35,49 @@ def test_executor_requires_and_passes_hub_repository(
     remote_command = json.loads(command_data)
 
     assert remote_command[remote_command.index("--hub-repo") + 1] == repository
+    assert remote_command[-2:] == ["bash", "/content/s5-exec-step.sh"]
+
+
+def test_colab_exec_steps_persist_deliberate_failure_exit_codes(
+    tmp_path: Path,
+) -> None:
+    failing_command = [
+        sys.executable,
+        "-c",
+        "import sys; print('deliberate step failure'); raise SystemExit(19)",
+    ]
+    cell_exit_path = tmp_path / "preflight-exit-code"
+    cell_log_path = tmp_path / "preflight.log"
+    cell = EXECUTOR.make_colab_exec_cell(
+        failing_command, str(cell_exit_path), str(cell_log_path)
+    )
+    cell_result = subprocess.run(
+        [sys.executable, "-c", cell],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert cell_result.returncode == 19
+    assert EXECUTOR.read_exit_code_file(cell_exit_path, "test preflight") == 19
+    assert "deliberate step failure" in cell_log_path.read_text()
+
+    job_exit_path = tmp_path / "job-exit-code"
+    job_script = tmp_path / "exec-step.sh"
+    job_script.write_text(
+        EXECUTOR.make_exec_step_script(failing_command, str(job_exit_path))
+    )
+    job_script.chmod(0o700)
+    job_result = subprocess.run(
+        ["bash", str(job_script)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert job_result.returncode == 19
+    assert EXECUTOR.read_exit_code_file(job_exit_path, "test job") == 19
+    assert "deliberate step failure" in job_result.stdout
 
 
 def test_executor_refuses_to_run_without_hub_repository(
@@ -381,9 +425,7 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
         == "d" * 64
     )
     assert (
-        preflight["lockstep_probe_inputs"]["package_data_archive"]["archive"][
-            "sha256"
-        ]
+        preflight["lockstep_probe_inputs"]["package_data_archive"]["archive"]["sha256"]
         == "c" * 64
     )
     assert preflight["initialize_vendor_submodule"] is True
