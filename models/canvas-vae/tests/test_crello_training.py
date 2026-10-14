@@ -27,6 +27,7 @@ from canvas_vae.modeling_canvas_vae import CanvasVAECrelloModel
 from canvas_vae.configuration_canvas_vae import CanvasVAECrelloConfig
 from canvas_vae.training.datamodule import CanvasVAECrelloDataModule
 from canvas_vae.training.lightning_module import CanvasVAECrelloTrainingModule
+from canvas_vae.training.precision import disable_torch_tf32
 from canvas_vae.training.parity import (
     ZERO_GRADIENT_LIMIT,
     check_zero_gradient,
@@ -158,6 +159,56 @@ def test_tensor_on_model_device_moves_host_values_to_reference_device():
         assert result.device == model.weight.device
         assert result.dtype == torch.float32
         assert result.shape == (2, 2)
+
+
+def test_torch_tf32_settings_are_disabled_and_verified():
+    previous_matmul_tf32 = torch.backends.cuda.matmul.allow_tf32
+    previous_cudnn_tf32 = torch.backends.cudnn.allow_tf32
+    previous_matmul_precision = torch.get_float32_matmul_precision()
+    try:
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.set_float32_matmul_precision("medium")
+
+        disable_torch_tf32()
+
+        assert torch.backends.cuda.matmul.allow_tf32 is False
+        assert torch.backends.cudnn.allow_tf32 is False
+        assert torch.get_float32_matmul_precision() == "highest"
+    finally:
+        torch.backends.cuda.matmul.allow_tf32 = previous_matmul_tf32
+        torch.backends.cudnn.allow_tf32 = previous_cudnn_tf32
+        torch.set_float32_matmul_precision(previous_matmul_precision)
+
+
+def test_lockstep_parameter_perturbation_moves_every_value_one_ulp():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "compare_crello_training.py"
+    )
+    namespace = runpy.run_path(str(script))
+    perturb = cast(
+        Callable[[torch.nn.Module], int],
+        namespace["_perturb_parameters_by_one_ulp"],
+    )
+    model = torch.nn.Linear(3, 2)
+    with torch.no_grad():
+        model.weight.copy_(torch.tensor([[0.0, 1.0, -1.0], [2.0, -2.0, 0.5]]))
+        model.bias.copy_(torch.tensor([0.0, -0.5]))
+    before = {
+        name: parameter.detach().clone() for name, parameter in model.named_parameters()
+    }
+    expected = {
+        name: torch.nextafter(value, torch.full_like(value, torch.inf))
+        for name, value in before.items()
+    }
+
+    parameter_values = perturb(model)
+
+    assert parameter_values == sum(value.numel() for value in before.values())
+    assert all(
+        torch.equal(dict(model.named_parameters())[name], value)
+        for name, value in expected.items()
+    )
 
 
 def test_crello_updated_parameter_differences_are_report_only():

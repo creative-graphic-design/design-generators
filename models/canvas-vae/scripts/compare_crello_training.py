@@ -25,7 +25,7 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import numpy as np
 import torch
-from jaxtyping import Float, Shaped
+from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.vendor import vendor_root
 
 from canvas_vae.configuration_canvas_vae import CanvasVAECrelloConfig
@@ -311,14 +311,134 @@ def _torch_state_sha256(state: Mapping[str, Shaped[torch.Tensor, "..."]]) -> str
 
 
 def _tensor_on_model_device(
-    value: np.ndarray | torch.Tensor,
+    value: (
+        Float[np.ndarray, "..."]
+        | Int[np.ndarray, "..."]
+        | Bool[np.ndarray, "..."]
+        | Float[torch.Tensor, "..."]
+        | Int[torch.Tensor, "..."]
+        | Bool[torch.Tensor, "..."]
+    ),
     model: CanvasVAECrelloModel,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "..."] | Int[torch.Tensor, "..."] | Bool[torch.Tensor, "..."]:
     parameter = next(model.parameters(), None)
     if parameter is None:
         raise ValueError("package model has no parameters")
 
-    return torch.as_tensor(value, device=parameter.device)
+    tensor = torch.as_tensor(value, device=parameter.device)
+    if tensor.is_floating_point() and tensor.dtype != parameter.dtype:
+        tensor = tensor.to(dtype=parameter.dtype)
+
+    return tensor
+
+
+def _perturb_parameters_by_one_ulp(model: CanvasVAECrelloModel) -> int:
+    """Move every float32 parameter one representable value toward positive infinity."""
+    parameter_count = 0
+    with torch.no_grad():
+        for parameter in model.parameters():
+            if parameter.dtype != torch.float32:
+                raise TypeError("the lockstep noise floor requires float32 parameters")
+
+            parameter.copy_(
+                torch.nextafter(parameter, torch.full_like(parameter, torch.inf))
+            )
+            if not torch.isfinite(parameter).all():
+                raise RuntimeError(
+                    "one-ULP parameter perturbation produced a non-finite value"
+                )
+            parameter_count += parameter.numel()
+
+    return parameter_count
+
+
+def _package_lockstep_step(
+    model_left: CanvasVAECrelloModel,
+    model_right: CanvasVAECrelloModel,
+    optimizer_left: KerasAdam,
+    optimizer_right: KerasAdam,
+    batch: CrelloBatch,
+    noise: Float[np.ndarray, "batch latent"],
+    reseed: int,
+) -> dict[str, JSONValue]:
+    """Train two package models on the same batch and return lockstep metrics."""
+    losses: list[float] = []
+    gradient_norms: list[float] = []
+    for model, optimizer in (
+        (model_left, optimizer_left),
+        (model_right, optimizer_right),
+    ):
+        torch.manual_seed(reseed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(reseed)
+
+        package_batch = cast(
+            CrelloBatch,
+            {
+                key: _tensor_on_model_device(value, model)
+                if isinstance(value, (np.ndarray, torch.Tensor))
+                else value
+                for key, value in batch.items()
+            },
+        )
+        model.train()
+        optimizer.zero_grad(set_to_none=True)
+        output = model(
+            package_batch, posterior_noise=_tensor_on_model_device(noise, model)
+        )
+        if output.loss is None or output.kl_divergence is None:
+            raise RuntimeError("package lockstep forward returned no losses")
+
+        loss = output.loss + l2_penalty(model, L2_WEIGHT)
+        loss.backward()
+        gradient_parameters = [
+            parameter for parameter in model.parameters() if parameter.grad is not None
+        ]
+        if not gradient_parameters:
+            raise RuntimeError("package lockstep produced no gradients")
+
+        gradient_norm = torch.linalg.vector_norm(
+            torch.stack(
+                [
+                    torch.linalg.vector_norm(parameter.grad.detach())
+                    for parameter in gradient_parameters
+                    if parameter.grad is not None
+                ]
+            )
+        )
+        losses.append(float(loss.detach().cpu()))
+        gradient_norms.append(float(gradient_norm.detach().cpu()))
+        clip_gradients_by_norm(model.parameters(), CLIP_NORM)
+        optimizer.step()
+
+    left_parameters = dict(model_left.named_parameters())
+    right_parameters = dict(model_right.named_parameters())
+    if left_parameters.keys() != right_parameters.keys():
+        raise RuntimeError("package lockstep model parameter names differ")
+
+    maximum_difference = 0.0
+    parameter_name: str | None = None
+    for name, left_parameter in left_parameters.items():
+        difference = float(
+            (left_parameter.detach() - right_parameters[name].detach())
+            .abs()
+            .max()
+            .cpu()
+        )
+        if difference > maximum_difference:
+            maximum_difference = difference
+            parameter_name = name
+
+    return {
+        "loss_left": losses[0],
+        "loss_right": losses[1],
+        "relative_loss_difference": abs(losses[1] - losses[0])
+        / max(abs(losses[0]), 1e-12),
+        "gradient_norm_left": gradient_norms[0],
+        "gradient_norm_right": gradient_norms[1],
+        "parameter_max_abs_difference": maximum_difference,
+        "parameter_with_max_difference": parameter_name,
+    }
 
 
 def _reference_inputs(

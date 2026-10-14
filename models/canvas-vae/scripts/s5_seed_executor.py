@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
@@ -33,6 +34,8 @@ LOCKSTEP_LOSS_RELATIVE_LIMIT = 1e-3
 LOCKSTEP_PROBE_SCRIPT = Path(
     "models/canvas-vae/tests/vendor_parity/crello_lockstep_probe.py"
 )
+TRAINING_UV_ENVIRONMENT = "/content/canvas-vae-training-env"
+POSTPROCESS_UV_ENVIRONMENT = "/content/canvas-vae-postprocess-env"
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
@@ -239,6 +242,210 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
     if not rehearsal_file.is_file() or sha256_file(rehearsal_file) != rehearsal_sha256:
         raise ExecutorError(
             "Crello CPU rehearsal report is missing or its SHA-256 differs"
+        )
+
+
+def validate_lockstep_probe_report(
+    summary: JsonObject,
+    records: list[JsonObject],
+    *,
+    required_steps: int,
+    expected_commit: str,
+) -> None:
+    if (
+        summary.get("protocol") != "crello-real-scale-lockstep-v2"
+        or summary.get("status") != "completed"
+        or summary.get("source_commit") != expected_commit
+        or summary.get("required_steps") != required_steps
+        or summary.get("completed_steps_per_phase") != required_steps
+        or summary.get("relative_loss_limit") != LOCKSTEP_LOSS_RELATIVE_LIMIT
+    ):
+        raise ExecutorError(
+            "Crello lockstep probe summary is incomplete or inconsistent"
+        )
+    if (
+        summary.get("gate_fields") != ["finite_metrics", "noise_floor_attribution"]
+        or summary.get("throughput_fields_are_report_only") is not True
+    ):
+        raise ExecutorError("Crello lockstep probe gate metadata is inconsistent")
+    if summary.get("initial_state_sha256") != summary.get(
+        "noise_floor_initial_state_sha256"
+    ):
+        raise ExecutorError("Crello package noise-floor initialization is inconsistent")
+    perturbed_parameter_values = summary.get("noise_floor_perturbed_parameter_values")
+    if (
+        isinstance(perturbed_parameter_values, bool)
+        or not isinstance(perturbed_parameter_values, int)
+        or perturbed_parameter_values <= 0
+    ):
+        raise ExecutorError("Crello package noise-floor initialization is inconsistent")
+
+    phase_names = ("cross_system", "noise_floor")
+    expected_comparisons = {
+        "cross_system": "tensorflow_vs_package",
+        "noise_floor": "package_vs_one_ulp_perturbed_package",
+    }
+    if len(records) != 2 * required_steps:
+        raise ExecutorError("Crello lockstep JSONL does not contain both full phases")
+    expected_phase_order = [
+        *("cross_system" for _ in range(required_steps)),
+        *("noise_floor" for _ in range(required_steps)),
+    ]
+    if [record.get("phase") for record in records] != expected_phase_order:
+        raise ExecutorError("Crello lockstep JSONL phases are missing or out of order")
+
+    phase_records = {
+        phase: [record for record in records if record.get("phase") == phase]
+        for phase in phase_names
+    }
+    numeric_fields = (
+        "loss_left",
+        "loss_right",
+        "relative_loss_difference",
+        "gradient_norm_left",
+        "gradient_norm_right",
+        "parameter_max_abs_difference",
+        "step_seconds_report_only",
+        "documents_per_second_report_only",
+    )
+    for phase, rows in phase_records.items():
+        if len(rows) != required_steps:
+            raise ExecutorError(f"Crello {phase} JSONL has an incorrect step count")
+        for step, record in enumerate(rows, start=1):
+            if (
+                record.get("step") != step
+                or record.get("comparison") != expected_comparisons[phase]
+            ):
+                raise ExecutorError(f"Crello {phase} JSONL has invalid step metadata")
+            numeric_values: dict[str, float] = {}
+            for field in numeric_fields:
+                value = record.get(field)
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                ):
+                    raise ExecutorError(
+                        f"Crello {phase} JSONL contains a non-finite metric"
+                    )
+                numeric_values[field] = float(value)
+            if (
+                numeric_values["relative_loss_difference"] < 0
+                or numeric_values["parameter_max_abs_difference"] < 0
+            ):
+                raise ExecutorError(
+                    f"Crello {phase} JSONL contains a negative difference"
+                )
+            parameter_name = record.get("parameter_with_max_difference")
+            if parameter_name is not None and not isinstance(parameter_name, str):
+                raise ExecutorError(f"Crello {phase} JSONL has an invalid state name")
+            if not isinstance(record.get("sampler_state"), dict):
+                raise ExecutorError(f"Crello {phase} JSONL lacks sampler state")
+
+    for cross_record, noise_record in zip(
+        phase_records["cross_system"], phase_records["noise_floor"], strict=True
+    ):
+        if cross_record["sampler_state"] != noise_record["sampler_state"]:
+            raise ExecutorError(
+                "Crello noise-floor batches or posterior noise differ from the cross-system probe"
+            )
+
+    phases = summary.get("phases")
+    if not isinstance(phases, dict):
+        raise ExecutorError("Crello lockstep probe summary lacks phase results")
+
+    def first_over(rows: list[JsonObject]) -> JsonObject | None:
+        record = next(
+            (
+                item
+                for item in rows
+                if cast(float, item["relative_loss_difference"])
+                > LOCKSTEP_LOSS_RELATIVE_LIMIT
+            ),
+            None,
+        )
+        if record is None:
+            return None
+
+        return {
+            "step": record["step"],
+            "relative_loss_difference": record["relative_loss_difference"],
+            "parameter_with_max_difference": record["parameter_with_max_difference"],
+            "parameter_max_abs_difference": record["parameter_max_abs_difference"],
+        }
+
+    def summary_first_matches(actual: JsonValue, expected: JsonObject | None) -> bool:
+        if expected is None:
+            return actual is None
+        if not isinstance(actual, dict):
+            return False
+
+        return all(
+            actual.get(key) == expected.get(key)
+            for key in (
+                "step",
+                "relative_loss_difference",
+                "parameter_with_max_difference",
+                "parameter_max_abs_difference",
+            )
+        )
+
+    first_steps: dict[str, JsonObject | None] = {}
+    for phase in phase_names:
+        phase_summary = phases.get(phase)
+        first = first_over(phase_records[phase])
+        if (
+            not isinstance(phase_summary, dict)
+            or phase_summary.get("required_steps") != required_steps
+            or phase_summary.get("completed_steps") != required_steps
+            or not summary_first_matches(
+                phase_summary.get("first_step_over_tolerance"), first
+            )
+        ):
+            raise ExecutorError(
+                f"Crello {phase} summary is incomplete or has an incorrect first exceedance"
+            )
+
+        batch_hashes: list[str] = []
+        for row in phase_records[phase]:
+            sampler_state = row.get("sampler_state")
+            batch_sha256 = (
+                sampler_state.get("batch_sha256")
+                if isinstance(sampler_state, dict)
+                else None
+            )
+            if not isinstance(batch_sha256, str):
+                raise ExecutorError(f"Crello {phase} JSONL has an invalid batch hash")
+            batch_hashes.append(batch_sha256)
+        expected_batch_hash = hashlib.sha256(
+            "\n".join(batch_hashes).encode("ascii")
+        ).hexdigest()
+        if phase_summary.get("sampler_batch_sha256") != expected_batch_hash:
+            raise ExecutorError(f"Crello {phase} sampler hash differs from its JSONL")
+        first_steps[phase] = first
+
+    cross_first = first_steps["cross_system"]
+    noise_first = first_steps["noise_floor"]
+    cross_step = cast(int, cross_first["step"]) if cross_first is not None else None
+    noise_step = cast(int, noise_first["step"]) if noise_first is not None else None
+    attribution_passed = cross_step is None or (
+        noise_step is not None and cross_step >= noise_step
+    )
+    if (
+        not summary_first_matches(summary.get("first_step_over_tolerance"), cross_first)
+        or not summary_first_matches(
+            summary.get("noise_floor_first_step_over_tolerance"), noise_first
+        )
+        or summary.get("noise_floor_attribution_passed") is not attribution_passed
+    ):
+        raise ExecutorError("Crello lockstep probe attribution summary is inconsistent")
+    if not attribution_passed:
+        raise ExecutorError(
+            "Crello cross-system divergence exceeds the package-only noise floor: "
+            + json.dumps(
+                {"cross_system_first": cross_first, "noise_floor_first": noise_first},
+                sort_keys=True,
+            )
         )
 
 
@@ -657,6 +864,7 @@ setup_command = [
     "--source-commit", config["source_commit"],
     "--repo-dir", str(repository),
     "--package", "canvas-vae",
+    "--uv-environment", config["uv_environment"],
 ]
 for extra in config["uv_extras"]:
     setup_command.extend(("--extra", extra))
@@ -972,7 +1180,17 @@ def temporary_files(
                 if run.get("system") == "original" and phase == "training"
                 else []
             ),
+            *(
+                ["convert"]
+                if run.get("system") == "original" and phase == "postprocess"
+                else []
+            ),
         ],
+        "uv_environment": (
+            TRAINING_UV_ENVIRONMENT
+            if phase == "training"
+            else POSTPROCESS_UV_ENVIRONMENT
+        ),
         "training_config": training_config,
         "config_sha256": manifest.get("config_sha256"),
         "download_inputs": download_inputs,
@@ -1050,7 +1268,9 @@ def build_run_job(
         f'test "$(git rev-parse HEAD)" = {shlex.quote(pinned_commit)}',
         'test -z "$(git status --porcelain)"',
         "unset MPLBACKEND",
-        "unset UV_PROJECT_ENVIRONMENT",
+        "test ! -e /content/repo/.venv && test ! -L /content/repo/.venv || { echo 'repository .venv exists; refusing environment drift' >&2; exit 78; }",
+        f"export UV_PROJECT_ENVIRONMENT={shlex.quote(TRAINING_UV_ENVIRONMENT)}",
+        f'test "$UV_PROJECT_ENVIRONMENT" = {shlex.quote(TRAINING_UV_ENVIRONMENT)}',
         "export NVIDIA_TF32_OVERRIDE=0",
         "export TF_ENABLE_ONEDNN_OPTS=0",
         f"export CUDA_VISIBLE_DEVICES={shlex.quote(cuda_visible_devices)}",
@@ -1064,6 +1284,8 @@ def build_run_job(
             "run",
             "--frozen",
             "--no-sync",
+            "--project",
+            "/content/repo",
             "--package",
             "canvas-vae",
             "--extra",
@@ -1119,6 +1341,8 @@ def build_run_job(
             "run",
             "--frozen",
             "--no-sync",
+            "--project",
+            "/content/repo",
             "--package",
             "canvas-vae",
             "--extra",
@@ -1163,6 +1387,8 @@ def build_run_job(
             "run",
             "--frozen",
             "--no-sync",
+            "--project",
+            "/content/repo",
             "--package",
             "canvas-vae",
             "--extra",
@@ -1191,38 +1417,27 @@ def build_run_job(
             probe_summary,
         ]
         probe_validation_script = "\n".join(
-            [
-                "import json, math",
+            (
+                "import json, runpy",
                 "from pathlib import Path",
                 f"summary = json.loads(Path({probe_summary!r}).read_text(encoding='utf-8'))",
                 f"records = [json.loads(line) for line in Path({probe_jsonl!r}).read_text(encoding='utf-8').splitlines()]",
-                f"limit = {LOCKSTEP_LOSS_RELATIVE_LIMIT!r}",
-                f"required_steps = {lockstep_probe_steps}",
-                f"expected_commit = {pinned_commit!r}",
-                "if summary.get('protocol') != 'crello-real-scale-lockstep-v1' or summary.get('status') != 'passed':",
-                "    raise SystemExit('Crello lockstep probe report did not pass')",
-                "if summary.get('source_commit') != expected_commit:",
-                "    raise SystemExit('Crello lockstep probe source commit differs from the seed job')",
-                "if summary.get('required_steps') != required_steps or summary.get('completed_steps') != required_steps or summary.get('relative_loss_limit') != limit or summary.get('first_step_over_tolerance') is not None:",
-                "    raise SystemExit('Crello lockstep probe summary is incomplete or inconsistent')",
-                "if summary.get('gate_fields') != ['relative_loss_difference'] or summary.get('throughput_fields_are_report_only') is not True:",
-                "    raise SystemExit('Crello lockstep probe gate metadata is inconsistent')",
-                "if len(records) != required_steps or any(record.get('step') != index + 1 for index, record in enumerate(records)):",
-                "    raise SystemExit('Crello lockstep probe JSONL does not contain every required step')",
-                "numeric_fields = ('loss_original', 'loss_package', 'relative_loss_difference', 'gradient_norm_original', 'gradient_norm_package', 'parameter_max_abs_difference')",
-                "if any(any(not math.isfinite(record[field]) for field in numeric_fields) for record in records):",
-                "    raise SystemExit('Crello lockstep probe JSONL contains a non-finite metric')",
-                "if any(record['relative_loss_difference'] > limit for record in records):",
-                "    raise SystemExit('Crello lockstep probe JSONL contains a loss difference over the gate')",
-                "if any(record.get('parameter_with_max_difference') is not None and not isinstance(record['parameter_with_max_difference'], str) for record in records):",
-                "    raise SystemExit('Crello lockstep probe JSONL has an invalid differing-state name')",
-                "print(f'crello_lockstep_probe_result_passed steps={required_steps}')",
-            ]
+                "executor = runpy.run_path('/content/repo/models/canvas-vae/scripts/s5_seed_executor.py')",
+                "executor['validate_lockstep_probe_report'](",
+                "    summary,",
+                "    records,",
+                f"    required_steps={lockstep_probe_steps},",
+                f"    expected_commit={pinned_commit!r},",
+                ")",
+                "print('crello_lockstep_probe_validation_passed')",
+            )
         )
         lockstep_probe_commands.extend(
             (
                 shlex.join(probe_arguments),
-                "python - <<'PY'\n" + probe_validation_script + "\nPY",
+                "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training --extra vendor python - <<'PY'\n"
+                + probe_validation_script
+                + "\nPY",
             )
         )
 
@@ -1231,7 +1446,7 @@ def build_run_job(
             raise ExecutorError("package checkpoint gate was not configured")
 
         checkpoint_gate = (
-            "uv run --frozen --no-sync --package canvas-vae --extra training "
+            "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training "
             'python -m canvas_vae.training.checkpoints "$last_checkpoints" '
             f"--max-epochs {checkpoint_max_epochs} "
             f"--expected-global-step {checkpoint_global_step}"
@@ -1389,42 +1604,16 @@ def build_postprocess_job(
     checkpoint_for_hash = checkpoint_input
     if system == "original":
         checkpoint_for_hash += ".index"
-    uv_setup = ""
-    if system == "original":
-        runtime_plan = manifest.get("runtime_plan")
-        source_branch = (
-            runtime_plan.get("source_branch")
-            if isinstance(runtime_plan, dict)
-            else None
-        )
-        if not isinstance(source_branch, str):
-            raise ExecutorError("manifest runtime_plan needs a source branch")
-        setup_args = [
-            "bash",
-            "/content/colab-uv-setup.sh",
-            "--source-url",
-            "https://github.com/creative-graphic-design/design-generators.git",
-            "--source-branch",
-            source_branch,
-            "--source-commit",
-            pinned_commit,
-            "--repo-dir",
-            "/content/repo",
-            "--package",
-            "canvas-vae",
-            "--extra",
-            "convert",
-            "--uv-environment",
-            "/content/canvas-vae-convert-env",
-        ]
-        uv_setup += f'eval "$(\n{shlex.join(setup_args)}\n)"\n'
     return (
         "\n".join(
             [
                 "set -Eeuo pipefail",
                 "cd /content/repo",
                 'test -z "$(git status --porcelain)"',
-                "unset MPLBACKEND UV_PROJECT_ENVIRONMENT",
+                "test ! -e /content/repo/.venv && test ! -L /content/repo/.venv || { echo 'repository .venv exists; refusing environment drift' >&2; exit 78; }",
+                f"export UV_PROJECT_ENVIRONMENT={shlex.quote(POSTPROCESS_UV_ENVIRONMENT)}",
+                f'test "$UV_PROJECT_ENVIRONMENT" = {shlex.quote(POSTPROCESS_UV_ENVIRONMENT)}',
+                "unset MPLBACKEND",
                 "export NVIDIA_TF32_OVERRIDE=0",
                 "export TF_ENABLE_ONEDNN_OPTS=0",
                 "export CUDA_VISIBLE_DEVICES=''",
@@ -1436,9 +1625,7 @@ def build_postprocess_job(
                     if failure_exit_code is not None
                     else []
                 ),
-                uv_setup.rstrip(),
                 f"{shlex.join(converter_args)} 2>&1 | tee {shlex.quote(log_root + '/convert.log')}",
-                "unset UV_PROJECT_ENVIRONMENT",
                 f"{shlex.join(evaluator_args)} 2>&1 | tee {shlex.quote(log_root + '/evaluate.log')}",
                 f"test -s {shlex.quote(evaluation_output)}",
                 f"sha256sum {shlex.quote(checkpoint_for_hash)} {shlex.quote(evaluation_output)} > {shlex.quote(result_root + '/artifact-hashes.txt')}",

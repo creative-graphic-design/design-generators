@@ -17,6 +17,7 @@ from ..metrics import TOTAL_KEY, layout_scores, reconstruction_scores
 from ..modeling_canvas_vae import CanvasVAECrelloModel, CanvasVAEModel, length_mask
 from ..processing_canvas_vae import load_rico_vocabularies
 from .optim import clip_gradients_by_norm, l2_penalty
+from .precision import disable_torch_tf32
 
 
 class CanvasVAETrainingModule(L.LightningModule):
@@ -248,6 +249,10 @@ class CanvasVAECrelloTrainingModule(L.LightningModule):
         )
         self.validation_sums: dict[str, float] = {}
         self.validation_counts: dict[str, int] = {}
+
+    def on_fit_start(self) -> None:
+        """Disable TF32 before Crello training begins."""
+        disable_torch_tf32()
 
     def training_step(
         self, batch: CrelloBatch, batch_idx: int

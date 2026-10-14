@@ -66,9 +66,10 @@ def main() -> None:
         args.data_dir or Path(".cache/canvas-vae/original/data") / args.dataset_name
     )
     logging.basicConfig(level=logging.INFO)
-    from generate_vendor_reference import import_original
+    from generate_vendor_reference import disable_tensorflow_tf32, import_original
 
     tf, _, _ = import_original()
+    disable_tensorflow_tf32(tf)
     for device in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(device, True)
 
