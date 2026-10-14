@@ -115,7 +115,7 @@
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "lockstep_probe_inputs": {
         "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
-        "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache",
+        "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache/cache",
         "fixture_archive": {
           "prefix": "{probe_fixture_prefix}",
           "revision": "main",
