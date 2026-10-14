@@ -55,11 +55,13 @@ def test_runtime_hub_prefixes_are_resolved_without_committing_private_paths() ->
         },
         "inputs/project-a",
         "outputs/project-a",
+        "cache/project-a",
     )
 
     assert resolved == {
         "prefix": "inputs/project-a/crello-s5-inputs",
         "artifact_prefix": "outputs/project-a/crello/{run_id}",
+        "probe_fixture_prefix": "cache/project-a",
     }
 
 
@@ -202,6 +204,15 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
             "device": "cuda",
             "cuda_visible_devices": "0",
             "runtime_output_root": "/content/out/checkpoints/crello-original-seed0/{segment_id}",
+            "lockstep_probe_inputs": {
+                "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
+                "fixture_dir": ".cache/canvas-vae/crello/s5/original-seed0-encoder-cache",
+                "fixture_archive": {
+                    "prefix": "inputs/full-cache",
+                    "revision": "d" * 40,
+                    "archive": {"filename": "cache.tar", "sha256": "e" * 64},
+                },
+            },
             "train_original_arguments": [
                 "--dataset-name",
                 "crello-document",
@@ -241,6 +252,20 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
             "device": "cpu",
             "cuda_visible_devices": "",
             "runtime_output_root": "/content/out/checkpoints/cpu-smoke-crello-original-success/segment-001",
+            "lockstep_probe_inputs": {
+                "package_data_dir": ".cache/canvas-vae/crello/s5/probe-package-run-1-tiny",
+                "package_data_archive": {
+                    "prefix": "inputs/tiny-data",
+                    "revision": "b" * 40,
+                    "archive": {"filename": "tiny.tar", "sha256": "c" * 64},
+                },
+                "fixture_dir": ".cache/canvas-vae/crello/s5/probe-original-cache-tiny",
+                "fixture_archive": {
+                    "prefix": "inputs/tiny-cache",
+                    "revision": "f" * 40,
+                    "archive": {"filename": "cache.tar", "sha256": "e" * 64},
+                },
+            },
             "train_original_arguments": [
                 "--dataset-name",
                 "crello-document",
@@ -276,6 +301,14 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
 
     assert "crello_lockstep_probe.py" in full_command
     assert "--steps 300" in full_command
+    assert (
+        "--data-dir /content/repo/.cache/canvas-vae/crello/package-run-1"
+        in full_command
+    )
+    assert (
+        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/original-seed0-encoder-cache"
+        in full_command
+    )
     assert "relative_loss_difference" in full_command
     assert full_command.index("crello_lockstep_probe.py") < full_command.index(
         "train_original.py"
@@ -283,6 +316,14 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
     assert "crello_lockstep_probe.py" in tiny_command
     assert "--steps 3" in tiny_command
     assert "--device cpu" in tiny_command
+    assert (
+        "--data-dir /content/repo/.cache/canvas-vae/crello/s5/probe-package-run-1-tiny"
+        in tiny_command
+    )
+    assert (
+        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/probe-original-cache-tiny"
+        in tiny_command
+    )
     assert tiny_command.index("crello_lockstep_probe.py") < tiny_command.index(
         "train_original.py"
     )
@@ -310,7 +351,23 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
             "input_data": {"revision": "a" * 40, "prefix": "inputs"},
             "runtime_plan": {"source_branch": "feat/canvas-vae-crello-model"},
         },
-        {"system": "original"},
+        {
+            "system": "original",
+            "lockstep_probe_inputs": {
+                "package_data_dir": ".cache/probe-data",
+                "package_data_archive": {
+                    "prefix": "data-prefix",
+                    "revision": "b" * 40,
+                    "archive": {"filename": "data.tar", "sha256": "c" * 64},
+                },
+                "fixture_dir": ".cache/probe-fixture",
+                "fixture_archive": {
+                    "prefix": "fixture-prefix",
+                    "revision": "c" * 40,
+                    "archive": {"filename": "cache.tar", "sha256": "d" * 64},
+                },
+            },
+        },
         "b" * 40,
         "example-owner/artifacts",
         download_inputs=True,
@@ -319,8 +376,20 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
     source = preflight_script.read_text()
 
     assert preflight["uv_extras"] == ["training", "vendor"]
+    assert (
+        preflight["lockstep_probe_inputs"]["fixture_archive"]["archive"]["sha256"]
+        == "d" * 64
+    )
+    assert (
+        preflight["lockstep_probe_inputs"]["package_data_archive"]["archive"][
+            "sha256"
+        ]
+        == "c" * 64
+    )
     assert preflight["initialize_vendor_submodule"] is True
     assert '"/content/colab-uv-setup.sh"' in source
+    assert "download_probe_archive" in source
+    assert "extract_archive_root" in source
     assert "git clone" not in source
     assert "submodule update" not in source
     assert "uv sync" not in source
