@@ -485,24 +485,20 @@ def validate_original_document_counts(
 
 config = json.loads(Path("/content/s5-preflight.json").read_text())
 repository = Path("/content/repo")
-if repository.exists():
-    raise SystemExit("source gate failed: /content/repo already exists")
-subprocess.run(
-    ["git", "clone", "--depth=1", "--no-checkout", "--branch",
-     config["source_branch"], config["source_url"], str(repository)],
-    check=True,
-)
-subprocess.run(["git", "-C", str(repository), "checkout", "--detach",
-                config["source_commit"]], check=True)
-head = subprocess.run(
-    ["git", "-C", str(repository), "rev-parse", "HEAD"],
-    capture_output=True, check=True, text=True
-).stdout.strip()
-if head != config["source_commit"]:
-    raise SystemExit(f"source gate failed: remote HEAD {head} differs from the pinned commit")
-if subprocess.run(["git", "-C", str(repository), "status", "--porcelain"],
-                  capture_output=True, check=True, text=True).stdout.strip():
-    raise SystemExit("source gate failed: remote source checkout is dirty")
+setup_command = [
+    "bash", "/content/colab-uv-setup.sh",
+    "--source-url", config["source_url"],
+    "--source-branch", config["source_branch"],
+    "--source-commit", config["source_commit"],
+    "--repo-dir", str(repository),
+    "--package", "canvas-vae",
+]
+for extra in config["uv_extras"]:
+    setup_command.extend(("--extra", extra))
+if config["initialize_vendor_submodule"]:
+    setup_command.append("--submodules")
+subprocess.run(setup_command, check=True)
+head = config["source_commit"]
 config_path = repository / config["training_config"]
 if not config_path.is_file():
     raise SystemExit(f"source gate failed: training config is missing: {config_path}")
@@ -728,9 +724,6 @@ if checkpoint_download is not None:
 else:
     Path("/content/s5-download-token").unlink(missing_ok=True)
 
-if config["initialize_vendor_submodule"]:
-    subprocess.run(["git", "-C", str(repository), "submodule", "update", "--init",
-                    "--recursive"], check=True)
 """
 
 
@@ -760,6 +753,14 @@ def temporary_files(
         "source_url": "https://github.com/creative-graphic-design/design-generators.git",
         "source_branch": source_branch,
         "source_commit": pinned_commit,
+        "uv_extras": [
+            "training",
+            *(
+                ["vendor"]
+                if run.get("system") == "original" and phase == "training"
+                else []
+            ),
+        ],
         "training_config": training_config,
         "config_sha256": manifest.get("config_sha256"),
         "download_inputs": download_inputs,
@@ -840,7 +841,6 @@ def build_run_job(
     )
 
     if system == "package":
-        uv_sync = "uv sync --frozen --package canvas-vae --extra training"
         training_args = [
             "uv",
             "run",
@@ -886,9 +886,6 @@ def build_run_job(
             raise ExecutorError(
                 "original TensorFlow runs do not support optimizer-state resume"
             )
-        uv_sync = (
-            "uv sync --frozen --package canvas-vae --extra training --extra vendor"
-        )
         original_args = run.get("train_original_arguments")
         if not isinstance(original_args, list) or not all(
             isinstance(value, str) for value in original_args
@@ -960,7 +957,6 @@ def build_run_job(
 
     command_lines = [
         *env_lines,
-        uv_sync,
         *pre_training_commands,
         f"{shlex.join(training_args)} > {log_root}/train.log 2>&1",
         *post_train_lines,
@@ -975,6 +971,7 @@ def build_postprocess_job(
     manifest: JsonObject,
     run: JsonObject,
     segment_id: str,
+    pinned_commit: str,
     failure_exit_code: int | None = None,
 ) -> str:
     run_id = run.get("run_id")
@@ -1082,11 +1079,37 @@ def build_postprocess_job(
     checkpoint_for_hash = checkpoint_input
     if system == "original":
         checkpoint_for_hash += ".index"
-    uv_setup = "uv sync --frozen --project /content/repo --package canvas-vae --extra training\n"
+    uv_setup = ""
     if system == "original":
+        runtime_plan = manifest.get("runtime_plan")
+        source_branch = (
+            runtime_plan.get("source_branch")
+            if isinstance(runtime_plan, dict)
+            else None
+        )
+        if not isinstance(source_branch, str):
+            raise ExecutorError("manifest runtime_plan needs a source branch")
+        setup_args = [
+            "bash",
+            "/content/colab-uv-setup.sh",
+            "--source-url",
+            "https://github.com/creative-graphic-design/design-generators.git",
+            "--source-branch",
+            source_branch,
+            "--source-commit",
+            pinned_commit,
+            "--repo-dir",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "convert",
+            "--uv-environment",
+            "/content/canvas-vae-convert-env",
+        ]
         uv_setup += (
+            f"{shlex.join(setup_args)}\n"
             "export UV_PROJECT_ENVIRONMENT=/content/canvas-vae-convert-env\n"
-            "uv sync --frozen --project /content/repo --package canvas-vae --extra convert\n"
         )
     return (
         "\n".join(
@@ -1268,6 +1291,10 @@ def run_named_session(
     try:
         uploads = [
             (wrapper_path, "/content/colab-job.sh"),
+            (
+                Path(__file__).with_name("colab_uv_setup.sh"),
+                "/content/colab-uv-setup.sh",
+            ),
             (preflight_path, "/content/s5-preflight.json"),
             (preflight_script, "/content/s5-preflight.py"),
             (run_script, "/content/run-job.sh"),
@@ -1287,7 +1314,7 @@ def run_named_session(
             "if Path('/content/s5-download-token').exists(): restricted.append('/content/s5-download-token')\n"
             "subprocess.run(['chmod','600',*restricted],check=True)\n"
             "subprocess.run(['chmod', '700', '/content/colab-job.sh', "
-            "'/content/run-job.sh'], check=True)\n"
+            "'/content/colab-uv-setup.sh', '/content/run-job.sh'], check=True)\n"
             "Path('/content/out/resume').mkdir(parents=True, exist_ok=True)\n"
             "subprocess.run(['python', '/content/s5-preflight.py'], check=True)\n"
         )
@@ -1708,6 +1735,7 @@ def execute_run(
                 manifest,
                 run,
                 segment_id,
+                pinned,
                 failure_exit_code if failure_stage == "postprocess" else None,
             ),
             encoding="utf-8",
