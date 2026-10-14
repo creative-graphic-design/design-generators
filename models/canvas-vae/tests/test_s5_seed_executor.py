@@ -1,7 +1,10 @@
+import ast
 import importlib.util
 import json
 import sys
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -117,15 +120,45 @@ def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> Non
     assert "--model.init_args.fixture_dir=.cache/embeddings" in command
 
 
-def test_crello_remote_preflight_checks_both_encoder_caches() -> None:
+def test_crello_remote_preflight_rejects_wrong_original_document_counts() -> None:
     source = EXECUTOR.remote_preflight_source()
     compile(source, "<crello-s5-preflight>", "exec")
+    remote_module = ast.parse(source)
+    validator = next(
+        node
+        for node in remote_module.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "validate_original_document_counts"
+    )
+    validator_module = ast.Module(body=[validator], type_ignores=[])
+    namespace: dict[str, object] = {}
+    exec(
+        compile(
+            ast.fix_missing_locations(validator_module),
+            "<crello-s5-preflight>",
+            "exec",
+        ),
+        namespace,
+    )
 
-    assert 'paths["original_fixture_dir"]' in source
-    assert 'paths["package_fixture_dir"]' in source
-    assert "original_embedding_manifest_sha256" in source
-    assert 'original_data_manifest["document_counts"]' in source
-    assert "tfrecord_record_count" in source
+    expected_counts = {"train": 2, "val": 1, "test": 1}
+    manifest: dict[str, object] = {"document_counts": expected_counts}
+    count_file = expected_counts.copy()
+    actual_records = {"train": 1, "val": 1, "test": 1}
+    validate_counts = cast(
+        Callable[
+            [Mapping[str, object], Mapping[str, int], Mapping[str, int]],
+            dict[str, int],
+        ],
+        namespace["validate_original_document_counts"],
+    )
+
+    assert validate_counts(manifest, count_file, expected_counts) == expected_counts
+    with pytest.raises(
+        SystemExit,
+        match="original train record count differs from manifest",
+    ):
+        validate_counts(manifest, count_file, actual_records)
 
 
 def test_crello_executor_blocks_without_rehearsed_launch_gates() -> None:
