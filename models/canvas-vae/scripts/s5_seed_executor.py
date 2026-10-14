@@ -462,6 +462,27 @@ def file_sha256(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+def validate_original_document_counts(
+    original_data_manifest, count_data, record_counts
+):
+    original_counts = original_data_manifest.get("document_counts")
+    if (
+        not isinstance(original_counts, dict)
+        or set(original_counts) != {"train", "val", "test"}
+        or not all(
+            type(count) is int and count > 0 for count in original_counts.values()
+        )
+        or count_data != original_counts
+    ):
+        raise SystemExit("Crello S5 original document counts differ from their manifest")
+    for split in ("train", "val", "test"):
+        if record_counts.get(split) != original_counts[split]:
+            raise SystemExit(
+                f"Crello S5 original {split} record count differs from manifest"
+            )
+
+    return original_counts
+
 config = json.loads(Path("/content/s5-preflight.json").read_text())
 repository = Path("/content/repo")
 if repository.exists():
@@ -574,14 +595,6 @@ if config["download_inputs"]:
         original_data_manifest = json.loads(
             (original_data / "crello-s5-manifest.json").read_text()
         )
-        original_counts = original_data_manifest.get("document_counts")
-        if (
-            not isinstance(original_counts, dict)
-            or set(original_counts) != {"train", "val", "test"}
-            or not all(type(count) is int and count > 0 for count in original_counts.values())
-            or json.loads((original_data / "count.json").read_text()) != original_counts
-        ):
-            raise SystemExit("Crello S5 original document counts differ from their manifest")
 
         if (
             original_data_manifest["source_archive_sha256"]
@@ -605,12 +618,15 @@ if config["download_inputs"]:
 
             return count
 
+        record_counts = {}
         for split in ("train", "val", "test"):
             files = sorted(original_data.glob(f"{split}-*.tfrecord"))
-            if sum(tfrecord_record_count(path) for path in files) != original_counts[split]:
-                raise SystemExit(
-                    f"Crello S5 original {split} record count differs from manifest"
-                )
+            record_counts[split] = sum(tfrecord_record_count(path) for path in files)
+        original_counts = validate_original_document_counts(
+            original_data_manifest,
+            json.loads((original_data / "count.json").read_text()),
+            record_counts,
+        )
         canonical_ids = json.loads(
             (package_data / "crello-manifest.json").read_text()
         )["document_stage_image_ids_first_occurrence"]
