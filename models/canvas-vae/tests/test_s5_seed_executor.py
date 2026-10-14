@@ -185,6 +185,119 @@ def test_missing_local_upload_fails_before_colab_session_creation(
     assert colab_calls == []
 
 
+def test_staged_preflight_failure_uploads_sanitized_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wrapper_path = tmp_path / "wrapper.sh"
+    preflight_path = tmp_path / "preflight.json"
+    preflight_script = tmp_path / "preflight.py"
+    run_script = tmp_path / "run.sh"
+    token_path = tmp_path / "token"
+    run_env = tmp_path / "run.env"
+    for path in (
+        wrapper_path,
+        preflight_path,
+        preflight_script,
+        run_script,
+        token_path,
+        run_env,
+    ):
+        path.write_text("placeholder", encoding="utf-8")
+
+    fake_token = "hf_" + "A" * 30
+    uploaded_artifacts: dict[str, bytes] = {}
+    verified_paths: list[str] = []
+    stopped_sessions: list[str] = []
+
+    def record_colab_call(*args: str, **kwargs: object) -> str:
+        if args[0] == "download":
+            remote_path = args[3]
+            local_path = Path(args[4])
+            if remote_path == "/content/s5-preflight-exit-code":
+                local_path.write_text("23\n", encoding="utf-8")
+            elif remote_path == "/content/s5-preflight.log":
+                local_path.write_text(
+                    f"setup failed with token {fake_token}\n", encoding="utf-8"
+                )
+        elif args[0] == "exec":
+            raise EXECUTOR.ExecutorError(f"Colab exec failed with {fake_token}")
+        elif args[0] == "stop":
+            stopped_sessions.append(args[2])
+
+        return ""
+
+    def capture_hub_upload(
+        token_file: Path,
+        source: str,
+        temporary_directory: Path,
+        extra_environment: dict[str, str] | None = None,
+    ) -> str:
+        assert "api.upload_folder(" in source
+        assert extra_environment is not None
+        artifact_directory = Path(extra_environment["S5_PREFLIGHT_FAILURE_DIRECTORY"])
+        for artifact in artifact_directory.iterdir():
+            uploaded_artifacts[artifact.name] = artifact.read_bytes()
+
+        return ""
+
+    def record_hub_verification(
+        token_file: Path,
+        repository: str,
+        expected_paths: list[str],
+        description: str,
+    ) -> None:
+        assert description == "staged-input preflight failure artifacts"
+        verified_paths.extend(expected_paths)
+
+    monkeypatch.setattr(EXECUTOR, "assert_session_is_free", lambda name: None)
+    monkeypatch.setattr(EXECUTOR, "colab", record_colab_call)
+    monkeypatch.setattr(EXECUTOR, "hub_python", capture_hub_upload)
+    monkeypatch.setattr(EXECUTOR, "verify_hub_paths", record_hub_verification)
+
+    with pytest.raises(EXECUTOR.ExecutorError, match="redaction_count=2") as error:
+        EXECUTOR.run_named_session(
+            session_name="staged-preflight-failure-test",
+            gpu=None,
+            wrapper_path=wrapper_path,
+            token_path=token_path,
+            preflight_path=preflight_path,
+            preflight_script=preflight_script,
+            run_script=run_script,
+            job_name="staged-preflight-failure-test",
+            hub_prefix="test/output",
+            ttl="30m",
+            run_command="bash /content/run-job.sh",
+            sync_paths=("/content/out/logs",),
+            run_env=run_env,
+            output_capture=tmp_path / "output.log",
+            hub_repository="example-owner/test-artifacts",
+            download_inputs=False,
+        )
+
+    uploaded_log = uploaded_artifacts["preflight.log"].decode("utf-8")
+    uploaded_report = json.loads(uploaded_artifacts["report.json"])
+    assert fake_token not in uploaded_log
+    assert "[REDACTED_HF_TOKEN]" in uploaded_log
+    assert uploaded_artifacts["exit_code"] == b"23\n"
+    assert uploaded_report["exit_code"] == 23
+    assert uploaded_report["redaction_count"] == 2
+    assert "[REDACTED_HF_TOKEN]" in uploaded_report["colab_cli_error"]
+    assert fake_token not in str(uploaded_report)
+    assert (
+        uploaded_report["sanitized_log_sha256"]
+        == hashlib.sha256(uploaded_artifacts["preflight.log"]).hexdigest()
+    )
+    assert "[REDACTED_HF_TOKEN]" in str(error.value)
+    assert fake_token not in str(error.value)
+    assert verified_paths == [
+        "test/output/logs/staged-preflight/staged-preflight-failure-test/preflight.log",
+        "test/output/logs/staged-preflight/staged-preflight-failure-test/exit_code",
+        "test/output/logs/staged-preflight/staged-preflight-failure-test/report.json",
+    ]
+    assert stopped_sessions == ["staged-preflight-failure-test"]
+
+
 def test_executor_refuses_to_run_without_hub_repository(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

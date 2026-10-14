@@ -7,11 +7,52 @@ import base64
 import hashlib
 import os
 import sys
+from collections.abc import Iterable
 from importlib import metadata
 from pathlib import Path, PurePosixPath
 
 
 NCCL_LIBRARY = PurePosixPath("nvidia/nccl/lib/libnccl.so.2")
+NCCL_RECORD_ROOT = PurePosixPath("nvidia/nccl")
+
+
+def normalize_distribution_name(name: str) -> str:
+    return name.lower().replace("_", "-").replace(".", "-")
+
+
+def verify_nvidia_nccl_distribution_names(names: Iterable[str]) -> None:
+    nccl_distributions = sorted(
+        {
+            normalized
+            for name in names
+            if (normalized := normalize_distribution_name(name)).startswith(
+                "nvidia-nccl-"
+            )
+        }
+    )
+    if nccl_distributions != ["nvidia-nccl-cu13"]:
+        raise SystemExit(
+            "expected only nvidia-nccl-cu13 in the helper environment; found "
+            f"{nccl_distributions}"
+        )
+
+
+def verify_unique_nvidia_nccl_records(
+    distributions: Iterable[tuple[str, Iterable[PurePosixPath]]],
+) -> None:
+    owners: dict[PurePosixPath, set[str]] = {}
+    for distribution_name, files in distributions:
+        for path in files:
+            if path.is_relative_to(NCCL_RECORD_ROOT):
+                owners.setdefault(path, set()).add(distribution_name)
+
+    duplicates = {path: names for path, names in owners.items() if len(names) > 1}
+    if duplicates:
+        details = "; ".join(
+            f"{path} owned by {', '.join(sorted(names))}"
+            for path, names in sorted(duplicates.items())
+        )
+        raise SystemExit(f"overlapping nvidia/nccl RECORD ownership: {details}")
 
 
 def verify_recorded_sha256(path: Path, mode: str | None, value: str | None) -> None:
@@ -47,12 +88,26 @@ def verify_environment(repo_dir: Path, expected_environment: Path) -> None:
     if Path(sys.prefix).resolve() != expected_environment.resolve():
         raise SystemExit("Python is running outside the helper environment")
 
-    try:
-        nccl_cu13 = metadata.distribution("nvidia-nccl-cu13")
-    except metadata.PackageNotFoundError as error:
-        raise SystemExit(
-            "nvidia-nccl-cu13 is missing from the helper environment"
-        ) from error
+    distributions = tuple(metadata.distributions())
+    verify_nvidia_nccl_distribution_names(
+        distribution.metadata["Name"]
+        for distribution in distributions
+        if distribution.metadata.get("Name")
+    )
+    verify_unique_nvidia_nccl_records(
+        (
+            distribution.metadata["Name"],
+            (PurePosixPath(str(entry)) for entry in distribution.files or ()),
+        )
+        for distribution in distributions
+        if distribution.metadata.get("Name")
+    )
+    nccl_cu13 = next(
+        distribution
+        for distribution in distributions
+        if normalize_distribution_name(distribution.metadata["Name"])
+        == "nvidia-nccl-cu13"
+    )
 
     record_entry = next(
         (

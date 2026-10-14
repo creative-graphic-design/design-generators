@@ -675,6 +675,73 @@ def upload_smoke_result(
     verify_hub_paths(token_path, hub_repository, [hub_path], "CPU smoke result")
 
 
+def redact_hf_tokens(value: bytes) -> tuple[bytes, int]:
+    token_pattern = re.compile(rb"hf_[A-Za-z0-9]{30,}")
+    matches = token_pattern.findall(value)
+    return token_pattern.sub(b"[REDACTED_HF_TOKEN]", value), len(matches)
+
+
+def upload_preflight_failure_artifacts(
+    token_path: Path,
+    hub_repository: str,
+    hub_prefix: str,
+    job_name: str,
+    safe_log: bytes,
+    exit_code: int,
+    safe_cli_error: str | None,
+    redaction_count: int,
+) -> None:
+    artifact_prefix = f"{hub_prefix.rstrip('/')}/logs/staged-preflight/{job_name}"
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-staged-preflight-") as temporary:
+        artifact_directory = Path(temporary) / "artifacts"
+        artifact_directory.mkdir()
+        log_path = artifact_directory / "preflight.log"
+        log_path.write_bytes(safe_log)
+        exit_path = artifact_directory / "exit_code"
+        exit_path.write_text(f"{exit_code}\n", encoding="utf-8")
+        report_path = artifact_directory / "report.json"
+        report = {
+            "job_name": job_name,
+            "phase": "staged-input-preflight",
+            "exit_code": exit_code,
+            "redaction_count": redaction_count,
+            "sanitized_log_sha256": hashlib.sha256(safe_log).hexdigest(),
+            "colab_cli_error": safe_cli_error,
+        }
+        report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        source = "\n".join(
+            [
+                "import os",
+                "from pathlib import Path",
+                "from huggingface_hub import HfApi",
+                "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+                "api = HfApi(token=token)",
+                "api.upload_folder(folder_path=os.environ['S5_PREFLIGHT_FAILURE_DIRECTORY'], path_in_repo=os.environ['S5_PREFLIGHT_FAILURE_PREFIX'], repo_id=os.environ['S5_HF_REPOSITORY'], repo_type='model', commit_message='Record staged-input preflight failure')",
+            ]
+        )
+        hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_PREFLIGHT_FAILURE_DIRECTORY": str(artifact_directory),
+                "S5_PREFLIGHT_FAILURE_PREFIX": artifact_prefix,
+            },
+        )
+
+    verify_hub_paths(
+        token_path,
+        hub_repository,
+        [
+            f"{artifact_prefix}/preflight.log",
+            f"{artifact_prefix}/exit_code",
+            f"{artifact_prefix}/report.json",
+        ],
+        "staged-input preflight failure artifacts",
+    )
+
+
 def read_hub_exit_code(token_path: Path, hub_repository: str, hub_path: str) -> int:
     source = "\n".join(
         [
@@ -1954,14 +2021,37 @@ def run_named_session(
                 "/content/s5-preflight.log",
                 str(remote_preflight_log),
             )
-            log_bytes = remote_preflight_log.read_bytes()
-            token_pattern = re.compile(rb"hf_[A-Za-z0-9]{30,}")
-            redactions = len(token_pattern.findall(log_bytes))
-            safe_log = token_pattern.sub(b"[REDACTED_HF_TOKEN]", log_bytes)
+            safe_log, log_redactions = redact_hf_tokens(
+                remote_preflight_log.read_bytes()
+            )
+            cli_error_text = (
+                f"{type(preflight_cli_error).__name__}: {preflight_cli_error}"
+                if preflight_cli_error is not None
+                else None
+            )
+            safe_cli_error_bytes, cli_redactions = redact_hf_tokens(
+                cli_error_text.encode("utf-8") if cli_error_text is not None else b""
+            )
+            safe_cli_error = (
+                safe_cli_error_bytes.decode("utf-8")
+                if cli_error_text is not None
+                else None
+            )
+            redactions = log_redactions + cli_redactions
+            upload_preflight_failure_artifacts(
+                token_path,
+                hub_repository,
+                hub_prefix,
+                job_name,
+                safe_log,
+                preflight_exit_code,
+                safe_cli_error,
+                redactions,
+            )
             log_text = safe_log.decode("utf-8", errors="replace")[-8000:]
             cli_detail = (
-                f"; Colab CLI error: {preflight_cli_error}"
-                if preflight_cli_error is not None
+                f"; Colab CLI error: {safe_cli_error}"
+                if safe_cli_error is not None
                 else ""
             )
             raise ExecutorError(
