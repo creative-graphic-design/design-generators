@@ -165,14 +165,14 @@ def test_crello_remote_preflight_rejects_wrong_original_document_counts() -> Non
         validate_counts(manifest, count_file, actual_records)
 
 
-def test_crello_executor_blocks_without_rehearsed_launch_gates() -> None:
+def test_crello_executor_blocks_without_same_environment_cpu_rehearsal() -> None:
     manifest = {
         "dataset": "crello",
-        "runtime_plan": {"integrated_first_run_gates": False},
+        "runtime_plan": {},
         "cpu_rehearsal": {"status": "pending"},
     }
 
-    with pytest.raises(EXECUTOR.ExecutorError, match="integrated lockstep"):
+    with pytest.raises(EXECUTOR.ExecutorError, match="same-environment CPU rehearsal"):
         EXECUTOR.verify_crello_launch_gates(manifest, "a" * 40)
 
 
@@ -187,6 +187,11 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
     manifest = {
         "dataset": "crello",
         "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+        "dataset_paths": {
+            "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
+            "original_data_dir": ".cache/canvas-vae/original/data/crello-s5",
+            "original_fixture_dir": ".cache/canvas-vae/crello/s5/original-embeddings",
+        },
     }
     full_command = EXECUTOR.build_run_job(
         manifest,
@@ -223,6 +228,11 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         {
             "dataset": "crello",
             "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+            "dataset_paths": {
+                "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
+                "original_data_dir": ".cache/canvas-vae/original/data/crello-s5",
+                "original_fixture_dir": ".cache/canvas-vae/crello/s5/original-embeddings",
+            },
         },
         {
             "run_id": "cpu-smoke-crello-original-success",
@@ -252,6 +262,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         "a" * 40,
         "segment-001",
         resume_checkpoint=None,
+        lockstep_probe_steps=3,
     )
 
     for command in (full_command, tiny_command):
@@ -262,6 +273,19 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         assert "smoke_original" not in command
         assert "pre_training_commands" not in command
         assert "if [" not in command
+
+    assert "crello_lockstep_probe.py" in full_command
+    assert "--steps 300" in full_command
+    assert "relative_loss_difference" in full_command
+    assert full_command.index("crello_lockstep_probe.py") < full_command.index(
+        "train_original.py"
+    )
+    assert "crello_lockstep_probe.py" in tiny_command
+    assert "--steps 3" in tiny_command
+    assert "--device cpu" in tiny_command
+    assert tiny_command.index("crello_lockstep_probe.py") < tiny_command.index(
+        "train_original.py"
+    )
     assert "export CUDA_VISIBLE_DEVICES=0" in full_command
     assert "export CUDA_VISIBLE_DEVICES=''" in tiny_command
     assert "--batch-size 1024" in full_command

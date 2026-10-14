@@ -50,6 +50,7 @@ def test_crello_template_defines_three_seeds_per_system() -> None:
         "/original-run-1/document"
     )
     assert manifest["runtime_plan"]["one_training_run_at_a_time"] is True
+    assert manifest["runtime_plan"]["lockstep_probe_steps"] == 300
 
 
 def test_crello_launch_requires_runtime_hub_prefixes() -> None:
@@ -66,7 +67,6 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
         "package": "30m",
     }
     manifest["runtime_plan"]["cpu_wrapper_ttl"] = "30m"
-    manifest["runtime_plan"]["integrated_first_run_gates"] = True
     manifest["evaluation_path_parity"] = {
         "path": "models/canvas-vae/TRAINING.md",
         "sha256": QUEUE.sha256_file(
@@ -122,7 +122,6 @@ def test_crello_launch_stays_blocked_until_cpu_rehearsal_passes() -> None:
             QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
         ),
     }
-    manifest["runtime_plan"]["integrated_first_run_gates"] = True
 
     with pytest.raises(QUEUE.QueueError, match="same-environment CPU rehearsal"):
         QUEUE.launch_preconditions(manifest, path, "example-owner/test-artifacts")
@@ -144,6 +143,7 @@ def test_crello_cpu_runtime_smoke_does_not_claim_production_gates() -> None:
             "source_commit": pinned,
             "a100_wrapper_ttl_by_system": {"original": "30m", "package": "30m"},
             "cpu_wrapper_ttl": "30m",
+            "lockstep_probe_steps": 3,
         }
     )
     for index, run in enumerate(manifest["runs"]):
