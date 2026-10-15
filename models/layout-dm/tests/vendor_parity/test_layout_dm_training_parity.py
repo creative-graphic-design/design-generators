@@ -119,6 +119,8 @@ SCENARIOS = (VANILLA_LINEAR, LAYOUTDM_CONFIG)
 
 
 def _vendor_classes() -> tuple[type[torch.nn.Module], type[object]]:
+    vendor_dir: Path | None = None
+
     try:
         vendor_dir = vendor_root(
             "layout-dm",
@@ -131,6 +133,8 @@ def _vendor_classes() -> tuple[type[torch.nn.Module], type[object]]:
             missing_paths=[ROOT / "vendor" / "layout-dm"],
             regeneration_hint="run `git submodule update --init vendor/layout-dm`",
         )
+
+    assert vendor_dir is not None
     sys.path.insert(0, str(vendor_dir / "src" / "trainer"))
     from trainer.helpers.layout_tokenizer import LayoutSequenceTokenizer
     from trainer.models.layoutdm import LayoutDM

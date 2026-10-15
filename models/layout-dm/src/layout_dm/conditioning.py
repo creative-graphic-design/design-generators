@@ -60,6 +60,7 @@ def build_condition(
     if canonical is ConditionType.label:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
+        strong_mask |= ~encoded["mask"]
         return LayoutDMCondition(
             input_ids=ids, mask=strong_mask, type="c", num_element=mask.sum(dim=1)
         )
@@ -68,6 +69,7 @@ def build_condition(
         strong_mask[:, 0::5] = element_mask[..., 0]
         strong_mask[:, 3::5] = element_mask[..., 3]
         strong_mask[:, 4::5] = element_mask[..., 4]
+        strong_mask |= ~encoded["mask"]
         return LayoutDMCondition(
             input_ids=ids, mask=strong_mask, type="cwh", num_element=mask.sum(dim=1)
         )

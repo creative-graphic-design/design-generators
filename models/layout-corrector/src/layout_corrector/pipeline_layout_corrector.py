@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, Sequence, assert_never
+from typing import ClassVar, Self, Sequence, assert_never
 
 import numpy as np
 import torch
@@ -91,6 +91,27 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         self.corrector = corrector
         self.processor = processor or layout_dm.processor
         self.corrector.eval()
+
+    def to(
+        self,
+        *args: torch.device | str | torch.dtype | None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | str | None = None,
+        silence_dtype_warnings: bool = False,
+    ) -> Self:
+        """Move the nested LayoutDM pipeline and the corrector together."""
+        self.layout_dm.to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
+        return super().to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
 
     @torch.no_grad()
     def __call__(
@@ -362,23 +383,13 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                     model_log_prob, current, timestep_batch
                 )
                 model_log_prob[:, self.layout_dm.tokenizer.mask_token_id, :] = -70.0
-            if self.layout_dm.scheduler.token_mask is not None:
-                valid = self.layout_dm.scheduler.token_mask.to(
-                    model_log_prob.device
-                ).T.unsqueeze(0)
-                model_log_prob = model_log_prob.masked_fill(~valid, -70.0)
-            if condition is not None:
-                strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
-                strong_log_prob = index_to_log_onehot(
-                    condition.input_ids.to(model_log_prob.device),
-                    self.layout_dm.scheduler.vocab_size,
-                )
-                model_log_prob = torch.where(
-                    strong_mask, strong_log_prob, model_log_prob
-                )
+            model_log_prob = self.layout_dm.scheduler.apply_condition(
+                model_log_prob, condition
+            )
             x0_recon_ids = multinomial(
-                (model_log_prob.permute(0, 2, 1) / sampling.temperature)
-                .softmax(dim=-1)
+                (model_log_prob / sampling.temperature)
+                .softmax(dim=1)
+                .permute(0, 2, 1)
                 .reshape(-1, model_log_prob.size(1)),
                 1,
                 generator=generator,
