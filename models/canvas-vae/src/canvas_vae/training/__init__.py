@@ -3,7 +3,6 @@
 from importlib.util import find_spec as _find_spec
 
 from .optim import (
-    KerasAdam as KerasAdam,
     clip_gradients_by_norm as clip_gradients_by_norm,
     l2_penalty as l2_penalty,
 )
@@ -14,5 +13,11 @@ from .sampling import (
 )
 
 if _find_spec("lightning") is not None:
-    from .datamodule import CanvasVAEDataModule as CanvasVAEDataModule
-    from .lightning_module import CanvasVAETrainingModule as CanvasVAETrainingModule
+    from .datamodule import (
+        CanvasVAECrelloDataModule as CanvasVAECrelloDataModule,
+        CanvasVAEDataModule as CanvasVAEDataModule,
+    )
+    from .lightning_module import (
+        CanvasVAECrelloTrainingModule as CanvasVAECrelloTrainingModule,
+        CanvasVAETrainingModule as CanvasVAETrainingModule,
+    )

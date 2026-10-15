@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
+from typing import cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.randomness import randn
 from laygen.nn.attention import MultiHeadSelfAttention
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from .configuration_canvas_vae import CanvasVAEConfig, CanvasVAEField
+from .configuration_canvas_vae import (
+    CanvasVAEConfig,
+    CanvasVAECrelloConfig,
+    CanvasVAEField,
+)
+from .data import CrelloBatch
 
 EMBEDDING_INIT_RANGE = 0.05
 
@@ -130,7 +137,9 @@ class CanvasVAEBlock(nn.Module):
         pooling: Whether to return the masked mean of ReLU outputs.
     """
 
-    def __init__(self, config: CanvasVAEConfig, *, pooling: bool) -> None:
+    def __init__(
+        self, config: CanvasVAEConfig | CanvasVAECrelloConfig, *, pooling: bool
+    ) -> None:
         """Create attention, conditioning, and feed-forward layers."""
         super().__init__()
         dim = config.latent_dim
@@ -182,7 +191,7 @@ class CanvasVAEPositionEmbedding(nn.Module):
         config: Model config.
     """
 
-    def __init__(self, config: CanvasVAEConfig) -> None:
+    def __init__(self, config: CanvasVAEConfig | CanvasVAECrelloConfig) -> None:
         """Create the embedding table."""
         super().__init__()
         self.embeddings = nn.Embedding(config.max_length, config.latent_dim)
@@ -461,4 +470,328 @@ class CanvasVAEModel(CanvasVAEPreTrainedModel):
         return output
 
 
-__all__ = ["CanvasVAEModel", "CanvasVAEModelOutput", "length_mask"]
+@dataclass
+class CanvasVAECrelloModelOutput(ModelOutput):
+    """Outputs of the model trained on Crello document fields."""
+
+    loss: Float[torch.Tensor, ""] | None = None
+    length_logits: Float[torch.Tensor, "batch lengths"] | None = None
+    context_logits: dict[str, Float[torch.Tensor, "batch 1 classes"]] | None = None
+    sequence_logits: (
+        dict[
+            str,
+            Float[torch.Tensor, "batch elements classes"]
+            | Float[torch.Tensor, "batch elements channels classes"],
+        ]
+        | None
+    ) = None
+    numerical_predictions: (
+        dict[str, Float[torch.Tensor, "batch elements features"]] | None
+    ) = None
+    mask: Bool[torch.Tensor, "batch elements"] | None = None
+    latents: Float[torch.Tensor, "batch latent"] | None = None
+    z_mean: Float[torch.Tensor, "batch latent"] | None = None
+    z_log_var: Float[torch.Tensor, "batch latent"] | None = None
+    kl_divergence: Float[torch.Tensor, ""] | None = None
+    reconstruction_losses: dict[str, Float[torch.Tensor, ""]] | None = None
+
+
+class CanvasVAECrelloEncoder(nn.Module):
+    """Encode categorical context, typed elements, and numeric embeddings."""
+
+    def __init__(self, config: CanvasVAECrelloConfig) -> None:
+        super().__init__()
+        dim = config.latent_dim
+        self.context_embeddings = nn.ModuleDict(
+            {
+                field: nn.Embedding(size, dim)
+                for field, size in config.context_field_sizes.items()
+            }
+        )
+        self.position_embedding = CanvasVAEPositionEmbedding(config)
+        self.sequence_fields = tuple(config.sequence_field_sizes)
+        self.sequence_embeddings = nn.ModuleDict(
+            {
+                f"field_{field}": nn.Embedding(size, dim)
+                for field, size in config.sequence_field_sizes.items()
+            }
+        )
+        self.numerical_projections = nn.ModuleDict(
+            {"image_embedding": nn.Linear(256, dim)}
+        )
+        self.blocks = nn.ModuleList(
+            CanvasVAEBlock(config, pooling=index == config.num_blocks - 1)
+            for index in range(config.num_blocks)
+        )
+        self.norm = CanvasVAEBatchNorm(
+            dim, config.batch_norm_epsilon, config.batch_norm_momentum
+        )
+        self.z_mean = nn.Linear(dim, dim)
+        self.z_log_var = nn.Linear(dim, dim)
+
+    def forward(
+        self, batch: CrelloBatch
+    ) -> tuple[Float[torch.Tensor, "batch dim"], Float[torch.Tensor, "batch dim"]]:
+        tensor_batch = cast(Mapping[str, Shaped[torch.Tensor, "..."]], batch)
+        mask = batch["element_mask"]
+        context = sum(
+            (
+                self.context_embeddings[field](tensor_batch[field].squeeze(-1))
+                for field in CanvasVAECrelloConfig.context_fields
+            ),
+            torch.zeros(
+                mask.shape[0],
+                self.position_embedding.embeddings.embedding_dim,
+                dtype=batch["image_embedding"].dtype,
+                device=mask.device,
+            ),
+        )
+        hidden_states = self.position_embedding(mask)
+        for field in self.sequence_fields:
+            embedding = self.sequence_embeddings[f"field_{field}"]
+            values = tensor_batch[field]
+            embedded = embedding(values)
+            hidden_states = hidden_states + (
+                embedded.sum(dim=2) if field == "color" else embedded.squeeze(2)
+            )
+
+        hidden_states = hidden_states + self.numerical_projections["image_embedding"](
+            batch["image_embedding"]
+        )
+        for block in self.blocks:
+            hidden_states = block(hidden_states, context, mask)
+
+        pooled = self.norm(hidden_states)
+        return self.z_mean(pooled), self.z_log_var(pooled)
+
+
+class CanvasVAECrelloDecoder(nn.Module):
+    """Decode context classes, sequence logits, and numerical embeddings."""
+
+    def __init__(self, config: CanvasVAECrelloConfig) -> None:
+        super().__init__()
+        dim = config.latent_dim
+        self.position_embedding = CanvasVAEPositionEmbedding(config)
+        self.blocks = nn.ModuleList(
+            CanvasVAEBlock(config, pooling=False) for _ in range(config.num_blocks)
+        )
+        self.length_head = nn.Linear(dim, config.max_length)
+        self.sequence_fields = tuple(config.sequence_field_sizes)
+        self.context_heads = nn.ModuleDict(
+            {
+                field: nn.Linear(dim, config.context_field_sizes[field])
+                for field in CanvasVAECrelloConfig.context_fields[1:]
+            }
+        )
+        self.sequence_heads = nn.ModuleDict(
+            {
+                f"field_{field}": nn.Linear(dim, size * (3 if field == "color" else 1))
+                for field, size in config.sequence_field_sizes.items()
+            }
+        )
+        self.numerical_heads = nn.ModuleDict({"image_embedding": nn.Linear(dim, 256)})
+
+    def forward(
+        self,
+        latents: Float[torch.Tensor, "batch dim"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch lengths"],
+        dict[str, Float[torch.Tensor, "batch 1 classes"]],
+        dict[
+            str,
+            Float[torch.Tensor, "batch elements classes"]
+            | Float[torch.Tensor, "batch elements channels classes"],
+        ],
+        dict[str, Float[torch.Tensor, "batch elements features"]],
+        Bool[torch.Tensor, "batch elements"],
+    ]:
+        length_logits = self.length_head(latents)
+        if mask is None:
+            mask = length_mask(length_logits.argmax(dim=-1))
+
+        hidden_states = self.position_embedding(mask)
+        for block in self.blocks:
+            hidden_states = block(hidden_states, latents, mask)
+
+        context_logits = {
+            field: head(latents).unsqueeze(1)
+            for field, head in self.context_heads.items()
+        }
+        sequence_logits = {
+            field: self.sequence_heads[f"field_{field}"](hidden_states).reshape(
+                *hidden_states.shape[:2], 3, -1
+            )
+            if field == "color"
+            else self.sequence_heads[f"field_{field}"](hidden_states)
+            for field in self.sequence_fields
+        }
+        numerical_predictions = {
+            field: head(hidden_states) for field, head in self.numerical_heads.items()
+        }
+        return (
+            length_logits,
+            context_logits,
+            sequence_logits,
+            numerical_predictions,
+            mask,
+        )
+
+
+class CanvasVAECrelloPreTrainedModel(CanvasVAEPreTrainedModel):
+    """Pretrained-model base configured for Crello checkpoints."""
+
+    config_class = CanvasVAECrelloConfig
+
+
+class CanvasVAECrelloModel(CanvasVAECrelloPreTrainedModel):
+    """CanvasVAE model for Crello's typed and numerical element fields."""
+
+    main_input_name = "image_embedding"
+
+    def __init__(self, config: CanvasVAECrelloConfig) -> None:
+        """Initialize the encoder and decoder for the supplied Crello schema."""
+        super().__init__(config)
+        self.encoder = CanvasVAECrelloEncoder(config)
+        self.decoder = CanvasVAECrelloDecoder(config)
+        self.post_init()
+
+    def forward(
+        self,
+        batch: CrelloBatch | None = None,
+        *,
+        latents: Float[torch.Tensor, "batch dim"] | None = None,
+        posterior_noise: Float[torch.Tensor, "batch dim"] | None = None,
+    ) -> CanvasVAECrelloModelOutput:
+        """Encode a Crello batch or decode prior latents.
+
+        Training batches include processor-produced element and conditional
+        masks. Reconstruction losses are returned only while training.
+        """
+        if latents is not None:
+            decoded = self.decoder(latents)
+            return CanvasVAECrelloModelOutput(
+                length_logits=decoded[0],
+                context_logits=decoded[1],
+                sequence_logits=decoded[2],
+                numerical_predictions=decoded[3],
+                mask=decoded[4],
+                latents=latents,
+            )
+
+        if batch is None:
+            raise ValueError("pass a Crello batch or latents")
+
+        z_mean, z_log_var = self.encoder(batch)
+        kl_divergence = -0.5 * torch.mean(
+            1 + z_log_var - z_mean.square() - torch.exp(z_log_var)
+        )
+        if posterior_noise is None and self.training:
+            posterior_noise = randn(
+                z_mean.shape, device=z_mean.device, dtype=z_mean.dtype
+            )
+
+        latents = z_mean
+        if posterior_noise is not None:
+            latents = z_mean + torch.exp(0.5 * z_log_var) * posterior_noise
+
+        mask = batch["element_mask"] if self.training else None
+        decoded = self.decoder(latents, mask)
+        output = CanvasVAECrelloModelOutput(
+            length_logits=decoded[0],
+            context_logits=decoded[1],
+            sequence_logits=decoded[2],
+            numerical_predictions=decoded[3],
+            mask=decoded[4],
+            latents=latents,
+            z_mean=z_mean,
+            z_log_var=z_log_var,
+            kl_divergence=kl_divergence,
+        )
+        if not self.training:
+            return output
+
+        losses = _crello_reconstruction_losses(output, batch)
+        reconstruction = torch.stack(tuple(losses.values())).sum()
+        output.reconstruction_losses = losses
+        output.loss = reconstruction + self.config.kl_weight * kl_divergence
+        return output
+
+
+def _crello_reconstruction_losses(
+    output: CanvasVAECrelloModelOutput,
+    batch: CrelloBatch,
+) -> dict[str, Float[torch.Tensor, ""]]:
+    """Apply source reductions and type masks to all Crello fields."""
+    if output.length_logits is None or output.context_logits is None:
+        raise ValueError("Crello reconstruction losses need decoded logits")
+
+    tensor_batch = cast(Mapping[str, Shaped[torch.Tensor, "..."]], batch)
+    losses = {
+        "length": nn.functional.cross_entropy(
+            output.length_logits, tensor_batch["length"].squeeze(-1)
+        )
+    }
+    for field, logits in output.context_logits.items():
+        targets = tensor_batch[field]
+        losses[field] = (
+            nn.functional.cross_entropy(
+                logits.reshape(-1, logits.shape[-1]),
+                targets.reshape(-1),
+                reduction="none",
+            )
+            .reshape(targets.shape)
+            .sum(dim=1)
+            .mean()
+        )
+
+    if output.sequence_logits is None or output.numerical_predictions is None:
+        raise ValueError("Crello reconstruction losses need sequence predictions")
+
+    for field, logits in output.sequence_logits.items():
+        targets = tensor_batch[field]
+        if targets.shape[-1] == 1:
+            targets = targets.squeeze(-1)
+
+        values = nn.functional.cross_entropy(
+            logits.reshape(-1, logits.shape[-1]),
+            targets.reshape(-1),
+            reduction="none",
+        ).reshape(targets.shape)
+        if field == "color":
+            field_mask = batch["color_mask"]
+        else:
+            field_mask = batch["element_mask"]
+
+        if values.ndim == 3:
+            field_mask = field_mask.unsqueeze(-1)
+
+        losses[field] = (
+            (values * field_mask.to(values.dtype))
+            .sum(dim=tuple(range(1, values.ndim)))
+            .mean()
+        )
+
+    image_error = (
+        nn.functional.mse_loss(
+            output.numerical_predictions["image_embedding"],
+            batch["image_embedding"],
+            reduction="none",
+        ).mean(dim=-1)
+        * 256
+    )
+    losses["image_embedding"] = (
+        (image_error * batch["image_embedding_mask"].to(image_error.dtype))
+        .sum(dim=1)
+        .mean()
+    )
+    return losses
+
+
+__all__ = [
+    "CanvasVAECrelloModel",
+    "CanvasVAECrelloModelOutput",
+    "CanvasVAEModel",
+    "CanvasVAEModelOutput",
+    "length_mask",
+]

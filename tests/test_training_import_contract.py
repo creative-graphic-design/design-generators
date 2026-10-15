@@ -27,7 +27,7 @@ CONTRACTS = (
     TrainingImportContract(
         package_name="canvas_vae",
         training_module="canvas_vae.training",
-        eager_exports=("CrossEpochBatchSampler", "KerasAdam"),
+        eager_exports=("CrossEpochBatchSampler",),
         lightning_exports=("CanvasVAEDataModule", "CanvasVAETrainingModule"),
         optional_roots=("lightning",),
         training_leaf_modules=(

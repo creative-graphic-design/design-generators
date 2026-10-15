@@ -7,12 +7,12 @@ from torch import nn
 from canvas_vae.processing_canvas_vae import RicoSplit
 from canvas_vae.training import (
     CrossEpochBatchSampler,
-    KerasAdam,
     clip_gradients_by_norm,
     l2_penalty,
     sequential_batches,
     wrapping_batches,
 )
+from traingen.optim import KerasAdam
 
 
 def keras_adam_reference(param, grads, lr=1e-3, b1=0.9, b2=0.999, eps=1e-7):

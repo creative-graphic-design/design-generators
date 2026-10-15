@@ -1,4 +1,4 @@
-"""Convert a CanvasVAE checkpoint into a ``save_pretrained`` pipeline directory.
+"""Convert a CanvasVAE checkpoint into a ``save_pretrained`` directory.
 
 Accepts a TensorFlow checkpoint prefix written by the original trainer (for
 example ``<job-dir>/checkpoints/final.ckpt``, which needs the ``convert`` extra)
@@ -16,11 +16,19 @@ from pathlib import Path
 import numpy as np
 from jaxtyping import Shaped
 
-from canvas_vae import CanvasVAEConfig, CanvasVAEModel, CanvasVAEPipeline
+from canvas_vae import (
+    CanvasVAECrelloConfig,
+    CanvasVAECrelloModel,
+    CanvasVAEConfig,
+    CanvasVAEModel,
+    CanvasVAEPipeline,
+)
 from canvas_vae.conversion import (
+    convert_tensorflow_crello_variables,
     convert_tensorflow_variables,
     load_lightning_state_dict,
 )
+from canvas_vae.data import load_crello_vocabularies
 from canvas_vae.processing_canvas_vae import build_vocabularies
 
 
@@ -45,26 +53,49 @@ def main() -> None:
         "--vocabulary",
         type=Path,
         required=True,
-        help="vocabulary.json of the training data, such as .cache/canvas-vae/original/data/rico/vocabulary.json.",
+        help="vocabulary.json of the training data.",
     )
     parser.add_argument(
-        "--output-dir", type=Path, required=True, help="Pipeline output directory."
+        "--dataset",
+        choices=("rico", "crello"),
+        default="rico",
+        help="Dataset schema of the checkpoint (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, required=True, help="Model output directory."
     )
     args = parser.parse_args()
-    vocabularies = build_vocabularies(
-        json.loads(args.vocabulary.read_text(encoding="utf-8"))
-    )
-    config = CanvasVAEConfig(vocabularies=vocabularies)
-    if args.checkpoint.is_file():
-        state_dict = load_lightning_state_dict(args.checkpoint)
-    else:
-        state_dict = convert_tensorflow_variables(
-            read_tensorflow_variables(args.checkpoint), config
-        )
 
-    model = CanvasVAEModel(config)
+    if args.dataset == "crello":
+        config = CanvasVAECrelloConfig(
+            vocabularies=load_crello_vocabularies(args.vocabulary.parent)
+        )
+        model = CanvasVAECrelloModel(config)
+        if args.checkpoint.is_file():
+            state_dict = load_lightning_state_dict(args.checkpoint)
+        else:
+            state_dict = convert_tensorflow_crello_variables(
+                read_tensorflow_variables(args.checkpoint), config
+            )
+    else:
+        vocabularies = build_vocabularies(
+            json.loads(args.vocabulary.read_text(encoding="utf-8"))
+        )
+        config = CanvasVAEConfig(vocabularies=vocabularies)
+        model = CanvasVAEModel(config)
+        if args.checkpoint.is_file():
+            state_dict = load_lightning_state_dict(args.checkpoint)
+        else:
+            state_dict = convert_tensorflow_variables(
+                read_tensorflow_variables(args.checkpoint), config
+            )
+
     model.load_state_dict(state_dict, strict=True)
-    CanvasVAEPipeline(model=model).save_pretrained(args.output_dir)
+    if args.dataset == "crello":
+        model.save_pretrained(args.output_dir)
+    else:
+        CanvasVAEPipeline(model=model).save_pretrained(args.output_dir)
+
     print(f"saved {args.output_dir}")
 
 
