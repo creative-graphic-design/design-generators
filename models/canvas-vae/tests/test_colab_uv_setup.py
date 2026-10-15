@@ -158,6 +158,74 @@ def test_shared_setup_checks_out_submodules_and_syncs_requested_extras(
     ]
 
 
+def test_shared_setup_syncs_all_workspace_packages_and_docs_group(
+    tmp_path: Path,
+) -> None:
+    commit = "9" * 40
+    calls_path, environment = _fake_tools(tmp_path, commit)
+    repo_path = tmp_path / "repo"
+    command = [
+        "bash",
+        str(SETUP_SCRIPT),
+        "--source-url",
+        "https://github.com/creative-graphic-design/design-generators.git",
+        "--source-branch",
+        "feat/canvas-vae-crello-model",
+        "--source-commit",
+        commit,
+        "--repo-dir",
+        str(repo_path),
+        "--all-packages",
+        "--group",
+        "docs",
+        "--submodules",
+        "--uv-environment",
+        "/content/canvas-vae-ci-env",
+    ]
+
+    result = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    calls = [json.loads(line) for line in calls_path.read_text().splitlines()]
+    uv_calls = [call for call in calls if call[0] == "uv"]
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "export UV_PROJECT_ENVIRONMENT=/content/canvas-vae-ci-env\n"
+    assert len(uv_calls) == 2
+    assert uv_calls[0] == [
+        "uv",
+        "/content/canvas-vae-ci-env",
+        "sync",
+        "--frozen",
+        "--project",
+        str(repo_path),
+        "--all-packages",
+        "--group",
+        "docs",
+    ]
+    assert uv_calls[1] == [
+        "uv",
+        "/content/canvas-vae-ci-env",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--project",
+        str(repo_path),
+        "--all-packages",
+        "--group",
+        "docs",
+        "python",
+        "-c",
+        'import os, sys; assert os.path.realpath(sys.prefix) == os.path.realpath(os.environ["UV_PROJECT_ENVIRONMENT"])',
+    ]
+    assert "colab_setup_passed" in result.stderr
+    assert "all_packages=true" in result.stderr
+
+
 def test_shared_setup_fails_closed_when_checkout_commit_differs(
     tmp_path: Path,
 ) -> None:
