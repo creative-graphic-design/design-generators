@@ -4989,6 +4989,11 @@ convert = [
 download = [
     { name = "gdown" },
 ]
+training = [
+    { name = "lightning" },
+    { name = "traingen" },
+    { name = "traingen-parity" },
+]
 vendor = [
     { name = "fsspec" },
     { name = "hydra-core" },
@@ -5012,6 +5017,7 @@ requires-dist = [
     { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "layout-dm", editable = "models/layout-dm" },
+    { name = "lightning", marker = "extra == 'training'" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "omegaconf", marker = "extra == 'convert'", specifier = ">=2.3" },
     { name = "omegaconf", marker = "extra == 'vendor'", specifier = "~=2.3" },
@@ -5021,10 +5027,12 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'vendor'", specifier = ">=1.0" },
     { name = "seaborn", marker = "extra == 'vendor'" },
     { name = "torch", specifier = ">=2.1" },
+    { name = "traingen", marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "torch-geometric", marker = "extra == 'vendor'", specifier = ">=2.5,<2.7" },
     { name = "torchvision", marker = "extra == 'vendor'" },
 ]
-provides-extras = ["convert", "download", "vendor"]
+provides-extras = ["convert", "download", "training", "vendor"]
 
 [[package]]
 name = "layout-detr"
@@ -5401,6 +5409,10 @@ dependencies = [
 download = [
     { name = "huggingface-hub" },
 ]
+training = [
+    { name = "traingen" },
+    { name = "traingen-parity" },
+]
 vendor = [
     { name = "pycocotools" },
     { name = "pytorch-fid" },
@@ -5421,10 +5433,12 @@ requires-dist = [
     { name = "safetensors", specifier = ">=0.4" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torchvision", marker = "extra == 'vendor'" },
+    { name = "traingen", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", specifier = ">=5.0.0" },
     { name = "wandb", marker = "extra == 'vendor'" },
 ]
-provides-extras = ["download", "vendor"]
+provides-extras = ["training", "download", "vendor"]
 
 [[package]]
 name = "layoutganpp"
