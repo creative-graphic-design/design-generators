@@ -38,7 +38,6 @@ def make_pipeline() -> LayoutDMPipeline:
         vocab_size=cfg.vocab_size,
         mask_token_id=cfg.mask_token_id,
         pad_token_id=cfg.pad_token_id,
-        token_mask=tokenizer.token_mask().tolist(),
         per_var_full_ids=tokenizer.full_id_maps(),
     )
     return LayoutDMPipeline(
