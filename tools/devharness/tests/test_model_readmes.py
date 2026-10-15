@@ -849,7 +849,7 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
 
 | Model | Task | Content | Venue | Ckpt | Train |
 | :--- | :--- | :--- | :---: | --- | --- |
-{_root_model_row("LayoutFormer++", "layoutformerpp", "task-aware", "content-agnostic")}
+{_root_model_row("LayoutFormer++", "layoutformerpp", "task-aware", "content-agnostic", "train")}
 
 ## Libraries
 """,
@@ -1193,9 +1193,9 @@ def test_root_reproduction_cells_require_valid_badges(tmp_path: Path) -> None:
     with pytest.raises(AssertionError, match="must not link training badge"):
         root_readme._assert_root_reproduction_cells(
             path,
-            "layoutformerpp",
-            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md)",
-            "[![training: train](https://img.shields.io/static/v1?label=training&message=train&color=success)](models/layoutformerpp/TRAINING.md)",
+            "basnet",
+            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt&color=success)](models/basnet/REPRODUCING.md)",
+            "[![training: train](https://img.shields.io/static/v1?label=training&message=train&color=success)](models/basnet/TRAINING.md)",
         )
 
 
