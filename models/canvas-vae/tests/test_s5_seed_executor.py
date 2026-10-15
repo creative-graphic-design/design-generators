@@ -450,6 +450,12 @@ def test_crello_executor_blocks_without_same_environment_cpu_rehearsal() -> None
         "dataset": "crello",
         "runtime_plan": {},
         "cpu_rehearsal": {"status": "pending"},
+        "training_attribution": {
+            "prefix": "evidence/seed0",
+            "filename": "attribution.json",
+            "revision": "main",
+            "sha256": "b" * 64,
+        },
     }
 
     with pytest.raises(EXECUTOR.ExecutorError, match="same-environment CPU rehearsal"):
@@ -461,6 +467,21 @@ def test_crello_cpu_smoke_runs_only_original_seed_path() -> None:
 
     assert [(case[0], case[1]) for case in cases] == [("original-success", "original")]
     assert EXECUTOR.cpu_smoke_case_specs("rico")[-2][2] == "training"
+
+
+def test_training_attribution_reference_requires_a_hub_path_and_sha256() -> None:
+    reference = {
+        "prefix": "evidence/seed0",
+        "filename": "attribution.json",
+        "revision": "main",
+        "sha256": "a" * 64,
+    }
+
+    assert EXECUTOR.validate_training_attribution_reference(reference) == reference
+    with pytest.raises(EXECUTOR.ExecutorError, match="reference is incomplete"):
+        EXECUTOR.validate_training_attribution_reference(
+            {**reference, "sha256": "not-a-sha256"}
+        )
 
 
 def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
@@ -517,6 +538,7 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         {
             "dataset": "crello",
             "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
+            "runtime_plan": {"cpu_runtime_smoke": True},
             "dataset_paths": {
                 "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
                 "original_data_dir": ".cache/canvas-vae/original/data/crello-s5",
@@ -581,20 +603,9 @@ def test_crello_training_job_uses_one_script_for_full_and_tiny_inputs() -> None:
         assert "pre_training_commands" not in command
         assert "if [" not in command
 
-    assert "crello_lockstep_probe.py" in full_command
-    assert "--steps 300" in full_command
-    assert (
-        "--data-dir /content/repo/.cache/canvas-vae/crello/package-run-1"
-        in full_command
-    )
-    assert (
-        "--fixture-dir /content/repo/.cache/canvas-vae/crello/s5/original-seed0-encoder-cache/cache"
-        in full_command
-    )
-    assert "validate_lockstep_probe_report" in full_command
-    assert full_command.index("crello_lockstep_probe.py") < full_command.index(
-        "train_original.py"
-    )
+    assert "crello_lockstep_probe.py" not in full_command
+    assert "validate_lockstep_probe_report" not in full_command
+    assert "train_original.py" in full_command
     assert "crello_lockstep_probe.py" in tiny_command
     assert "--steps 3" in tiny_command
     assert "--device cpu" in tiny_command
@@ -764,9 +775,16 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
             "dataset": "crello",
             "input_data": {"revision": "a" * 40, "prefix": "inputs"},
             "runtime_plan": {"source_branch": "feat/canvas-vae-crello-model"},
+            "training_attribution": {
+                "prefix": "evidence/seed0",
+                "filename": "attribution.json",
+                "revision": "main",
+                "sha256": "a" * 64,
+            },
         },
         {
             "system": "original",
+            "seed": 0,
             "lockstep_probe_inputs": {
                 "package_data_dir": ".cache/probe-data",
                 "package_data_archive": {
@@ -791,17 +809,13 @@ def test_original_seed_preflight_uses_shared_setup_and_vendor_extra(
 
     assert preflight["uv_extras"] == ["training", "vendor"]
     assert preflight["uv_environment"] == "/content/canvas-vae-training-env"
-    assert (
-        preflight["lockstep_probe_inputs"]["fixture_archive"]["archive"]["sha256"]
-        == "d" * 64
-    )
-    assert (
-        preflight["lockstep_probe_inputs"]["package_data_archive"]["archive"]["sha256"]
-        == "c" * 64
-    )
+    assert preflight["lockstep_probe_inputs"] is None
+    assert preflight["training_attribution"]["sha256"] == "a" * 64
     assert preflight["initialize_vendor_submodule"] is True
     assert '"/content/colab-uv-setup.sh"' in source
     assert "download_probe_archive" in source
+    assert "training_attribution_hash_verified" in source
+    assert "file_sha256(artifact_path) != expected_sha256" in source
     assert "extract_archive_root" in source
     assert "git clone" not in source
     assert "submodule update" not in source

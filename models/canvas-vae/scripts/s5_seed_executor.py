@@ -117,6 +117,37 @@ def validate_lockstep_probe_inputs(value: JsonValue) -> JsonObject:
     return cast(JsonObject, value)
 
 
+def validate_training_attribution_reference(value: JsonValue) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ExecutorError("Crello S5 needs a hashed training attribution artifact")
+    prefix = value.get("prefix")
+    revision = value.get("revision")
+    filename = value.get("filename")
+    sha256 = value.get("sha256")
+    archive_path = PurePosixPath(filename) if isinstance(filename, str) else None
+    if (
+        not isinstance(prefix, str)
+        or validate_hub_prefix(prefix, "training-attribution-prefix") is None
+        or not isinstance(revision, str)
+        or not revision
+        or "{" in revision
+        or "}" in revision
+        or not isinstance(filename, str)
+        or archive_path is None
+        or archive_path.is_absolute()
+        or ".." in archive_path.parts
+        or "." in archive_path.parts
+        or not archive_path.parts
+        or "{" in filename
+        or "}" in filename
+        or not isinstance(sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+    ):
+        raise ExecutorError("Crello S5 training attribution reference is incomplete")
+
+    return cast(JsonObject, value)
+
+
 def resolve_runtime_prefixes(
     value: JsonValue,
     input_prefix: str | None,
@@ -213,9 +244,8 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
     if isinstance(runtime_plan, dict) and runtime_plan.get("cpu_runtime_smoke") is True:
         return
 
+    validate_training_attribution_reference(manifest.get("training_attribution"))
     rehearsal = manifest.get("cpu_rehearsal")
-    if not (REPOSITORY_ROOT / LOCKSTEP_PROBE_SCRIPT).is_file():
-        raise ExecutorError("Crello S5 real-scale lockstep probe tool is missing")
     if (
         not isinstance(rehearsal, dict)
         or rehearsal.get("status") != "passed"
@@ -862,6 +892,28 @@ def download_probe_archive(archive_config, archive_label):
 
     return archive_path
 
+def verify_training_attribution(reference):
+    if not isinstance(reference, dict):
+        raise SystemExit("Crello training attribution reference is missing")
+    prefix = reference.get("prefix")
+    filename = reference.get("filename")
+    revision = reference.get("revision")
+    expected_sha256 = reference.get("sha256")
+    if not all(isinstance(value, str) and value for value in (prefix, filename, revision, expected_sha256)):
+        raise SystemExit("Crello training attribution reference is incomplete")
+    hub_path = prefix.rstrip("/") + "/" + filename
+    attribution_stage = Path("/content/s5-training-attribution")
+    subprocess.run(
+        ["uvx", "--from", "huggingface_hub", "hf", "download",
+         config["hub_repository"], "--repo-type", "model", "--revision",
+         revision, "--include", hub_path, "--local-dir", str(attribution_stage)],
+        check=True, env=environment,
+    )
+    artifact_path = attribution_stage / hub_path
+    if not artifact_path.is_file() or file_sha256(artifact_path) != expected_sha256:
+        raise SystemExit("Crello training attribution artifact SHA-256 mismatch")
+    print("training_attribution_hash_verified")
+
 def extract_archive_root(archive_path, target, archive_root, label):
     root = PurePosixPath(archive_root)
     if root.is_absolute() or ".." in root.parts or not root.parts:
@@ -1165,6 +1217,9 @@ if config["download_inputs"]:
                 raise SystemExit(f"input preflight is empty: {source}")
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(source, target)
+    attribution = config.get("training_attribution")
+    if attribution is not None:
+        verify_training_attribution(attribution)
     print("input_preflight_passed")
 
 checkpoint_download = config.get("checkpoint_download")
@@ -1230,6 +1285,13 @@ def temporary_files(
     plan = manifest.get("runtime_plan")
     if not isinstance(plan, dict):
         raise ExecutorError("manifest runtime_plan must be an object")
+    cpu_runtime_smoke = plan.get("cpu_runtime_smoke") is True
+    crello_original_seed0 = (
+        manifest.get("dataset") == "crello"
+        and run.get("system") == "original"
+        and run.get("seed") == 0
+        and run.get("cpu_postprocess") is not True
+    )
 
     training_config = manifest.get("config")
     source_branch = plan.get("source_branch")
@@ -1266,7 +1328,14 @@ def temporary_files(
         "input_data": input_data,
         "lockstep_probe_inputs": (
             run.get("lockstep_probe_inputs")
-            if run.get("cpu_postprocess") is not True
+            if cpu_runtime_smoke and crello_original_seed0
+            else None
+        ),
+        "training_attribution": (
+            validate_training_attribution_reference(
+                manifest.get("training_attribution")
+            )
+            if crello_original_seed0 and not cpu_runtime_smoke
             else None
         ),
         "initialize_vendor_submodule": run.get("system") == "original"
@@ -1427,7 +1496,16 @@ def build_run_job(
         raise ExecutorError(f"unsupported CanvasVAE run system: {system}")
 
     lockstep_probe_commands: list[str] = []
-    if manifest.get("dataset") == "crello" and system == "original" and seed == 0:
+    runtime_plan = manifest.get("runtime_plan")
+    cpu_runtime_smoke = (
+        isinstance(runtime_plan, dict) and runtime_plan.get("cpu_runtime_smoke") is True
+    )
+    if (
+        manifest.get("dataset") == "crello"
+        and system == "original"
+        and seed == 0
+        and cpu_runtime_smoke
+    ):
         if not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
             raise ExecutorError("Crello lockstep probe steps must be between 1 and 300")
         dataset_paths = manifest.get("dataset_paths")

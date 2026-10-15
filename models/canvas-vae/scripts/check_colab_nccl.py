@@ -90,23 +90,19 @@ def verify_environment(repo_dir: Path, expected_environment: Path) -> None:
 
     distributions = tuple(metadata.distributions())
     verify_nvidia_nccl_distribution_names(
-        distribution.metadata["Name"]
-        for distribution in distributions
-        if distribution.metadata.get("Name")
+        distribution.name for distribution in distributions
     )
     verify_unique_nvidia_nccl_records(
         (
-            distribution.metadata["Name"],
+            distribution.name,
             (PurePosixPath(str(entry)) for entry in distribution.files or ()),
         )
         for distribution in distributions
-        if distribution.metadata.get("Name")
     )
     nccl_cu13 = next(
         distribution
         for distribution in distributions
-        if normalize_distribution_name(distribution.metadata["Name"])
-        == "nvidia-nccl-cu13"
+        if normalize_distribution_name(distribution.name) == "nvidia-nccl-cu13"
     )
 
     record_entry = next(
