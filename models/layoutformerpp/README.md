@@ -148,7 +148,7 @@ RICO25 public outputs use zero-based dataset-local ids, while the internal Layou
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+This package ports released behavior and exposes the package-local training path; current trained-checkpoint reproduction status is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/TRAINING.md).
 
 #### Preprocessing
 
@@ -156,7 +156,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream training; staged S0-S4 reproduction passes for all twelve recipe families, and trained-checkpoint S5 reproduction is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -203,7 +203,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
+Training, conversion, and agreement-check costs depend on the selected recipe, checkpoint, and local hardware.
 
 ## Technical Specifications
 
