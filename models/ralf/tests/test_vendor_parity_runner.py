@@ -269,6 +269,22 @@ def test_vendor_dataset_config_materializes_missing_path(
     assert mode == "runner.dataset.path materialized override"
 
 
+def test_vendor_dataset_config_preserves_declared_empty_path(
+    tmp_path: Path,
+) -> None:
+    runner = load_runner()
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+
+    config, mode = runner.materialize_vendor_dataset_config(
+        config={"dataset": {"name": "cgl", "path": ""}},
+        input_root=input_root,
+    )
+
+    assert config["dataset"]["path"] == ""
+    assert mode == "config.dataset.path"
+
+
 def test_vendor_dataset_config_keeps_configured_path(tmp_path: Path) -> None:
     runner = load_runner()
     input_root = tmp_path / "input"

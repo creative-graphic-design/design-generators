@@ -675,8 +675,7 @@ def materialize_vendor_dataset_config(
     *, config: Mapping[str, Any], input_root: Path
 ) -> tuple[dict[str, Any], str]:
     dataset = config.get("dataset")
-    dataset_path = dataset.get("path") if isinstance(dataset, Mapping) else None
-    if isinstance(dataset_path, str) and dataset_path.strip():
+    if isinstance(dataset, Mapping) and "path" in dataset:
         return dict(config), "config.dataset.path"
 
     if not input_root.is_dir():
