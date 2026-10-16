@@ -17,7 +17,6 @@ from transformers.tokenization_utils_base import BatchEncoding
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
-    normalize_boxes,
     prepare_layout_tensors,
 )
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -40,6 +39,12 @@ PKU_MODEL_LABEL2ID: dict[str, int] = {
     "text": 1,
     "logo": 2,
     "underlay": 3,
+}
+PKU_SOURCE_LABELS: dict[int, str] = {
+    0: "text",
+    1: "logo",
+    2: "underlay",
+    3: "INVALID",
 }
 _BILINEAR: Final = Image.Resampling.BILINEAR
 
@@ -407,12 +412,17 @@ def annotations_from_pku_example(
     example: Mapping[str, DSGANExampleValue],
     *,
     max_elem: int = 32,
+    include_unconnected_underlays: bool = True,
+    canvas_size: tuple[int, int] | None = None,
+    vendor_box_fix: bool = False,
 ) -> dict[str, Shaped[torch.Tensor, "..."] | tuple[int, int]]:
     """Convert a PKU PosterLayout dataset row into public layout tensors.
 
     The adapter filters ``INVALID`` annotations, converts pixel ``ltrb`` boxes
     to normalized center ``xywh``, derives canvas size from the image columns,
-    and applies the reference ``designSeq.reorder`` ordering policy.
+    and applies the reference ``designSeq.reorder`` ordering policy. Set
+    ``vendor_box_fix`` to reproduce the reference loader's overlapping-slice
+    assignment for inverted boxes.
     """
     annotations = cast(
         Mapping[
@@ -424,28 +434,62 @@ def annotations_from_pku_example(
     raw_boxes = cast(
         Sequence[str | Sequence[int | float | str]], annotations["box_elem"]
     )
-    canvas_size = _canvas_size_from_example(example)
+    resolved_canvas_size = canvas_size or _canvas_size_from_example(example)
     model_labels: list[int] = []
     public_labels: list[int] = []
     boxes: list[list[float]] = []
 
     for raw_label, raw_box in zip(raw_labels, raw_boxes, strict=True):
-        label = str(raw_label)
+        if isinstance(raw_label, (int, float)):
+            numeric_label = int(raw_label)
+            if numeric_label != raw_label or numeric_label not in PKU_SOURCE_LABELS:
+                raise ValueError(f"Unsupported PKU source label: {raw_label!r}")
+
+            label = PKU_SOURCE_LABELS[numeric_label]
+        else:
+            label = raw_label
+
         if label == "INVALID":
             continue
         public_id = PKU_DATASET_LABEL2ID[label]
         model_labels.append(PKU_MODEL_LABEL2ID[label])
         public_labels.append(public_id)
-        boxes.append(_parse_box(raw_box))
+        boxes.append(_parse_box(raw_box, sort=not vendor_box_fix))
 
     if boxes:
         box_t = torch.tensor(boxes, dtype=torch.float32)
-        order = _designseq_reorder(model_labels, box_t, max_elem=max_elem)
-        box_t = box_t[order]
+        ordering_boxes = torch.tensor(
+            boxes,
+            dtype=(
+                torch.int64
+                if all(
+                    not isinstance(value, float) or value.is_integer()
+                    for box in boxes
+                    for value in box
+                )
+                else torch.float32
+            ),
+        )
+        order = _designseq_reorder(
+            model_labels,
+            ordering_boxes,
+            max_elem=max_elem,
+            include_unconnected_underlays=include_unconnected_underlays,
+        )
+        box_t = box_t[torch.tensor(order, dtype=torch.long)]
         labels_t = torch.tensor([public_labels[i] for i in order], dtype=torch.long)
-        bbox_t = normalize_boxes(
-            box_t.unsqueeze(0), canvas_size=canvas_size, box_format="ltrb"
-        ).squeeze(0)
+        if vendor_box_fix:
+            inverted = (box_t[:, 0] > box_t[:, 2]) | (box_t[:, 1] > box_t[:, 3])
+            if inverted.any():
+                box_t[inverted, :2] = box_t[inverted, 2:]
+                box_t[inverted, 2:] = box_t[inverted, :2]
+        else:
+            left = torch.minimum(box_t[:, 0], box_t[:, 2])
+            top = torch.minimum(box_t[:, 1], box_t[:, 3])
+            right = torch.maximum(box_t[:, 0], box_t[:, 2])
+            bottom = torch.maximum(box_t[:, 1], box_t[:, 3])
+            box_t = torch.stack((left, top, right, bottom), dim=-1)
+        bbox_t = _normalize_vendor_ltrb(box_t, resolved_canvas_size)
     else:
         bbox_t = torch.zeros(0, 4, dtype=torch.float32)
         labels_t = torch.zeros(0, dtype=torch.long)
@@ -454,11 +498,13 @@ def annotations_from_pku_example(
         "bbox": bbox_t.unsqueeze(0),
         "labels": labels_t.unsqueeze(0),
         "mask": mask_t.unsqueeze(0),
-        "canvas_size": canvas_size,
+        "canvas_size": resolved_canvas_size,
     }
 
 
-def _parse_box(raw_box: str | Sequence[int | float | str]) -> list[float]:
+def _parse_box(
+    raw_box: str | Sequence[int | float | str], *, sort: bool = True
+) -> list[float]:
     if isinstance(raw_box, str):
         import ast
 
@@ -467,11 +513,27 @@ def _parse_box(raw_box: str | Sequence[int | float | str]) -> list[float]:
         parsed = raw_box
     values = [float(v) for v in cast(list[int | float | str], parsed)]
     left, top, right, bottom = values
-    if left > right:
+    if sort and left > right:
         left, right = right, left
-    if top > bottom:
+
+    if sort and top > bottom:
         top, bottom = bottom, top
+
     return [left, top, right, bottom]
+
+
+def _normalize_vendor_ltrb(
+    boxes: Float[torch.Tensor, "elements 4"], canvas_size: tuple[int, int]
+) -> Float[torch.Tensor, "elements 4"]:
+    left, top, right, bottom = boxes.unbind(dim=-1)
+    pixel_xywh = torch.stack(
+        ((left + right) / 2, (top + bottom) / 2, right - left, bottom - top), dim=-1
+    )
+    scale = torch.tensor(
+        (canvas_size[0], canvas_size[1], canvas_size[0], canvas_size[1]),
+        dtype=pixel_xywh.dtype,
+    )
+    return pixel_xywh / scale
 
 
 def _canvas_size_from_example(
@@ -496,38 +558,137 @@ def _canvas_size_from_example(
         width_value = cast(int | float | str, width)
         height_value = cast(int | float | str, height)
         return int(width_value), int(height_value)
+
     raise ValueError("PKU example must include image/canvas or width and height")
 
 
 def _designseq_reorder(
     model_labels: list[int],
-    boxes: Float[torch.Tensor, "elements 4"],
+    boxes: Shaped[torch.Tensor, "elements 4"],
     *,
     max_elem: int,
+    include_unconnected_underlays: bool,
 ) -> list[int]:
-    try:
-        from designSeq import reorder
-    except ImportError:
-        return _fallback_reorder(model_labels, boxes, max_elem=max_elem)
-    return [int(i) for i in reorder(model_labels, boxes, "xyxy", max_elem)]
+    return _fallback_reorder(
+        model_labels,
+        boxes,
+        max_elem=max_elem,
+        include_unconnected_underlays=include_unconnected_underlays,
+    )
 
 
 def _fallback_reorder(
     model_labels: list[int],
-    boxes: Float[torch.Tensor, "elements 4"],
+    boxes: Shaped[torch.Tensor, "elements 4"],
     *,
     max_elem: int,
+    include_unconnected_underlays: bool,
 ) -> list[int]:
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     indices = list(range(len(model_labels)))
+    texts = [i for i in indices if model_labels[i] == 1]
     logos = [i for i in indices if model_labels[i] == 2]
-    texts = sorted(
-        [i for i in indices if model_labels[i] == 1],
-        key=lambda i: float(areas[i]),
-        reverse=True,
-    )
-    underlays = sorted(
-        [i for i in indices if model_labels[i] == 3],
-        key=lambda i: float(areas[i]),
-    )
-    return (logos + texts + underlays)[:max_elem]
+    underlays = [i for i in indices if model_labels[i] == 3]
+    order_text = sorted(texts, key=lambda i: float(areas[i]), reverse=True)
+    order_underlay = sorted(underlays, key=lambda i: float(areas[i]))
+    iou = _pairwise_iou(boxes)
+    connection: dict[int, int | list[int]] = {}
+    reverse_connection: dict[int, list[int]] = {}
+
+    for index in order_underlay:
+        connected: list[int] = []
+
+        for other in logos:
+            if index == other or not iou[index][other]:
+                continue
+
+            connection[other] = index
+
+            connected.append(other)
+
+        for other in texts:
+            if index == other or not iou[index][other]:
+                continue
+
+            connection[other] = index
+
+            connected.append(other)
+
+        for other in underlays:
+            if index == other or not iou[index][other]:
+                continue
+
+            if other not in connection:
+                connection[other] = [index]
+            else:
+                current = connection[other]
+                if not isinstance(current, list):
+                    raise RuntimeError("underlay connection is not a list")
+
+                current.append(index)
+
+            connected.append(other)
+
+        reverse_connection[index] = connected
+
+    order: list[int] = []
+    for index in logos:
+        _append_connected(index, connection, reverse_connection, order)
+
+    for index in order_text:
+        if len(order) >= max_elem:
+            break
+
+        _append_connected(index, connection, reverse_connection, order)
+
+    if len(order) < max_elem:
+        if include_unconnected_underlays:
+            order.extend(i for i in indices if i not in order)
+        else:
+            order.extend(i for i in indices if model_labels[i] == 0)
+
+    return order[: min(len(model_labels), max_elem)]
+
+
+def _pairwise_iou(boxes: Shaped[torch.Tensor, "elements 4"]) -> list[list[float]]:
+    result: list[list[float]] = []
+    for first in boxes:
+        row: list[float] = []
+        for second in boxes:
+            left = max(float(first[0]), float(second[0]))
+            top = max(float(first[1]), float(second[1]))
+            right = min(float(first[2]), float(second[2]))
+            bottom = min(float(first[3]), float(second[3]))
+            intersection = max(0.0, right - left) * max(0.0, bottom - top)
+            first_area = float((first[2] - first[0]) * (first[3] - first[1]))
+            second_area = float((second[2] - second[0]) * (second[3] - second[1]))
+            union = first_area + second_area - intersection
+
+            row.append(intersection / union if union else 0.0)
+
+        result.append(row)
+
+    return result
+
+
+def _append_connected(
+    index: int,
+    connection: Mapping[int, int | list[int]],
+    reverse_connection: Mapping[int, list[int]],
+    order: list[int],
+) -> None:
+    connected = connection.get(index)
+    if connected is None:
+        if index not in order:
+            order.append(index)
+
+        return
+
+    decoration = connected[0] if isinstance(connected, list) else connected
+    group = reverse_connection[decoration]
+    for item in group:
+        if item not in order:
+            order.append(item)
+
+    if decoration not in order:
+        order.append(decoration)

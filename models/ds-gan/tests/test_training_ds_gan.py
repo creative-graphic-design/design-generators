@@ -1,0 +1,476 @@
+import json
+from types import SimpleNamespace
+from typing import cast
+
+import numpy as np
+import pytest
+
+pytest.importorskip("datasets")
+pytest.importorskip("lightning.pytorch")
+pytest.importorskip("pyarrow")
+pytest.importorskip("scipy")
+
+import torch
+import pyarrow as pa
+from datasets import Dataset
+from lightning.pytorch import Callback, LightningModule, Trainer
+from PIL import Image
+from torch import nn
+
+from ds_gan import DSGANConfig, DSGANModel  # noqa: E402
+from ds_gan.modeling_ds_gan import DSGANModelOutput  # noqa: E402
+from ds_gan.training import (  # noqa: E402
+    DSGANDataModule,
+    DSGANDataset,
+    DSGANSetCriterion,
+    DSGANTrainingModule,
+    HungarianMatcher,
+    build_bridge_manifest,
+    explicit_setup_seed,
+    vendor_random_initial_layout,
+)
+from ds_gan.training import datamodule as datamodule_module  # noqa: E402
+from ds_gan.training import dataset as dataset_module  # noqa: E402
+from ds_gan.training.discriminator import DSGANDiscriminator  # noqa: E402
+from ds_gan.training.discriminator import (  # noqa: E402
+    _LayoutArgmax,
+    _cxcywh_to_xyxy,
+    _first_connection,
+    _layout_order,
+)
+
+
+def _config() -> DSGANConfig:
+    return DSGANConfig(
+        backbone="resnet18",
+        max_elem=2,
+        hidden_size=16,
+        num_layers=1,
+        image_size=(32, 32),
+        backbone_feature_size=4,
+    )
+
+
+def _row() -> dict[str, object]:
+    image = Image.new("RGB", (8, 8), (80, 100, 120))
+    saliency = Image.new("L", (8, 8), 160)
+    return {
+        "inpainted_poster": image,
+        "canvas": image,
+        "pfpn_saliency_map": saliency,
+        "basnet_saliency_map": Image.new("L", (8, 8), 80),
+        "annotations": {
+            "cls_elem": [0, 1, 3],
+            "box_elem": [[0, 0, 4, 4], [1, 1, 3, 5], [0, 0, 1, 1]],
+        },
+    }
+
+
+class _TinyGenerator(nn.Module):
+    def __init__(self, max_elem: int) -> None:
+        super().__init__()
+        self.max_elem = max_elem
+        self.resnet_fpn = nn.Linear(1, 4)
+        self.head = nn.Linear(4, max_elem * 4)
+        self.box_head = nn.Linear(4, max_elem * 4)
+
+    def forward(
+        self, pixel_values: torch.Tensor, layout: torch.Tensor
+    ) -> DSGANModelOutput:
+        del layout
+        features = self.resnet_fpn(pixel_values.mean(dim=(1, 2, 3)).unsqueeze(-1))
+        class_probs = torch.softmax(
+            self.head(features).reshape(-1, self.max_elem, 4), dim=-1
+        )
+        bbox = torch.sigmoid(self.box_head(features).reshape(-1, self.max_elem, 4))
+        return DSGANModelOutput(class_probs=class_probs, bbox=bbox)
+
+
+class _TinyDiscriminator(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.resnet_fpn = nn.Linear(1, 1)
+        self.head = nn.Linear(1, 1)
+
+    def forward(self, pixel_values: torch.Tensor, layout: torch.Tensor) -> torch.Tensor:
+        image_score = self.resnet_fpn(pixel_values.mean(dim=(1, 2, 3)).unsqueeze(-1))
+        layout_score = self.head(layout.mean(dim=(1, 2, 3)).unsqueeze(-1))
+        return torch.tanh(image_score + layout_score)
+
+
+class _BadGenerator(nn.Module):
+    def forward(
+        self, *, pixel_values: torch.Tensor, layout: torch.Tensor
+    ) -> torch.Tensor:
+        del layout
+        return pixel_values
+
+
+class _NoBoxGenerator(nn.Module):
+    def forward(
+        self, *, pixel_values: torch.Tensor, layout: torch.Tensor
+    ) -> DSGANModelOutput:
+        del layout
+        return DSGANModelOutput(
+            class_probs=torch.full(
+                (pixel_values.shape[0], 2, 4),
+                0.25,
+                dtype=pixel_values.dtype,
+            )
+        )
+
+
+class _BatchDataset(torch.utils.data.Dataset[dict[str, torch.Tensor]]):
+    def __init__(self, batches: list[dict[str, torch.Tensor]]) -> None:
+        self.batches = batches
+
+    def __len__(self) -> int:
+        return len(self.batches)
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        return self.batches[index]
+
+
+def _training_batch() -> dict[str, torch.Tensor]:
+    labels = torch.tensor([[1, 2]], dtype=torch.long)
+    boxes = torch.tensor([[[0.25, 0.25, 0.5, 0.5], [0.5, 0.5, 0.25, 0.25]]])
+    classes = torch.nn.functional.one_hot(labels, num_classes=4).float()
+    return {
+        "pixel_values": torch.ones(1, 4, 32, 32),
+        "labels": labels,
+        "boxes": boxes,
+        "mask": torch.ones(1, 2, dtype=torch.bool),
+        "layout": torch.stack((classes, boxes), dim=2),
+    }
+
+
+def test_training_module_runs_g_then_d_and_scheduler(monkeypatch: pytest.MonkeyPatch):
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+        scheduler_generator_milestones=(0, 1),
+        scheduler_discriminator_milestones=(0, 1),
+    )
+    optimizers, scheduler_configs = cast(
+        tuple[list[torch.optim.Optimizer], list[dict[str, object]]],
+        module.configure_optimizers(),
+    )
+    assert [config["interval"] for config in scheduler_configs] == ["epoch", "epoch"]
+    batch = _training_batch()
+    initial_layout = torch.zeros(1, 2, 2, 4)
+
+    loss = module.step_with_optimizers(
+        batch,
+        optimizers[0],
+        optimizers[1],
+        initial_layout=initial_layout,
+        epoch=2,
+    )
+    assert loss.ndim == 0
+    assert module._step_index == 1
+    assert set(module.latest_step_trace) == {
+        "initial_layout",
+        "class_probs",
+        "bbox",
+        "discriminator_generated",
+        "discriminator_fake",
+        "discriminator_real",
+        "loss_g_adv",
+        "loss_reconstruction",
+        "loss_g",
+        "loss_d_fake",
+        "loss_d_real",
+        "loss_d",
+        "adversarial_weight",
+    }
+
+    monkeypatch.setattr(module, "optimizers", lambda: optimizers)
+    module.training_step(batch, 0)
+    assert module._step_index == 2
+    assert module._parameter_groups(module.generator)[0]
+
+    monkeypatch.setattr(module, "generator", _BadGenerator())
+    with pytest.raises(TypeError, match="must return"):
+        module.forward(batch["pixel_values"], initial_layout)
+
+    monkeypatch.setattr(module, "optimizers", lambda: [])
+    with pytest.raises(RuntimeError, match="two Lightning optimizers"):
+        module.training_step(batch, 0)
+
+    monkeypatch.setattr(module, "generator", _NoBoxGenerator())
+    with pytest.raises(RuntimeError, match="bounding boxes"):
+        module.step_with_optimizers(
+            batch, optimizers[0], optimizers[1], initial_layout=initial_layout
+        )
+
+
+def test_production_trainer_uses_nonzero_adversarial_ramp_in_epoch_two():
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+    )
+    weights: list[float] = []
+
+    class _RecordEpochWeight(Callback):
+        def on_train_epoch_end(
+            self, trainer: Trainer, pl_module: LightningModule
+        ) -> None:
+            del trainer
+            module = cast(DSGANTrainingModule, pl_module)
+            weights.append(float(module.latest_step_trace["adversarial_weight"].item()))
+
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=2,
+        limit_train_batches=1,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+        callbacks=[_RecordEpochWeight()],
+    )
+    trainer.fit(
+        module,
+        train_dataloaders=torch.utils.data.DataLoader(
+            _BatchDataset([_training_batch(), _training_batch()]), batch_size=None
+        ),
+    )
+
+    assert len(weights) == 2
+    assert weights[0] == 0.0
+    assert weights[1] > 0.0
+
+
+def test_production_trainer_steps_epoch_schedulers():
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+        scheduler_generator_milestones=(0, 1),
+        scheduler_discriminator_milestones=(0, 1),
+    )
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=2,
+        limit_train_batches=1,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+    )
+    trainer.fit(
+        module,
+        train_dataloaders=torch.utils.data.DataLoader(
+            _BatchDataset([_training_batch(), _training_batch()]), batch_size=None
+        ),
+    )
+
+    schedulers = cast(
+        list[torch.optim.lr_scheduler.MultiStepLR], module.lr_schedulers()
+    )
+    assert [scheduler.last_epoch for scheduler in schedulers] == [2, 2]
+
+
+def test_training_module_accepts_explicit_discriminator_config():
+    module = DSGANTrainingModule(
+        config=_config(),
+        discriminator_config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+    )
+    assert module.ds_gan_config.max_elem == 2
+
+
+def test_rng_helpers_are_seeded_and_explicit(monkeypatch: pytest.MonkeyPatch):
+    explicit_setup_seed(12, deterministic=False)
+    first = torch.rand(3)
+    explicit_setup_seed(12, deterministic=False)
+    assert torch.equal(first, torch.rand(3))
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "manual_seed_all", lambda seed: None)
+    explicit_setup_seed(12)
+    layout = vendor_random_initial_layout(
+        2,
+        3,
+        numpy_rng=np.random.RandomState(0),
+        torch_generator=torch.Generator().manual_seed(0),
+    )
+    assert layout.shape == (2, 3, 2, 4)
+    assert torch.equal(layout[:, :, 0].sum(-1), torch.ones(2, 3))
+
+
+def test_dataset_bridge_and_manifest(tmp_path):
+    train = DSGANDataset(Dataset.from_list([_row()]), split="train", max_elem=2)
+    test = DSGANDataset(Dataset.from_list([_row()]), split="test", max_elem=2)
+    assert len(train) == 1
+    assert train[0]["layout"].shape == (2, 2, 4)
+    assert test[0]["pixel_values"].shape == (4, 350, 240)
+
+    with pytest.raises(KeyError, match="lacks required"):
+        dataset_module.bridge_example({}, split="train")
+    manifest = build_bridge_manifest(
+        source_revision="revision",
+        train_count=2,
+        test_count=1,
+        source_hashes={"train.arrow": "abc"},
+        available_fields=["canvas"],
+    )
+    assert manifest["missing_source_fields"]
+
+    payload = tmp_path / "payload"
+    payload.write_bytes(b"ds-gan")
+    assert dataset_module.hash_file(payload) == (
+        "0d67f2794b6c885e7cdb54160e2de45004a166f5ef095646a509a981cfe910f1"
+    )
+
+
+def test_cached_manifest_and_missing_cache_errors(tmp_path):
+    cache = tmp_path / "cache"
+    dataset_dir = (
+        cache
+        / "creative-graphic-design___pku-poster_layout"
+        / "default"
+        / "0.0.0"
+        / "revision"
+    )
+    dataset_dir.mkdir(parents=True)
+    metadata = {
+        "download_checksums": {"source@revision/dataset": "hash"},
+        "splits": {"train": {"num_examples": 2}, "test": {"num_examples": 1}},
+        "features": {
+            field: {"dtype": "string"}
+            for field in dataset_module.SOURCE_FIELDS.values()
+        },
+    }
+    (dataset_dir / "dataset_info.json").write_text(json.dumps(metadata))
+    for path in (
+        dataset_dir / "pku-poster_layout-train-0.arrow",
+        dataset_dir / "pku-poster_layout-test.arrow",
+    ):
+        table = pa.table({"id": [0]})
+        with path.open("wb") as handle:
+            writer = pa.ipc.new_stream(handle, table.schema)
+            writer.write_table(table)
+            writer.close()
+    manifest = dataset_module.manifest_from_cached_dataset(cache)
+    source_manifest = cast(dict[str, object], manifest["source"])
+    assert source_manifest["revision"] == "revision"
+    assert source_manifest["split_counts"] == {"train": 2, "test": 1}
+
+    loaded = dataset_module.load_cached_dataset(cache)
+    assert loaded["train"].num_rows == 1
+    assert dataset_module.load_cached_test(cache).num_rows == 1
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(FileNotFoundError):
+        dataset_module.load_cached_dataset(empty)
+    with pytest.raises(FileNotFoundError):
+        dataset_module.load_cached_test(empty)
+    incomplete = tmp_path / "incomplete"
+    incomplete_dataset = (
+        incomplete
+        / "creative-graphic-design___pku-poster_layout"
+        / "default"
+        / "0.0.0"
+        / "revision"
+    )
+    incomplete_dataset.mkdir(parents=True)
+    (incomplete_dataset / "dataset_info.json").write_text("{}")
+    with pytest.raises(FileNotFoundError, match="Arrow files"):
+        dataset_module.load_cached_dataset(incomplete)
+    with pytest.raises(FileNotFoundError, match="TEST Arrow"):
+        dataset_module.load_cached_test(incomplete)
+
+
+def test_datamodule_builds_seeded_train_and_test_loaders(monkeypatch):
+    source = {"train": [_row()], "test": [_row()]}
+    monkeypatch.setattr(datamodule_module, "load_cached_dataset", lambda _: source)
+    data = DSGANDataModule(batch_size=1, test_batch_size=1, max_elem=2)
+    assert data.train_dataloader().batch_size == 1
+    assert data.test_dataloader().batch_size == 1
+    assert DSGANDataModule().test_dataloader().batch_size == 4
+    with pytest.raises(ValueError, match="unsupported DS-GAN dataset"):
+        DSGANDataModule(dataset_name="other")
+
+
+def test_datamodule_sampler_matches_vendor_rng_consumption():
+    dataset = torch.utils.data.TensorDataset(torch.arange(32))
+    torch.manual_seed(0)
+    vendor_loader = torch.utils.data.DataLoader(dataset, batch_size=8, shuffle=True)
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(0)
+    package_loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=8,
+        sampler=datamodule_module._VendorRandomSampler(dataset, generator),
+        generator=generator,
+    )
+
+    for _ in range(2):
+        vendor_values = torch.cat([batch[0] for batch in vendor_loader])
+        package_values = torch.cat([batch[0] for batch in package_loader])
+        assert torch.equal(vendor_values, package_values)
+
+
+def test_datamodule_reuses_training_generator_for_layout_initialization(monkeypatch):
+    source = {"train": [_row()], "test": [_row()]}
+    monkeypatch.setattr(datamodule_module, "load_cached_dataset", lambda _: source)
+    data = DSGANDataModule(batch_size=1, test_batch_size=1, max_elem=2)
+    train_loader = data.train_dataloader()
+    assert train_loader.generator is data.training_generator
+    assert data.train_dataloader().generator is train_loader.generator
+
+    module = DSGANTrainingModule(
+        config=_config(),
+        generator=cast(DSGANModel, _TinyGenerator(2)),
+        discriminator=cast(DSGANDiscriminator, _TinyDiscriminator()),
+    )
+    module._trainer = cast(Trainer, SimpleNamespace(datamodule=data))
+    module.on_fit_start()
+    assert module._torch_generator is train_loader.generator
+
+
+def test_losses_match_and_discriminator_orders_layouts():
+    matcher = HungarianMatcher()
+    with pytest.raises(ValueError, match="at least one"):
+        HungarianMatcher(0, 0, 0)
+    outputs = {
+        "pred_logits": torch.randn(2, 2, 4),
+        "pred_boxes": torch.rand(2, 2, 4),
+    }
+    targets = [
+        {"labels": torch.tensor([1]), "boxes": torch.rand(1, 4)},
+        {"labels": torch.tensor([2]), "boxes": torch.rand(1, 4)},
+    ]
+    assert len(matcher(outputs, targets)) == 2
+    criterion = DSGANSetCriterion()
+    losses = criterion(
+        outputs["pred_logits"][:1],
+        outputs["pred_boxes"][:1],
+        targets[:1],
+    )
+    assert set(losses) == {"loss_ce", "loss_bbox", "loss_giou"}
+
+    classes = torch.eye(4)[torch.tensor([[2, 1, 3, 0]])]
+    boxes = torch.full((1, 4, 4), 0.5)
+    boxes[:, :, 2:] = 0.4
+    layout = torch.stack((classes, boxes), dim=2).detach().requires_grad_()
+    ordered = _LayoutArgmax.apply(layout)
+    ordered.sum().backward()
+    assert layout.grad is not None
+    assert _first_connection(2) == 2
+    assert _first_connection([2, 3]) == 2
+    assert _cxcywh_to_xyxy(torch.tensor([[0.5, 0.5, 0.4, 0.2]])).shape == (1, 4)
+    assert len(_layout_order(torch.tensor([2, 1, 3, 0]), boxes[0])) == 4
+    assert len(_layout_order(torch.tensor([0, 0, 3, 3]), boxes[0])) == 2
+
+
+def test_discriminator_forward_on_tiny_cpu_model():
+    discriminator = DSGANDiscriminator(_config()).eval()
+    output = discriminator(torch.zeros(1, 4, 32, 32), torch.zeros(1, 2, 2, 4))
+    assert output.shape == (1, 1)
