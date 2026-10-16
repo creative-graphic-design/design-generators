@@ -396,6 +396,14 @@ def parse_args() -> argparse.Namespace:
         help="disable cuDNN for package, vendor, and evaluator processes",
     )
     parser.add_argument(
+        "--cudnn-diagnostic-disable",
+        action="store_true",
+        help=(
+            "disable cuDNN for a relation-only diagnostic; records diagnostic=true "
+            "and cudnn_enabled=false"
+        ),
+    )
+    parser.add_argument(
         "--skip-vendor-inference",
         action="store_true",
         help="use an existing vendor prediction directory under output-root",
@@ -416,6 +424,19 @@ def parse_args() -> argparse.Namespace:
         help="package source commit for a legacy refresh without provenance",
     )
     return parser.parse_args()
+
+
+def validate_cudnn_mode(args: argparse.Namespace) -> None:
+    diagnostic = bool(getattr(args, "cudnn_diagnostic_disable", False))
+    disabled = bool(getattr(args, "disable_cudnn", False))
+    if diagnostic and args.condition != "relation":
+        raise ValueError("--cudnn-diagnostic-disable is allowed only for relation")
+    if diagnostic and disabled:
+        raise ValueError(
+            "--cudnn-diagnostic-disable cannot be combined with --disable-cudnn"
+        )
+    if args.condition == "relation" and disabled:
+        raise ValueError("relation parity uses the campaign's cuDNN-enabled invocation")
 
 
 def source_dataset_dir(args: argparse.Namespace) -> Path:
@@ -1156,11 +1177,13 @@ def vendor_prediction_dir(
                 "runpy.run_module('image2layout.train.inference', run_name='__main__')",
             ]
         )
-    elif args.condition == "relation":
+    elif args.condition == "relation" and not args.cudnn_diagnostic_disable:
         # Match the campaign's direct `python -m` invocation.  In particular,
         # do not inject random.seed, monkeypatch itertools.product for a
         # single seed, or disable cuDNN here.
         command.extend(["-m", "image2layout.train.inference"])
+    elif args.condition == "relation":
+        command.extend(["-c", module_wrapper])
     elif args.disable_cudnn:
         command.extend(["-c", module_wrapper])
     else:
@@ -1262,7 +1285,7 @@ def evaluate(
         "--batch-size",
         str(args.batch_size),
     ]
-    if args.disable_cudnn:
+    if args.disable_cudnn or args.cudnn_diagnostic_disable:
         command = [
             str(args.runtime_python),
             "-c",
@@ -1627,6 +1650,7 @@ def artifact(
             "inference_workers": 0,
             "evaluation_workers": 2,
             "cudnn_enabled": torch.backends.cudnn.enabled,
+            "diagnostic": bool(getattr(args, "cudnn_diagnostic_disable", False)),
         },
         "checkpoint": {
             "path": args.checkpoint_artifact_path,
@@ -1829,9 +1853,8 @@ def main() -> None:
         args.test_count = TEST_COUNTS[args.dataset]
     if args.seed is not None:
         INFERENCE_SEEDS = (args.seed,)
-    if args.condition == "relation" and args.disable_cudnn:
-        raise ValueError("relation parity uses the campaign's cuDNN-enabled invocation")
-    if args.disable_cudnn:
+    validate_cudnn_mode(args)
+    if args.disable_cudnn or args.cudnn_diagnostic_disable:
         torch.backends.cudnn.enabled = False
     args.dataset_root = args.dataset_root.resolve()
     args.campaign_root = args.campaign_root.resolve()
@@ -1865,7 +1888,9 @@ def main() -> None:
         )
     if not (0 <= args.gpu):
         raise ValueError("gpu must be non-negative")
-    args.runtime_preflight = runtime_preflight(require_cudnn=not args.disable_cudnn)
+    args.runtime_preflight = runtime_preflight(
+        require_cudnn=not (args.disable_cudnn or args.cudnn_diagnostic_disable)
+    )
     started = time.time()
     args.output_root.mkdir(parents=True, exist_ok=True)
     freeze = runtime_freeze(

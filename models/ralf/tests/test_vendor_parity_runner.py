@@ -119,6 +119,31 @@ def test_runtime_preflight_rejects_mismatched_cuda_packages(
         runner.installed_cuda_package_family()
 
 
+def test_relation_cudnn_diagnostic_disable_is_explicitly_allowed() -> None:
+    runner = load_runner()
+
+    runner.validate_cudnn_mode(
+        SimpleNamespace(
+            condition="relation",
+            disable_cudnn=False,
+            cudnn_diagnostic_disable=True,
+        )
+    )
+
+
+def test_cudnn_diagnostic_disable_rejects_non_relation() -> None:
+    runner = load_runner()
+
+    with pytest.raises(ValueError, match="only for relation"):
+        runner.validate_cudnn_mode(
+            SimpleNamespace(
+                condition="label",
+                disable_cudnn=False,
+                cudnn_diagnostic_disable=True,
+            )
+        )
+
+
 def test_full_test_counts_are_dataset_specific() -> None:
     runner = load_runner()
 
