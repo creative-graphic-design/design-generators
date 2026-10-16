@@ -16,6 +16,12 @@ dependencies = [
 [project.optional-dependencies]
 vendor = ["tensorflow-cpu==2.15.1"]
 parity = ["traingen", "traingen-parity"]
+training = [
+    "jsonargparse[signatures]>=4.27.7",
+    "lightning>=2.4,<3",
+    "tfrecord>=1.14.3",
+    "traingen",
+]
 
 [tool.uv.sources]
 laygen = { workspace = true }
@@ -32,6 +38,7 @@ paper = "https://arxiv.org/abs/2108.01249"
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires TensorFlow and generated CPU reference artifacts",
 ]
 
