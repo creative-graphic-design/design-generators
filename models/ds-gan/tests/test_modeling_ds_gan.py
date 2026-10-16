@@ -1,4 +1,5 @@
 import torch
+import timm
 
 from ds_gan import DSGANConfig, DSGANModel, random_initial_layout
 
@@ -74,6 +75,21 @@ def test_model_rejects_bad_pixel_values_shape_and_backbone():
         assert "Unsupported DS-GAN backbone" in str(exc)
     else:
         raise AssertionError("expected bad backbone to raise")
+
+
+def test_model_loads_explicit_backbone_weights(tmp_path):
+    config = tiny_config()
+    torch.manual_seed(11)
+    backbone = timm.create_model("resnet18", pretrained=False)
+    weight_path = tmp_path / "resnet18.pth"
+    torch.save(backbone.state_dict(), weight_path)
+
+    model = DSGANModel(config, backbone_weights=weight_path)
+
+    assert torch.equal(
+        model.resnet_fpn.resnet_tilconv4.state_dict()["4.0.conv1.weight"],
+        backbone.state_dict()["layer1.0.conv1.weight"],
+    )
 
 
 def test_random_initial_layout_numpy_and_uniform_modes():
