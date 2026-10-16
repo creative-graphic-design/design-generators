@@ -112,6 +112,30 @@ def test_check_changed_urls_passes_for_live_url_with_mocked_checker() -> None:
     assert check_changed_urls.report_results(results) == 0
 
 
+def test_check_changed_urls_probes_vcs_revision_url_at_repository_root() -> None:
+    url = f"{DESIGN_GENERATORS_URL}.git@v0.6"
+    probed: list[str] = []
+
+    def checker(probe_url: str) -> check_changed_urls.UrlCheckResult:
+        probed.append(probe_url)
+        return check_changed_urls.UrlCheckResult(
+            url=probe_url,
+            outcome="ok",
+            status=200,
+        )
+
+    results = check_changed_urls.check_changed_urls(
+        [check_changed_urls.ChangedUrl(url, "models/radm/pyproject.toml:1")],
+        ignore_patterns=[],
+        checker=checker,
+    )
+
+    assert probed == [DESIGN_GENERATORS_URL + ".git"]
+    assert results == [
+        check_changed_urls.UrlCheckResult(url=url, outcome="ok", status=200)
+    ]
+
+
 def test_check_changed_urls_fails_for_added_404_with_mocked_checker() -> None:
     urls = [
         check_changed_urls.ChangedUrl(

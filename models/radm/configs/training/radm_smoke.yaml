@@ -1,0 +1,41 @@
+seed_everything: 1
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  max_steps: 1
+  gradient_clip_val: 0.0
+  limit_train_batches: 1
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+model:
+  class_path: radm.training.lightning_module.RADMTrainingModule
+  init_args:
+    config:
+      class_path: radm.configuration_radm.RADMConfig
+      init_args:
+        dataset_name: cgl
+        num_classes: 4
+        num_proposals: 100
+        hidden_dim: 32
+        text_feature_dim: 16
+        max_text_num: 20
+        backbone_depth: 18
+    effective:
+      class_path: radm.training.config.RADMEffectiveConfig
+      init_args:
+        hidden_dim: 32
+        text_feature_dim: 16
+data:
+  class_path: radm.training.datamodule.RADMDataModule
+  init_args:
+    train_annotations: .cache/radm/data/cgl/annotations/train.json
+    train_image_root: .cache/radm/data/cgl/images/train
+    train_text_feature_root: .cache/radm/data/cgl/text_features/train
+    batch_size: 2
+    num_workers: 0
+    effective:
+      class_path: radm.training.config.RADMEffectiveConfig
+      init_args:
+        text_feature_dim: 16
