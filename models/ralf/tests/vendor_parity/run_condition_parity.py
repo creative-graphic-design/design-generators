@@ -975,6 +975,18 @@ def load_relationship_table(path: Path | None) -> RalfRelationshipTable | None:
     return _load_relationship_table(path)
 
 
+def relation_vendor_module_wrapper(*, disable_cudnn: bool) -> str:
+    """Seed relation-table preparation before importing the vendor module."""
+    cudnn_setup = (
+        "import torch; torch.backends.cudnn.enabled=False; " if disable_cudnn else ""
+    )
+    return (
+        "import random; random.seed(0); "
+        + cudnn_setup
+        + "import runpy; runpy.run_module('image2layout.train.inference', run_name='__main__')"
+    )
+
+
 def rows_to_inputs(
     rows: Sequence[Mapping[str, Any]], *, max_elements: int
 ) -> tuple[list[Any], ...]:
@@ -1177,13 +1189,15 @@ def vendor_prediction_dir(
                 "runpy.run_module('image2layout.train.inference', run_name='__main__')",
             ]
         )
-    elif args.condition == "relation" and not args.cudnn_diagnostic_disable:
-        # Match the campaign's direct `python -m` invocation.  In particular,
-        # do not inject random.seed, monkeypatch itertools.product for a
-        # single seed, or disable cuDNN here.
-        command.extend(["-m", "image2layout.train.inference"])
     elif args.condition == "relation":
-        command.extend(["-c", module_wrapper])
+        command.extend(
+            [
+                "-c",
+                relation_vendor_module_wrapper(
+                    disable_cudnn=args.cudnn_diagnostic_disable
+                ),
+            ]
+        )
     elif args.disable_cudnn:
         command.extend(["-c", module_wrapper])
     else:
@@ -1632,6 +1646,20 @@ def artifact(
     script_path = Path(__file__).resolve()
     runner_hash = sha256(script_path)
     source_commit = repository_source_commit()
+    settings = {
+        "vendor_condition": CONDITIONS[args.condition],
+        "test_split": "test",
+        "top_k": 1 if args.condition == "refinement" else 5,
+        "sampling": "deterministic" if args.condition == "refinement" else "top_k",
+        "temperature": 1.0,
+        "relation_backtracking": args.condition == "relation",
+        "inference_workers": 0,
+        "evaluation_workers": 2,
+        "cudnn_enabled": torch.backends.cudnn.enabled,
+        "diagnostic": bool(getattr(args, "cudnn_diagnostic_disable", False)),
+    }
+    if args.condition == "relation":
+        settings["vendor_process_random_seed"] = 0
     record = {
         "dataset": args.dataset,
         "condition": args.condition,
@@ -1640,18 +1668,7 @@ def artifact(
         "batch_size": args.batch_size,
         "generator_device": "caller-created CUDA torch.Generator",
         "cuda_visible_devices": "<gpu>",
-        "settings": {
-            "vendor_condition": CONDITIONS[args.condition],
-            "test_split": "test",
-            "top_k": 1 if args.condition == "refinement" else 5,
-            "sampling": "deterministic" if args.condition == "refinement" else "top_k",
-            "temperature": 1.0,
-            "relation_backtracking": args.condition == "relation",
-            "inference_workers": 0,
-            "evaluation_workers": 2,
-            "cudnn_enabled": torch.backends.cudnn.enabled,
-            "diagnostic": bool(getattr(args, "cudnn_diagnostic_disable", False)),
-        },
+        "settings": settings,
         "checkpoint": {
             "path": args.checkpoint_artifact_path,
             "sha256": sha256(campaign_checkpoint(args)),

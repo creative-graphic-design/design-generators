@@ -131,6 +131,17 @@ def test_relation_cudnn_diagnostic_disable_is_explicitly_allowed() -> None:
     )
 
 
+@pytest.mark.parametrize("disable_cudnn", [False, True])
+def test_relation_vendor_wrapper_seeds_before_import(disable_cudnn: bool) -> None:
+    runner = load_runner()
+
+    wrapper = runner.relation_vendor_module_wrapper(disable_cudnn=disable_cudnn)
+
+    assert wrapper.startswith("import random; random.seed(0); ")
+    assert wrapper.index("random.seed(0)") < wrapper.index("runpy.run_module")
+    assert ("torch.backends.cudnn.enabled=False" in wrapper) is disable_cudnn
+
+
 def test_cudnn_diagnostic_disable_rejects_non_relation() -> None:
     runner = load_runner()
 
