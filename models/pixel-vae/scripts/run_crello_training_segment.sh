@@ -8,7 +8,7 @@
 #   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
-#   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar.gz
+#   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar
 
 set -Eeuo pipefail
 
@@ -196,8 +196,8 @@ run_logged uv sync --locked --package pixel-vae --extra training
 if [[ -n "$data_uri" && ! -f "$data_dir/count.json" ]]; then
     [[ ! -e "$data_dir" ]] || { printf 'data directory exists without count.json\n' >&2; exit 2; }
     mkdir -p "$data_dir"
-    download_hub_file "$data_uri" "$work_root/pixelvae-data.tar.gz" models
-    run_logged tar -xzf "$work_root/pixelvae-data.tar.gz" --no-same-owner -C "$data_dir"
+    download_hub_file "$data_uri" "$work_root/pixelvae-data.tar" models
+    run_logged tar -xf "$work_root/pixelvae-data.tar" --no-same-owner -C "$data_dir"
 fi
 
 if [[ "$cpu_rehearsal" == 1 && ! -f "$data_dir/count.json" ]]; then
