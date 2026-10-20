@@ -26,6 +26,8 @@ from ..image_processing_pixel_vae import PixelVAEImageProcessor
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
+
+
 @dataclass(frozen=True)
 class _RecordLocation:
     """Locate one image payload inside a TFRecord shard."""
