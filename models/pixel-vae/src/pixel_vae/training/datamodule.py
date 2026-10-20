@@ -14,6 +14,7 @@ from typing import BinaryIO, NamedTuple, TypeAlias, TypedDict, cast
 
 import lightning as L
 import numpy as np
+import torch
 from jaxtyping import UInt32
 from torch.utils.data import DataLoader, Dataset, Sampler
 from transformers.image_processing_utils import BatchFeature
@@ -192,6 +193,7 @@ class PixelVAEDataModule(L.LightningDataModule):
         data_dir: Directory containing filtered image records and split counts.
         batch_size: Number of images per original training and validation batch.
         num_workers: Number of PyTorch workers that load and decode batches.
+        pin_memory: Whether to pin batches for asynchronous CUDA transfers.
     """
 
     def __init__(
@@ -199,12 +201,15 @@ class PixelVAEDataModule(L.LightningDataModule):
         data_dir: str = ".cache/pixel-vae/data/crello-image",
         batch_size: int = 64,
         num_workers: int = 0,
+        pin_memory: bool = False,
     ) -> None:
         """Store the prepared dataset location and loader parallelism."""
         super().__init__()
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.pin_memory = pin_memory
+        self.worker_generator = torch.Generator(device="cpu").manual_seed(0)
         self.processor = PixelVAEImageProcessor()
         self.datasets: dict[str, _PixelVAERecordDataset] = {}
         self.samplers: dict[str, _PixelVAERecordSampler] = {}
@@ -306,7 +311,9 @@ class PixelVAEDataModule(L.LightningDataModule):
                 sampler=self.samplers[split],
                 collate_fn=self.processor,
                 num_workers=self.num_workers,
+                pin_memory=self.pin_memory,
                 persistent_workers=self.num_workers > 0,
+                generator=self.worker_generator,
             ),
         )
 

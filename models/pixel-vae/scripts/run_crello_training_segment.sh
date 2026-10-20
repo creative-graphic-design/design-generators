@@ -5,8 +5,9 @@
 # @description
 #   Production runs are invoked through colab-gpu-run, use 10 epochs first,
 #   then at most 18 epochs per segment based on measured A100 throughput. The
-#   same script supports a two-epoch CPU rehearsal across fresh processes when
-#   PIXELVAE_CPU_REHEARSAL=1. CPU rehearsals require data_tar;
+#   same script supports one-epoch CPU rehearsals from a tiny tar, including
+#   resume from the previous process, when PIXELVAE_CPU_REHEARSAL=1;
+#   rehearsals require data_tar.
 #   PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a tiny fixture before packaging.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
@@ -286,8 +287,8 @@ PY
 )"
 fi
 if [[ "$cpu_rehearsal" == 1 ]]; then
-    [[ "$start_epoch" == 0 && "$end_epoch" == 1 || "$start_epoch" == 1 && "$end_epoch" == 2 ]] || {
-        printf 'CPU rehearsal must save epoch 1 and resume through epoch 2\n' >&2
+    [[ "$end_epoch" == "$((start_epoch + 1))" && "$end_epoch" -le 250 ]] || {
+        printf 'CPU rehearsal must save one epoch after its loaded checkpoint\n' >&2
         exit 2
     }
     export CUDA_VISIBLE_DEVICES=''
@@ -319,21 +320,85 @@ PY
     accelerator=gpu
 fi
 
-if [[ -z "$resume_path" && -e "$run_dir/checkpoints/last.ckpt" ]]; then
-    printf 'refusing to start without a resume checkpoint over an existing run\n' >&2
+gpu_samples="$run_dir/reports/gpu-samples.csv"
+runtime_path="$run_dir/reports/runtime-e$(printf '%03d' "$end_epoch").json"
+epoch_timing_path="$run_dir/reports/epoch-times-e$(printf '%03d' "$end_epoch").jsonl"
+lockstep_path="$run_dir/reports/lockstep-e$(printf '%03d' "$end_epoch").jsonl"
+lockstep_summary_path="${lockstep_path%.jsonl}.summary.json"
+sampler_pid=''
+if [[ -e "$runtime_path" || -e "$epoch_timing_path" || -e "$gpu_samples" \
+    || -e "$lockstep_path" || -e "$lockstep_summary_path" ]]; then
+    printf 'refusing to overwrite existing segment telemetry\n' >&2
     exit 2
 fi
+run_logged uv run --locked --no-sync --package pixel-vae --extra training python - \
+    "$runtime_path" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
-gpu_samples="$run_dir/reports/gpu-samples.csv"
-sampler_pid=''
-if [[ "$cpu_rehearsal" != 1 && "$start_epoch" == 0 ]]; then
-    run_logged nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits
-    nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits -l 1 > "$gpu_samples" 2>>"$private_log" &
-    sampler_pid=$!
-    sleep 2
-    kill -0 "$sampler_pid" 2>/dev/null || { printf 'GPU sampling failed to start\n' >&2; exit 2; }
-    [[ -s "$gpu_samples" ]] || { printf 'GPU sampling produced no measurements\n' >&2; exit 2; }
+import torch
+
+runtime_path = Path(sys.argv[1])
+nproc = int(subprocess.check_output(["nproc"], text=True).strip())
+visible_devices = torch.cuda.device_count()
+runtime = {
+    "os_cpu_count": os.cpu_count(),
+    "nproc": nproc,
+    "cuda_visible_device_count": visible_devices,
+}
+if visible_devices == 1:
+    runtime["gpu_name"] = torch.cuda.get_device_name(0)
+runtime_path.write_text(json.dumps(runtime, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(runtime, sort_keys=True))
+PY
+
+if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 10 ]]; then
+    lockstep_steps=300
+    lockstep_device=cuda
+    if [[ "$cpu_rehearsal" == 1 ]]; then
+        lockstep_steps=1
+        lockstep_device=cpu
+    fi
+
+    vendor_commit=bc1e2072ba3a253f1b099e8b0c604f6051e787da
+    vendor_dir="$repo_dir/vendor/canvas-vae"
+    vendor_model="$vendor_dir/src/pixel-vae/pixelvae/model.py"
+    if [[ ! -f "$vendor_model" ]]; then
+        [[ ! -e "$vendor_dir" ]] || {
+            printf 'vendor CanvasVAE directory exists without its pinned model\n' >&2
+            exit 2
+        }
+        vendor_archive="$work_root/canvas-vae-${vendor_commit}.tar.gz"
+        mkdir -p "$vendor_dir"
+        run_logged curl --fail --silent --show-error --location --retry 3 \
+            --output "$vendor_archive" \
+            "https://github.com/CyberAgentAILab/canvas-vae/archive/${vendor_commit}.tar.gz"
+        run_logged tar -xzf "$vendor_archive" --strip-components=1 -C "$vendor_dir"
+    fi
+
+    run_logged uv sync --locked --package pixel-vae --extra training --group dev
+    run_logged uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
+        'tensorflow[and-cuda]==2.15.1'
+    export TF_CPP_MIN_LOG_LEVEL=2
+    export TF_ENABLE_ONEDNN_OPTS=0
+    run_logged uv run --locked --no-sync --package pixel-vae --extra training \
+        --group dev python models/pixel-vae/tests/vendor_parity/run_real_scale_lockstep.py \
+        --data-dir "$data_dir" \
+        --batch-size "$batch_size" \
+        --num-workers 6 \
+        --steps "$lockstep_steps" \
+        --device "$lockstep_device" \
+        --output "$lockstep_path"
+    [[ -f "$lockstep_path" && -f "$lockstep_summary_path" ]] || {
+        printf 'lockstep completed without its evidence files\n' >&2
+        exit 2
+    }
 fi
+
+export PIXELVAE_EPOCH_TIMING_FILE="$epoch_timing_path"
 stop_sampler() {
     if [[ -n "$sampler_pid" ]]; then
         kill "$sampler_pid" 2>/dev/null || true
@@ -342,7 +407,19 @@ stop_sampler() {
     fi
 }
 trap stop_sampler EXIT
+if [[ "$cpu_rehearsal" != 1 ]]; then
+    run_logged nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits
+    nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits -l 1 > "$gpu_samples" 2>>"$private_log" &
+    sampler_pid=$!
+    sleep 2
+    kill -0 "$sampler_pid" 2>/dev/null || { printf 'GPU sampling failed to start\n' >&2; exit 2; }
+    [[ -s "$gpu_samples" ]] || { printf 'GPU sampling produced no measurements\n' >&2; exit 2; }
+fi
 
+if [[ -z "$resume_path" && -e "$run_dir/checkpoints/last.ckpt" ]]; then
+    printf 'refusing to start without a resume checkpoint over an existing run\n' >&2
+    exit 2
+fi
 time_file="$private_dir/train-time.txt"
 fit_args=(
     --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
@@ -360,7 +437,7 @@ if [[ -n "$resume_path" ]]; then
 fi
 TIMEFORMAT='%3R %P'
 set +e
-{ time uv run --locked --package pixel-vae --extra training traingen fit \
+{ time uv run --locked --no-sync --package pixel-vae --extra training traingen fit \
     "${fit_args[@]}" >>"$private_log" 2>&1; } 2>"$time_file"
 train_status=$?
 set -e
@@ -377,11 +454,13 @@ if [[ -f "$run_dir/config.yaml" ]]; then
 fi
 
 report_path="$run_dir/reports/segment-e$(printf '%03d' "$end_epoch").json"
-run_logged uv run --locked --package pixel-vae --extra training python - \
+run_logged uv run --locked --no-sync --package pixel-vae --extra training python - \
     "$data_dir/count.json" "$run_dir/checkpoints/last.ckpt" \
     "$run_dir/checkpoints/best.ckpt" "$start_epoch" "$end_epoch" \
-    "$batch_size" "$time_file" "$gpu_samples" "$report_path" "$source_sha" <<'PY'
+    "$batch_size" "$time_file" "$gpu_samples" "$report_path" "$source_sha" \
+    "$runtime_path" "$epoch_timing_path" <<'PY'
 import csv
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -390,7 +469,20 @@ from pathlib import Path
 
 import torch
 
-counts_path, last_path, best_path, start, end, batch, time_path, gpu_path, report_path, source = sys.argv[1:]
+(
+    counts_path,
+    last_path,
+    best_path,
+    start,
+    end,
+    batch,
+    time_path,
+    gpu_path,
+    report_path,
+    source,
+    runtime_path,
+    epoch_timing_path,
+) = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
 completed = int(checkpoint["epoch"])
@@ -424,18 +516,48 @@ if Path(gpu_path).is_file():
         for row in csv.reader(stream):
             if len(row) >= 4:
                 try:
-                    samples.append(tuple(float(value.strip()) for value in row[1:4]))
+                    samples.append(
+                        (
+                            row[0].strip(),
+                            *(float(value.strip()) for value in row[1:4]),
+                        )
+                    )
                 except ValueError:
                     continue
 gpu = None
 if samples:
     gpu = {
         "sample_count": len(samples),
-        "mean_utilization_percent": sum(row[0] for row in samples) / len(samples),
-        "mean_power_watts": sum(row[1] for row in samples) / len(samples),
-        "mean_power_limit_watts": sum(row[2] for row in samples) / len(samples),
-        "mean_power_limit_fraction": sum(row[1] / row[2] for row in samples) / len(samples),
+        "mean_utilization_percent": sum(row[1] for row in samples) / len(samples),
+        "mean_power_watts": sum(row[2] for row in samples) / len(samples),
+        "mean_power_limit_watts": sum(row[3] for row in samples) / len(samples),
+        "mean_power_limit_fraction": sum(row[2] / row[3] for row in samples) / len(samples),
     }
+runtime = json.loads(Path(runtime_path).read_text(encoding="utf-8"))
+epoch_times = [
+    json.loads(line)
+    for line in Path(epoch_timing_path).read_text(encoding="utf-8").splitlines()
+    if line
+]
+for epoch in epoch_times:
+    start_time = datetime.fromisoformat(epoch["started_at_utc"])
+    end_time = datetime.fromisoformat(epoch["finished_at_utc"])
+    epoch_samples = []
+    for row in samples:
+        try:
+            sample_time = datetime.strptime(
+                row[0], "%Y/%m/%d %H:%M:%S.%f"
+            ).replace(tzinfo=timezone.utc)
+        except ValueError:
+            sample_time = datetime.strptime(row[0], "%Y/%m/%d %H:%M:%S").replace(
+                tzinfo=timezone.utc
+            )
+        if start_time <= sample_time <= end_time:
+            epoch_samples.append(row[1])
+    epoch["gpu_utilization_sample_count"] = len(epoch_samples)
+    epoch["mean_gpu_utilization_percent"] = (
+        sum(epoch_samples) / len(epoch_samples) if epoch_samples else None
+    )
 report = {
     "source_commit": source,
     "segment": {
@@ -451,6 +573,8 @@ report = {
         "validation_steps_per_epoch": val_steps,
     },
     "validation": {"best_val_reconstruction": best_validation},
+    "runtime": runtime,
+    "epoch_telemetry": epoch_times,
     "timing": {
         "training_wall_seconds": float(elapsed_text),
         "cpu_percent": cpu_text,
@@ -471,7 +595,9 @@ Path(report_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-
 print(json.dumps(report, sort_keys=True))
 PY
 
-for output_log in "$private_log" "$gpu_samples" "$report_path"; do
+for output_log in \
+    "$private_log" "$gpu_samples" "$report_path" "$runtime_path" \
+    "$epoch_timing_path" "$lockstep_path" "$lockstep_summary_path"; do
     [[ -f "$output_log" ]] || continue
     if grep -Eiq 'hf_[[:alnum:]]{20,}' "$output_log"; then
         printf 'log or report contains an HF token-shaped value; detailed output is withheld\n' >&2
