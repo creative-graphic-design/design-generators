@@ -9,6 +9,8 @@ tags:
 
 This guide defines how downstream projects, model ports, and AI coding agents should extend `design-generators` and the framework packages it builds on. The goal is to keep changes small enough to review, test, upgrade, and attribute.
 
+The [model framework](conventions.md#choosing-a-model-framework) and [module-name](conventions.md#model-package-module-names) conventions are mandatory for packages added to or maintained inside `design-generators`. Downstream projects that consume `laygen` or `traingen` may opt in.
+
 ## Why This Guide
 
 This repository wraps research systems in public `transformers`-, `diffusers`-, and `pydantic-ai`-style interfaces. Those frameworks are large projects with their own release cadence and compatibility contracts. Copying their source trees, or copying a whole `design-generators` package into another project, makes the real change hard to identify and usually breaks upgrades, licensing review, and provenance tracking.
