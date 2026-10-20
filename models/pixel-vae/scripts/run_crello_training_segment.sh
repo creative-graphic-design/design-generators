@@ -8,7 +8,7 @@
 #   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
-#   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://datasets/<owner>/<repo>/<file>.tar.gz
+#   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar.gz
 
 set -Eeuo pipefail
 
@@ -146,11 +146,23 @@ from huggingface_hub import hf_hub_download
 uri, target, expected = sys.argv[1:]
 parts = urlsplit(uri)
 components = parts.path.strip("/").split("/")
-if parts.scheme != "hf" or parts.netloc != expected or len(components) < 3:
-    raise SystemExit(f"input must be an hf://{expected}/.../<file> URI")
+if parts.scheme != "hf" or expected not in {"datasets", "models"}:
+    raise SystemExit("input must use hf:// and a supported Hub repository type")
+
+if parts.netloc in {"datasets", "models"}:
+    if parts.netloc != expected or len(components) < 3:
+        raise SystemExit(f"typed Hub input must use hf://{expected}/<owner>/<repo>/<file>")
+
+    repo_parts, file_parts = components[:2], components[2:]
+else:
+    if not parts.netloc or len(components) < 2:
+        raise SystemExit("Hub input must identify an owner, repository, and file")
+
+    repo_parts, file_parts = [parts.netloc, components[0]], components[1:]
+
 downloaded = hf_hub_download(
-    repo_id="/".join(components[:2]),
-    filename="/".join(components[2:]),
+    repo_id="/".join(repo_parts),
+    filename="/".join(file_parts),
     repo_type="dataset" if expected == "datasets" else "model",
     token=True,
 )
@@ -184,7 +196,7 @@ run_logged uv sync --locked --package pixel-vae --extra training
 if [[ -n "$data_uri" && ! -f "$data_dir/count.json" ]]; then
     [[ ! -e "$data_dir" ]] || { printf 'data directory exists without count.json\n' >&2; exit 2; }
     mkdir -p "$data_dir"
-    download_hub_file "$data_uri" "$work_root/pixelvae-data.tar.gz" datasets
+    download_hub_file "$data_uri" "$work_root/pixelvae-data.tar.gz" models
     run_logged tar -xzf "$work_root/pixelvae-data.tar.gz" --no-same-owner -C "$data_dir"
 fi
 
