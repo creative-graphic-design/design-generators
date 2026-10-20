@@ -12,6 +12,8 @@
 
 set -Eeuo pipefail
 
+unset UV_SYSTEM_PYTHON PYTHONPATH MPLBACKEND
+
 source_uri=''
 data_uri=''
 resume_uri=''
@@ -156,6 +158,11 @@ shutil.copyfile(downloaded, target)
 PY
 }
 
+uv_install_dir="$work_root/uv-install"
+run_logged env UV_UNMANAGED_INSTALL="$uv_install_dir" UV_NO_MODIFY_PATH=1 \
+    bash -o pipefail -c \
+    'curl --fail --silent --show-error --location --retry 3 --proto "=https" --tlsv1.2 https://releases.astral.sh/github/uv/releases/download/0.12.22/uv-installer.sh | sh'
+export PATH="$uv_install_dir:$PATH"
 uv_version="$(uv --version 2>/dev/null)" || { printf 'uv 0.12.22 is required; uv is unavailable\n' >&2; exit 2; }
 [[ "$uv_version" =~ ^uv[[:space:]]0\.12\.22([[:space:]]|$) ]] || {
     printf 'uv 0.12.22 is required, found: %s\n' "$uv_version" >&2
