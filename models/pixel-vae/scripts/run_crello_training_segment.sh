@@ -3,11 +3,11 @@
 # @file models/pixel-vae/scripts/run_crello_training_segment.sh
 # @brief Run one resumable PixelVAE Crello training segment.
 # @description
-#   Production runs are invoked through colab-gpu-run and use epoch boundaries
-#   10, 60, 110, 160, 210, and 250. The same script supports a two-epoch CPU
-#   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1. CPU
-#   rehearsals require data_tar; PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a
-#   tiny fixture before it is packaged as data_tar.
+#   Production runs are invoked through colab-gpu-run, use 10 epochs first,
+#   then at most 18 epochs per segment based on measured A100 throughput. The
+#   same script supports a two-epoch CPU rehearsal across fresh processes when
+#   PIXELVAE_CPU_REHEARSAL=1. CPU rehearsals require data_tar;
+#   PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a tiny fixture before packaging.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
 #   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar
@@ -300,8 +300,10 @@ if visible != 0:
 PY
     accelerator=cpu
 else
-    [[ "$start_epoch" == 0 && "$end_epoch" == 10 || "$start_epoch" -gt 0 && "$end_epoch" -gt "$start_epoch" && "$end_epoch" -le 250 && $((end_epoch - start_epoch)) -le 50 ]] || {
-        printf 'production segment must end at epoch 10 or the next 50-epoch boundary\n' >&2
+    expected_end=$((start_epoch == 0 ? 10 : start_epoch + 18))
+    ((expected_end <= 250)) || expected_end=250
+    [[ "$end_epoch" == "$expected_end" ]] || {
+        printf 'production segment must end at the next boundary, epoch %s\n' "$expected_end" >&2
         exit 2
     }
     if [[ ! ${CUDA_VISIBLE_DEVICES+x} ]]; then
@@ -317,10 +319,6 @@ PY
     accelerator=gpu
 fi
 
-[[ "$end_epoch" == 10 || "$end_epoch" == 60 || "$end_epoch" == 110 || "$end_epoch" == 160 || "$end_epoch" == 210 || "$end_epoch" == 250 || "$cpu_rehearsal" == 1 ]] || {
-    printf 'unsupported production epoch boundary\n' >&2
-    exit 2
-}
 if [[ -z "$resume_path" && -e "$run_dir/checkpoints/last.ckpt" ]]; then
     printf 'refusing to start without a resume checkpoint over an existing run\n' >&2
     exit 2
