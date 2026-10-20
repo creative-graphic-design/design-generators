@@ -235,7 +235,7 @@ import torch
 checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
 if not checkpoint.get("optimizer_states"):
     raise SystemExit("resume checkpoint has no optimizer state")
-print(int(checkpoint["epoch"]))
+print(int(checkpoint["epoch"]) + 1)
 PY
 )"
 fi
@@ -349,13 +349,28 @@ import torch
 counts_path, last_path, best_path, start, end, batch, time_path, gpu_path, report_path, source = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
-completed = int(checkpoint["epoch"])
+completed = int(checkpoint["epoch"]) + 1
 if completed != int(end):
     raise SystemExit(f"last checkpoint epoch is {completed}; expected {end}")
 optimizer_states = checkpoint.get("optimizer_states")
 if not isinstance(optimizer_states, list) or not optimizer_states:
     keys = ",".join(sorted(checkpoint))
     raise SystemExit(f"last checkpoint has no optimizer state; keys={keys}")
+checkpoint_callbacks = checkpoint.get("callbacks", {})
+best_scores = [
+    state["best_model_score"]
+    for state in checkpoint_callbacks.values()
+    if state.get("monitor") == "val_reconstruction"
+    and state.get("best_model_score") is not None
+]
+if len(best_scores) != 1:
+    raise SystemExit("last checkpoint has no unique val_reconstruction best score")
+best_validation = best_scores[0]
+if isinstance(best_validation, torch.Tensor):
+    best_validation = best_validation.item()
+best_validation = float(best_validation)
+if not math.isfinite(best_validation):
+    raise SystemExit("best val_reconstruction score is not finite")
 elapsed_text, cpu_text = Path(time_path).read_text(encoding="utf-8").split()
 train_steps = math.ceil(counts["train"] / int(batch))
 val_steps = math.ceil(counts["val"] / int(batch))
@@ -391,6 +406,7 @@ report = {
         "train_steps_per_epoch": train_steps,
         "validation_steps_per_epoch": val_steps,
     },
+    "validation": {"best_val_reconstruction": best_validation},
     "timing": {
         "training_wall_seconds": float(elapsed_text),
         "cpu_percent": cpu_text,
