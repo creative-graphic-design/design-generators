@@ -160,10 +160,14 @@ PY
 
 uv_install_dir="$work_root/uv-install"
 if [[ ! -x "$uv_install_dir/uv" ]]; then
-    run_logged env UV_UNMANAGED_INSTALL="$uv_install_dir" UV_NO_MODIFY_PATH=1 \
+    run_logged env UV_INSTALL_DIR="$uv_install_dir" UV_NO_MODIFY_PATH=1 \
         bash -o pipefail -c \
         'curl --fail --silent --show-error --location --retry 3 --proto "=https" --tlsv1.2 https://releases.astral.sh/github/uv/releases/download/0.12.22/uv-installer.sh | sh'
 fi
+[[ -x "$uv_install_dir/uv" ]] || {
+    printf 'pinned uv installer did not create %s/uv\n' "$uv_install_dir" >&2
+    exit 2
+}
 export PATH="$uv_install_dir:$PATH"
 uv_version="$(uv --version 2>/dev/null)" || { printf 'uv 0.12.22 is required; uv is unavailable\n' >&2; exit 2; }
 [[ "$uv_version" =~ ^uv[[:space:]]0\.12\.22([[:space:]]|$) ]] || {
@@ -237,7 +241,7 @@ import torch
 checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
 if not checkpoint.get("optimizer_states"):
     raise SystemExit("resume checkpoint has no optimizer state")
-print(int(checkpoint["epoch"]) + 1)
+print(int(checkpoint["epoch"]))
 PY
 )"
 fi
@@ -351,7 +355,7 @@ import torch
 counts_path, last_path, best_path, start, end, batch, time_path, gpu_path, report_path, source = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
-completed = int(checkpoint["epoch"]) + 1
+completed = int(checkpoint["epoch"])
 if completed != int(end):
     raise SystemExit(f"last checkpoint epoch is {completed}; expected {end}")
 optimizer_states = checkpoint.get("optimizer_states")
