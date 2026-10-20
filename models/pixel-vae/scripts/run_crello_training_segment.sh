@@ -5,7 +5,9 @@
 # @description
 #   Production runs are invoked through colab-gpu-run and use epoch boundaries
 #   10, 60, 110, 160, 210, and 250. The same script supports a two-epoch CPU
-#   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1.
+#   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1. CPU
+#   rehearsals require data_tar; PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a
+#   tiny fixture before it is packaged as data_tar.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
 #   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar
@@ -49,7 +51,16 @@ done
 source_sha="${BASH_REMATCH[1],,}"
 work_root="${PIXELVAE_WORK_ROOT:-$PWD}"
 cpu_rehearsal="${PIXELVAE_CPU_REHEARSAL:-0}"
+cpu_fixture_prep="${PIXELVAE_CPU_FIXTURE_PREP:-0}"
 end_epoch="${PIXELVAE_END_EPOCH:-}"
+[[ "$cpu_fixture_prep" == 0 || "$cpu_fixture_prep" == 1 ]] || {
+    printf 'PIXELVAE_CPU_FIXTURE_PREP must be 0 or 1\n' >&2
+    exit 2
+}
+[[ "$cpu_rehearsal" == 1 || "$cpu_fixture_prep" == 0 ]] || {
+    printf 'fixture preparation requires PIXELVAE_CPU_REHEARSAL=1\n' >&2
+    exit 2
+}
 if [[ "$cpu_rehearsal" != 1 ]]; then
     shopt -s nullglob
     job_work_root="${COLAB_JOB_WORK_ROOT:-$work_root/colab-jobs}"
@@ -88,6 +99,17 @@ if [[ "$cpu_rehearsal" == 1 ]]; then
         printf 'CPU rehearsal source commit is missing or mismatched\n' >&2
         exit 2
     }
+    if [[ "$cpu_fixture_prep" == 1 ]]; then
+        [[ "$end_epoch" == 1 && -z "$data_uri" ]] || {
+            printf 'CPU fixture preparation uses endpoint 1 without data_tar\n' >&2
+            exit 2
+        }
+    else
+        [[ -n "$data_uri" ]] || {
+            printf 'CPU rehearsal requires --hub-input data_tar=URI\n' >&2
+            exit 2
+        }
+    fi
 else
     [[ "$batch_size" == 64 && "$end_epoch" -le 250 ]] || {
         printf 'production recipe requires batch size 64 and at most 250 epochs\n' >&2
@@ -200,7 +222,7 @@ if [[ -n "$data_uri" && ! -f "$data_dir/count.json" ]]; then
     run_logged tar -xf "$work_root/pixelvae-data.tar" --no-same-owner -C "$data_dir"
 fi
 
-if [[ "$cpu_rehearsal" == 1 && ! -f "$data_dir/count.json" ]]; then
+if [[ "$cpu_rehearsal" == 1 && "$cpu_fixture_prep" == 1 && ! -f "$data_dir/count.json" ]]; then
     run_logged uv run --locked --package pixel-vae --extra training python - "$data_dir" <<'PY'
 import json
 import sys
@@ -225,6 +247,10 @@ for split, value in (("train", 64), ("val", 192)):
 PY
 fi
 [[ -f "$data_dir/count.json" ]] || { printf 'Crello data archive is missing count.json\n' >&2; exit 2; }
+if [[ "$cpu_fixture_prep" == 1 ]]; then
+    printf 'CPU fixture data is ready at %s\n' "$data_dir"
+    exit 0
+fi
 
 mkdir -p "$run_dir/checkpoints" "$run_dir/reports" "$run_dir/logs"
 resume_path="${PIXELVAE_RESUME_FROM:-}"
