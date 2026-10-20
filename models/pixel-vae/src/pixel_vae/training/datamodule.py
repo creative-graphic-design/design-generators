@@ -56,7 +56,7 @@ def _copy_random_state(state: _NumpyRandomState) -> _NumpyRandomState:
     name, keys, position, has_gauss, cached_gaussian = state
     return _NumpyRandomState(
         name,
-        cast(UInt32[np.ndarray, "state"], keys.copy()),
+        keys.copy(),
         position,
         has_gauss,
         cached_gaussian,
@@ -133,7 +133,7 @@ class _PixelVAERecordSampler(Sampler[int]):
         dataset: _PixelVAERecordDataset,
         batch_size: int,
         shuffle: bool,
-        initial_random_state: NumpyRandomState,
+        initial_random_state: _NumpyRandomState,
     ) -> None:
         """Store split ordering and the seeded NumPy state for epoch replay."""
         self.dataset = dataset
