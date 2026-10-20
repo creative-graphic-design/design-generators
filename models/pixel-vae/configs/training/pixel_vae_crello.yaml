@@ -23,6 +23,7 @@ trainer:
         save_last: true
         save_weights_only: false
         every_n_epochs: 1
+    - class_path: pixel_vae.training.PixelVAEEpochTimingCallback
 model:
   class_path: pixel_vae.training.PixelVAETrainingModule
   init_args:
@@ -35,4 +36,5 @@ data:
   init_args:
     data_dir: .cache/pixel-vae/data/crello-image
     batch_size: 64
-    num_workers: 0
+    num_workers: 6
+    pin_memory: true
