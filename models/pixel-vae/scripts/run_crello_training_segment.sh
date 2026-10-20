@@ -219,7 +219,8 @@ if [[ -n "$data_uri" && ! -f "$data_dir/count.json" ]]; then
     [[ ! -e "$data_dir" ]] || { printf 'data directory exists without count.json\n' >&2; exit 2; }
     mkdir -p "$data_dir"
     download_hub_file "$data_uri" "$work_root/pixelvae-data.tar" models
-    run_logged tar -xf "$work_root/pixelvae-data.tar" --no-same-owner -C "$data_dir"
+    run_logged tar -xf "$work_root/pixelvae-data.tar" --no-same-owner --wildcards \
+        --strip-components=2 -C "$data_dir" 'original-run-2/crello-image/*'
 fi
 
 if [[ "$cpu_rehearsal" == 1 && "$cpu_fixture_prep" == 1 && ! -f "$data_dir/count.json" ]]; then
@@ -235,15 +236,16 @@ from tfrecord.writer import TFRecordWriter
 data_dir = Path(sys.argv[1])
 data_dir.mkdir(parents=True)
 (data_dir / "count.json").write_text(
-    json.dumps({"train": 1, "val": 1, "test": 0}), encoding="utf-8"
+    json.dumps({"train": 1, "val": 1, "test": 1}), encoding="utf-8"
 )
-for split, value in (("train", 64), ("val", 192)):
+for split, value in (("train", 64), ("val", 192), ("test", 128)):
     image = Image.new("RGBA", (256, 256), (value, value, value, 255))
     encoded = BytesIO()
     image.save(encoded, format="PNG")
     writer = TFRecordWriter(str(data_dir / f"{split}-00000.tfrecord"))
     writer.write({"image": (encoded.getvalue(), "byte")}, None)
     writer.close()
+(data_dir / "vocabulary.json").write_text("{}\n", encoding="utf-8")
 PY
 fi
 [[ -f "$data_dir/count.json" ]] || { printf 'Crello data archive is missing count.json\n' >&2; exit 2; }
