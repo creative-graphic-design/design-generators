@@ -10,11 +10,11 @@ from dataclasses import dataclass
 from hashlib import sha256
 from itertools import islice
 from pathlib import Path
-from typing import BinaryIO, TypeAlias, cast
+from typing import BinaryIO, NamedTuple, TypeAlias, TypedDict, cast
 
 import lightning as L
 import numpy as np
-from numpy.typing import NDArray
+from jaxtyping import UInt32
 from torch.utils.data import DataLoader, Dataset, Sampler
 from transformers.image_processing_utils import BatchFeature
 from tfrecord import example_pb2
@@ -26,9 +26,6 @@ from ..image_processing_pixel_vae import PixelVAEImageProcessor
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
-NumpyRandomState: TypeAlias = tuple[str, NDArray[np.uint32], int, int, float]
-
-
 @dataclass(frozen=True)
 class _RecordLocation:
     """Locate one image payload inside a TFRecord shard."""
@@ -38,11 +35,26 @@ class _RecordLocation:
     payload_size: int
 
 
-def _copy_random_state(state: NumpyRandomState) -> NumpyRandomState:
+class _NumpyRandomState(NamedTuple):
+    name: str
+    keys: UInt32[np.ndarray, "state"]
+    position: int
+    has_gauss: int
+    cached_gaussian: float
+
+
+class _RecordDatasetState(TypedDict):
+    record_paths: tuple[Path, ...]
+    locations: tuple[_RecordLocation, ...]
+    _file_handles: dict[int, BinaryIO]
+    _owner_pid: int
+
+
+def _copy_random_state(state: _NumpyRandomState) -> _NumpyRandomState:
     name, keys, position, has_gauss, cached_gaussian = state
-    return (
+    return _NumpyRandomState(
         name,
-        keys.copy(),
+        cast(UInt32[np.ndarray, "state"], keys.copy()),
         position,
         has_gauss,
         cached_gaussian,
@@ -101,7 +113,7 @@ class _PixelVAERecordDataset(Dataset[bytes]):
 
         return _image_from_payload(payload)
 
-    def __getstate__(self) -> dict[str, object]:
+    def __getstate__(self) -> _RecordDatasetState:
         """Drop process-local file handles before a worker dataset is pickled."""
         return {
             "record_paths": self.record_paths,
@@ -235,7 +247,9 @@ class PixelVAEDataModule(L.LightningDataModule):
             locations = self._index_unique_records(paths, count)
             datasets[split] = _PixelVAERecordDataset(paths, locations)
 
-        initial_random_state = _copy_random_state(np.random.get_state())
+        initial_random_state = _copy_random_state(
+            cast(_NumpyRandomState, np.random.get_state())
+        )
         self.datasets = datasets
         self.samplers = {
             split: _PixelVAERecordSampler(
