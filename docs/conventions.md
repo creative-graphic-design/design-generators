@@ -116,24 +116,40 @@ Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. Th
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.
 
-### Framework Selection
-
-- Diffusion and flow-matching models use Diffusers.
-- A Diffusers denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration).
-- A Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview).
-- Diffusers generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline).
-- Add a repository scheduler when no built-in scheduler expresses the required process.
-- Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model).
-- LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
-- Methods that call an external language model in context use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
-
 ## Contributor Conventions
 
-These conventions apply when adding or maintaining workspace packages.
+These model framework and module-name conventions are mandatory for packages added to or maintained inside `design-generators`. A downstream project does not need to follow them merely because it consumes `laygen` or `traingen`; downstream projects may opt in.
+
+### Choosing a model framework
+
+Select the framework from the model's generation process and checkpoint contract.
+
+- Diffusion and flow-matching models use Diffusers. A denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration), a package-owned noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview), and diffusion generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline). Add a repository scheduler when no built-in scheduler expresses the required process.
+- Locally implemented autoregressive, sequence-to-sequence, and GAN models that own Hugging Face checkpoints use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model). Use the same base for other non-diffusion models when they own a checkpoint and the standard `save_pretrained` / `from_pretrained` contract fits. Their configs use `PretrainedConfig` with a non-empty `model_type`; internal neural-network blocks remain `torch.nn.Module`.
+- A package that only composes an existing Transformers model loads it with the appropriate Transformers auto-model class and keeps package-specific inference in its pipeline.
+- LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
+- Methods that call an external language model for in-context inference use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
+- Use a public `torch.nn.Module` runtime adapter only when the checkpoint contract does not fit `PreTrainedModel`; record the reason in the model issue plan.
 
 ### Workspace Packages
 
 Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+
+### Model package module names
+
+Under `src/<python_package>/`, add only the modules the package uses:
+
+- `configuration_<python_package>.py` for a package-owned config.
+- `modeling_<python_package>.py` for a package-owned model.
+- `pipeline_<python_package>.py` for package-specific inference.
+- `processing_<python_package>.py`, `image_processing_<python_package>.py`, `scheduling_<python_package>.py`, and `tokenization_<python_package>.py` when the package owns those components.
+- `generation_<python_package>.py` when the package owns generation methods.
+- Use the Python import package name in the suffix (for example, `layout_flow`), not a hyphenated repository slug.
+- Use `conversion.py` for package-specific checkpoint conversion.
+- Name other direct modules for their responsibility and use names covered by the repository-wide `ALLOWLIST_CATEGORIES`, prompt-agent `PROMPT_AGENT_MODULES`, or package-specific `PACKAGE_SPECIFIC_ALLOWED_MODULES` in the [module-naming check](../scripts/check_module_naming.py); see that check for the current names.
+- Name pytest files `test_<subject>.py`; a package-name suffix is optional.
+
+Record the reason in the model issue plan when a public runtime or package layout needs an exception, and keep direct module names within the naming check's accepted names.
 
 Run member-specific commands with the package selected:
 
