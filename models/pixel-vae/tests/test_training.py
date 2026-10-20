@@ -223,10 +223,10 @@ def test_parallel_loader_preserves_zero_worker_cpu_rng_sequence(
         for epoch in range(11):
             data.samplers["train"].set_epoch(epoch)
             iter(train_loader)
-            module.on_train_epoch_start()
+            PixelVAETrainingModule.on_train_epoch_start(module)
             train_value = torch.rand(4)
             iter(val_loader)
-            module.on_validation_start()
+            PixelVAETrainingModule.on_validation_start(module)
             val_value = torch.rand(4)
             parallel_values.append((train_value, val_value))
     finally:
