@@ -31,6 +31,10 @@ uv sync --package pixel-vae --extra training --extra vendor --extra parity
 
 The data module reads `count.json` and `train-*.tfrecord`/`val-*.tfrecord` records emitted by the original image-record transform. That transform selects `imageElement`, `maskElement`, and `svgElement` and deduplicates identical PNG bytes within each split. Each TFRecord example contains one `image` byte feature. The source archive and derived image records remain private.
 
+The data module indexes each unique image payload's TFRecord offset without decoding PNGs, then the sampler determines the source-compatible shuffle order in the main process. A map-style PyTorch dataset reads and decodes records in that order; PyTorch's `DataLoader` preserves it when `num_workers` is greater than zero. The Crello recipe sets `num_workers: 0`.
+
+A report-only CPU probe on a two-vCPU Colab session found matching tensor hashes for the first 20 batches at 0, 4, and 8 workers. After those hash checks, each setting timed 128 steady batches of 64 images and measured 4.001, 3.848, and 3.505 batches per second, respectively. The zero-worker setting was fastest on that host, so the recipe keeps it. A100 throughput remains unmeasured.
+
 ## Configs
 
 Training configs live under `models/pixel-vae/configs/training/`.
@@ -45,7 +49,7 @@ The package uses batch size 64 for 250 epochs, `KerasAdam` at a constant learnin
 
 The original image-record transform selects `imageElement`, `maskElement`, and `svgElement` images, then deduplicates identical PNG bytes within each split. [The Crello amendment records this selection.](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6065470695)
 
-Scheduler cadence — not applicable: the source and package use a constant learning rate. Importance sampler — not applicable: the training loop has no timestep or importance sampler. EMA — not applicable: the training loop has no exponential moving average. AMP — not applicable: the recipe uses float32. Multi-worker loader — not applicable: the data module uses a single reader process.
+Scheduler cadence — not applicable: the source and package use a constant learning rate. Importance sampler — not applicable: the training loop has no timestep or importance sampler. EMA — not applicable: the training loop has no exponential moving average. AMP — not applicable: the recipe uses float32. Multi-worker loader — applied: the sampler fixes record order in the main process, and the map-style dataset preserves the same first 20 batch tensor hashes at epochs 1 and 11 in the committed CPU regression test.
 
 ## Seed Policy
 
@@ -59,7 +63,7 @@ The checked-in recipe fixes the training seed at 0. This seed is the default for
 | S1    | Fixed-batch pre-optimizer trace parity         | Compare decoder output, posterior statistics, and source loss terms.                        |
 | S2    | One optimizer-step parity                      | Compare gradients, Keras Adam moments, and updated parameters.                              |
 | S3    | Short deterministic multi-batch run            | Compare the existing three-step CPU model trace.                                            |
-| S4    | Crello source and encoder serialization checks | Check source selection, PNG decoding, image-record filtering, and posterior-mean save/load. |
+| S4    | Crello source and loader checks | Check source selection, PNG decoding, record filtering and order, and posterior-mean save/load. |
 | S5    | Full-run statistical comparison                | Not run; full training and trained-checkpoint evaluation have not been performed.           |
 
 ## Stage Evidence
@@ -70,7 +74,7 @@ The checked-in recipe fixes the training seed at 0. This seed is the default for
 | S1    | Same ordered CPU acceptance command                                                                                     | `diagnostic/s1-diagnostic.json`, S0 input selections, `calibration/repeat-1..3.json` | Pass; all 6 held-out forward and loss metrics met their frozen limits.                                                                                  |
 | S2    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | Pass; all 6 held-out gradient and optimizer metrics met their frozen limits.                                                                            |
 | S3    | Same ordered CPU acceptance command                                                                                     | `calibration/repeat-1..3.json`                                                       | Pass; all 4 held-out metrics in the existing three-step model trace met their frozen limits.                                                            |
-| S4    | Same ordered CPU acceptance command                                                                                     | `heldout.json`, archive audit, encoder round-trip report                             | Existing source selection, PNG decode, and encoder serialization checks passed; package Lightning data-stream behavior is covered by the new CPU tests. |
+| S4 | `uv run --package pixel-vae --extra training --group dev pytest models/pixel-vae/tests/test_training.py -m training` | `models/pixel-vae/tests/test_training.py` | Pass on CPU: the 41-PNG fixture first 20 batch tensors (batch size 2) match the legacy stream at epochs 1 and 11; the dedupe fixture asserts 89,545 train/11,690 val records and 1,400/183 batch-size-64 batches per epoch. |
 | S5    | Not run                                                                                                                 | N/A                                                                                  | Not run; there is no trained checkpoint or full-run evaluation, so trained-checkpoint reproduction is not claimed.                                      |
 
 ## Reproduction Results
