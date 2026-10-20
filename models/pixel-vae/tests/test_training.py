@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import struct
 import subprocess
 import sys
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Sequence
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
 from typing import cast
 
 import lightning as L
+import numpy as np
 import pytest
 import torch
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
@@ -17,6 +21,7 @@ from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from transformers.image_processing_utils import BatchFeature
+from tfrecord import example_pb2
 
 import pixel_vae.training.datamodule as datamodule
 import pixel_vae.training.lightning_module as lightning_module
@@ -32,38 +37,83 @@ def _png(value: int) -> bytes:
     return stream.getvalue()
 
 
-def _prepared_data_dir(tmp_path: Path, counts: object | None = None) -> Path:
+def _serialized_example(images: bytes | Sequence[bytes] | None) -> bytes:
+    example = example_pb2.Example()
+    if images is not None:
+        values = [images] if isinstance(images, bytes) else images
+        example.features.feature["image"].bytes_list.value.extend(values)
+
+    return example.SerializeToString()
+
+
+def _write_tfrecord(path: Path, images: Sequence[bytes | Sequence[bytes] | None]) -> None:
+    with path.open("wb") as stream:
+        for image in images:
+            payload = _serialized_example(image)
+            stream.write(struct.pack("<Q", len(payload)))
+            stream.write(b"\x00" * 4)
+            stream.write(payload)
+            stream.write(b"\x00" * 4)
+
+
+def _prepared_data_dir(
+    tmp_path: Path,
+    counts: object | None = None,
+    *,
+    train_images: Sequence[bytes | Sequence[bytes] | None] | None = None,
+    val_images: Sequence[bytes | Sequence[bytes] | None] | None = None,
+) -> Path:
     data_dir = tmp_path / "crello-image"
     data_dir.mkdir()
     (data_dir / "count.json").write_text(
         json.dumps(counts if counts is not None else {"train": 3, "val": 2}),
         encoding="utf-8",
     )
-    (data_dir / "train-00000.tfrecord").touch()
-    (data_dir / "val-00000.tfrecord").touch()
+    _write_tfrecord(
+        data_dir / "train-00000.tfrecord",
+        train_images if train_images is not None else [_png(value) for value in (1, 2, 3)],
+    )
+    _write_tfrecord(
+        data_dir / "val-00000.tfrecord",
+        val_images if val_images is not None else [_png(value) for value in (10, 20)],
+    )
     return data_dir
 
 
-def _fake_record_reader(
-    records_by_path: dict[str, list[dict[str, bytes]]],
-) -> tuple[
-    Callable[[str, str | None, dict[str, str]], Iterator[dict[str, bytes]]],
-    Callable[[Iterator[Mapping[str, bytes]], int], Iterator[Mapping[str, bytes]]],
-]:
-    def load(
-        path: str, index_path: str | None, description: dict[str, str]
-    ) -> Iterator[dict[str, bytes]]:
-        assert index_path is None
-        assert description == {"image": "byte"}
-        return iter(records_by_path[path])
+def _legacy_pixel_batches(
+    images: Sequence[bytes], batch_size: int, epoch_count: int
+) -> dict[int, str]:
+    def repeat_records() -> Iterator[bytes]:
+        while True:
+            yield from datamodule.shuffle_iterator(iter(images), len(images))
 
-    def shuffle(
-        records: Iterator[Mapping[str, bytes]], queue_size: int
-    ) -> Iterator[Mapping[str, bytes]]:
-        assert queue_size == 3
-        return iter(reversed(list(records)))
+    stream = repeat_records()
+    epoch_size = (len(images) + batch_size - 1) // batch_size * batch_size
+    selected_epochs = {0, epoch_count - 1}
+    hashes: dict[int, str] = {}
+    processor = datamodule.PixelVAEImageProcessor()
+    for epoch in range(epoch_count):
+        epoch_images = list(islice(stream, epoch_size))
+        if epoch not in selected_epochs:
+            continue
 
-    return load, shuffle
+        digest = hashlib.sha256()
+        for start in range(0, batch_size * 20, batch_size):
+            batch = processor(epoch_images[start : start + batch_size])["pixel_values"]
+            digest.update(cast(torch.Tensor, batch).contiguous().numpy().tobytes())
+
+        hashes[epoch] = digest.hexdigest()
+
+    return hashes
+
+
+def _tensor_hash(batches: Sequence[BatchFeature]) -> str:
+    digest = hashlib.sha256()
+    for batch in batches:
+        pixels = cast(torch.Tensor, batch["pixel_values"])
+        digest.update(pixels.contiguous().numpy().tobytes())
+
+    return digest.hexdigest()
 
 
 @pytest.mark.training
@@ -71,19 +121,12 @@ def test_datamodule_repeats_full_batches_and_shuffles_only_training(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     data_dir = _prepared_data_dir(tmp_path)
-    train_images = [_png(value) for value in (1, 2, 3)]
-    val_images = [_png(value) for value in (10, 20)]
-    records = {
-        str(data_dir / "train-00000.tfrecord"): [
-            {"image": image} for image in train_images
-        ],
-        str(data_dir / "val-00000.tfrecord"): [
-            {"image": image} for image in val_images
-        ],
-    }
-    load, shuffle = _fake_record_reader(records)
-    monkeypatch.setattr(datamodule, "tfrecord_loader", load)
-    monkeypatch.setattr(datamodule, "shuffle_iterator", shuffle)
+
+    def reverse(records: Iterator[int], queue_size: int) -> Iterator[int]:
+        assert queue_size == 3
+        return iter(reversed(list(records)))
+
+    monkeypatch.setattr(datamodule, "shuffle_iterator", reverse)
     data = PixelVAEDataModule(str(data_dir), batch_size=2)
 
     data.setup("fit")
@@ -100,43 +143,79 @@ def test_datamodule_repeats_full_batches_and_shuffles_only_training(
     assert len(repeated_train_batches) == 2
     val_pixels = cast(BatchFeature, val_batches[0])["pixel_values"]
     assert torch.allclose(val_pixels[:, 0, 0, 0], torch.tensor([10, 20]) / 255)
+    train_pixels = cast(BatchFeature, train_batches[0])["pixel_values"]
+    assert torch.allclose(train_pixels[:, 0, 0, 0], torch.tensor([3, 2]) / 255)
+
+
+@pytest.mark.training
+def test_map_dataset_matches_legacy_epoch_1_and_11_tensor_hashes(
+    tmp_path: Path,
+) -> None:
+    images = [_png(value) for value in range(41)]
+    data_dir = _prepared_data_dir(
+        tmp_path,
+        {"train": len(images), "val": 2},
+        train_images=images,
+    )
+    original_state = np.random.get_state()
+    np.random.seed(0)
+    initial_state = np.random.get_state()
+    expected = _legacy_pixel_batches(images, batch_size=2, epoch_count=11)
+    np.random.set_state(initial_state)
+
+    actual: dict[int, str] = {}
+    try:
+        for epoch in (0, 10):
+            np.random.set_state(initial_state)
+            data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=2)
+            data.setup("fit")
+            loader = data.train_dataloader()
+            data.samplers["train"].set_epoch(epoch)
+            try:
+                batches = list(islice(iter(loader), 20))
+                actual[epoch] = _tensor_hash(cast(Sequence[BatchFeature], batches))
+            finally:
+                iterator = getattr(loader, "_iterator", None)
+                if iterator is not None:
+                    iterator._shutdown_workers()
+    finally:
+        np.random.set_state(original_state)
+
+    assert actual == expected
 
 
 @pytest.mark.training
 def test_datamodule_deduplicates_to_crello_v1_split_counts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     counts = {"train": 89_545, "val": 11_690, "test": 11_428}
-    data_dir = _prepared_data_dir(tmp_path, counts)
-
-    def load(
-        path: str, index_path: str | None, description: dict[str, str]
-    ) -> Iterator[dict[str, bytes]]:
-        assert index_path is None
-        assert description == {"image": "byte"}
-        count = counts[Path(path).name.split("-", maxsplit=1)[0]]
-        return (
-            {"image": image}
-            for value in range(count)
-            for image in (value.to_bytes(4, "big"), value.to_bytes(4, "big"))
-        )
-
-    monkeypatch.setattr(datamodule, "tfrecord_loader", load)
-    monkeypatch.setattr(datamodule, "shuffle_iterator", lambda records, _size: records)
+    train_images = [
+        value.to_bytes(4, "big")
+        for value in range(counts["train"])
+        for _copy in range(2)
+    ]
+    val_images = [
+        value.to_bytes(4, "big")
+        for value in range(counts["val"])
+        for _copy in range(2)
+    ]
+    data_dir = _prepared_data_dir(
+        tmp_path, counts, train_images=train_images, val_images=val_images
+    )
     data = PixelVAEDataModule(str(data_dir), batch_size=64)
     data.setup("fit")
 
-    assert data.datasets["train"].record_count == 89_545
-    assert data.datasets["val"].record_count == 11_690
-    assert len(data.datasets["train"]) // 64 == 1_400
-    assert len(data.datasets["val"]) // 64 == 183
+    assert len(data.datasets["train"]) == 89_545
+    assert len(data.datasets["val"]) == 11_690
+    assert len(data.samplers["train"]) // 64 == 1_400
+    assert len(data.samplers["val"]) // 64 == 183
 
     for split in ("train", "val"):
         count = counts[split]
-        records = list(islice(iter(data.datasets[split]), count + 1))
-
-        assert len(set(records[:-1])) == count
-        assert records[-1] == records[0]
+        indices = list(data.samplers[split])
+        assert len(set(indices[:count])) == count
+        assert set(indices[:count]) == set(range(count))
+        assert len(indices) == math.ceil(count / 64) * 64
 
 
 @pytest.mark.training
@@ -154,6 +233,13 @@ def test_datamodule_requires_positive_batch_size(
     data_dir = _prepared_data_dir(tmp_path)
     with pytest.raises(ValueError, match="batch_size must be positive"):
         PixelVAEDataModule(str(data_dir), batch_size=batch_size).setup("fit")
+
+
+@pytest.mark.training
+def test_datamodule_requires_non_negative_worker_count(tmp_path: Path) -> None:
+    data_dir = _prepared_data_dir(tmp_path)
+    with pytest.raises(ValueError, match="num_workers must be non-negative"):
+        PixelVAEDataModule(str(data_dir), num_workers=-1).setup("fit")
 
 
 @pytest.mark.training
@@ -191,46 +277,36 @@ def test_datamodule_rejects_missing_count_file(tmp_path: Path) -> None:
 
 @pytest.mark.training
 @pytest.mark.parametrize(
-    ("records", "message"),
+    ("train_images", "train_count", "message"),
     [
-        ([{"image": _png(1)}], "count.json record count exceeds"),
+        ([_png(1)], 3, "count.json record count exceeds"),
         (
-            [
-                {"image": _png(1)},
-                {"image": _png(2)},
-                {"image": _png(3)},
-                {"image": _png(4)},
-            ],
+            [_png(1), _png(2), _png(3), _png(4)],
+            3,
             "count.json record count is smaller",
         ),
         (
-            [
-                {"image": cast(bytes, "not bytes")},
-                {"image": _png(2)},
-                {"image": _png(3)},
-            ],
+            [(_png(1), _png(2)), _png(3)],
+            2,
             "image feature must contain bytes",
         ),
     ],
 )
 def test_datamodule_rejects_invalid_record_contents(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    records: list[dict[str, bytes]],
+    train_images: list[bytes | tuple[bytes, ...]],
+    train_count: int,
     message: str,
 ) -> None:
-    data_dir = _prepared_data_dir(tmp_path)
-    monkeypatch.setattr(
-        datamodule,
-        "tfrecord_loader",
-        lambda *_args, **_kwargs: records,
+    data_dir = _prepared_data_dir(
+        tmp_path,
+        {"train": train_count, "val": 2},
+        train_images=train_images,
     )
-    monkeypatch.setattr(datamodule, "shuffle_iterator", lambda items, _size: items)
     data = PixelVAEDataModule(str(data_dir), batch_size=2)
-    data.setup("fit")
 
     with pytest.raises(ValueError, match=message):
-        list(data.train_dataloader())
+        data.setup("fit")
 
 
 class _FakePixelVAE(nn.Module):
