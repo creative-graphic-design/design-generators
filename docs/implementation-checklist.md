@@ -35,6 +35,7 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 
 ## Package layout
 
+- [ ] Apply the [model framework](conventions.md#choosing-a-model-framework) and [module-name](conventions.md#model-package-module-names) conventions to packages added or maintained here.
 - [ ] Create `models/<slug>/` as a `uv` workspace member with its own `pyproject.toml`, `src/<pkg>/`, `scripts/`, `tests/`, and `tests/vendor_parity/` directories.
 - [ ] Isolate original-implementation dependencies in the package's `vendor` optional extra so the package itself stays light.
 - [ ] Put shared logic in `lib/laygen` (`laygen.common`) or poster-side `lib/posgen` (`posgen.common`) and import it rather than copying it between model packages.
