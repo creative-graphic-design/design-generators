@@ -21,6 +21,7 @@ from laygen.common.randomness import (
     randint,
     randn,
     randperm,
+    random_seed,
     resolve_torch_generator,
 )
 from laygen.common.bbox import (
@@ -140,6 +141,18 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
             torch.equal(before, after)
             for before, after in zip(cuda_states, torch.cuda.get_rng_state_all())
         )
+
+
+def test_random_seed_matches_torch_draw_and_advances_generator() -> None:
+    wrapper_generator = torch.Generator().manual_seed(123)
+    torch_generator = torch.Generator().manual_seed(123)
+
+    expected = int(
+        torch.empty((), dtype=torch.int64).random_(generator=torch_generator).item()
+    )
+
+    assert random_seed(wrapper_generator) == expected
+    assert torch.equal(wrapper_generator.get_state(), torch_generator.get_state())
 
 
 def test_random_wrappers_cover_generator_draws_without_global_rng_mutation() -> None:

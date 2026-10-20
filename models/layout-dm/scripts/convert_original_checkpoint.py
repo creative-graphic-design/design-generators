@@ -92,7 +92,6 @@ def main() -> None:
         mask_token_id=config.mask_token_id,
         pad_token_id=config.pad_token_id,
         var_order=tuple(config.var_order.split("-")),
-        token_mask=tokenizer.token_mask().tolist(),
         per_var_full_ids=tokenizer.full_id_maps(),
         att_1=config.att_1,
         att_T=config.att_T,
