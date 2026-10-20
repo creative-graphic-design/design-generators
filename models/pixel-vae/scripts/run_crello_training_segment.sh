@@ -92,8 +92,8 @@ data_dir="${PIXELVAE_DATA_DIR:-$work_root/crello-image}"
 run_dir="${PIXELVAE_RUN_DIR:-$work_root/pixelvae-output}"
 batch_size="${PIXELVAE_BATCH_SIZE:-64}"
 if [[ "$cpu_rehearsal" == 1 ]]; then
-    [[ "$batch_size" == 1 && ( "$end_epoch" == 1 || "$end_epoch" == 2 ) ]] || {
-        printf 'CPU rehearsal uses batch size 1 and endpoint 1 or 2\n' >&2
+    [[ "$batch_size" == 1 && "$end_epoch" -ge 1 && "$end_epoch" -le 250 ]] || {
+        printf 'CPU rehearsal uses batch size 1 and endpoint 1 through 250\n' >&2
         exit 2
     }
     [[ -n "${PIXELVAE_SOURCE_SHA:-}" && "${PIXELVAE_SOURCE_SHA,,}" == "$source_sha" ]] || {
