@@ -118,13 +118,15 @@ Datasets hosted by the `creative-graphic-design` Hugging Face organization are p
 
 ## Contributor Conventions
 
-These model framework and module-name conventions are mandatory for packages added to or maintained inside `design-generators`. A downstream project does not need to follow them merely because it consumes `laygen` or `traingen`; downstream projects may opt in.
+These conventions apply when adding or maintaining workspace packages.
+
+The framework-selection and module-name rules below are mandatory for packages added to or maintained inside `design-generators`. A downstream project is not required to follow them merely because it consumes `laygen` or `traingen`; downstream projects may opt in.
 
 ### Choosing a model framework
 
-Select the framework from the model's generation process and checkpoint contract.
+Choose the framework from the model's generation process and checkpoint contract, not from the nearest example package.
 
-- Diffusion and flow-matching models use Diffusers. A denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration), a package-owned noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview), and diffusion generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline). Add a repository scheduler when no built-in scheduler expresses the required process.
+- Diffusion and flow-matching models use Diffusers. A denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration), a Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview), and diffusion generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline). Add a package-owned scheduler when no built-in scheduler expresses the required process.
 - Locally implemented autoregressive, sequence-to-sequence, and GAN models that own Hugging Face checkpoints use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model). Use the same base for other non-diffusion models when they own a checkpoint and the standard `save_pretrained` / `from_pretrained` contract fits. Their configs use `PretrainedConfig` with a non-empty `model_type`; internal neural-network blocks remain `torch.nn.Module`.
 - A package that only composes an existing Transformers model loads it with the appropriate Transformers auto-model class and keeps package-specific inference in its pipeline.
 - LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
