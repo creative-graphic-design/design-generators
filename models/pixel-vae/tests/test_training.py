@@ -250,7 +250,7 @@ def test_datamodule_requires_non_negative_worker_count(tmp_path: Path) -> None:
     [
         ([], "split-to-count"),
         ({"train": True, "val": 1}, "positive train count"),
-        ({"train": 1, "val": 0}, "positive val count"),
+        ({"train": 3, "val": 0}, "positive val count"),
     ],
 )
 def test_datamodule_rejects_invalid_counts(
