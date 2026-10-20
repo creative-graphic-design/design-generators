@@ -10,6 +10,7 @@ from collections.abc import Iterator, Sequence
 from io import BytesIO
 from itertools import islice
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import lightning as L
@@ -26,7 +27,11 @@ from tfrecord import example_pb2
 import pixel_vae.training.datamodule as datamodule
 import pixel_vae.training.lightning_module as lightning_module
 from pixel_vae import PixelVAEEncoder, PixelVAEOutput
-from pixel_vae.training import PixelVAEDataModule, PixelVAETrainingModule
+from pixel_vae.training import (
+    PixelVAEDataModule,
+    PixelVAEEpochTimingCallback,
+    PixelVAETrainingModule,
+)
 from traingen.lightning.cli import lightning_cli_class
 from traingen.optim import KerasAdam
 
@@ -168,24 +173,73 @@ def test_map_dataset_matches_legacy_epoch_1_and_11_tensor_hashes(
     np.random.set_state(initial_state)
 
     actual: dict[int, str] = {}
+    data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=6, pin_memory=True)
+    data.setup("fit")
+    loader = data.train_dataloader()
+    assert loader.num_workers == 6
+    assert loader.pin_memory
+    assert loader.persistent_workers
     try:
         for epoch in (0, 10):
-            np.random.set_state(initial_state)
-            data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=2)
-            data.setup("fit")
-            loader = data.train_dataloader()
             data.samplers["train"].set_epoch(epoch)
-            try:
-                batches = list(islice(iter(loader), 20))
-                actual[epoch] = _tensor_hash(cast(Sequence[BatchFeature], batches))
-            finally:
-                iterator = getattr(loader, "_iterator", None)
-                if iterator is not None:
-                    iterator._shutdown_workers()
+            batches = list(islice(iter(loader), 20))
+            actual[epoch] = _tensor_hash(cast(Sequence[BatchFeature], batches))
     finally:
+        iterator = getattr(loader, "_iterator", None)
+        if iterator is not None:
+            iterator._shutdown_workers()
         np.random.set_state(original_state)
 
     assert actual == expected
+
+
+@pytest.mark.training
+def test_parallel_loader_preserves_zero_worker_cpu_rng_sequence(
+    tmp_path: Path,
+) -> None:
+    data_dir = _prepared_data_dir(tmp_path)
+    images = torch.arange(1)
+    legacy_train = DataLoader(TensorDataset(images), batch_size=1)
+    legacy_val = DataLoader(TensorDataset(images), batch_size=1)
+    torch.manual_seed(73)
+    legacy_values: list[tuple[torch.Tensor, torch.Tensor]] = []
+    for _epoch in range(11):
+        iter(legacy_train)
+        train_value = torch.rand(4)
+        iter(legacy_val)
+        val_value = torch.rand(4)
+        legacy_values.append((train_value, val_value))
+
+    torch.manual_seed(73)
+    data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=1)
+    data.setup("fit")
+    train_loader = data.train_dataloader()
+    val_loader = data.val_dataloader()
+    module = cast(PixelVAETrainingModule, SimpleNamespace())
+    parallel_values: list[tuple[torch.Tensor, torch.Tensor]] = []
+    try:
+        for epoch in range(11):
+            data.samplers["train"].set_epoch(epoch)
+            iter(train_loader)
+            module.on_train_epoch_start()
+            train_value = torch.rand(4)
+            iter(val_loader)
+            module.on_validation_start()
+            val_value = torch.rand(4)
+            parallel_values.append((train_value, val_value))
+    finally:
+        for loader in (train_loader, val_loader):
+            iterator = getattr(loader, "_iterator", None)
+            if iterator is not None:
+                iterator._shutdown_workers()
+
+    assert all(
+        torch.equal(actual_train, expected_train)
+        and torch.equal(actual_val, expected_val)
+        for (actual_train, actual_val), (expected_train, expected_val) in zip(
+            parallel_values, legacy_values, strict=True
+        )
+    )
 
 
 @pytest.mark.training
@@ -381,7 +435,10 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert isinstance(cli.datamodule, PixelVAEDataModule)
     assert cli.trainer.max_epochs == 250
     assert cli.datamodule.batch_size == 64
+    assert cli.datamodule.num_workers == 6
+    assert cli.datamodule.pin_memory
     callbacks = cast(Sequence[Callback], getattr(cli.trainer, "callbacks"))
+    assert any(isinstance(callback, PixelVAEEpochTimingCallback) for callback in callbacks)
     checkpoints = [
         callback
         for callback in callbacks
@@ -401,6 +458,48 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert len(resumable_checkpoints) == 1
     assert not resumable_checkpoints[0].save_weights_only
     assert resumable_checkpoints[0].every_n_epochs == 1
+
+
+@pytest.mark.training
+def test_epoch_timing_callback_records_train_and_validation_duration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_path = tmp_path / "epoch-times.jsonl"
+    monkeypatch.setenv("PIXELVAE_EPOCH_TIMING_FILE", str(output_path))
+    callback = PixelVAEEpochTimingCallback()
+    module = cast(L.LightningModule, SimpleNamespace())
+    callback.setup(cast(L.Trainer, SimpleNamespace()), module, "fit")
+    trainer = cast(
+        L.Trainer,
+        SimpleNamespace(current_epoch=2, sanity_checking=False),
+    )
+
+    callback.on_train_epoch_start(trainer, module)
+    callback.on_validation_end(trainer, module)
+
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["epoch"] == 3
+    assert report["train_and_validation_wall_seconds"] >= 0
+
+
+@pytest.mark.training
+def test_epoch_timing_callback_handles_missing_start_and_output_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("PIXELVAE_EPOCH_TIMING_FILE", raising=False)
+    callback = PixelVAEEpochTimingCallback()
+    module = cast(L.LightningModule, SimpleNamespace())
+    trainer_state = SimpleNamespace(current_epoch=0, sanity_checking=False)
+    trainer = cast(L.Trainer, trainer_state)
+
+    trainer_state.sanity_checking = True
+    callback.on_validation_end(trainer, module)
+    trainer_state.sanity_checking = False
+    callback.on_validation_end(trainer, module)
+    callback.on_train_epoch_start(trainer, module)
+    callback.on_validation_end(trainer, module)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.training
