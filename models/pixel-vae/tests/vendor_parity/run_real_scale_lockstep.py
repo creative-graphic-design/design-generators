@@ -94,7 +94,9 @@ def _package_gradient_norm(model: PixelVAEModel) -> float:
 
 
 def _batch_digest(pixels: torch.Tensor) -> str:
-    return hashlib.sha256(pixels.detach().cpu().contiguous().numpy().tobytes()).hexdigest()
+    return hashlib.sha256(
+        pixels.detach().cpu().contiguous().numpy().tobytes()
+    ).hexdigest()
 
 
 def main() -> None:
@@ -148,7 +150,9 @@ def main() -> None:
                 try:
                     batch = next(iterator)
                 except StopIteration as error:
-                    raise RuntimeError("the real train stream ended before the probe") from error
+                    raise RuntimeError(
+                        "the real train stream ended before the probe"
+                    ) from error
 
                 pixels = cast(torch.Tensor, batch["pixel_values"])
                 if pixels.shape[0] != args.batch_size:
@@ -157,9 +161,11 @@ def main() -> None:
                 tf_batch = tf.convert_to_tensor(
                     pixels.detach().cpu().permute(0, 2, 3, 1).contiguous().numpy()
                 )
-                epsilon = np.random.default_rng(310 + step).standard_normal(
-                    (args.batch_size, 256)
-                ).astype(np.float32)
+                epsilon = (
+                    np.random.default_rng(310 + step)
+                    .standard_normal((args.batch_size, 256))
+                    .astype(np.float32)
+                )
                 source_loss, source_gradients, _ = _tensorflow_train_step(
                     reference, source_optimizer, tf_batch, epsilon
                 )
@@ -253,7 +259,9 @@ def main() -> None:
         "persistent_workers": loader.persistent_workers,
         "first_relative_loss_difference_over_1e-3": first_divergence,
     }
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(summary, sort_keys=True))
     if first_divergence is not None:
         raise SystemExit("real-scale lockstep exceeded the relative loss limit")

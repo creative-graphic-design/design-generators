@@ -29,7 +29,9 @@ class PixelVAEEpochTimingCallback(L.Callback):
         self._epoch_started_at: float | None = None
         self._epoch_started_at_utc: str | None = None
 
-    def setup(self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str) -> None:
+    def setup(
+        self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
+    ) -> None:
         """Resolve the optional runtime output path before training starts."""
         del trainer, pl_module, stage
         if self.output_path is None:

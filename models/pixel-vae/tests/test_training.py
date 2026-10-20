@@ -173,7 +173,9 @@ def test_map_dataset_matches_legacy_epoch_1_and_11_tensor_hashes(
     np.random.set_state(initial_state)
 
     actual: dict[int, str] = {}
-    data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=6, pin_memory=True)
+    data = PixelVAEDataModule(
+        str(data_dir), batch_size=2, num_workers=6, pin_memory=True
+    )
     data.setup("fit")
     loader = data.train_dataloader()
     assert loader.num_workers == 6
@@ -438,7 +440,9 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     assert cli.datamodule.num_workers == 6
     assert cli.datamodule.pin_memory
     callbacks = cast(Sequence[Callback], getattr(cli.trainer, "callbacks"))
-    assert any(isinstance(callback, PixelVAEEpochTimingCallback) for callback in callbacks)
+    assert any(
+        isinstance(callback, PixelVAEEpochTimingCallback) for callback in callbacks
+    )
     checkpoints = [
         callback
         for callback in callbacks
