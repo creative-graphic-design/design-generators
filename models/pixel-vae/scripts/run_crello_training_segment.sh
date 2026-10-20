@@ -4,8 +4,8 @@
 # @brief Run one resumable PixelVAE Crello training segment.
 # @description
 #   Production runs are invoked through colab-gpu-run and use epoch boundaries
-#   10, 60, 110, 160, 210, and 250. The same script supports a one-epoch CPU
-#   rehearsal when PIXELVAE_CPU_REHEARSAL=1.
+#   10, 60, 110, 160, 210, and 250. The same script supports a two-epoch CPU
+#   rehearsal across fresh processes when PIXELVAE_CPU_REHEARSAL=1.
 # @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
 # @example
 #   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://datasets/<owner>/<repo>/<file>.tar.gz
@@ -162,6 +162,7 @@ uv_version="$(uv --version 2>/dev/null)" || { printf 'uv 0.12.22 is required; uv
     exit 2
 }
 export UV_CACHE_DIR="$work_root/uv-cache"
+export UV_PROJECT_ENVIRONMENT="$work_root/pixelvae-uv-env"
 export HF_HOME="$work_root/pixelvae-hf"
 export HF_TOKEN_PATH="${PIXELVAE_HF_TOKEN_PATH:-$work_root/hf-job-token}"
 export HF_HUB_VERBOSITY=error
