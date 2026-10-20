@@ -35,3 +35,4 @@ data:
   init_args:
     data_dir: .cache/pixel-vae/data/crello-image
     batch_size: 64
+    num_workers: 0
