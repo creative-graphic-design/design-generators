@@ -46,7 +46,9 @@ def _serialized_example(images: bytes | Sequence[bytes] | None) -> bytes:
     return example.SerializeToString()
 
 
-def _write_tfrecord(path: Path, images: Sequence[bytes | Sequence[bytes] | None]) -> None:
+def _write_tfrecord(
+    path: Path, images: Sequence[bytes | Sequence[bytes] | None]
+) -> None:
     with path.open("wb") as stream:
         for image in images:
             payload = _serialized_example(image)
@@ -71,7 +73,9 @@ def _prepared_data_dir(
     )
     _write_tfrecord(
         data_dir / "train-00000.tfrecord",
-        train_images if train_images is not None else [_png(value) for value in (1, 2, 3)],
+        train_images
+        if train_images is not None
+        else [_png(value) for value in (1, 2, 3)],
     )
     _write_tfrecord(
         data_dir / "val-00000.tfrecord",
@@ -195,9 +199,7 @@ def test_datamodule_deduplicates_to_crello_v1_split_counts(
         for _copy in range(2)
     ]
     val_images = [
-        value.to_bytes(4, "big")
-        for value in range(counts["val"])
-        for _copy in range(2)
+        value.to_bytes(4, "big") for value in range(counts["val"]) for _copy in range(2)
     ]
     data_dir = _prepared_data_dir(
         tmp_path, counts, train_images=train_images, val_images=val_images
