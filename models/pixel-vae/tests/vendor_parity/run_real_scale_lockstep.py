@@ -10,8 +10,6 @@ from typing import cast
 import numpy as np
 import tensorflow as tf
 import torch
-from torch.utils.data import DataLoader
-from transformers.image_processing_utils import BatchFeature
 
 from pixel_vae import PixelVAEConfig, PixelVAEModel
 from pixel_vae.conversion import (
@@ -132,7 +130,7 @@ def main() -> None:
     sampler.set_epoch(0)
     sampler_order = list(iter(sampler))
     sampler.set_epoch(0)
-    loader = cast(DataLoader[BatchFeature], data.train_dataloader())
+    loader = data.train_dataloader()
     iterator = iter(loader)
     if loader.num_workers != args.num_workers or not loader.persistent_workers:
         raise RuntimeError("lockstep loader settings differ from the production config")
