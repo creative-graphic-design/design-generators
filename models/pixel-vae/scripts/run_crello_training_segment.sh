@@ -384,8 +384,9 @@ if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 10 ]]; then
         'tensorflow[and-cuda]==2.15.1'
     export TF_CPP_MIN_LOG_LEVEL=2
     export TF_ENABLE_ONEDNN_OPTS=0
-    run_logged uv run --locked --no-sync --package pixel-vae --extra training \
-        --group dev python models/pixel-vae/tests/vendor_parity/run_real_scale_lockstep.py \
+    run_logged env PYTHONPATH="$repo_dir/models/pixel-vae/tests" \
+        uv run --locked --no-sync --package pixel-vae --extra training \
+        --group dev python -m vendor_parity.run_real_scale_lockstep \
         --data-dir "$data_dir" \
         --batch-size "$batch_size" \
         --num-workers 6 \
