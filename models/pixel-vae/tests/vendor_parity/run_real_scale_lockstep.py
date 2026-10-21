@@ -10,7 +10,9 @@ from typing import cast
 import numpy as np
 import tensorflow as tf
 import torch
+from tensorflow.core.example import example_pb2 as tensorflow_example_pb2
 
+# Reuse TensorFlow's Example descriptors instead of registering duplicate symbols.
 from pixel_vae import PixelVAEConfig, PixelVAEModel
 from pixel_vae.conversion import (
     convert_tensorflow_variables,
@@ -18,8 +20,10 @@ from pixel_vae.conversion import (
     extract_tensorflow_weights,
     tensorflow_arrays_to_torch,
 )
-from pixel_vae.training import PixelVAEDataModule
 from traingen.optim import KerasAdam
+
+sys.modules["tfrecord.example_pb2"] = tensorflow_example_pb2
+from pixel_vae.training import PixelVAEDataModule  # noqa: E402
 
 repo_root = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(repo_root / "vendor" / "canvas-vae" / "src" / "pixel-vae"))
