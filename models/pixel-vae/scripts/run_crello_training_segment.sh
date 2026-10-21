@@ -367,10 +367,12 @@ if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 10 ]]; then
     vendor_dir="$repo_dir/vendor/canvas-vae"
     vendor_model="$vendor_dir/src/pixel-vae/pixelvae/model.py"
     if [[ ! -f "$vendor_model" ]]; then
-        [[ ! -e "$vendor_dir" ]] || {
-            printf 'vendor CanvasVAE directory exists without its pinned model\n' >&2
-            exit 2
-        }
+        if [[ -e "$vendor_dir" ]]; then
+            rmdir "$vendor_dir" || {
+                printf 'vendor CanvasVAE directory exists without its pinned model and is not empty\n' >&2
+                exit 2
+            }
+        fi
         vendor_archive="$work_root/canvas-vae-${vendor_commit}.tar.gz"
         mkdir -p "$vendor_dir"
         run_logged curl --fail --silent --show-error --location --retry 3 \
