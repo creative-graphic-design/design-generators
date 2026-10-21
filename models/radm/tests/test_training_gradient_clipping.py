@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, Dataset
 from radm.modeling_radm import RADMDenoiser, RADMDenoiserOutput
 from radm.training.config import effective_radm_config
 from radm.training.lightning_module import RADMTrainingModule
+from radm.training.optim import build_radm_optimizer
 
 
 class _TinyRADMModel(nn.Module):
@@ -159,5 +160,46 @@ def test_lightning_optimizer_clips_current_step_gradient(
 
     for actual_parameter, expected_parameter in zip(
         actual.model.parameters(), reference.model.parameters(), strict=True
+    ):
+        torch.testing.assert_close(actual_parameter, expected_parameter)
+
+
+def test_optimizer_clips_manual_backward_without_closure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    effective = replace(
+        effective_radm_config(),
+        learning_rate=0.01,
+        weight_decay=0.01,
+    )
+    actual_model = _TinyRADMModel()
+    reference_model = _TinyRADMModel()
+    reference_model.load_state_dict(actual_model.state_dict())
+
+    actual_optimizer = build_radm_optimizer(actual_model, effective)
+    reference_optimizer = torch.optim.AdamW(
+        reference_model.parameters(),
+        lr=effective.learning_rate,
+        betas=effective.betas,
+        eps=effective.eps,
+        weight_decay=effective.weight_decay,
+    )
+
+    actual_optimizer.zero_grad(set_to_none=True)
+    actual_loss = actual_model.first * 3 + actual_model.second * 4
+    actual_loss.backward()
+
+    reference_optimizer.zero_grad(set_to_none=True)
+    reference_loss = reference_model.first * 3 + reference_model.second * 4
+    reference_loss.backward()
+    torch.nn.utils.clip_grad_norm_(
+        reference_model.parameters(), effective.gradient_clip_norm
+    )
+    reference_optimizer.step()
+    actual_optimizer.step()
+
+    for actual_parameter, expected_parameter in zip(
+        actual_model.parameters(), reference_model.parameters(), strict=True
     ):
         torch.testing.assert_close(actual_parameter, expected_parameter)
