@@ -448,9 +448,7 @@ fit_args=(
     --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
-    # Bound work by global_step and give the restored epoch loop one boundary
-    # of headroom so max_epochs cannot stop the segment before its target.
-    "--trainer.max_epochs=$((end_epoch + 1))"
+    "--trainer.max_epochs=$end_epoch"
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
     --trainer.logger=false
