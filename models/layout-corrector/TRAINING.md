@@ -142,6 +142,14 @@ The OOB counts are report-only counts of decoded elements outside the original n
 
 ## Regeneration Metadata
 
+The audited runtime uses Python 3.11.15 and its freeze is recorded at `.cache/layout-corrector/runtime/uv-pip-freeze.txt` with SHA-256 `bc89365b87e323f3c6641cd48659b04f3d7711ddb8a2ccab5d6873c2357cdec4`. PyTorch `2.8.0+cu128` and TorchVision `0.23.0+cu128` are pinned by wheel SHA-256: `039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed` and `93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb`, respectively. Rebuild this runtime from the matching Python 3.11.15 source environment and retained TorchVision wheel with the committed command below; it checks the pinned source freeze, both wheel hashes, and the editable workspace paths.
+
+```bash
+LAYOUT_CORRECTOR_SOURCE_RUNTIME=<source-runtime> \
+  LAYOUT_CORRECTOR_TORCHVISION_WHEEL=<retained-torchvision-wheel> \
+  scripts/build_layout_corrector_audit_runtime.sh
+```
+
 Evidence commit `9833bfc7f78c8529216cefa1bbbd0d3843c80335` is an ancestor of the final PR head. The merge commits `563826b`, `75b7125`, and `2b51940` bring `origin/main` into this branch; no rebase was used. S0-S4 evidence ran on `<gpu>` with S0 at 0 workers and S1-S4 at the shipped-config 16 workers under audited runtime freeze SHA-256 `3fdc59949e80293c858d8eba525ad4cd46713dd8e4ca31e8c9fab428e46cefdf`. The retained vendor evaluation outputs came from sweep source commit `5ee3af2`; the final comparison reused those outputs while executing the package pipeline at the evidence commit. The evaluator source commit is recorded in each evaluation summary. The parent evaluator process asserts `PYTHONHASHSEED=0`, and the child inherits that value. After the evidence commit, `git diff --stat 9833bfc 2b51940 -- models/layout-corrector/src models/layout-dm/src lib` reported only `lib/traingen/README.md`, `lib/traingen/src/traingen/optim.py`, and `lib/traingen/tests/test_optim.py`. These PixelVAE-port additions are not imported on the evidence path. The post-evidence source diff `git diff --stat 2b51940 27ae996 -- models/layout-corrector/src models/layout-dm/src lib` reported only `models/layout-corrector/src/layout_corrector/training/dataset.py | 2 +-` (`1 file changed, 1 insertion(+), 1 deletion(-)`), which is a docstring-only change and is not imported on the evidence path.
 
 ```text
