@@ -83,14 +83,18 @@ def build_radm_optimizer(
         def step(  # ty: ignore[invalid-method-override]
             self, closure: Callable[[], float] | None = None
         ) -> None:
-            """Clip all gradients before applying the AdamW update."""
+            """Compute closure gradients, clip them, and apply the AdamW update."""
+            if closure is not None:
+                with torch.enable_grad():
+                    closure()
+
             parameters = [
                 parameter
                 for group in self.param_groups
                 for parameter in group["params"]
             ]
             torch.nn.utils.clip_grad_norm_(parameters, effective.gradient_clip_norm)
-            super().step(closure=closure)
+            super().step()
 
     return FullModelGradientClippingAdamW(
         parameters,
