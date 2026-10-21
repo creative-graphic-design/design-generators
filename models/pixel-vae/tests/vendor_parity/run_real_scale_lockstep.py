@@ -47,19 +47,16 @@ def _arguments() -> argparse.Namespace:
 
 def _configure_devices(device: str) -> torch.device:
     physical_gpus = tf.config.list_physical_devices("GPU")
-    expected_count = 1 if device == "cuda" else 0
-    if len(physical_gpus) != expected_count:
+    if physical_gpus:
         raise RuntimeError(
-            f"TensorFlow sees {len(physical_gpus)} GPUs; expected {expected_count}"
+            f"TensorFlow sees {len(physical_gpus)} GPUs; the vendor reference must use CPU"
         )
 
-    for gpu in physical_gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-
+    expected_torch_gpus = 1 if device == "cuda" else 0
     visible_torch_gpus = torch.cuda.device_count()
-    if visible_torch_gpus != expected_count:
+    if visible_torch_gpus != expected_torch_gpus:
         raise RuntimeError(
-            f"PyTorch sees {visible_torch_gpus} GPUs; expected {expected_count}"
+            f"PyTorch sees {visible_torch_gpus} GPUs; expected {expected_torch_gpus}"
         )
 
     tf.config.experimental.enable_op_determinism()

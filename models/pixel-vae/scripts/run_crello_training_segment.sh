@@ -381,9 +381,7 @@ if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 10 ]]; then
         run_logged tar -xzf "$vendor_archive" --strip-components=1 -C "$vendor_dir"
     fi
 
-    run_logged uv sync --locked --package pixel-vae --extra training --group dev
-    run_logged uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" \
-        'tensorflow[and-cuda]==2.15.1'
+    run_logged uv sync --locked --package pixel-vae --extra training --extra vendor --group dev
     export TF_CPP_MIN_LOG_LEVEL=2
     export TF_ENABLE_ONEDNN_OPTS=0
     run_logged env PYTHONPATH="$repo_dir/models/pixel-vae/tests" \
