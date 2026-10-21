@@ -3,17 +3,18 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import cast
+from typing import BinaryIO, TypedDict, cast
 
 import numpy as np
 import tensorflow as tf
 import torch
-from tensorflow.core.example import example_pb2 as tensorflow_example_pb2
 
-# Reuse TensorFlow's Example descriptors instead of registering duplicate symbols.
-from pixel_vae import PixelVAEConfig, PixelVAEModel
+from pixel_vae import PixelVAEConfig, PixelVAEImageProcessor, PixelVAEModel
 from pixel_vae.conversion import (
     convert_tensorflow_variables,
     extract_tensorflow_variable_map,
@@ -21,9 +22,6 @@ from pixel_vae.conversion import (
     tensorflow_arrays_to_torch,
 )
 from traingen.optim import KerasAdam
-
-sys.modules["tfrecord.example_pb2"] = tensorflow_example_pb2
-from pixel_vae.training import PixelVAEDataModule  # noqa: E402
 
 repo_root = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(repo_root / "vendor" / "canvas-vae" / "src" / "pixel-vae"))
@@ -36,6 +34,11 @@ from test_pixel_vae_cpu_parity import (  # noqa: E402
     _source_gradient_arrays,
     _tensorflow_train_step,
 )
+
+
+class LockstepSamplerManifest(TypedDict):
+    sampler_order: list[int]
+    record_locations: list[list[int]]
 
 
 def _arguments() -> argparse.Namespace:
@@ -98,6 +101,78 @@ def _batch_digest(pixels: torch.Tensor) -> str:
     ).hexdigest()
 
 
+def _sampler_manifest(args: argparse.Namespace) -> LockstepSamplerManifest:
+    with tempfile.TemporaryDirectory(prefix="pixelvae-lockstep-") as temporary:
+        manifest_path = Path(temporary) / "sampler.json"
+        worker_env = os.environ.copy()
+        tests_path = str(Path(__file__).resolve().parents[1])
+        current_pythonpath = worker_env.get("PYTHONPATH")
+        worker_env["PYTHONPATH"] = (
+            tests_path
+            if not current_pythonpath
+            else os.pathsep.join((tests_path, current_pythonpath))
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "vendor_parity.run_lockstep_sampler_manifest",
+                "--data-dir",
+                str(args.data_dir),
+                "--batch-size",
+                str(args.batch_size),
+                "--steps",
+                str(args.steps),
+                "--output",
+                str(manifest_path),
+            ],
+            check=True,
+            env=worker_env,
+        )
+        manifest = cast(
+            LockstepSamplerManifest,
+            json.loads(manifest_path.read_text(encoding="utf-8")),
+        )
+
+    sample_count = args.batch_size * args.steps
+    if (
+        len(manifest["sampler_order"]) != sample_count
+        or len(manifest["record_locations"]) != sample_count
+    ):
+        raise RuntimeError("the sampler manifest has an unexpected number of entries")
+
+    return manifest
+
+
+def _read_image_batch(
+    record_locations: list[list[int]],
+    record_paths: list[Path],
+    handles: dict[int, BinaryIO],
+) -> list[bytes]:
+    images: list[bytes] = []
+    for file_index, payload_offset, payload_size in record_locations:
+        if file_index < 0 or file_index >= len(record_paths):
+            raise RuntimeError("the sampler manifest contains an invalid shard index")
+
+        handle = handles.get(file_index)
+        if handle is None:
+            handle = record_paths[file_index].open("rb")
+            handles[file_index] = handle
+
+        handle.seek(payload_offset)
+        payload = handle.read(payload_size)
+        if len(payload) != payload_size:
+            raise RuntimeError("a lockstep TFRecord payload was truncated")
+
+        example = tf.train.Example.FromString(payload)
+        try:
+            images.append(example.features.feature["image"].bytes_list.value[0])
+        except IndexError as error:
+            raise ValueError("a lockstep TFRecord has no PNG image") from error
+
+    return images
+
+
 def main() -> None:
     args = _arguments()
     if args.steps <= 0 or args.batch_size <= 0:
@@ -120,40 +195,34 @@ def main() -> None:
     package_optimizer = KerasAdam(model.parameters(), lr=1e-4, eps=1e-7)
     variable_map = extract_tensorflow_variable_map(reference)
 
-    data = PixelVAEDataModule(
-        str(args.data_dir),
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=True,
-    )
-    data.setup("fit")
-    sampler = data.samplers["train"]
-    sampler.set_epoch(0)
-    sampler_order = list(iter(sampler))
-    sampler.set_epoch(0)
-    loader = data.train_dataloader()
-    iterator = iter(loader)
-    if loader.num_workers != args.num_workers or not loader.persistent_workers:
-        raise RuntimeError("lockstep loader settings differ from the production config")
+    if args.num_workers <= 0:
+        raise ValueError("lockstep requires persistent training workers")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     summary_path = args.output.with_suffix(".summary.json")
     if args.output.exists() or summary_path.exists():
         raise FileExistsError("refusing to overwrite lockstep evidence")
 
+    manifest = _sampler_manifest(args)
+    sampler_order = manifest["sampler_order"]
+    record_locations = manifest["record_locations"]
+    record_paths = sorted(args.data_dir.glob("train-*.tfrecord"))
+    if not record_paths:
+        raise FileNotFoundError("no train TFRecord shards were found")
+
+    processor = PixelVAEImageProcessor()
+    handles: dict[int, BinaryIO] = {}
     first_divergence = None
     records_written = 0
     try:
         with args.output.open("x", encoding="utf-8") as stream:
             for step in range(args.steps):
-                try:
-                    batch = next(iterator)
-                except StopIteration as error:
-                    raise RuntimeError(
-                        "the real train stream ended before the probe"
-                    ) from error
-
-                pixels = cast(torch.Tensor, batch["pixel_values"])
+                batch_start = step * args.batch_size
+                batch_end = batch_start + args.batch_size
+                images = _read_image_batch(
+                    record_locations[batch_start:batch_end], record_paths, handles
+                )
+                pixels = cast(torch.Tensor, processor(images)["pixel_values"])
                 if pixels.shape[0] != args.batch_size:
                     raise RuntimeError("the lockstep batch has an unexpected size")
 
@@ -205,7 +274,6 @@ def main() -> None:
                     )
                     for name in mapped_gradients
                 )
-                batch_start = step * args.batch_size
                 batch_indices = sampler_order[
                     batch_start : batch_start + args.batch_size
                 ]
@@ -242,9 +310,8 @@ def main() -> None:
                     first_divergence = record
                     break
     finally:
-        iterator_state = getattr(loader, "_iterator", None)
-        if iterator_state is not None:
-            iterator_state._shutdown_workers()
+        for handle in handles.values():
+            handle.close()
 
     summary = {
         "status": "passed" if first_divergence is None else "diverged",
@@ -254,8 +321,8 @@ def main() -> None:
         "steps_completed": records_written,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
-        "pin_memory": loader.pin_memory,
-        "persistent_workers": loader.persistent_workers,
+        "pin_memory": True,
+        "persistent_workers": True,
         "first_relative_loss_difference_over_1e-3": first_divergence,
     }
     summary_path.write_text(
