@@ -497,9 +497,12 @@ def pixelvae_reconstruction_loss(
     if logits.shape != (*targets.shape, QUANTIZATION_LEVELS):
         raise ValueError("logits must have shape [batch, 256, 256, 4, 16]")
 
+    # Keep the class axis last, as in the TensorFlow sparse cross entropy.
     per_channel = F.cross_entropy(
-        logits.permute(0, 4, 1, 2, 3), targets, reduction="none"
-    )
+        logits.reshape(-1, QUANTIZATION_LEVELS),
+        targets.reshape(-1),
+        reduction="none",
+    ).reshape_as(targets)
     rgb_mask = (targets[..., 3:4] > 0).to(per_channel.dtype)
     rgb_loss = per_channel[..., :3] * rgb_mask
     alpha_loss = per_channel[..., 3:4]
