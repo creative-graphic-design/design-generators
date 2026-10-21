@@ -448,7 +448,9 @@ fit_args=(
     --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
-    "--trainer.max_epochs=$end_epoch"
+    # Lightning resumes an epoch-boundary checkpoint before max_steps advances.
+    # Keep one epoch of headroom; max_steps still bounds the requested work.
+    "--trainer.max_epochs=$((end_epoch + 1))"
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
     --trainer.logger=false
