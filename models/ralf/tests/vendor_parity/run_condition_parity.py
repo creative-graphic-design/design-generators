@@ -1039,10 +1039,9 @@ def generate_package_predictions(
         # noisy condition is prepared.
         torch.manual_seed(0)
     if args.condition == "relation":
-        # Relation-table preparation is part of the vendor process state.  The
-        # package keeps its recorded preparation seed for a reproducible local
-        # arm; the vendor arm below intentionally follows the campaign's
-        # direct module invocation without injecting a wrapper seed.
+        # Relation-table preparation is part of the vendor process state.  Both
+        # arms use the recorded preparation seed, and the vendor wrapper below
+        # injects the same process-start seed before importing the module.
         random.seed(0)
     pipe = RalfPipeline.from_pretrained(converted, local_files_only=True)
     train, test = load_local_dataset(input_root, args.dataset)
