@@ -273,18 +273,40 @@ fi
     exit 2
 }
 
-start_epoch=0
-if [[ -n "$resume_path" ]]; then
-    start_epoch="$(uv run --locked --package pixel-vae --extra training python - "$resume_path" <<'PY'
+training_state="$(uv run --locked --package pixel-vae --extra training python - \
+    "$data_dir/count.json" "$resume_path" "$batch_size" <<'PY'
+import json
+import math
 import sys
+from pathlib import Path
+
 import torch
 
-checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
-if not checkpoint.get("optimizer_states"):
-    raise SystemExit("resume checkpoint has no optimizer state")
-print(int(checkpoint["epoch"]))
+counts_path, resume_path, batch_text = sys.argv[1:]
+counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
+train_steps = math.ceil(counts["train"] / int(batch_text))
+start_epoch = 0
+start_global_step = 0
+if resume_path:
+    checkpoint = torch.load(resume_path, map_location="cpu", weights_only=False)
+    if not checkpoint.get("optimizer_states"):
+        raise SystemExit("resume checkpoint has no optimizer state")
+
+    start_epoch = int(checkpoint["epoch"])
+    start_global_step = int(checkpoint["global_step"])
+
+print(start_epoch, start_global_step, train_steps)
 PY
 )"
+read -r start_epoch start_global_step train_steps <<< "$training_state"
+((end_epoch > start_epoch)) || {
+    printf 'segment endpoint must follow the checkpoint epoch\n' >&2
+    exit 2
+}
+target_global_step=$((start_global_step + (end_epoch - start_epoch) * train_steps))
+if [[ "$cpu_rehearsal" != 1 && "$start_global_step" -ne "$((start_epoch * train_steps))" ]]; then
+    printf 'checkpoint global step does not match its epoch boundary\n' >&2
+    exit 2
 fi
 if [[ "$cpu_rehearsal" == 1 ]]; then
     [[ "$end_epoch" == "$((start_epoch + 1))" && "$end_epoch" -le 250 ]] || {
@@ -426,7 +448,10 @@ fit_args=(
     --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
-    "--trainer.max_epochs=$end_epoch"
+    # Bound work by global_step and give the restored epoch loop one boundary
+    # of headroom so max_epochs cannot stop the segment before its target.
+    "--trainer.max_epochs=$((end_epoch + 1))"
+    "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
     --trainer.logger=false
     --trainer.enable_progress_bar=false
@@ -459,7 +484,8 @@ run_logged uv run --locked --no-sync --package pixel-vae --extra training python
     "$data_dir/count.json" "$run_dir/checkpoints/last.ckpt" \
     "$run_dir/checkpoints/best.ckpt" "$start_epoch" "$end_epoch" \
     "$batch_size" "$time_file" "$gpu_samples" "$report_path" "$source_sha" \
-    "$runtime_path" "$epoch_timing_path" <<'PY'
+    "$runtime_path" "$epoch_timing_path" "$start_global_step" "$train_steps" \
+    "$target_global_step" <<'PY'
 import csv
 from datetime import datetime, timezone
 import hashlib
@@ -483,12 +509,20 @@ import torch
     source,
     runtime_path,
     epoch_timing_path,
+    start_global_step,
+    train_steps,
+    target_global_step,
 ) = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
-completed = int(checkpoint["epoch"])
-if completed != int(end):
-    raise SystemExit(f"last checkpoint epoch is {completed}; expected {end}")
+checkpoint_epoch = int(checkpoint["epoch"])
+actual_global_step = int(checkpoint["global_step"])
+if actual_global_step != int(target_global_step):
+    raise SystemExit(
+        f"last checkpoint global step is {actual_global_step}; "
+        f"expected {target_global_step} from {start_global_step} plus "
+        f"{int(end) - int(start)} epochs of {train_steps} steps"
+    )
 optimizer_states = checkpoint.get("optimizer_states")
 if not isinstance(optimizer_states, list) or not optimizer_states:
     keys = ",".join(sorted(checkpoint))
@@ -563,8 +597,10 @@ report = {
     "source_commit": source,
     "segment": {
         "start_epoch": int(start),
-        "end_epoch": completed,
-        "global_step": int(checkpoint["global_step"]),
+        "end_epoch": int(end),
+        "checkpoint_epoch": checkpoint_epoch,
+        "start_global_step": int(start_global_step),
+        "global_step": actual_global_step,
     },
     "data": {
         "train_unique_images": counts["train"],
