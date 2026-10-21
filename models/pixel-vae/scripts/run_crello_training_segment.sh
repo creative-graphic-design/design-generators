@@ -516,6 +516,7 @@ import torch
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 checkpoint = torch.load(last_path, map_location="cpu", weights_only=False)
 checkpoint_epoch = int(checkpoint["epoch"])
+completed = int(end)
 actual_global_step = int(checkpoint["global_step"])
 if actual_global_step != int(target_global_step):
     raise SystemExit(
