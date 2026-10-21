@@ -377,7 +377,7 @@ runtime_path.write_text(json.dumps(runtime, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(runtime, sort_keys=True))
 PY
 
-if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 10 ]]; then
+if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 0 || "$start_epoch" == 10 ]]; then
     lockstep_steps=300
     lockstep_device=cuda
     if [[ "$cpu_rehearsal" == 1 ]]; then
