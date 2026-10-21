@@ -226,8 +226,8 @@ def main() -> None:
                 if pixels.shape[0] != args.batch_size:
                     raise RuntimeError("the lockstep batch has an unexpected size")
 
-                tf_batch = tf.convert_to_tensor(
-                    pixels.detach().cpu().permute(0, 2, 3, 1).contiguous().numpy()
+                tf_batch = tf.stack(
+                    [tf.io.decode_png(image, channels=4) for image in images]
                 )
                 epsilon = (
                     np.random.default_rng(310 + step)
