@@ -32,7 +32,7 @@ Use this order for every training-first package:
 
 Apply the [protocol's Stage Overview](docs/training-reproduction.md#stage-overview) before launching S5-scale GPU jobs, marking an issue with the `parity-verified` status label, or writing a README/model-card/PR claim that S5 reproduction is complete.
 
-Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording), using independent initialization and optimizer stepping, the S4 deterministic stream, and the original S3 seed range; cite the artifact in the S3 Stage Evidence row.
+Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording): use at least 1,500 updates, independent production initialization and optimizer stepping, the S4 stream, and the widened envelope from matched original production runs; cite the artifact in the S3 Stage Evidence row.
 
 Before launching S5, write one launch manifest: a JSON file with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
