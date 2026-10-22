@@ -64,7 +64,7 @@ Parity thresholds are per-dataset. Here, practical parity names an accepted full
 
 ### S3 Evidence Layers
 
-S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 requirements, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves those requirements, retain the natural record and add a synchronized diagnostic; agreement within those requirements plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
+S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 requirements, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves those requirements, retain the natural record and add a synchronized diagnostic; agreement within those requirements plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-path result as an independent third layer; it does not establish numerical trajectory parity and must satisfy the pre-S5 check in [S3 Evidence Recording](#s3-evidence-recording).
 
 ### Activation Thresholds
 
@@ -189,12 +189,9 @@ empirically observed to share storage without this protection. This is an
 observation of those evidence runs, not a general PyTorch specification; the
 copy and assertion are the fail-closed requirement.
 
-For either numerical path, record the bounded production console boundary and
-its logger, checkpoint, and scheduler wiring as a separate third layer. Report
-the natural, synchronized, and wiring results independently, retain the
-natural record, and do not widen a tolerance or add a threshold without an
-explicit numerical justification. State observed runtime and hardware
-conditions separately from these general recording requirements.
+Before any S5 launch, run the original production entry point and the shipped package training entry point for one matched training seed and at least 1,500 optimizer updates for each claimed dataset. Each system initializes its own model and optimizer through its resolved production config, including configured pretrained assets, and the package optimizer is stepped by its shipped trainer; do not copy original model parameters, buffers, or optimizer state into the package run. Pair the runs by seed, optimizer step, and batch order, and preserve each step's logged training loss. Compare the medians for each of 25 non-overlapping 20-step windows covering optimizer updates 1,001–1,500 inclusive. For package and original medians P and O, calculate abs(P - O) / max(abs(P), abs(O)), using zero when both are zero. For each dataset and matched seed, the gate is the median of the 25 normalized differences and must be at most 0.05 (5%); individual window differences are report-only. Record the commands, source commits, resolved configs, seed and batch alignment, initialization paths, per-step losses, comparison method and threshold, and result in an artifact cited by the S3 Stage Evidence row.
+
+For either numerical path, report the production logger, checkpoint, and scheduler wiring as a separate result alongside the production-path loss comparison. Report the natural, synchronized, and production-path results independently, retain the natural record, and do not widen a tolerance or add a threshold without an explicit numerical justification. State observed runtime and hardware conditions separately from these general recording requirements.
 
 Per-model `TRAINING.md` files must be result-focused. Open with the conclusion, including the reproduction verdict, covered datasets, numeric metrics, and seed scope. Include only the reproducible training, evaluation, conversion, and smoke-test procedure that maintainers should rerun. Do not include discarded attempts, failed diagnostic narratives, or process history; move that material to issue discussion only when it is still useful. The CGB-DM update is a good example of a conclusion-first report with numeric evidence and copy-pasteable commands; see [pull request #167](https://github.com/creative-graphic-design/design-generators/pull/167) for the CGB-DM example.
 
