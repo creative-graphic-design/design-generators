@@ -33,6 +33,14 @@ if [[ ! -f "$torchvision_wheel" ]]; then
   echo "retained torchvision wheel is missing: $torchvision_wheel" >&2
   exit 1
 fi
+torchvision_wheel="$("$source_python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve(strict=True))' "$torchvision_wheel")"
+
+mkdir -p "$cache_root"
+exec {lock_fd}>"$cache_root/.runtime-build.lock"
+if ! flock -n "$lock_fd"; then
+  echo "another audit runtime build is already running" >&2
+  exit 1
+fi
 if [[ -e "$target" ]]; then
   echo "target runtime already exists; refusing to replace it: $target" >&2
   exit 1
@@ -44,7 +52,6 @@ if [[ "$source_version" != "Python 3.11.15" ]]; then
   exit 1
 fi
 
-mkdir -p "$cache_root"
 build_inputs="$(mktemp -d "$cache_root/.runtime-build.XXXXXX")"
 target_created=0
 cleanup() {
