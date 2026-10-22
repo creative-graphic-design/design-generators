@@ -104,6 +104,64 @@ Expected unconditional parity result from the existing reference set:
 6 passed
 ```
 
+## Evaluation-path parity runner
+
+Run `models/ralf/tests/vendor_parity/run_condition_parity.py` to compare one condition's package pipeline and vendor evaluator on the full TEST split. Set `RALF_DATA_ROOT` to the directory containing the selected `cgl/` or `pku/` dataset, `RALF_CAMPAIGN_ROOT` to that condition's S5 campaign root, `RALF_PARITY_OUTPUT_ROOT` to a new scratch directory, and `RALF_GPU` to the selected GPU. Keep these machine-specific values in environment variables. For CGL unconditional, also set `RALF_CGL_UNCONDITIONAL_VENDOR_JOB` to the released vendor job directory; other conditions use the vendor job under the selected campaign root.
+
+Set `RALF_DATASET` and `RALF_CONDITION` from this table before running the command. Non-relation runs omit `RALF_PARITY_SEED` and use the runner's default inference seeds `0`, `1`, and `2` with cuDNN disabled. Run relation once per seed, setting `RALF_PARITY_SEED` to `0`, `1`, or `2`; relation runs keep cuDNN enabled.
+
+| Dataset | Condition     | `RALF_DATASET` | `RALF_CONDITION` | Additional arguments                                                            |
+| ------- | ------------- | -------------- | ---------------- | ------------------------------------------------------------------------------- |
+| CGL     | unconditional | `cgl`          | `unconditional`  | `--vendor-job-path "$RALF_CGL_UNCONDITIONAL_VENDOR_JOB"`; non-relation defaults |
+| CGL     | label         | `cgl`          | `label`          | non-relation defaults                                                           |
+| CGL     | label-size    | `cgl`          | `label-size`     | non-relation defaults                                                           |
+| CGL     | completion    | `cgl`          | `completion`     | non-relation defaults                                                           |
+| CGL     | refinement    | `cgl`          | `refinement`     | non-relation defaults                                                           |
+| CGL     | relation      | `cgl`          | `relation`       | `--seed 0`, `--seed 1`, and `--seed 2` in separate runs                         |
+| PKU     | unconditional | `pku`          | `unconditional`  | non-relation defaults                                                           |
+| PKU     | label         | `pku`          | `label`          | non-relation defaults                                                           |
+| PKU     | label-size    | `pku`          | `label-size`     | non-relation defaults                                                           |
+| PKU     | completion    | `pku`          | `completion`     | non-relation defaults                                                           |
+| PKU     | refinement    | `pku`          | `refinement`     | non-relation defaults                                                           |
+| PKU     | relation      | `pku`          | `relation`       | `--seed 0`, `--seed 1`, and `--seed 2` in separate runs                         |
+
+Use a fresh output directory for each invocation. Relation seed runs write to separate `seed-<N>` subdirectories under that output root.
+
+```bash
+set -e
+
+dataset="${RALF_DATASET:?set RALF_DATASET from the table}"
+condition="${RALF_CONDITION:?set RALF_CONDITION from the table}"
+dataset_root="${RALF_DATA_ROOT:?set RALF_DATA_ROOT}"
+campaign_root="${RALF_CAMPAIGN_ROOT:?set RALF_CAMPAIGN_ROOT for this condition}"
+output_root="${RALF_PARITY_OUTPUT_ROOT:?set RALF_PARITY_OUTPUT_ROOT}/$dataset/$condition"
+gpu="${RALF_GPU:?set RALF_GPU}"
+condition_args=(--disable-cudnn)
+vendor_args=()
+
+if [[ "$condition" == relation ]]; then
+  seed="${RALF_PARITY_SEED:?set RALF_PARITY_SEED to 0, 1, or 2}"
+  condition_args=(--seed "$seed")
+  output_root="$output_root/seed-$seed"
+fi
+
+if [[ "$dataset" == cgl && "$condition" == unconditional ]]; then
+  vendor_args=(--vendor-job-path "${RALF_CGL_UNCONDITIONAL_VENDOR_JOB:?set RALF_CGL_UNCONDITIONAL_VENDOR_JOB}")
+fi
+
+CUDA_VISIBLE_DEVICES="$gpu" .cache/ralf/runtime/audit-cu128-cu12/bin/python \
+  models/ralf/tests/vendor_parity/run_condition_parity.py \
+  --dataset-root "$dataset_root" \
+  --dataset "$dataset" \
+  --condition "$condition" \
+  --campaign-root "$campaign_root" \
+  --output-root "$output_root" \
+  --runtime-freeze-path .cache/ralf/runtime/audit-cu128-cu12-records/runtime-freeze.txt \
+  --gpu "$gpu" \
+  "${vendor_args[@]}" \
+  "${condition_args[@]}"
+```
+
 Step 5 runs a `from_pretrained` smoke check for a converted checkpoint.
 
 ```bash
