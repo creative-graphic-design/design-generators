@@ -21,7 +21,7 @@ def test_tokenizer_encode_decode_layout_round_trip() -> None:
 
 
 def test_tokenizer_decode_matches_vendor_oov_and_clipping() -> None:
-    """Decode the CGL row-3638 sequence like the vendor's five-item result.
+    """Decode a synthetic five-item sequence for OOV and clipping behavior.
 
     This mirrors ``vendor/ralf/image2layout/train/helpers/layout_tokenizer.py``:
     ``_detect_oov`` validates offset-adjusted geometry against ``N_bbox`` at

@@ -10,22 +10,33 @@
 set -euo pipefail
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
-runtime_root=${1:-"$repo_root/.cache/ralf/runtime/audit-cu128"}
+runtime_root=${1:-"$repo_root/.cache/ralf/runtime/audit-cu128-cu12"}
 output_root=${2:-"${runtime_root}-records"}
-requirements="$output_root/workspace-requirements.txt"
-raw_requirements="$output_root/workspace-requirements-without-cuda.txt"
-raw_freeze="$output_root/runtime-freeze-raw.txt"
-normalized_freeze="$output_root/runtime-freeze.txt"
+source_lock_commit=fc0379bb49e58143f8718711bbf6f701bbfe9ab3
 pytorch_index_url=https://download.pytorch.org/whl/cu128
 torch_wheel="$pytorch_index_url/torch-2.8.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl"
 torchvision_wheel="$pytorch_index_url/torchvision-0.23.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl"
 triton_wheel="$pytorch_index_url/../triton-3.4.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
 
 mkdir -p "$output_root"
+output_root=$(cd -- "$output_root" && pwd)
+requirements="$output_root/workspace-requirements.txt"
+raw_requirements="$output_root/workspace-requirements-without-cuda.txt"
+raw_freeze="$output_root/runtime-freeze-raw.txt"
+normalized_freeze="$output_root/runtime-freeze.txt"
 if [[ "$(realpath -m "$runtime_root")" == "$(realpath -m "$output_root")" ]]; then
     printf 'runtime root and output root must be different directories\n' >&2
     exit 2
 fi
+if ! git -C "$repo_root" cat-file -e "$source_lock_commit^{commit}"; then
+    printf 'source lock commit is unavailable: %s\n' "$source_lock_commit" >&2
+    exit 2
+fi
+
+lock_source_root=$(mktemp -d "$output_root/lock-source.XXXXXX")
+rmdir "$lock_source_root"
+git -C "$repo_root" worktree add --detach "$lock_source_root" "$source_lock_commit"
+trap 'git -C "$repo_root" worktree remove "$lock_source_root" >/dev/null' EXIT
 
 run_uv() {
     local attempt
@@ -40,13 +51,14 @@ run_uv() {
     return 1
 }
 
-run_uv export \
+run_uv --directory "$lock_source_root" export \
   --frozen \
   --package ralf \
   --extra training \
   --extra vendor \
   --format requirements-txt \
-  --output-file "$requirements"
+  --output-file "$requirements" > /dev/null
+printf 'dependency lock commit: %s\n' "$source_lock_commit"
 
 python - "$requirements" "$raw_requirements" <<'PY'
 from pathlib import Path
@@ -90,7 +102,8 @@ run_uv pip install \
   -r "$raw_requirements"
 run_uv pip install \
   --python "$runtime_root/bin/python" \
-  pytest==9.1.1
+  pytest==9.1.1 \
+  pluggy==1.6.0
 run_uv pip install \
   --python "$runtime_root/bin/python" \
   --no-deps \
