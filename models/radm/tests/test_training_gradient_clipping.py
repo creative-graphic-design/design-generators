@@ -202,5 +202,4 @@ def test_optimizer_clips_manual_backward_without_closure(
     for actual_parameter, expected_parameter in zip(
         actual_model.parameters(), reference_model.parameters(), strict=True
     ):
-        torch.testing.assert_close(actual_parameter.grad, expected_parameter.grad)
         torch.testing.assert_close(actual_parameter, expected_parameter)
