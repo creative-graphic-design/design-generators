@@ -49,7 +49,20 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--device", choices=("cpu", "cuda"), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--record-only", action="store_true")
     return parser.parse_args()
+
+
+def _should_stop_after_divergence(
+    first_divergence: dict[str, object] | None, record_only: bool
+) -> bool:
+    return first_divergence is not None and not record_only
+
+
+def _retain_first_divergence(
+    first_divergence: dict[str, object] | None, current_record: dict[str, object]
+) -> dict[str, object]:
+    return first_divergence if first_divergence is not None else current_record
 
 
 def _configure_devices(device: str) -> torch.device:
@@ -307,8 +320,13 @@ def main() -> None:
                 stream.flush()
                 records_written += 1
                 if relative_loss_difference > 1e-3:
-                    first_divergence = record
-                    break
+                    first_divergence = _retain_first_divergence(
+                        first_divergence, record
+                    )
+                    if _should_stop_after_divergence(
+                        first_divergence, args.record_only
+                    ):
+                        break
     finally:
         for handle in handles.values():
             handle.close()
@@ -329,7 +347,7 @@ def main() -> None:
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(json.dumps(summary, sort_keys=True))
-    if first_divergence is not None:
+    if _should_stop_after_divergence(first_divergence, args.record_only):
         raise SystemExit("real-scale lockstep exceeded the relative loss limit")
     if records_written != args.steps:
         raise SystemExit("real-scale lockstep did not complete the requested steps")

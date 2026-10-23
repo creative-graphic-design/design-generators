@@ -9,7 +9,7 @@
 #   resume from the previous process, when PIXELVAE_CPU_REHEARSAL=1;
 #   rehearsals require data_tar.
 #   PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a tiny fixture before packaging.
-# @option --hub-input NAME=URI Durable input; source, data_tar, resume, and best are supported.
+# @option --hub-input NAME=URI Durable input; source, data_tar, attribution, resume, and best are supported.
 # @example
 #   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar
 
@@ -19,6 +19,7 @@ unset UV_SYSTEM_PYTHON PYTHONPATH MPLBACKEND
 
 source_uri=''
 data_uri=''
+attribution_uri=''
 resume_uri=''
 best_uri=''
 while (($#)); do
@@ -31,6 +32,7 @@ while (($#)); do
             case "$name" in
                 source) source_uri="$uri" ;;
                 data_tar) data_uri="$uri" ;;
+                attribution) attribution_uri="$uri" ;;
                 resume) resume_uri="$uri" ;;
                 best) best_uri="$uri" ;;
                 *) printf 'unsupported Hub input name: %s\n' "$name" >&2; exit 2 ;;
@@ -91,6 +93,7 @@ repo_dir="${PIXELVAE_PROJECT_DIR:-$work_root/design-generators}"
 data_dir="${PIXELVAE_DATA_DIR:-$work_root/crello-image}"
 run_dir="${PIXELVAE_RUN_DIR:-$work_root/pixelvae-output}"
 batch_size="${PIXELVAE_BATCH_SIZE:-64}"
+attribution_sha256='99030e6a1b53303898851707cb1f31b67a681e59b295f20408635b89738d1b17'
 if [[ "$cpu_rehearsal" == 1 ]]; then
     [[ "$batch_size" == 1 && "$end_epoch" -ge 1 && "$end_epoch" -le 250 ]] || {
         printf 'CPU rehearsal uses batch size 1 and endpoint 1 through 250\n' >&2
@@ -110,6 +113,10 @@ if [[ "$cpu_rehearsal" == 1 ]]; then
             printf 'CPU rehearsal requires --hub-input data_tar=URI\n' >&2
             exit 2
         }
+        [[ -n "$attribution_uri" ]] || {
+            printf 'CPU rehearsal requires --hub-input attribution=URI\n' >&2
+            exit 2
+        }
     fi
 else
     [[ "$batch_size" == 64 && "$end_epoch" -le 250 ]] || {
@@ -117,6 +124,10 @@ else
         exit 2
     }
     [[ -n "$data_uri" ]] || { printf 'production run requires --hub-input data_tar=URI\n' >&2; exit 2; }
+    [[ -n "$attribution_uri" ]] || {
+        printf 'production run requires --hub-input attribution=URI\n' >&2
+        exit 2
+    }
 fi
 
 if [[ -f "$repo_dir/.pixelvae-source-commit" ]]; then
@@ -215,6 +226,21 @@ export HF_HOME="$work_root/pixelvae-hf"
 export HF_TOKEN_PATH="${PIXELVAE_HF_TOKEN_PATH:-$work_root/hf-job-token}"
 export HF_HUB_VERBOSITY=error
 run_logged uv sync --locked --package pixel-vae --extra training
+
+if [[ "$cpu_fixture_prep" != 1 ]]; then
+    attribution_path="$work_root/pixelvae-attribution.md"
+    [[ ! -e "$attribution_path" ]] || {
+        printf 'refusing to overwrite the attribution report\n' >&2
+        exit 2
+    }
+    download_hub_file "$attribution_uri" "$attribution_path" models
+    actual_attribution_sha256="$(sha256sum "$attribution_path" | cut -d ' ' -f 1)"
+    [[ "$actual_attribution_sha256" == "$attribution_sha256" ]] || {
+        printf 'attribution report SHA-256 does not match the approved report\n' >&2
+        exit 2
+    }
+    printf 'verified attribution report SHA-256 %s\n' "$actual_attribution_sha256"
+fi
 
 if [[ -n "$data_uri" && ! -f "$data_dir/count.json" ]]; then
     [[ ! -e "$data_dir" ]] || { printf 'data directory exists without count.json\n' >&2; exit 2; }
@@ -414,6 +440,7 @@ if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 0 || "$start_epoch" == 10 ]]; t
         --num-workers 6 \
         --steps "$lockstep_steps" \
         --device "$lockstep_device" \
+        --record-only \
         --output "$lockstep_path"
     [[ -f "$lockstep_path" && -f "$lockstep_summary_path" ]] || {
         printf 'lockstep completed without its evidence files\n' >&2
