@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Callable
 from typing import cast
 
@@ -16,6 +17,61 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 from laygen.common.randomness import multinomial
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
+
+
+def _probability_gate(
+    logits: Float[torch.Tensor, "batch vocab"],
+    probabilities: Float[torch.Tensor, "batch vocab"],
+    threshold: float,
+) -> tuple[Float[torch.Tensor, "batch vocab"], bool]:
+    """Apply the original probability gate to the first batch row."""
+    gated_logits = logits.clone()
+    gated_logits[0].masked_fill_(probabilities[0] < threshold, -math.inf)
+    return gated_logits, bool(torch.isfinite(gated_logits[0]).any())
+
+
+def _backtracking_rng(
+    generator: torch.Generator | None,
+    *,
+    previous_generator: torch.Generator | None,
+    previous_state: bytes | None,
+    previous_rng: random.Random | None,
+) -> random.Random | None:
+    """Reuse rollback state or seed a deterministic stream from the generator."""
+    if generator is None:
+        return None
+
+    state = bytes(generator.get_state().tolist())
+    if generator is previous_generator and previous_state is not None:
+        if state == previous_state and previous_rng is not None:
+            return previous_rng
+
+        return random.Random(state)
+
+    return random.Random(generator.initial_seed())
+
+
+def _backtracking_index(
+    *,
+    step: int,
+    constraint_index: int | None,
+    has_candidate: bool,
+    retry_count: int,
+    backtrack_pending: bool,
+    randint: Callable[[int, int], int],
+    max_backtracks: int = 3,
+) -> int | None:
+    """Return the constraint rollback point or a random earlier position."""
+    if backtrack_pending or retry_count >= max_backtracks:
+        return None
+
+    if not constraint_index and has_candidate:
+        return None
+
+    if constraint_index:
+        return constraint_index
+
+    return randint(0, max(0, step - 1))
 
 
 def generate_square_subsequent_mask(
@@ -111,6 +167,10 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         self.task_embedding = None
         if config.add_task_embedding:
             self.task_embedding = nn.Embedding(6, config.d_model)
+
+        self._backtracking_generator: torch.Generator | None = None
+        self._backtracking_generator_state: bytes | None = None
+        self._backtracking_random: random.Random | None = None
 
         self.task_prompt_embed = None
         if config.add_task_prompt_token_in_model:
@@ -221,6 +281,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         do_sample: bool = False,
         top_k: int = 10,
         temperature: float = 0.7,
+        constrained_decoding: bool = False,
         generation_constraint_fn: Callable[
             [int, int, Int[torch.Tensor, "tokens"]], tuple[list[int], int | None]
         ]
@@ -233,6 +294,18 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             attention_mask = input_ids.ne(self.pad_token_id)
         padding_mask = ~attention_mask.bool()
         max_length = max_length or self.config.decode_max_length
+        if constrained_decoding:
+            return self._generate_constrained_sequences(
+                input_ids,
+                padding_mask,
+                max_length=max_length,
+                top_k=top_k,
+                temperature=temperature,
+                generation_constraint_fn=generation_constraint_fn,
+                task_ids=task_ids,
+                generator=generator,
+            )
+
         enc_hs, enc_padding_mask = self.encode(input_ids, padding_mask, task_ids)
         bsz = input_ids.size(0)
         stop = input_ids.new_zeros(bsz, dtype=torch.bool)
@@ -281,3 +354,124 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             if bool(torch.all(stop)):
                 break
         return torch.stack(outs, dim=1)
+
+    def _generate_constrained_sequences(
+        self,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        padding_mask: Bool[torch.Tensor, "batch tokens"],
+        *,
+        max_length: int,
+        top_k: int,
+        temperature: float,
+        generation_constraint_fn: Callable[
+            [int, int, Int[torch.Tensor, "tokens"]], tuple[list[int], int | None]
+        ]
+        | None,
+        task_ids: Int[torch.Tensor, "batch"] | None,
+        generator: torch.Generator | None,
+    ) -> Int[torch.Tensor, "batch tokens"]:
+        """Generate using a probability gate and bounded token backtracking."""
+        enc_hs, enc_padding_mask = self.encode(input_ids, padding_mask, task_ids)
+        batch_size = input_ids.size(0)
+        stop = input_ids.new_zeros(batch_size, dtype=torch.bool)
+        pred_ids = input_ids.new_full((batch_size, 1), self.bos_token_id)
+        outs: list[Int[torch.Tensor, "batch"]] = []
+        retry_steps: list[int] = []
+        backtrack_rng = _backtracking_rng(
+            generator,
+            previous_generator=self._backtracking_generator,
+            previous_state=self._backtracking_generator_state,
+            previous_rng=self._backtracking_random,
+        )
+        backtrack_temperature = 1.5
+        backtrack_flag = False
+        idx = 0
+
+        while idx < max_length:
+            dec_input = self.dec_pos_embedding(
+                self.dec_embedding(pred_ids).permute(1, 0, 2)
+            )
+            tgt_mask = generate_square_subsequent_mask(idx + 1, input_ids.device)
+            y = self.decoder(
+                tgt=dec_input,
+                memory=enc_hs,
+                tgt_mask=tgt_mask,
+                memory_key_padding_mask=enc_padding_mask,
+            )
+            logits = self.out(y.permute(1, 0, 2)[:, -1, :])
+            probabilities = F.softmax(logits, dim=-1)
+            back_idx = None
+
+            if generation_constraint_fn is not None:
+                current = (
+                    torch.stack(outs, dim=1)
+                    if outs
+                    else input_ids.new_empty((batch_size, 0))
+                )
+                for batch_idx in range(batch_size):
+                    allowed, back_idx = generation_constraint_fn(
+                        batch_idx, idx, current[batch_idx]
+                    )
+                    mask = torch.ones(
+                        logits.size(-1), dtype=torch.bool, device=logits.device
+                    )
+                    mask[allowed] = False
+                    logits[batch_idx].masked_fill_(mask, -math.inf)
+
+            gated_logits, has_candidate = _probability_gate(
+                logits, probabilities, threshold=0.3
+            )
+            randint = (
+                backtrack_rng.randint if backtrack_rng is not None else random.randint
+            )
+            rollback = _backtracking_index(
+                step=idx,
+                constraint_index=back_idx,
+                has_candidate=has_candidate,
+                retry_count=retry_steps.count(idx),
+                backtrack_pending=backtrack_flag,
+                randint=randint,
+            )
+            if rollback is not None:
+                retry_steps.append(idx)
+                idx = rollback
+                outs = outs[:idx]
+                pred_ids = pred_ids[:, : idx + 1]
+                backtrack_flag = True
+                continue
+
+            if has_candidate:
+                logits[0] = gated_logits[0]
+
+            decode_temperature = (
+                backtrack_temperature if backtrack_flag else temperature
+            )
+            backtrack_flag = False
+            probabilities = F.softmax(
+                top_k_logits(logits / decode_temperature, top_k), dim=-1
+            )
+            curr = multinomial(
+                probabilities,
+                num_samples=1,
+                generator=generator,
+                device=probabilities.device,
+            ).squeeze(-1)
+            eos = curr.eq(self.eos_token_id)
+            curr[stop] = self.pad_token_id
+            outs.append(curr)
+            pred_ids = torch.cat([pred_ids, curr.unsqueeze(1)], dim=1)
+            stop = torch.logical_or(stop, eos)
+            if bool(torch.all(stop)):
+                break
+
+            idx += 1
+
+        self._backtracking_generator = generator
+        self._backtracking_generator_state = (
+            None if generator is None else bytes(generator.get_state().tolist())
+        )
+        self._backtracking_random = backtrack_rng
+
+        return (
+            torch.stack(outs, dim=1) if outs else input_ids.new_empty((batch_size, 0))
+        )
