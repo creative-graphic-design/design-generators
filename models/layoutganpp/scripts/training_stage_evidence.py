@@ -2930,6 +2930,11 @@ def _stage_s4(device: torch.device, dataset_name: str = "magazine") -> Path:
     ).hexdigest()
     prediction_passed = maximum_difference == 0.0 and first_divergence is None
     evaluation_passed = prediction_passed and bool(metric_comparison["passed"])
+    loader_streams_passed = all(
+        isinstance(stream, dict) and stream.get("passed") is True
+        for stream in loader_streams.values()
+    )
+    stage_passed = evaluation_passed and loader_streams_passed
     prediction_files = {
         "vendor": {
             "path": str(vendor_pickle.relative_to(ROOT)),
@@ -3066,10 +3071,11 @@ def _stage_s4(device: torch.device, dataset_name: str = "magazine") -> Path:
     payload = _record(
         "s4-loader-eval",
         started,
-        result="PASS" if evaluation_passed else "FAIL",
+        result="PASS" if stage_passed else "FAIL",
         source_manifest=source,
         source_manifest_sha256=source_hash,
         loader_streams=loader_streams,
+        loader_streams_passed=loader_streams_passed,
         evaluation_path_parity=str(evaluation_path.relative_to(ROOT)),
         weights={
             "source_checkpoint": {

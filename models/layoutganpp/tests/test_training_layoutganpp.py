@@ -138,6 +138,49 @@ def test_dataset_parsers_splits_and_collation(tmp_path):
         collate_layoutganpp([])
 
 
+def test_publaynet_validation_preserves_vendor_element_order(tmp_path):
+    root = tmp_path / "publaynet"
+    root.mkdir()
+    train = {
+        "categories": [{"id": 1, "name": "text"}, {"id": 2, "name": "title"}],
+        "images": [
+            {
+                "id": index,
+                "file_name": f"train-{index}.png",
+                "width": 100,
+                "height": 200,
+            }
+            for index in range(20)
+        ],
+        "annotations": [
+            annotation
+            for index in range(20)
+            for annotation in (
+                {
+                    "image_id": index,
+                    "category_id": 2,
+                    "bbox": [70, 10, 20, 20],
+                },
+                {
+                    "image_id": index,
+                    "category_id": 1,
+                    "bbox": [10, 10, 20, 20],
+                },
+            )
+        ],
+    }
+    validation = {
+        "categories": train["categories"],
+        "images": [{"id": 100, "file_name": "test.png", "width": 100, "height": 200}],
+        "annotations": [{"image_id": 100, "category_id": 1, "bbox": [10, 10, 20, 20]}],
+    }
+    (root / "train.json").write_text(json.dumps(train))
+    (root / "val.json").write_text(json.dumps(validation))
+
+    assert load_rows("publaynet", tmp_path, "val")[0].labels.tolist() == [1, 0]
+    assert load_rows("publaynet", tmp_path, "train")[0].labels.tolist() == [0, 1]
+
+
 def test_datamodule_builds_all_loaders():
     data_module = LayoutGANPPDataModule(
         dataset_name="magazine",
