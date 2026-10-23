@@ -4,11 +4,26 @@ trainer:
   devices: 1
   precision: 32-true
   deterministic: true
-  max_epochs: 1
-  limit_train_batches: 2
-  limit_val_batches: 0
+  gradient_clip_val: 0.0
+  max_epochs: -1
+  max_steps: -1
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
   num_sanity_val_steps: 0
+  log_every_n_steps: 50
   default_root_dir: .cache/layoutganpp/training-runs/rico13
+  callbacks:
+    - class_path: layoutganpp.training.callbacks.LayoutGANPPVendorSchedule
+      init_args:
+        iterations: 200000
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: .cache/layoutganpp/training-runs/rico13/checkpoints
+        filename: "epoch={epoch:06d}-step={step:08d}-iou={val_maximum_iou:.6f}"
+        monitor: val_maximum_iou
+        mode: max
+        save_top_k: 1
+        auto_insert_metric_name: false
 model:
   class_path: layoutganpp.training.LayoutGANPPTrainingModule
   init_args:
@@ -31,3 +46,4 @@ data:
     num_workers: 4
     seed: 42975
     shuffle_train: true
+    pin_memory: true
