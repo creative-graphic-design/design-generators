@@ -36,11 +36,12 @@ The runtime builder defaults to `.cache/ralf/runtime/audit-cu128-cu12`, the root
 mkdir -p .cache/ralf/runtime
 scratch_root="$(mktemp -d .cache/ralf/runtime/audit-cu128-scratch.XXXXXX)"
 bash models/ralf/scripts/build_audit_runtime.sh "$scratch_root/venv" "$scratch_root/records"
-cmp "$scratch_root/records/runtime-freeze.txt" \
-  .cache/ralf/runtime/audit-cu128-cu12-records/runtime-freeze.txt
+printf '%s  %s\n' \
+  8ff1a6ec63792d3254a0dc66657c7e9d842f38f4e34a4fdf1c384b3cb4c3de94 \
+  "$scratch_root/records/runtime-freeze.txt" | sha256sum --check
 ```
 
-A fresh scratch rebuild reproduces the retained normalized freeze byte-for-byte, as verified with `cmp`; both files have SHA-256 `8ff1a6ec63792d3254a0dc66657c7e9d842f38f4e34a4fdf1c384b3cb4c3de94`. The builder's `--clear` operation applies only to the scratch virtual environment, leaving the retained runtime and freeze untouched.
+A fresh scratch rebuild matches the retained normalized freeze's SHA-256 `8ff1a6ec63792d3254a0dc66657c7e9d842f38f4e34a4fdf1c384b3cb4c3de94`. The builder's `--clear` operation applies only to the scratch virtual environment, leaving the retained runtime and freeze untouched.
 
 ## Data
 
