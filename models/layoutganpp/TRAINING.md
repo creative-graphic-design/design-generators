@@ -49,12 +49,12 @@ The vendor converts polygon extrema to normalized center `xywh` boxes for every 
 
 Training configs live under `models/layoutganpp/configs/training`.
 
-| Config                       | Dataset          | Purpose                                                                                      |
-| ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
-| `layoutganpp_magazine.yaml`  | Magazine         | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection. |
-| `layoutganpp_rico13.yaml`    | RICO13           | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection. |
-| `layoutganpp_publaynet.yaml` | PubLayNet        | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection. |
-| `smoke.yaml`                 | Magazine fixture | CPU-only CLI wiring check; `limit_train_batches: 1` runs the two fixture batches.            |
+| Config                       | Dataset          | Purpose                                                                                                                   |
+| ---------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `layoutganpp_magazine.yaml`  | Magazine         | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection.                              |
+| `layoutganpp_rico13.yaml`    | RICO13           | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection.                              |
+| `layoutganpp_publaynet.yaml` | PubLayNet        | Full 200,000-iteration recipe with complete validation and Maximum IoU checkpoint selection.                              |
+| `smoke.yaml`                 | Magazine fixture | CPU-only CLI wiring check; one epoch runs the two fixture batches, and the command checks Lightning's completion message. |
 
 ## Scheduler and Recipe Notes
 
@@ -197,10 +197,13 @@ CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/lay
 CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval --dataset publaynet
 ```
 
-Run the bounded package-local training wiring check without making an S5 claim. The smoke config sets `limit_train_batches: 1`; Lightning interprets that value as `1.0`, so the two available fixture batches run.
+Run the bounded package-local training wiring check without making an S5 claim. The smoke config sets `max_epochs: 1` and `limit_train_batches: 1`; Lightning interprets the batch limit as `1.0`, so the two fixture batches run. The command requires the normal fit-completion message, which rejects a signal-stopped run even if Lightning returns status 0.
 
 ```bash
-CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package layoutganpp --extra training traingen fit --config models/layoutganpp/configs/training/smoke.yaml
+set -o pipefail
+mkdir -p .cache/layoutganpp
+CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package layoutganpp --extra training traingen fit --config models/layoutganpp/configs/training/smoke.yaml 2>&1 | tee .cache/layoutganpp/training-smoke.log
+grep -F '`Trainer.fit` stopped: `max_epochs=1` reached.' .cache/layoutganpp/training-smoke.log
 ```
 
 Run the package member tests and a local loading smoke test.

@@ -2483,22 +2483,26 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             )
             + "\n"
         )
-    production_path = OUTPUT_ROOT / "s3-lockstep" / "production-cli-smoke.txt"
+    production_path = OUTPUT_ROOT / "s3-lockstep" / "package-cli-smoke.txt"
     command = [
         sys.executable,
         "-m",
         "traingen.lightning.cli",
         "fit",
         "--config",
-        "models/layoutganpp/configs/training/layoutganpp_magazine.yaml",
-        "--trainer.limit_train_batches=1",
-        "--trainer.limit_val_batches=0",
+        "models/layoutganpp/configs/training/smoke.yaml",
         "--trainer.default_root_dir=.cache/layoutganpp/stage-evidence/s3-lockstep/production",
     ]
     process = subprocess.run(
         command, cwd=ROOT, text=True, capture_output=True, check=False
     )
-    production_path.write_text(process.stdout + process.stderr)
+    production_output = process.stdout + process.stderr
+    cli_smoke_passed = (
+        process.returncode == 0
+        and "Received SIGTERM:" not in production_output
+        and "`Trainer.fit` stopped: `max_epochs=1` reached." in production_output
+    )
+    production_path.write_text(production_output)
     summary = _record(
         "s3-lockstep",
         started,
@@ -2507,7 +2511,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         and bool(natural_comparison["all_repeats_passed"])
         and seed_boundary_passed
         and first is None
-        and process.returncode == 0
+        and cli_smoke_passed
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
         natural_steps=steps,
@@ -2540,6 +2544,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             "cli_smoke": {
                 "command": " ".join(command),
                 "returncode": process.returncode,
+                "completed": cli_smoke_passed,
                 "artifact": str(production_path.relative_to(ROOT)),
             },
             "metadata_artifact": str(metadata_path.relative_to(ROOT)),
