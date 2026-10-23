@@ -4,10 +4,14 @@
 # @brief Run one resumable PixelVAE Crello training segment.
 # @description
 #   Production runs are invoked through colab-gpu-run, use 10 epochs first,
-#   then at most 18 epochs per segment based on measured A100 throughput. The
-#   same script supports one-epoch CPU rehearsals from a tiny tar, including
-#   resume from the previous process, when PIXELVAE_CPU_REHEARSAL=1;
-#   rehearsals require data_tar.
+#   then at most 68 epochs per segment. At the measured rate, 68 epochs plus
+#   30 minutes of setup and a 10% reserve fit within 9.5 hours. The 300-step
+#   lockstep runs on the first production segment only. After a training-path
+#   change, update the pinned attribution-report SHA-256 and set
+#   PIXELVAE_RUN_LOCKSTEP=1. Later segments verify the pinned report SHA and
+#   skip the lockstep. The same script supports one-epoch CPU rehearsals from a
+#   tiny tar, including resume from the previous process, when
+#   PIXELVAE_CPU_REHEARSAL=1; rehearsals require data_tar.
 #   PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a tiny fixture before packaging.
 # @option --hub-input NAME=URI Durable input; source, data_tar, attribution, resume, and best are supported.
 # @example
@@ -55,9 +59,14 @@ source_sha="${BASH_REMATCH[1],,}"
 work_root="${PIXELVAE_WORK_ROOT:-$PWD}"
 cpu_rehearsal="${PIXELVAE_CPU_REHEARSAL:-0}"
 cpu_fixture_prep="${PIXELVAE_CPU_FIXTURE_PREP:-0}"
+run_lockstep="${PIXELVAE_RUN_LOCKSTEP:-0}"
 end_epoch="${PIXELVAE_END_EPOCH:-}"
 [[ "$cpu_fixture_prep" == 0 || "$cpu_fixture_prep" == 1 ]] || {
     printf 'PIXELVAE_CPU_FIXTURE_PREP must be 0 or 1\n' >&2
+    exit 2
+}
+[[ "$run_lockstep" == 0 || "$run_lockstep" == 1 ]] || {
+    printf 'PIXELVAE_RUN_LOCKSTEP must be 0 or 1\n' >&2
     exit 2
 }
 [[ "$cpu_rehearsal" == 1 || "$cpu_fixture_prep" == 0 ]] || {
@@ -349,7 +358,7 @@ if visible != 0:
 PY
     accelerator=cpu
 else
-    expected_end=$((start_epoch == 0 ? 10 : start_epoch + 18))
+    expected_end=$((start_epoch == 0 ? 10 : start_epoch + 68))
     ((expected_end <= 250)) || expected_end=250
     [[ "$end_epoch" == "$expected_end" ]] || {
         printf 'production segment must end at the next boundary, epoch %s\n' "$expected_end" >&2
@@ -403,7 +412,7 @@ runtime_path.write_text(json.dumps(runtime, indent=2) + "\n", encoding="utf-8")
 print(json.dumps(runtime, sort_keys=True))
 PY
 
-if [[ "$cpu_rehearsal" == 1 || "$start_epoch" == 0 || "$start_epoch" == 10 ]]; then
+if [[ "$start_epoch" == 0 || "$run_lockstep" == 1 ]]; then
     lockstep_steps=300
     lockstep_device=cuda
     if [[ "$cpu_rehearsal" == 1 ]]; then
