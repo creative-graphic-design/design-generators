@@ -133,24 +133,57 @@ class LayoutFormerPPGenerationConstraint:
         type_names = [str(relation_type) for relation_type in RELATION_TYPES]
         prepared: list[list[list[tuple[str, int | None]]]] = []
         for labels, relations in zip(self.labels, relation_rows, strict=True):
-            label_index_map: dict[int, int] = {}
+            label_positions: dict[int, list[int]] = {}
             for index, label in enumerate(labels):
-                label_index_map.setdefault(label, index)
+                label_positions.setdefault(label, []).append(index)
 
             item_constraints: list[list[tuple[str, int | None]]] = [[] for _ in labels]
             for label_j, index_j, label_i, index_i, relation_type_id in relations:
                 if label_i == 0:
                     raise ValueError("relation target label cannot be the canvas")
 
+                target_positions = label_positions.get(label_i)
+                if target_positions is None:
+                    raise ValueError(
+                        f"relation target label {label_i} is absent from labels"
+                    )
+
+                if not 1 <= index_i <= len(target_positions):
+                    raise ValueError(
+                        f"relation target index {index_i} is out of range for label {label_i}"
+                    )
+
+                if not 0 <= relation_type_id < len(type_names):
+                    raise ValueError(
+                        f"relation type id {relation_type_id} is out of range"
+                    )
+
+                target_index = target_positions[index_i - 1]
                 relation_type = type_names[relation_type_id]
-                target_index = label_index_map[label_i] + index_i - 1
                 if label_j == 0:
                     item_constraints[target_index].append(
                         (f"canvas_{relation_type}", None)
                     )
                     continue
 
-                source_index = label_index_map[label_j] + index_j - 1
+                source_positions = label_positions.get(label_j)
+                if source_positions is None:
+                    raise ValueError(
+                        f"relation source label {label_j} is absent from labels"
+                    )
+
+                if not 1 <= index_j <= len(source_positions):
+                    raise ValueError(
+                        f"relation source index {index_j} is out of range for label {label_j}"
+                    )
+
+                source_index = source_positions[index_j - 1]
+                if source_index >= target_index:
+                    raise ValueError(
+                        f"relation source element at index {source_index} must precede "
+                        f"target element at index {target_index} in labels"
+                    )
+
                 item_constraints[target_index].append((relation_type, source_index))
                 if relation_type in {"top", "bottom"}:
                     item_constraints[source_index].append(
@@ -298,8 +331,15 @@ class LayoutFormerPPGenerationConstraint:
                         candidates, set(range(min_height, degree))
                     )
                 elif relation_type == "equal":
+                    # Preserve the float round trip that determines the reference area.
+                    target_area = math.floor(
+                        target_box[2]
+                        * target_box[3]
+                        / (self.x_grid - 1)
+                        * (self.y_grid - 1)
+                    )
                     height = min(
-                        target_box[2] * target_box[3] // max(1, curr_width),
+                        target_area // max(1, curr_width),
                         degree - 1,
                     )
                     candidates = self._intersect(

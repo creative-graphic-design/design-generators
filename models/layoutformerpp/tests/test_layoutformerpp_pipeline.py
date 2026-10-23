@@ -123,6 +123,7 @@ def test_pipeline_defaults_match_vendor_decode_lengths(
         vocab_size=processor.tokenizer.vocab_size,
         dataset="publaynet",
         task=task,
+        decode_max_length=150,
         max_position_embeddings=400,
         d_model=16,
         encoder_layers=1,

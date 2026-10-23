@@ -168,6 +168,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         if config.add_task_embedding:
             self.task_embedding = nn.Embedding(6, config.d_model)
 
+        # Preserve the reference's process-wide backtracking stream for full-split parity.
         self._backtracking_generator: torch.Generator | None = None
         self._backtracking_generator_state: bytes | None = None
         self._backtracking_random: random.Random | None = None

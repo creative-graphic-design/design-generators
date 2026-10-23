@@ -258,7 +258,16 @@ def test_empty_labels_allow_only_end_tokens() -> None:
 def test_relation_masks_cover_each_relation_and_rollback_point() -> None:
     processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="gen_r")
     tokenizer = processor.tokenizer
-    numbers = set(tokenizer.convert_tokens_to_ids([str(index) for index in range(128)]))
+    expected_bounds = {
+        0: ((0, 128), (0, 128), (0, 128), (0, 39)),
+        1: ((0, 128), (0, 128), (0, 128), (37, 44)),
+        2: ((0, 128), (0, 128), (1, 128), (45, 128)),
+        3: ((0, 128), (0, 41), (0, 128), (0, 21)),
+        4: ((0, 62), (0, 63), (18, 110), (18, 128)),
+        5: ((0, 128), (61, 128), (0, 128), (0, 110)),
+        6: ((0, 42), (0, 63), (0, 23), (18, 128)),
+        7: ((58, 128), (0, 63), (0, 110), (18, 128)),
+    }
 
     for relation_id, _ in enumerate(RELATION_TYPES):
         constraint = LayoutFormerPPGenerationConstraint(
@@ -277,9 +286,14 @@ def test_relation_masks_cover_each_relation_and_rollback_point() -> None:
                 pred_bbox=[[40, 40, 20, 20], partial_box],
             )
             allowed, backtrack_index = constraint._relation_number_ids(state, 0)
+            start, stop = expected_bounds[relation_id][coordinate]
+            expected_ids = set(
+                tokenizer.convert_tokens_to_ids(
+                    [str(value) for value in range(start, stop)]
+                )
+            )
 
-            assert allowed
-            assert allowed <= numbers
+            assert allowed == expected_ids
             assert backtrack_index is None
 
 
@@ -318,6 +332,33 @@ def test_relation_numeric_masks_match_equal_and_horizontal_bounds() -> None:
 
         assert allowed == set(expected_ids)
         assert rollback is None
+
+
+def test_relation_equal_height_discretizes_continuized_area() -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="gen_r")
+    tokenizer = processor.tokenizer
+    constraint = LayoutFormerPPGenerationConstraint(
+        tokenizer=tokenizer,
+        condition=ConditionType.relation,
+        labels=[[2, 1]],
+        bboxes=[[[0, 0, 10, 10], [0, 0, 10, 10]]],
+        relations=[[(2, 1, 1, 1, 1)]],
+    )
+    state = _DecodeState(
+        num_elements=2,
+        curr_element=2,
+        next_token_type="number",
+        num_bbox=3,
+        pred_bbox=[[40, 40, 53, 77], [20, 20, 53]],
+    )
+
+    allowed, rollback = constraint._relation_number_ids(state, 0)
+    expected_ids = set(
+        tokenizer.convert_tokens_to_ids([str(value) for value in range(73, 80)])
+    )
+
+    assert allowed == expected_ids
+    assert rollback is None
 
 
 def test_relation_canvas_masks_and_conflict_fallback() -> None:
@@ -407,12 +448,42 @@ def test_relation_tensor_batches_and_shape_validation() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("labels", "relation", "message"),
+    [
+        (
+            [2, 1],
+            (1, 1, 2, 1, 3),
+            "source element at index 1 must precede target element at index 0",
+        ),
+        ([2, 1], (3, 1, 1, 1, 3), "relation source label 3 is absent"),
+        ([2, 1], (2, 1, 3, 1, 3), "relation target label 3 is absent"),
+        ([2, 2, 1], (2, 3, 1, 1, 3), "relation source index 3 is out of range"),
+        ([2, 1], (2, 0, 1, 1, 3), "relation source index 0 is out of range"),
+        ([2, 1], (2, 1, 1, 2, 3), "relation target index 2 is out of range"),
+        ([2, 1], (2, 1, 1, 1, 8), "relation type id 8 is out of range"),
+    ],
+)
+def test_relation_constraints_reject_invalid_element_references(
+    labels: list[int], relation: tuple[int, int, int, int, int], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _constraint(
+            ConditionType.relation,
+            [labels],
+            relations=[[relation]],
+        )
+
+
 def test_relation_canvas_masks_across_bbox_coordinates() -> None:
     processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="gen_r")
     tokenizer = processor.tokenizer
-    number_ids = set(
-        tokenizer.convert_tokens_to_ids([str(index) for index in range(128)])
-    )
+    expected_bounds = {
+        1: ((0, 3), (0, 3), (125, 128), (125, 128)),
+        3: ((0, 128), (0, 45), (0, 128), (0, 46)),
+        4: ((0, 128), (0, 87), (0, 128), (42, 128)),
+        5: ((0, 128), (40, 128), (0, 128), (0, 128)),
+    }
 
     for relation_id in (1, 3, 4, 5):
         constraint = LayoutFormerPPGenerationConstraint(
@@ -431,21 +502,23 @@ def test_relation_canvas_masks_across_bbox_coordinates() -> None:
                 pred_bbox=[partial_box],
             )
             allowed, rollback = constraint._relation_number_ids(state, 0)
+            start, stop = expected_bounds[relation_id][coordinate]
+            expected_ids = set(
+                tokenizer.convert_tokens_to_ids(
+                    [str(value) for value in range(start, stop)]
+                )
+            )
 
-            assert allowed
-            assert allowed <= number_ids
+            assert allowed == expected_ids
             assert rollback is None
 
 
 def test_vertical_relation_masks_constrain_source_elements() -> None:
     processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="gen_r")
     tokenizer = processor.tokenizer
-    number_ids = set(
-        tokenizer.convert_tokens_to_ids([str(index) for index in range(128)])
-    )
-    cases = ((3, 1, [20]), (5, 3, [20, 20, 10]))
+    cases = ((3, 1, [20], range(3, 128)), (5, 3, [20, 20, 10], range(0, 109)))
 
-    for relation_id, coordinate, partial_box in cases:
+    for relation_id, coordinate, partial_box, expected_values in cases:
         constraint = LayoutFormerPPGenerationConstraint(
             tokenizer=tokenizer,
             condition=ConditionType.relation,
@@ -461,11 +534,11 @@ def test_vertical_relation_masks_constrain_source_elements() -> None:
             pred_bbox=[partial_box],
         )
         allowed, rollback = constraint._relation_number_ids(state, 0)
+        expected_ids = set(
+            tokenizer.convert_tokens_to_ids([str(value) for value in expected_values])
+        )
 
-        assert allowed
-        assert allowed <= number_ids
-        forbidden = "0" if relation_id == 3 else "109"
-        assert tokenizer.convert_tokens_to_ids([forbidden])[0] not in allowed
+        assert allowed == expected_ids
         assert rollback is None
 
 

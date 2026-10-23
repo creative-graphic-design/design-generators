@@ -170,7 +170,9 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             labels: Optional label conditions.
             bbox: Optional layout boxes for size/completion/refinement conditions.
             mask: Reserved public validity mask input.
-            relations: Optional relation tuples for relation-conditioned checkpoints.
+            relations: Relation tuples use one-based indexes within each label. For
+                non-canvas sources, the source element must precede its target in the
+                label sequence used for decoding.
             num_elements: Reserved v1 interface argument.
             box_format: Input and output bounding-box format.
             normalized: Whether public boxes are normalized.
@@ -183,11 +185,21 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             top_k: Top-k value used by the reference sampling loop.
             temperature: Sampling temperature.
 
+        When ``max_length`` is omitted and the model config matches its dataset/task
+        default, the pipeline uses 120 tokens for unconditional, completion, label,
+        and label-size generation, 150 for relation generation, or input length plus
+        one for refinement. This equality rule also applies when the config value was
+        set explicitly; pass ``max_length`` to select another per-call limit.
+
+        For batches larger than one, the probability gate uses row zero, relation
+        rollback uses the last row's rollback point, and a rollback truncates every
+        row to the same prefix.
+
         Returns:
             Layout generation output dataclass or dictionary.
 
         Raises:
-            ValueError: If processor inputs are invalid.
+            ValueError: If processor inputs or relation label/index references are invalid.
         """
         _ = (num_elements, num_inference_steps, return_intermediates)
         encoded = self.processor(
