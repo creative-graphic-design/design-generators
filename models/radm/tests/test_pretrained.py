@@ -105,8 +105,9 @@ def test_r50_weights_download_is_hash_checked_and_atomic(
     monkeypatch.setattr(pretrained, "urlopen", lambda url, timeout: io.BytesIO(content))
     path = tmp_path / "weights" / "R-50.pkl"
 
-    pretrained._ensure_r50_weights(path)
+    payload = pretrained._ensure_r50_weights(path)
 
+    assert payload == content
     assert path.read_bytes() == content
     assert list(path.parent.iterdir()) == [path]
 

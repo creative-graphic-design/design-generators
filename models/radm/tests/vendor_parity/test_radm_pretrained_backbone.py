@@ -22,7 +22,7 @@ from radm.training.lightning_module import RADMTrainingModule
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
 
-class TrainingModelInitArgs(TypedDict, total=False):
+class TrainingModelInitArgs(TypedDict):
     pretrained_backbone_weights: str
 
 
@@ -50,11 +50,11 @@ def test_s0_training_module_initializes_backbone_from_converted_r50() -> None:
         TrainingConfig, yaml.safe_load(config_path.read_text(encoding="utf-8"))
     )
     model_args = training_config["model"]["init_args"]
-    configured_path = model_args.get("pretrained_backbone_weights")
+    configured_path = model_args["pretrained_backbone_weights"]
     weights_path = (
         Path(os.environ["RADM_R50_WEIGHTS"])
         if os.environ.get("RADM_R50_WEIGHTS")
-        else project_root / ".cache" / "radm" / "weights" / "R-50.pkl"
+        else project_root / configured_path
     )
     if not weights_path.is_file():
         if os.environ.get("PARITY_REQUIRE") == "1":
@@ -69,9 +69,6 @@ def test_s0_training_module_initializes_backbone_from_converted_r50() -> None:
         / "training"
         / "r50_weights_manifest.json"
     )
-    if not manifest_path.is_file():
-        manifest_path = config_root / "r50_weights_manifest.json"
-
     manifest = cast(R50Manifest, json.loads(manifest_path.read_text(encoding="utf-8")))
     with weights_path.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -92,17 +89,11 @@ def test_s0_training_module_initializes_backbone_from_converted_r50() -> None:
         for key, value in converted_state.items()
         if key.startswith("backbone.body.body.")
     }
-    if configured_path is None:
-        module = RADMTrainingModule(
-            config=RADMConfig(num_classes=4),
-            effective=effective_radm_config(),
-        )
-    else:
-        module = RADMTrainingModule(
-            config=RADMConfig(num_classes=4),
-            pretrained_backbone_weights=weights_path,
-            effective=effective_radm_config(),
-        )
+    module = RADMTrainingModule(
+        config=RADMConfig(num_classes=4),
+        pretrained_backbone_weights=weights_path,
+        effective=effective_radm_config(),
+    )
     actual = module.model.backbone.state_dict()
     bottom_up_keys = {key for key in actual if key.startswith("body.body.")}
 
