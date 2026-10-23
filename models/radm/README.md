@@ -140,7 +140,7 @@ data. Data provenance and the CGL-v2 license remain unresolved; see
 
 ### Training Procedure
 
-Phase 1 ships the member-scoped LightningCLI entry surface and captured effective recipe under `configs/training`. The model predicts four classes while the five-entry CGL vocabulary is preserved explicitly in the captured class mapping. Source-generated S0-S2 evidence is accepted, S3 records the synchronized and natural trajectory checks, and S4 records the mapper oracle plus the passing full-stream comparison. S5 remains blocked pending retraining with the corrected stream; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
+The CGL LightningCLI recipe predicts four classes while preserving the five-entry source vocabulary in its captured class mapping. It initializes ResNet-50 from Detectron2’s torchvision ImageNet checkpoint, which the Model Zoo lists under [CC BY-SA 3.0](https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md#imagenet-pretrained-models). The three-seed, 1,500-step production runs verify the configured training path only. The 250,000-step CGL S5 retrain has not been rerun, so no trained-checkpoint reproduction is claimed; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Evaluation
 

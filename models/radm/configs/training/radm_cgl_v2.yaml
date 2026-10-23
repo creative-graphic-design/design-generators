@@ -22,6 +22,7 @@ model:
         snr_scale: 2.0
         sample_step: 1
         backbone_depth: 50
+    pretrained_backbone_weights: .cache/radm/weights/R-50.pkl
     effective:
       class_path: radm.training.config.RADMEffectiveConfig
 data:

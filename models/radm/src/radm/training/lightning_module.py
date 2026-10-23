@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TypedDict
 
 import torch
@@ -14,6 +15,7 @@ from ..configuration_radm import RADMConfig
 from ..modeling_radm import RADMDenoiser, RADMDenoiserOutput
 from .config import RADMEffectiveConfig
 from .optim import build_radm_optimizer, build_radm_scheduler
+from .pretrained import load_pretrained_r50
 
 from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
@@ -51,6 +53,7 @@ class RADMTrainingModule(LightningModule):
         *,
         config: RADMConfig | None = None,
         model: RADMDenoiser | None = None,
+        pretrained_backbone_weights: str | Path | None = None,
         effective: RADMEffectiveConfig,
     ) -> None:
         """Initialize the package model and checked effective training state."""
@@ -61,6 +64,9 @@ class RADMTrainingModule(LightningModule):
                 raise ValueError("RADMTrainingModule requires a model or config")
 
             model = RADMDenoiser(config=config)
+
+        if pretrained_backbone_weights is not None:
+            load_pretrained_r50(model.backbone, pretrained_backbone_weights)
 
         self.model = model
 
