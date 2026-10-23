@@ -51,7 +51,7 @@ class PixelVAEOutput(ModelOutput):
 
 
 class PixelVAEBatchNorm2d(nn.Module):
-    """Batch normalization with population variance and moving averages."""
+    """Batch normalization with biased outputs and unbiased moving variance."""
 
     running_mean: Float[torch.Tensor, "channels"]
     running_var: Float[torch.Tensor, "channels"]
@@ -69,7 +69,7 @@ class PixelVAEBatchNorm2d(nn.Module):
     def forward(
         self, inputs: Float[torch.Tensor, "batch channels height width"]
     ) -> Float[torch.Tensor, "batch channels height width"]:
-        """Normalize with population variance and Keras EMA semantics."""
+        """Normalize with population variance and update corrected moving variance."""
         if self.training:
             mean = inputs.mean(dim=(0, 2, 3))
             variance = (
@@ -77,12 +77,17 @@ class PixelVAEBatchNorm2d(nn.Module):
                 .square()
                 .mean(dim=(0, 2, 3))
             )
+            sample_count = inputs.numel() // inputs.shape[1]
+            moving_variance = variance.detach()
+            if sample_count > 1:
+                moving_variance = moving_variance * (sample_count / (sample_count - 1))
+
             with torch.no_grad():
                 self.running_mean.mul_(self.momentum).add_(
                     mean.detach(), alpha=1 - self.momentum
                 )
                 self.running_var.mul_(self.momentum).add_(
-                    variance.detach(), alpha=1 - self.momentum
+                    moving_variance, alpha=1 - self.momentum
                 )
         else:
             mean = self.running_mean
