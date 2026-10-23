@@ -1257,7 +1257,25 @@ def _vendor_rows(split: str, dataset_name: str = "magazine") -> list[Data]:
     raw_root = dataset_root / "raw"
     raw_root.parent.mkdir(parents=True, exist_ok=True)
     if raw_root.exists() and not raw_root.is_symlink():
-        raise RuntimeError(f"vendor raw path is not the expected symlink: {raw_root}")
+        raw_source_names = {
+            "magazine": ("layoutdata",),
+            "rico13": ("semantic_annotations",),
+            "publaynet": ("publaynet",),
+        }[dataset_name]
+        raw_entries = {entry.name: entry for entry in raw_root.iterdir()}
+        source_entries = {name: paths.data_root / name for name in raw_source_names}
+        if (
+            set(raw_entries) != set(source_entries)
+            or any(not source.exists() for source in source_entries.values())
+            or any(
+                not raw_entries[name].is_symlink()
+                or raw_entries[name].resolve() != source.resolve()
+                for name, source in source_entries.items()
+            )
+        ):
+            raise RuntimeError(
+                f"vendor raw directory does not link to the approved {dataset_name} data"
+            )
     if raw_root.is_symlink() and raw_root.resolve() != paths.data_root.resolve():
         raise RuntimeError(f"vendor raw path points to the wrong data root: {raw_root}")
     if not raw_root.exists():
