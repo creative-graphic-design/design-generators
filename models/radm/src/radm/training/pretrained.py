@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import pickle
 import shutil
@@ -22,12 +23,19 @@ from ..modeling_radm import RADMBackbone
 R50_CLASSIFIER_KEYS: Final[frozenset[str]] = frozenset(
     {"stem.fc.weight", "stem.fc.bias"}
 )
+logger = logging.getLogger(__name__)
 
 
 def load_pretrained_r50(backbone: RADMBackbone, weights_path: str | Path) -> None:
     """Initialize the ResNet body from the pinned torchvision checkpoint."""
     path = Path(weights_path)
-    payload = pickle.loads(_ensure_r50_weights(path), encoding="latin1")
+    weight_bytes, weights_sha256 = _ensure_r50_weights(path)
+    logger.info(
+        "Loading pretrained R-50 weights from %s (SHA-256 %s)",
+        path.as_posix(),
+        weights_sha256,
+    )
+    payload = pickle.loads(weight_bytes, encoding="latin1")
 
     if not isinstance(payload, Mapping):
         raise ValueError("R-50 checkpoint must contain a mapping")
@@ -72,15 +80,15 @@ def load_pretrained_r50(backbone: RADMBackbone, weights_path: str | Path) -> Non
         raise RuntimeError("R-50 checkpoint did not initialize only the ResNet body")
 
 
-def _ensure_r50_weights(path: Path) -> bytes:
+def _ensure_r50_weights(path: Path) -> tuple[bytes, str]:
     source_url, expected_sha256 = _r50_artifact()
     if path.exists():
         if not path.is_file():
             raise ValueError(f"R-50 weights path is not a file: {path}")
 
         payload = path.read_bytes()
-        _verify_r50_sha256(payload, expected_sha256)
-        return payload
+        actual_sha256 = _verify_r50_sha256(payload, expected_sha256)
+        return payload, actual_sha256
 
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
@@ -93,9 +101,9 @@ def _ensure_r50_weights(path: Path) -> bytes:
                 shutil.copyfileobj(response, stream)
 
         payload = temporary_path.read_bytes()
-        _verify_r50_sha256(payload, expected_sha256)
+        actual_sha256 = _verify_r50_sha256(payload, expected_sha256)
         os.replace(temporary_path, path)
-        return payload
+        return payload, actual_sha256
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
@@ -118,7 +126,9 @@ def _r50_artifact() -> tuple[str, str]:
     return source_url, expected_sha256
 
 
-def _verify_r50_sha256(payload: bytes, expected_sha256: str) -> None:
+def _verify_r50_sha256(payload: bytes, expected_sha256: str) -> str:
     actual_sha256 = hashlib.sha256(payload).hexdigest()
     if actual_sha256 != expected_sha256:
         raise ValueError("R-50 checkpoint SHA-256 mismatch")
+
+    return actual_sha256

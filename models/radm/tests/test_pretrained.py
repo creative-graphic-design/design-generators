@@ -67,7 +67,7 @@ def _checkpoint(weight: torch.Tensor) -> bytes:
 
 
 def test_load_pretrained_r50_maps_resnet_and_keeps_fpn_initialization(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     expected = torch.arange(6, dtype=torch.float32).reshape(2, 3, 1, 1)
     content = _checkpoint(expected)
@@ -83,11 +83,14 @@ def test_load_pretrained_r50_maps_resnet_and_keeps_fpn_initialization(
     )
     tiny_backbone = _TinyBackbone()
     initial_fpn = tiny_backbone.body.fpn.placeholder.clone()
+    caplog.set_level("INFO", logger="radm.training.pretrained")
 
     pretrained.load_pretrained_r50(cast(RADMBackbone, tiny_backbone), path)
 
     assert torch.equal(tiny_backbone.body.body.conv1.weight, expected)
     assert torch.equal(tiny_backbone.body.fpn.placeholder, initial_fpn)
+    assert "R-50.pkl" in caplog.text
+    assert hashlib.sha256(content).hexdigest() in caplog.text
 
 
 def test_r50_weights_download_is_hash_checked_and_atomic(
@@ -105,9 +108,10 @@ def test_r50_weights_download_is_hash_checked_and_atomic(
     monkeypatch.setattr(pretrained, "urlopen", lambda url, timeout: io.BytesIO(content))
     path = tmp_path / "weights" / "R-50.pkl"
 
-    payload = pretrained._ensure_r50_weights(path)
+    payload, actual_sha256 = pretrained._ensure_r50_weights(path)
 
     assert payload == content
+    assert actual_sha256 == hashlib.sha256(content).hexdigest()
     assert path.read_bytes() == content
     assert list(path.parent.iterdir()) == [path]
 
