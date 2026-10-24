@@ -74,6 +74,11 @@ def test_laygen_change_selects_declared_transitive_dependents(
     )
 
 
+def test_dependency_group_include_error_names_member_and_group() -> None:
+    with pytest.raises(ValueError, match=r"posgen.*'test'.*include-group"):
+        SELECTOR._requirements({}, {"test": [{"include-group": "lint"}]}, "posgen")
+
+
 @pytest.mark.parametrize("changed_path", ["uv.lock", ".github/workflows/ci.yml"])
 def test_non_member_change_selects_all_test_members(
     changed_path: str,

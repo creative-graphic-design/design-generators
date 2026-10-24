@@ -33,6 +33,7 @@ Project = TypedDict(
     },
     total=False,
 )
+DependencyGroupEntry = str | dict[str, str]
 
 
 class Workspace(TypedDict):
@@ -52,7 +53,7 @@ Pyproject = TypedDict(
     "Pyproject",
     {
         "project": NotRequired[Project],
-        "dependency-groups": NotRequired[dict[str, list[str]]],
+        "dependency-groups": NotRequired[dict[str, list[DependencyGroupEntry]]],
         "tool": NotRequired[ToolConfig],
     },
     total=False,
@@ -97,14 +98,23 @@ def _workspace_source(
 
 
 def _requirements(
-    project: Project, dependency_groups: dict[str, list[str]]
+    project: Project,
+    dependency_groups: dict[str, list[DependencyGroupEntry]],
+    member_name: str,
 ) -> list[str]:
     requirements = list(project.get("dependencies", []))
     for optional_requirements in project.get("optional-dependencies", {}).values():
         requirements.extend(optional_requirements)
 
-    for group_requirements in dependency_groups.values():
-        requirements.extend(group_requirements)
+    for group_name, group_requirements in dependency_groups.items():
+        for requirement in group_requirements:
+            if not isinstance(requirement, str):
+                raise ValueError(
+                    f"unsupported dependency-group entry for member {member_name!r}, "
+                    f"group {group_name!r}: {requirement!r}"
+                )
+
+            requirements.append(requirement)
 
     return requirements
 
@@ -153,7 +163,9 @@ def discover_members(repository_root: Path) -> list[Member]:
         dependencies: set[str] = set()
 
         for requirement in _requirements(
-            project, project_data.get("dependency-groups", {})
+            project,
+            project_data.get("dependency-groups", {}),
+            project["name"],
         ):
             match = DEPENDENCY_NAME_RE.match(requirement)
             if match is None:
@@ -220,7 +232,7 @@ def select_members(
             dependents[dependency].add(member_key)
 
     # shortcut: undeclared test-only imports are not modeled; declare the edge before relying on affected selection.
-    # Root tooling tests inspect repository-wide files, so run them for every non-Markdown change.
+    # devharness tests inspect repository-wide files, so run them for every non-Markdown change.
     affected_packages = changed_packages | {"devharness"}
     pending = list(changed_packages)
     while pending:

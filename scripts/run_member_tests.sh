@@ -76,6 +76,18 @@ print(" ".join(sorted(data.get("project", {}).get("optional-dependencies", {})))
 PY
 )"
 
+test_group="$(
+  PYPROJECT_FILE="${pyproject_file}" python - <<'PY'
+import os
+import tomllib
+
+with open(os.environ["PYPROJECT_FILE"], "rb") as file:
+    data = tomllib.load(file)
+
+print("test" if "test" in data.get("dependency-groups", {}) else "")
+PY
+)"
+
 uv_run_args=(--package "${package_name}")
 if [ "${MEMBER_TEST_RUNNER_DEPS:-1}" = "0" ]; then
   uv_run_args+=(--no-sync)
@@ -97,7 +109,7 @@ if [ "${MEMBER_TEST_RUNNER_DEPS:-1}" != "0" ]; then
   uv_run_args+=(--with "beartype>=0.22.9,<0.23")
 fi
 
-if [ "${package_name}" = "posgen" ]; then
+if [ "${test_group}" = "test" ]; then
   uv_run_args+=(--group test)
 fi
 
