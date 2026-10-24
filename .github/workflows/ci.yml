@@ -2,6 +2,8 @@ name: CI
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 10 * * *"
   pull_request:
     types:
       - opened
@@ -77,7 +79,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      non_markdown: ${{ steps.filter.outputs.non_markdown }}
+      non_markdown: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.non_markdown }}
       docs_content: ${{ steps.docs_filter.outputs.docs_content }}
 
     steps:
@@ -88,6 +90,7 @@ jobs:
 
       - name: Detect non-markdown changes
         id: filter
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: every
@@ -98,6 +101,7 @@ jobs:
 
       - name: Detect documentation content changes
         id: docs_filter
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@v4
         with:
           filters: |
@@ -149,13 +153,13 @@ jobs:
           #
           # pytest-models duplicates the coverage-enforcing member matrix, and
           # vulture runs as the dedicated Dead Code job below on merge queue,
-          # main pushes, and manual dispatches.
+          # main pushes, manual dispatches, and scheduled runs.
           SKIP: uv-lock,pytest-models,vulture
         run: uv run pre-commit run --all-files
 
   dead-code:
     name: Dead Code
-    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -434,6 +438,35 @@ jobs:
             fi
             echo "No workspace members with tests were selected."
           fi
+
+  notify-scheduled-failure:
+    name: Scheduled Failure Notification
+    needs:
+      - pr-metadata
+      - changes
+      - lint
+      - dead-code
+      - typecheck
+      - discover-test-members
+      - test-root-tooling
+      - evaluation-extra-smoke
+      - test-member
+      - test
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: Comment on the tracking issue and notify a maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment 476 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --body "@shunk031 Daily full member test run failed: ${RUN_URL}"
 
   docs:
     name: Documentation

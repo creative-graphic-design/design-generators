@@ -129,7 +129,7 @@
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
-- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and member tests selected from declared workspace dependencies for pull requests and merge queue entries; non-Markdown changes outside member directories select all members with tests, while main pushes retain the full member matrix.
+- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and member tests selected from declared workspace dependencies for pull requests and merge queue entries; non-Markdown changes outside member directories select all members with tests, while non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.

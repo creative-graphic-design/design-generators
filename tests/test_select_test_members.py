@@ -118,9 +118,13 @@ def test_markdown_only_change_selects_no_members(
     )
 
 
-def test_no_diff_lists_all_test_members(capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize("event_name", ["schedule", "workflow_dispatch"])
+def test_full_run_events_select_all_test_members(
+    event_name: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     assert SELECTOR.main([]) == 0
-    assert len(json.loads(capsys.readouterr().out)) == 36
+    selected = json.loads(capsys.readouterr().out)
+    assert len(selected) == 36, f"{event_name} must select the full test matrix"
 
 
 def test_cli_requires_both_diff_commits() -> None:
