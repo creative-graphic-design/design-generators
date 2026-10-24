@@ -291,8 +291,8 @@ if [[ "$cpu_fixture_prep" == 1 ]]; then
     exit 0
 fi
 
-mkdir -p "$run_dir/checkpoints" "$run_dir/reports" "$run_dir/logs" \
-    "$private_dir/checkpoint-inputs"
+mkdir -p "$run_dir/checkpoints" "$run_dir/epoch-checkpoints" \
+    "$run_dir/reports" "$run_dir/logs" "$private_dir/checkpoint-inputs"
 run_dir="$(cd "$run_dir" && pwd -P)"
 checkpoint_inventory_log="$run_dir/logs/checkpoint-inventory.tsv"
 [[ ! -e "$checkpoint_inventory_log" ]] || {
@@ -544,16 +544,33 @@ if [[ -z "$resume_path" && -e "$run_dir/checkpoints/last.ckpt" ]]; then
     exit 2
 fi
 time_file="$private_dir/train-time.txt"
+training_config="$private_dir/training-config.yaml"
+run_logged uv run --locked --no-sync --package pixel-vae --extra training python - \
+    "$training_config" "$run_dir" <<'PY'
+from pathlib import Path
+import sys
+
+import yaml
+
+config_path, run_dir = sys.argv[1:]
+config = yaml.safe_load(
+    Path("models/pixel-vae/configs/training/pixel_vae_crello.yaml").read_text(
+        encoding="utf-8"
+    )
+)
+callbacks = config["trainer"]["callbacks"]
+callbacks[1]["init_args"]["dirpath"] = str(Path(run_dir) / "epoch-checkpoints")
+callbacks[2]["init_args"]["dirpath"] = str(Path(run_dir) / "checkpoints")
+Path(config_path).write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+PY
 fit_args=(
-    --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
+    --config "$training_config"
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
     # Segment boundaries use max_steps; keep Lightning's total-run limit fixed.
     --trainer.max_epochs=250
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
-    "--trainer.callbacks.1.init_args.dirpath=$run_dir/epoch-checkpoints"
-    "--trainer.callbacks.2.init_args.dirpath=$run_dir/checkpoints"
     --trainer.logger=false
     --trainer.enable_progress_bar=false
     "--data.init_args.data_dir=$data_dir"
