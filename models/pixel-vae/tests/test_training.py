@@ -90,7 +90,10 @@ def _prepared_data_dir(
 
 
 def _legacy_pixel_batches(
-    images: Sequence[bytes], batch_size: int, epoch_count: int
+    images: Sequence[bytes],
+    batch_size: int,
+    epoch_count: int,
+    selected_epochs: set[int] | None = None,
 ) -> dict[int, str]:
     def repeat_records() -> Iterator[bytes]:
         while True:
@@ -98,7 +101,9 @@ def _legacy_pixel_batches(
 
     stream = repeat_records()
     epoch_size = (len(images) + batch_size - 1) // batch_size * batch_size
-    selected_epochs = {0, epoch_count - 1}
+    selected_epochs = (
+        selected_epochs if selected_epochs is not None else {0, epoch_count - 1}
+    )
     hashes: dict[int, str] = {}
     processor = datamodule.PixelVAEImageProcessor()
     for epoch in range(epoch_count):
@@ -465,25 +470,55 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
 
 
 @pytest.mark.training
-def test_epoch_timing_callback_records_train_and_validation_duration(
+def test_epoch_timing_callback_records_sampler_epoch_sequence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    images = [_png(value) for value in range(41)]
+    data_dir = _prepared_data_dir(
+        tmp_path,
+        {"train": len(images), "val": 2},
+        train_images=images,
+    )
+    original_state = np.random.get_state()
+    np.random.seed(0)
+    initial_state = np.random.get_state()
+    expected = _legacy_pixel_batches(
+        images, batch_size=2, epoch_count=13, selected_epochs={10, 11, 12}
+    )
+    np.random.set_state(initial_state)
+
     output_path = tmp_path / "epoch-times.jsonl"
     monkeypatch.setenv("PIXELVAE_EPOCH_TIMING_FILE", str(output_path))
     callback = PixelVAEEpochTimingCallback()
     module = cast(L.LightningModule, SimpleNamespace())
     callback.setup(cast(L.Trainer, SimpleNamespace()), module, "fit")
-    trainer = cast(
-        L.Trainer,
-        SimpleNamespace(current_epoch=2, sanity_checking=False),
-    )
+    try:
+        data = PixelVAEDataModule(str(data_dir), batch_size=2)
+        data.setup("fit")
+        loader = data.train_dataloader()
+        trainer_state = SimpleNamespace(
+            current_epoch=10,
+            sanity_checking=False,
+            datamodule=data,
+        )
+        trainer = cast(L.Trainer, trainer_state)
+        actual: dict[int, str] = {}
 
-    callback.on_train_epoch_start(trainer, module)
-    callback.on_validation_end(trainer, module)
+        for epoch in (10, 11, 12):
+            trainer_state.current_epoch = epoch
+            callback.on_train_epoch_start(trainer, module)
+            assert data.samplers["train"].epoch == epoch
+            batches = list(islice(iter(loader), 20))
+            actual[epoch] = _tensor_hash(cast(Sequence[BatchFeature], batches))
+            callback.on_validation_end(trainer, module)
+    finally:
+        np.random.set_state(original_state)
 
-    report = json.loads(output_path.read_text(encoding="utf-8"))
-    assert report["epoch"] == 3
-    assert report["train_and_validation_wall_seconds"] >= 0
+    records = [json.loads(line) for line in output_path.read_text().splitlines()]
+    assert [record["epoch"] for record in records] == [11, 12, 13]
+    assert [record["sampler_epoch"] for record in records] == [10, 11, 12]
+    assert all(record["train_and_validation_wall_seconds"] >= 0 for record in records)
+    assert actual == expected
 
 
 @pytest.mark.training
