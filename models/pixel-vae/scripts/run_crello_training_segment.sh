@@ -4,11 +4,12 @@
 # @brief Run one resumable PixelVAE Crello training segment.
 # @description
 #   Production runs are invoked through colab-gpu-run, use 10 epochs first,
-#   then at most 68 epochs per segment. At the measured rate, 68 epochs plus
-#   30 minutes of setup and a 10% reserve fit within 9.5 hours. The 300-step
-#   lockstep runs on the first production segment only. After a training-path
-#   change, update the pinned attribution-report SHA-256 and set
-#   PIXELVAE_RUN_LOCKSTEP=1. Later segments verify the pinned report SHA and
+#   then at most 68 epochs per segment. Segment boundaries are enforced with
+#   max_steps; max_epochs stays fixed at 250 across every resume. At the
+#   measured rate, 68 epochs plus 30 minutes of setup and a 10% reserve fit
+#   within 9.5 hours. Run the 300-step lockstep only on the first production
+#   segment. After changing the training path, update the pinned attribution
+#   report SHA-256 and set PIXELVAE_RUN_LOCKSTEP=1. Later segments verify it and
 #   skip the lockstep. The same script supports one-epoch CPU rehearsals from a
 #   tiny tar, including resume from the previous process, when
 #   PIXELVAE_CPU_REHEARSAL=1; rehearsals require data_tar.
@@ -508,9 +509,8 @@ fit_args=(
     --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
-    # Lightning's saved epoch state can already reach the one-epoch headroom.
-    # Keep two epochs of headroom; max_steps still bounds the requested work.
-    "--trainer.max_epochs=$((end_epoch + 2))"
+    # Segment boundaries use max_steps; keep Lightning's total-run limit fixed.
+    --trainer.max_epochs=250
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
     --trainer.logger=false
