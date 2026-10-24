@@ -306,6 +306,13 @@ def test_datamodule_requires_non_negative_worker_count(tmp_path: Path) -> None:
 
 
 @pytest.mark.training
+def test_datamodule_requires_non_negative_sampler_start_epoch(tmp_path: Path) -> None:
+    data_dir = _prepared_data_dir(tmp_path)
+    with pytest.raises(ValueError, match="sampler_start_epoch must be non-negative"):
+        PixelVAEDataModule(str(data_dir), sampler_start_epoch=-1).setup("fit")
+
+
+@pytest.mark.training
 @pytest.mark.parametrize(
     ("counts", "message"),
     [
@@ -493,7 +500,7 @@ def test_epoch_timing_callback_records_sampler_epoch_sequence(
     module = cast(L.LightningModule, SimpleNamespace())
     callback.setup(cast(L.Trainer, SimpleNamespace()), module, "fit")
     try:
-        data = PixelVAEDataModule(str(data_dir), batch_size=2)
+        data = PixelVAEDataModule(str(data_dir), batch_size=2, sampler_start_epoch=10)
         data.setup("fit")
         loader = data.train_dataloader()
         trainer_state = SimpleNamespace(
@@ -532,11 +539,10 @@ def test_epoch_timing_callback_resumes_sampler_epoch_from_checkpoint_state(
         {"train": len(images), "val": 2},
         train_images=images,
     )
-    data = PixelVAEDataModule(str(data_dir), batch_size=2)
+    data = PixelVAEDataModule(str(data_dir), batch_size=2, sampler_start_epoch=10)
     data.setup("fit")
     output_path = tmp_path / "epoch-times-resume.jsonl"
     monkeypatch.setenv("PIXELVAE_EPOCH_TIMING_FILE", str(output_path))
-    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "10")
     module = cast(L.LightningModule, SimpleNamespace())
     trainer_state = SimpleNamespace(
         current_epoch=11,
@@ -555,13 +561,21 @@ def test_epoch_timing_callback_resumes_sampler_epoch_from_checkpoint_state(
     resumed_process = PixelVAEEpochTimingCallback()
     resumed_process.load_state_dict(saved_state)
     trainer_state.current_epoch = 13
-    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "12")
+    mismatched_data = PixelVAEDataModule(
+        str(data_dir), batch_size=2, sampler_start_epoch=12
+    )
+    mismatched_data.setup("fit")
+    trainer_state.datamodule = mismatched_data
     with pytest.raises(RuntimeError, match="checkpoint sampler epoch"):
         resumed_process.on_train_epoch_start(trainer, module)
 
-    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "11")
+    resumed_data = PixelVAEDataModule(
+        str(data_dir), batch_size=2, sampler_start_epoch=11
+    )
+    resumed_data.setup("fit")
+    trainer_state.datamodule = resumed_data
     resumed_process.on_train_epoch_start(trainer, module)
-    assert data.samplers["train"].epoch == 11
+    assert resumed_data.samplers["train"].epoch == 11
     resumed_process.on_validation_end(trainer, module)
 
     records = [json.loads(line) for line in output_path.read_text().splitlines()]
@@ -577,7 +591,11 @@ def test_epoch_timing_callback_handles_missing_start_and_output_path(
     monkeypatch.delenv("PIXELVAE_EPOCH_TIMING_FILE", raising=False)
     callback = PixelVAEEpochTimingCallback()
     module = cast(L.LightningModule, SimpleNamespace())
-    trainer_state = SimpleNamespace(current_epoch=0, sanity_checking=False)
+    sampler = SimpleNamespace(epoch=0, set_epoch=lambda epoch: None)
+    datamodule = SimpleNamespace(samplers={"train": sampler}, sampler_start_epoch=0)
+    trainer_state = SimpleNamespace(
+        current_epoch=0, sanity_checking=False, datamodule=datamodule
+    )
     trainer = cast(L.Trainer, trainer_state)
 
     trainer_state.sanity_checking = True
