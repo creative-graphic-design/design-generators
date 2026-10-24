@@ -21,6 +21,7 @@ from pixel_vae.conversion import (
     extract_tensorflow_weights,
     tensorflow_arrays_to_torch,
 )
+from pixel_vae.testing import JSONValue
 from traingen.optim import KerasAdam
 
 repo_root = Path(__file__).resolve().parents[4]
@@ -54,14 +55,15 @@ def _arguments() -> argparse.Namespace:
 
 
 def _should_stop_after_divergence(
-    first_divergence: dict[str, object] | None, record_only: bool
+    first_divergence: dict[str, JSONValue] | None, record_only: bool
 ) -> bool:
     return first_divergence is not None and not record_only
 
 
 def _retain_first_divergence(
-    first_divergence: dict[str, object] | None, current_record: dict[str, object]
-) -> dict[str, object]:
+    first_divergence: dict[str, JSONValue] | None,
+    current_record: dict[str, JSONValue],
+) -> dict[str, JSONValue]:
     return first_divergence if first_divergence is not None else current_record
 
 
@@ -299,7 +301,7 @@ def main() -> None:
                 package_optimizer.step()
                 parameter_difference = _compare_trainable_parameters(reference, model)
                 batch_norm_difference = _compare_batch_norm_state(reference, model)
-                record = {
+                record: dict[str, JSONValue] = {
                     "step": step + 1,
                     "source_loss": source_value,
                     "package_loss": package_value,
