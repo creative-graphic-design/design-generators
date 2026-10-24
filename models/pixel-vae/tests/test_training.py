@@ -484,6 +484,8 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     ]
     assert len(resumable_checkpoints) == 1
     assert not resumable_checkpoints[0].save_weights_only
+    assert resumable_checkpoints[0].monitor is None
+    assert resumable_checkpoints[0].save_top_k == 1
     assert resumable_checkpoints[0].every_n_epochs == 1
 
 

@@ -19,7 +19,8 @@ trainer:
         auto_insert_metric_name: false
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
-        save_top_k: 0
+        monitor: null
+        save_top_k: 1
         save_last: true
         save_weights_only: false
         every_n_epochs: 1
