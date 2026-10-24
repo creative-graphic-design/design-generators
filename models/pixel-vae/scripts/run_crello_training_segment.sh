@@ -290,15 +290,16 @@ if [[ "$cpu_fixture_prep" == 1 ]]; then
     exit 0
 fi
 
-mkdir -p "$run_dir/checkpoints" "$run_dir/reports" "$run_dir/logs"
+mkdir -p "$run_dir/checkpoints" "$run_dir/reports" "$run_dir/logs" \
+    "$private_dir/checkpoint-inputs"
 resume_path="${PIXELVAE_RESUME_FROM:-}"
 best_path="${PIXELVAE_BEST_FROM:-}"
 if [[ -n "$resume_uri" ]]; then
-    resume_path="$run_dir/checkpoints/last.ckpt"
+    resume_path="$private_dir/checkpoint-inputs/resume-last.ckpt"
     download_hub_file "$resume_uri" "$resume_path" models
 fi
 if [[ -n "$best_uri" ]]; then
-    best_path="$run_dir/checkpoints/best.ckpt"
+    best_path="$private_dir/checkpoint-inputs/resume-best.ckpt"
     download_hub_file "$best_uri" "$best_path" models
 fi
 [[ -z "$resume_path" || -f "$resume_path" ]] || { printf 'resume checkpoint is missing\n' >&2; exit 2; }
@@ -307,6 +308,11 @@ fi
     printf 'resume and best checkpoints must be supplied together\n' >&2
     exit 2
 }
+if [[ "$resume_path" == "$run_dir/checkpoints/last.ckpt" || \
+    "$best_path" == "$run_dir/checkpoints/best.ckpt" ]]; then
+    printf 'resume checkpoints must be staged outside the output directory\n' >&2
+    exit 2
+fi
 
 training_state="$(uv run --locked --package pixel-vae --extra training python - \
     "$data_dir/count.json" "$resume_path" "$batch_size" <<'PY'
@@ -516,6 +522,10 @@ if [[ -f "$run_dir/config.yaml" ]]; then
 fi
 
 report_path="$run_dir/reports/segment-e$(printf '%03d' "$end_epoch").json"
+[[ -f "$run_dir/checkpoints/last.ckpt" && ! -L "$run_dir/checkpoints/last.ckpt" ]] || {
+    printf 'last checkpoint must be a regular file before it can be reported\n' >&2
+    exit 2
+}
 run_logged uv run --locked --no-sync --package pixel-vae --extra training python - \
     "$data_dir/count.json" "$run_dir/checkpoints/last.ckpt" \
     "$run_dir/checkpoints/best.ckpt" "$start_epoch" "$end_epoch" \
