@@ -480,13 +480,31 @@ def test_training_config_instantiates_package_classes(tmp_path: Path) -> None:
     resumable_checkpoints = [
         callback
         for callback in callbacks
-        if isinstance(callback, ModelCheckpoint) and callback.save_last
+        if isinstance(callback, ModelCheckpoint) and callback.monitor == "step"
     ]
     assert len(resumable_checkpoints) == 1
-    assert not resumable_checkpoints[0].save_weights_only
-    assert resumable_checkpoints[0].monitor is None
-    assert resumable_checkpoints[0].save_top_k == 1
-    assert resumable_checkpoints[0].every_n_epochs == 1
+    resumable_checkpoint = resumable_checkpoints[0]
+    assert resumable_checkpoint.mode == "max"
+    assert not resumable_checkpoint.save_last
+    assert not resumable_checkpoint.save_weights_only
+    assert resumable_checkpoint.save_top_k == 1
+    assert resumable_checkpoint.every_n_epochs == 1
+    assert resumable_checkpoint.filename == "last"
+    assert not resumable_checkpoint.auto_insert_metric_name
+
+    rotating_checkpoints = [
+        callback
+        for callback in callbacks
+        if isinstance(callback, ModelCheckpoint) and callback.monitor is None
+    ]
+    assert len(rotating_checkpoints) == 1
+    rotating_checkpoint = rotating_checkpoints[0]
+    assert rotating_checkpoint.save_top_k == 1
+    assert not rotating_checkpoint.save_last
+    assert not rotating_checkpoint.save_weights_only
+    assert rotating_checkpoint.every_n_epochs == 1
+    assert rotating_checkpoint.filename == "epoch=latest"
+    assert not rotating_checkpoint.auto_insert_metric_name
 
 
 @pytest.mark.training

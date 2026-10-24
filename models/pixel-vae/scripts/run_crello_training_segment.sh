@@ -304,11 +304,18 @@ record_checkpoint_inventory() {
         printf 'snapshot_utc\t%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%S.%NZ')"
         printf 'run_dir\t%s\n' "$run_dir"
         printf 'checkpoint_dir\t%s\n' "$run_dir/checkpoints"
+        printf 'epoch_checkpoint_dir\t%s\n' "$run_dir/epoch-checkpoints"
         if [[ -d "$run_dir/checkpoints" ]]; then
             find "$run_dir/checkpoints" -mindepth 1 -maxdepth 1 \
                 -printf 'entry\t%f\t%s\t%TY-%Tm-%TdT%TH:%TM:%TS%Tz\t%y\n' | sort
         else
             printf 'checkpoint_directory_missing\n'
+        fi
+        if [[ -d "$run_dir/epoch-checkpoints" ]]; then
+            find "$run_dir/epoch-checkpoints" -mindepth 1 -maxdepth 1 \
+                -printf 'epoch_entry\t%f\t%s\t%TY-%Tm-%TdT%TH:%TM:%TS%Tz\t%y\n' | sort
+        else
+            printf 'epoch_checkpoint_directory_missing\n'
         fi
         printf '\n'
     } >> "$checkpoint_inventory_log"
@@ -545,6 +552,8 @@ fit_args=(
     --trainer.max_epochs=250
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
+    "--trainer.callbacks.1.init_args.dirpath=$run_dir/epoch-checkpoints"
+    "--trainer.callbacks.2.init_args.dirpath=$run_dir/checkpoints"
     --trainer.logger=false
     --trainer.enable_progress_bar=false
     "--data.init_args.data_dir=$data_dir"
@@ -567,6 +576,25 @@ if ((train_status != 0)); then
     printf 'training segment failed with exit code %s\n' "$train_status" >&2
     exit "$train_status"
 fi
+stop_checkpoint_inventory
+record_checkpoint_inventory
+checkpoint_entries="$(find "$run_dir/checkpoints" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)"
+[[ "$checkpoint_entries" == $'best.ckpt\nlast.ckpt' ]] || {
+    printf 'checkpoints must contain only best.ckpt and last.ckpt; found: %s\n' "$checkpoint_entries" >&2
+    exit 2
+}
+[[ -d "$run_dir/epoch-checkpoints" ]] || {
+    printf 'epoch-checkpoints directory is missing\n' >&2
+    exit 2
+}
+epoch_checkpoint_entries="$(find "$run_dir/epoch-checkpoints" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)"
+[[ "$epoch_checkpoint_entries" == 'epoch=latest.ckpt' && \
+    -f "$run_dir/epoch-checkpoints/epoch=latest.ckpt" && \
+    ! -L "$run_dir/epoch-checkpoints/epoch=latest.ckpt" ]] || {
+    printf 'epoch-checkpoints must contain only one regular epoch checkpoint; found: %s\n' \
+        "$epoch_checkpoint_entries" >&2
+    exit 2
+}
 if [[ -f "$run_dir/config.yaml" ]]; then
     config_archive="$run_dir/reports/config-e$(printf '%03d' "$end_epoch").yaml"
     [[ ! -e "$config_archive" ]] || { printf 'segment config archive already exists\n' >&2; exit 2; }

@@ -19,11 +19,27 @@ trainer:
         auto_insert_metric_name: false
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
+        # Keep one fixed-name top-k file outside the synchronized directory.
         monitor: null
         save_top_k: 1
-        save_last: true
+        save_last: false
         save_weights_only: false
         every_n_epochs: 1
+        filename: epoch=latest
+        auto_insert_metric_name: false
+        enable_version_counter: false
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        # The step score rises each epoch, so this full checkpoint is always current.
+        monitor: step
+        mode: max
+        save_top_k: 1
+        save_last: false
+        save_weights_only: false
+        every_n_epochs: 1
+        filename: last
+        auto_insert_metric_name: false
+        enable_version_counter: false
     - class_path: pixel_vae.training.PixelVAEEpochTimingCallback
 model:
   class_path: pixel_vae.training.PixelVAETrainingModule
