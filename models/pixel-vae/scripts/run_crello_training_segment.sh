@@ -353,7 +353,6 @@ read -r start_epoch start_global_step train_steps <<< "$training_state"
     printf 'segment endpoint must follow the checkpoint epoch\n' >&2
     exit 2
 }
-export PIXELVAE_START_SAMPLER_EPOCH="$start_epoch"
 target_global_step=$((start_global_step + (end_epoch - start_epoch) * train_steps))
 if [[ "$cpu_rehearsal" != 1 && "$start_global_step" -ne "$((start_epoch * train_steps))" ]]; then
     printf 'checkpoint global step does not match its epoch boundary\n' >&2
@@ -518,6 +517,7 @@ fit_args=(
     --trainer.enable_progress_bar=false
     "--data.init_args.data_dir=$data_dir"
     "--data.init_args.batch_size=$batch_size"
+    "--data.init_args.sampler_start_epoch=$start_epoch"
 )
 if [[ -n "$resume_path" ]]; then
     fit_args+=(--ckpt_path "$resume_path")

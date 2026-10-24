@@ -62,20 +62,16 @@ class PixelVAEEpochTimingCallback(L.Callback):
         datamodule = cast(PixelVAEDataModule, trainer.datamodule)
         sampler = datamodule.samplers["train"]
         if not self._segment_start_checked:
-            configured_epoch = os.environ.get("PIXELVAE_START_SAMPLER_EPOCH")
-            if configured_epoch is not None:
-                expected_epoch = int(configured_epoch)
-                if (
-                    self._next_sampler_epoch is not None
-                    and self._next_sampler_epoch != expected_epoch
-                ):
-                    raise RuntimeError(
-                        "checkpoint sampler epoch does not match the segment start: "
-                        f"{self._next_sampler_epoch} != {expected_epoch}"
-                    )
-                self._next_sampler_epoch = expected_epoch
-            elif self._next_sampler_epoch is None:
-                self._next_sampler_epoch = trainer.current_epoch
+            expected_epoch = datamodule.sampler_start_epoch
+            if (
+                self._next_sampler_epoch is not None
+                and self._next_sampler_epoch != expected_epoch
+            ):
+                raise RuntimeError(
+                    "checkpoint sampler epoch does not match the segment start: "
+                    f"{self._next_sampler_epoch} != {expected_epoch}"
+                )
+            self._next_sampler_epoch = expected_epoch
 
             self._segment_start_checked = True
 
