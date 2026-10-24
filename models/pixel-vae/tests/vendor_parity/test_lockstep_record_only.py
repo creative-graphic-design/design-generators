@@ -1,3 +1,5 @@
+from pixel_vae.testing import JSONValue
+
 from vendor_parity.run_real_scale_lockstep import (
     _retain_first_divergence,
     _should_stop_after_divergence,
@@ -5,8 +7,8 @@ from vendor_parity.run_real_scale_lockstep import (
 
 
 def test_record_only_continues_after_divergence() -> None:
-    divergence = {"relative_loss_difference": 1.1e-2}
-    later_divergence = {"relative_loss_difference": 1.2e-2}
+    divergence: dict[str, JSONValue] = {"relative_loss_difference": 1.1e-2}
+    later_divergence: dict[str, JSONValue] = {"relative_loss_difference": 1.2e-2}
 
     assert _should_stop_after_divergence(None, record_only=False) is False
     assert _should_stop_after_divergence(divergence, record_only=False) is True
