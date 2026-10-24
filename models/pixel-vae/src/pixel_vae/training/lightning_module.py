@@ -31,6 +31,20 @@ class PixelVAEEpochTimingCallback(L.Callback):
         self._epoch_started_at: float | None = None
         self._epoch_started_at_utc: str | None = None
         self._sampler_epoch: int | None = None
+        self._next_sampler_epoch: int | None = None
+        self._segment_start_checked = False
+
+    def state_dict(self) -> dict[str, int]:
+        """Persist the next source-order epoch across Lightning checkpoints."""
+        if self._next_sampler_epoch is None:
+            return {}
+
+        return {"next_sampler_epoch": self._next_sampler_epoch}
+
+    def load_state_dict(self, state_dict: dict[str, int]) -> None:
+        """Restore the source-order epoch from a resumable checkpoint."""
+        self._next_sampler_epoch = state_dict.get("next_sampler_epoch")
+        self._segment_start_checked = False
 
     def setup(
         self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
@@ -47,8 +61,29 @@ class PixelVAEEpochTimingCallback(L.Callback):
         del pl_module
         datamodule = cast(PixelVAEDataModule, trainer.datamodule)
         sampler = datamodule.samplers["train"]
-        sampler.set_epoch(trainer.current_epoch)
+        if not self._segment_start_checked:
+            configured_epoch = os.environ.get("PIXELVAE_START_SAMPLER_EPOCH")
+            if configured_epoch is not None:
+                expected_epoch = int(configured_epoch)
+                if (
+                    self._next_sampler_epoch is not None
+                    and self._next_sampler_epoch != expected_epoch
+                ):
+                    raise RuntimeError(
+                        "checkpoint sampler epoch does not match the segment start: "
+                        f"{self._next_sampler_epoch} != {expected_epoch}"
+                    )
+                self._next_sampler_epoch = expected_epoch
+            elif self._next_sampler_epoch is None:
+                self._next_sampler_epoch = trainer.current_epoch
+
+            self._segment_start_checked = True
+
+        assert self._next_sampler_epoch is not None
+
+        sampler.set_epoch(self._next_sampler_epoch)
         self._sampler_epoch = sampler.epoch
+        self._next_sampler_epoch += 1
         self._epoch_started_at = monotonic()
         self._epoch_started_at_utc = datetime.now(timezone.utc).isoformat()
 
@@ -72,7 +107,8 @@ class PixelVAEEpochTimingCallback(L.Callback):
         path = Path(self.output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         record: dict[str, int | float | str] = {
-            "epoch": trainer.current_epoch + 1,
+            "epoch": self._sampler_epoch + 1,
+            "lightning_epoch": trainer.current_epoch + 1,
             "sampler_epoch": self._sampler_epoch,
             "train_and_validation_wall_seconds": elapsed,
             "started_at_utc": started_at_utc or "",

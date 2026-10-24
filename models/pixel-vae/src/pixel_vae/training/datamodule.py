@@ -300,7 +300,7 @@ class PixelVAEDataModule(L.LightningDataModule):
         if split not in self.datasets:
             raise RuntimeError("call setup() before requesting data loaders")
 
-        if self.trainer is not None:
+        if split == "val" and self.trainer is not None:
             self.samplers[split].set_epoch(self.trainer.current_epoch)
 
         return cast(

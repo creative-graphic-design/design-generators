@@ -516,9 +516,58 @@ def test_epoch_timing_callback_records_sampler_epoch_sequence(
 
     records = [json.loads(line) for line in output_path.read_text().splitlines()]
     assert [record["epoch"] for record in records] == [11, 12, 13]
+    assert [record["lightning_epoch"] for record in records] == [11, 12, 13]
     assert [record["sampler_epoch"] for record in records] == [10, 11, 12]
     assert all(record["train_and_validation_wall_seconds"] >= 0 for record in records)
     assert actual == expected
+
+
+@pytest.mark.training
+def test_epoch_timing_callback_resumes_sampler_epoch_from_checkpoint_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    images = [_png(value) for value in range(4)]
+    data_dir = _prepared_data_dir(
+        tmp_path,
+        {"train": len(images), "val": 2},
+        train_images=images,
+    )
+    data = PixelVAEDataModule(str(data_dir), batch_size=2)
+    data.setup("fit")
+    output_path = tmp_path / "epoch-times-resume.jsonl"
+    monkeypatch.setenv("PIXELVAE_EPOCH_TIMING_FILE", str(output_path))
+    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "10")
+    module = cast(L.LightningModule, SimpleNamespace())
+    trainer_state = SimpleNamespace(
+        current_epoch=11,
+        sanity_checking=False,
+        datamodule=data,
+    )
+    trainer = cast(L.Trainer, trainer_state)
+    first_process = PixelVAEEpochTimingCallback()
+    first_process.setup(trainer, module, "fit")
+    first_process.on_train_epoch_start(trainer, module)
+    assert data.samplers["train"].epoch == 10
+    first_process.on_validation_end(trainer, module)
+    saved_state = first_process.state_dict()
+    assert saved_state == {"next_sampler_epoch": 11}
+
+    resumed_process = PixelVAEEpochTimingCallback()
+    resumed_process.load_state_dict(saved_state)
+    trainer_state.current_epoch = 13
+    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "12")
+    with pytest.raises(RuntimeError, match="checkpoint sampler epoch"):
+        resumed_process.on_train_epoch_start(trainer, module)
+
+    monkeypatch.setenv("PIXELVAE_START_SAMPLER_EPOCH", "11")
+    resumed_process.on_train_epoch_start(trainer, module)
+    assert data.samplers["train"].epoch == 11
+    resumed_process.on_validation_end(trainer, module)
+
+    records = [json.loads(line) for line in output_path.read_text().splitlines()]
+    assert [record["epoch"] for record in records] == [11, 12]
+    assert [record["sampler_epoch"] for record in records] == [10, 11]
+    assert [record["lightning_epoch"] for record in records] == [12, 14]
 
 
 @pytest.mark.training

@@ -315,15 +315,16 @@ if [[ "$resume_path" == "$run_dir/checkpoints/last.ckpt" || \
 fi
 
 training_state="$(uv run --locked --package pixel-vae --extra training python - \
-    "$data_dir/count.json" "$resume_path" "$batch_size" <<'PY'
+    "$data_dir/count.json" "$resume_path" "$batch_size" "$cpu_rehearsal" <<'PY'
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
 import torch
 
-counts_path, resume_path, batch_text = sys.argv[1:]
+counts_path, resume_path, batch_text, cpu_rehearsal = sys.argv[1:]
 counts = json.loads(Path(counts_path).read_text(encoding="utf-8"))
 train_steps = math.ceil(counts["train"] / int(batch_text))
 start_epoch = 0
@@ -333,8 +334,16 @@ if resume_path:
     if not checkpoint.get("optimizer_states"):
         raise SystemExit("resume checkpoint has no optimizer state")
 
-    start_epoch = int(checkpoint["epoch"])
     start_global_step = int(checkpoint["global_step"])
+    if start_global_step % train_steps:
+        raise SystemExit("resume checkpoint is not at a train-epoch boundary")
+    if cpu_rehearsal == "1":
+        cpu_start_epoch = os.environ.get("PIXELVAE_CPU_START_EPOCH")
+        if cpu_start_epoch is None:
+            raise SystemExit("CPU resume requires PIXELVAE_CPU_START_EPOCH")
+        start_epoch = int(cpu_start_epoch)
+    else:
+        start_epoch = start_global_step // train_steps
 
 print(start_epoch, start_global_step, train_steps)
 PY
@@ -344,6 +353,7 @@ read -r start_epoch start_global_step train_steps <<< "$training_state"
     printf 'segment endpoint must follow the checkpoint epoch\n' >&2
     exit 2
 }
+export PIXELVAE_START_SAMPLER_EPOCH="$start_epoch"
 target_global_step=$((start_global_step + (end_epoch - start_epoch) * train_steps))
 if [[ "$cpu_rehearsal" != 1 && "$start_global_step" -ne "$((start_epoch * train_steps))" ]]; then
     printf 'checkpoint global step does not match its epoch boundary\n' >&2
@@ -461,6 +471,15 @@ if [[ "$start_epoch" == 0 || "$run_lockstep" == 1 ]]; then
         printf 'lockstep completed without its evidence files\n' >&2
         exit 2
     }
+fi
+
+best_output_path="$run_dir/checkpoints/best.ckpt"
+if [[ -n "$best_path" && ! -e "$best_output_path" && ! -L "$best_output_path" ]]; then
+    cp -- "$best_path" "$best_output_path"
+fi
+if [[ -n "$best_path" && ( ! -f "$best_output_path" || -L "$best_output_path" ) ]]; then
+    printf 'resume best checkpoint was not staged as a regular output file\n' >&2
+    exit 2
 fi
 
 export PIXELVAE_EPOCH_TIMING_FILE="$epoch_timing_path"
@@ -621,6 +640,16 @@ epoch_times = [
     for line in Path(epoch_timing_path).read_text(encoding="utf-8").splitlines()
     if line
 ]
+expected_sampler_epochs = list(range(int(start), int(end)))
+actual_sampler_epochs = [int(epoch["sampler_epoch"]) for epoch in epoch_times]
+actual_epochs = [int(epoch["epoch"]) for epoch in epoch_times]
+if actual_sampler_epochs != expected_sampler_epochs:
+    raise SystemExit(
+        f"sampler epoch sequence is {actual_sampler_epochs}; "
+        f"expected {expected_sampler_epochs}"
+    )
+if actual_epochs != list(range(int(start) + 1, int(end) + 1)):
+    raise SystemExit(f"logical epoch sequence is {actual_epochs}")
 for epoch in epoch_times:
     start_time = datetime.fromisoformat(epoch["started_at_utc"])
     end_time = datetime.fromisoformat(epoch["finished_at_utc"])
