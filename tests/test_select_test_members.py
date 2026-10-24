@@ -45,6 +45,22 @@ def expected_test_packages() -> list[str]:
     ]
 
 
+def test_architecture_guidance_matches_member_selection_rule() -> None:
+    architecture = (REPOSITORY_ROOT / "docs" / "architecture.md").read_text()
+    agents = (REPOSITORY_ROOT / "AGENTS.md").read_text()
+    selection_rule = (
+        "Selection follows declared `dependencies`, `optional-dependencies`, and "
+        "dependency groups, always adds `devharness` for non-Markdown changes, "
+        "and does not infer undeclared imports or shared test data."
+    )
+
+    assert selection_rule in architecture
+    assert "dependency groups" in agents
+    assert "every non-Markdown change also selects `devharness`" in agents
+    assert "injects `laygen` into `posgen` tests" not in architecture
+    assert "The former test-runner injection exception is closed" not in architecture
+
+
 def test_member_change_also_selects_devharness(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
