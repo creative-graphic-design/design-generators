@@ -293,6 +293,42 @@ fi
 
 mkdir -p "$run_dir/checkpoints" "$run_dir/reports" "$run_dir/logs" \
     "$private_dir/checkpoint-inputs"
+run_dir="$(cd "$run_dir" && pwd -P)"
+checkpoint_inventory_log="$run_dir/logs/checkpoint-inventory.tsv"
+[[ ! -e "$checkpoint_inventory_log" ]] || {
+    printf 'refusing to overwrite checkpoint inventory log\n' >&2
+    exit 2
+}
+record_checkpoint_inventory() {
+    {
+        printf 'snapshot_utc\t%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%S.%NZ')"
+        printf 'run_dir\t%s\n' "$run_dir"
+        printf 'checkpoint_dir\t%s\n' "$run_dir/checkpoints"
+        if [[ -d "$run_dir/checkpoints" ]]; then
+            find "$run_dir/checkpoints" -mindepth 1 -maxdepth 1 \
+                -printf 'entry\t%f\t%s\t%TY-%Tm-%TdT%TH:%TM:%TS%Tz\t%y\n' | sort
+        else
+            printf 'checkpoint_directory_missing\n'
+        fi
+        printf '\n'
+    } >> "$checkpoint_inventory_log"
+}
+record_checkpoint_inventory
+(
+    while :; do
+        sleep 10
+        record_checkpoint_inventory
+    done
+) &
+checkpoint_inventory_pid=$!
+stop_checkpoint_inventory() {
+    if [[ -n "$checkpoint_inventory_pid" ]]; then
+        kill "$checkpoint_inventory_pid" 2>/dev/null || true
+        wait "$checkpoint_inventory_pid" 2>/dev/null || true
+        checkpoint_inventory_pid=''
+    fi
+}
+trap stop_checkpoint_inventory EXIT
 resume_path="${PIXELVAE_RESUME_FROM:-}"
 best_path="${PIXELVAE_BEST_FROM:-}"
 if [[ -n "$resume_uri" ]]; then
@@ -486,7 +522,7 @@ stop_sampler() {
         sampler_pid=''
     fi
 }
-trap stop_sampler EXIT
+trap 'stop_sampler; stop_checkpoint_inventory' EXIT
 if [[ "$cpu_rehearsal" != 1 ]]; then
     run_logged nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits
     nvidia-smi --query-gpu=timestamp,utilization.gpu,power.draw,power.limit --format=csv,noheader,nounits -l 1 > "$gpu_samples" 2>>"$private_log" &
@@ -706,7 +742,7 @@ print(json.dumps(report, sort_keys=True))
 PY
 
 for output_log in \
-    "$private_log" "$gpu_samples" "$report_path" "$runtime_path" \
+    "$private_log" "$checkpoint_inventory_log" "$gpu_samples" "$report_path" "$runtime_path" \
     "$epoch_timing_path" "$lockstep_path" "$lockstep_summary_path"; do
     [[ -f "$output_log" ]] || continue
     if grep -Eiq 'hf_[[:alnum:]]{20,}' "$output_log"; then
