@@ -340,7 +340,7 @@ jobs:
     needs:
       - changes
       - discover-test-members
-    if: needs.changes.outputs.non_markdown == 'true'
+    if: needs.changes.outputs.non_markdown == 'true' && needs.discover-test-members.outputs.members != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -439,6 +439,7 @@ jobs:
             echo "No workspace members with tests were selected."
           fi
 
+  # Daily full member test failures notify the repository owner through this open tracking issue: https://github.com/creative-graphic-design/design-generators/issues/478.
   notify-scheduled-failure:
     name: Scheduled Failure Notification
     needs:
@@ -452,7 +453,7 @@ jobs:
       - evaluation-extra-smoke
       - test-member
       - test
-    if: failure() && github.event_name == 'schedule'
+    if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -464,7 +465,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue comment 476 \
+          gh issue comment 478 \
             --repo "${GITHUB_REPOSITORY}" \
             --body "@shunk031 Daily full member test run failed: ${RUN_URL}"
 

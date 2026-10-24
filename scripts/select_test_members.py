@@ -48,9 +48,15 @@ class ToolConfig(TypedDict, total=False):
     uv: UvConfig
 
 
-class Pyproject(TypedDict, total=False):
-    project: Project
-    tool: ToolConfig
+Pyproject = TypedDict(
+    "Pyproject",
+    {
+        "project": NotRequired[Project],
+        "dependency-groups": NotRequired[dict[str, list[str]]],
+        "tool": NotRequired[ToolConfig],
+    },
+    total=False,
+)
 
 
 @dataclass(frozen=True)
@@ -90,10 +96,15 @@ def _workspace_source(
     )
 
 
-def _requirements(project: Project) -> list[str]:
+def _requirements(
+    project: Project, dependency_groups: dict[str, list[str]]
+) -> list[str]:
     requirements = list(project.get("dependencies", []))
     for optional_requirements in project.get("optional-dependencies", {}).values():
         requirements.extend(optional_requirements)
+
+    for group_requirements in dependency_groups.values():
+        requirements.extend(group_requirements)
 
     return requirements
 
@@ -141,7 +152,9 @@ def discover_members(repository_root: Path) -> list[Member]:
         )
         dependencies: set[str] = set()
 
-        for requirement in _requirements(project):
+        for requirement in _requirements(
+            project, project_data.get("dependency-groups", {})
+        ):
             match = DEPENDENCY_NAME_RE.match(requirement)
             if match is None:
                 raise ValueError(f"invalid dependency requirement: {requirement!r}")
@@ -207,7 +220,8 @@ def select_members(
             dependents[dependency].add(member_key)
 
     # shortcut: undeclared test-only imports are not modeled; declare the edge before relying on affected selection.
-    affected_packages = set(changed_packages)
+    # Root tooling tests inspect repository-wide files, so run them for every non-Markdown change.
+    affected_packages = changed_packages | {"devharness"}
     pending = list(changed_packages)
     while pending:
         package = pending.pop()

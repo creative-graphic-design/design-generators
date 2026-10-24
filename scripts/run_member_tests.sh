@@ -95,9 +95,10 @@ fi
 
 if [ "${MEMBER_TEST_RUNNER_DEPS:-1}" != "0" ]; then
   uv_run_args+=(--with "beartype>=0.22.9,<0.23")
-  if [ "${package_name}" = "posgen" ]; then
-    uv_run_args+=(--with-editable "${repo_root}/lib/laygen")
-  fi
+fi
+
+if [ "${package_name}" = "posgen" ]; then
+  uv_run_args+=(--group test)
 fi
 
 pytest_args=(

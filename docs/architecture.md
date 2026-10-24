@@ -136,7 +136,7 @@ Move a helper into a shared package when at least two packages need the same beh
 
 ## Dependency direction
 
-All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
+All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed. The former test-runner injection exception is closed: `posgen` declares `laygen` in its `test` dependency group because its tests import `laygen.common`. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
 
@@ -147,7 +147,7 @@ The Transformers-side shared layout output in `laygen.modeling_outputs` is based
 ```mermaid
 graph LR
     laygen["laygen"] --> model_packages["model packages"]
-    laygen -. "optional; currently unused" .-> posgen["posgen"]
+    laygen -. "test dependency" .-> posgen["posgen"]
     posgen --> poster_models["poster or content-aware model packages"]
 ```
 

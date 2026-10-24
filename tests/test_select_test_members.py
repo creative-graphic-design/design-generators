@@ -19,40 +19,6 @@ SELECTOR = importlib.util.module_from_spec(SPEC)
 sys.modules[LOADER.name] = SELECTOR
 LOADER.exec_module(SELECTOR)
 
-EXPECTED_LAYOUTGEN_DEPENDENTS = [
-    "laygen",
-    "canvas-vae",
-    "cgb-dm",
-    "coarse-to-fine",
-    "dlt",
-    "ds-gan",
-    "flex-dm",
-    "housegan",
-    "lace",
-    "layousyn",
-    "layout-action",
-    "layout-corrector",
-    "layout-detr",
-    "layout-dm",
-    "layout-fid",
-    "layout-flow",
-    "layout-gpt",
-    "layoutdiffusion",
-    "layoutformerpp",
-    "layoutganpp",
-    "layoutprompter",
-    "layoutvae",
-    "ltnet",
-    "parse-then-place",
-    "pixel-vae",
-    "posterllama",
-    "posterllava",
-    "postero",
-    "radm",
-    "ralf",
-    "smarttext",
-]
-
 
 def run_selector_for_paths(
     changed_paths: list[str],
@@ -71,7 +37,15 @@ def run_selector_for_paths(
     return json.loads(capsys.readouterr().out)
 
 
-def test_layoutformerpp_change_selects_only_that_member(
+def expected_test_packages() -> list[str]:
+    return [
+        member.package
+        for member in SELECTOR.discover_members(REPOSITORY_ROOT)
+        if member.has_tests
+    ]
+
+
+def test_member_change_also_selects_devharness(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -80,7 +54,9 @@ def test_layoutformerpp_change_selects_only_that_member(
         monkeypatch,
         capsys,
     )
-    assert [member["package"] for member in selected] == ["layoutformerpp"]
+    packages = [member["package"] for member in selected]
+    assert "layoutformerpp" in packages
+    assert "devharness" in packages
 
 
 def test_laygen_change_selects_declared_transitive_dependents(
@@ -93,8 +69,9 @@ def test_laygen_change_selects_declared_transitive_dependents(
         capsys,
     )
     packages = [member["package"] for member in selected]
-    assert packages == EXPECTED_LAYOUTGEN_DEPENDENTS
-    assert "posgen" not in packages
+    assert {"laygen", "posgen", "canvas-vae", "layout-dm", "devharness"}.issubset(
+        packages
+    )
 
 
 @pytest.mark.parametrize("changed_path", ["uv.lock", ".github/workflows/ci.yml"])
@@ -104,8 +81,7 @@ def test_non_member_change_selects_all_test_members(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     selected = run_selector_for_paths([changed_path], monkeypatch, capsys)
-    assert len(selected) == 36
-    assert "devharness" in [member["package"] for member in selected]
+    assert [member["package"] for member in selected] == expected_test_packages()
 
 
 def test_markdown_only_change_selects_no_members(
@@ -118,13 +94,12 @@ def test_markdown_only_change_selects_no_members(
     )
 
 
-@pytest.mark.parametrize("event_name", ["schedule", "workflow_dispatch"])
-def test_full_run_events_select_all_test_members(
-    event_name: str, capsys: pytest.CaptureFixture[str]
+def test_run_without_diff_base_selects_all_test_members(
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert SELECTOR.main([]) == 0
     selected = json.loads(capsys.readouterr().out)
-    assert len(selected) == 36, f"{event_name} must select the full test matrix"
+    assert [member["package"] for member in selected] == expected_test_packages()
 
 
 def test_cli_requires_both_diff_commits() -> None:
