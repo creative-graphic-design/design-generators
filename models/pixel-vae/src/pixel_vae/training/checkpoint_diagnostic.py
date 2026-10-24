@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any  # noqa: TID251 - Lightning checkpoint payloads are heterogeneous.
 
 import lightning.pytorch as pl
@@ -25,8 +26,12 @@ class CheckpointDecisionLogger(Callback):
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             **record,
         }
+        serialized = json.dumps(payload, sort_keys=True, default=str)
+        if re.search(r"hf_[A-Za-z0-9]{20,}", serialized, re.IGNORECASE):
+            raise ValueError("checkpoint diagnostic contains an HF token-shaped value")
+
         with self.log_path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(payload, sort_keys=True, default=str) + "\n")
+            stream.write(serialized + "\n")
 
     def _checkpoint_rows(self, trainer: pl.Trainer) -> list[dict[str, Any]]:
         rows = []
