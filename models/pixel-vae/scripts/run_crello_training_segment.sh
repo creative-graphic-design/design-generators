@@ -555,6 +555,10 @@ fit_args=(
 if [[ -n "$resume_path" ]]; then
     fit_args+=(--ckpt_path "$resume_path")
 fi
+if [[ "$cpu_rehearsal" == 1 ]]; then
+    export PIXELVAE_CHECKPOINT_DECISIONS_LOG="$run_dir/logs/checkpoint-decisions.jsonl"
+    fit_args+=(--trainer.callbacks+=pixel_vae.training.checkpoint_diagnostic.CheckpointDecisionLogger)
+fi
 TIMEFORMAT='%3R %P'
 set +e
 { time uv run --locked --no-sync --package pixel-vae --extra training traingen fit \
