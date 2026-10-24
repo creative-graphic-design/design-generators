@@ -31,20 +31,6 @@ class PixelVAEEpochTimingCallback(L.Callback):
         self._epoch_started_at: float | None = None
         self._epoch_started_at_utc: str | None = None
         self._sampler_epoch: int | None = None
-        self._next_sampler_epoch: int | None = None
-        self._segment_start_checked = False
-
-    def state_dict(self) -> dict[str, int]:
-        """Persist the next source-order epoch across Lightning checkpoints."""
-        if self._next_sampler_epoch is None:
-            return {}
-
-        return {"next_sampler_epoch": self._next_sampler_epoch}
-
-    def load_state_dict(self, state_dict: dict[str, int]) -> None:
-        """Restore the source-order epoch from a resumable checkpoint."""
-        self._next_sampler_epoch = state_dict.get("next_sampler_epoch")
-        self._segment_start_checked = False
 
     def setup(
         self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
@@ -61,25 +47,28 @@ class PixelVAEEpochTimingCallback(L.Callback):
         del pl_module
         datamodule = cast(PixelVAEDataModule, trainer.datamodule)
         sampler = datamodule.samplers["train"]
-        if not self._segment_start_checked:
-            expected_epoch = datamodule.sampler_start_epoch
-            if (
-                self._next_sampler_epoch is not None
-                and self._next_sampler_epoch != expected_epoch
-            ):
-                raise RuntimeError(
-                    "checkpoint sampler epoch does not match the segment start: "
-                    f"{self._next_sampler_epoch} != {expected_epoch}"
-                )
-            self._next_sampler_epoch = expected_epoch
+        raw_steps_per_epoch = trainer.num_training_batches
+        if (
+            isinstance(raw_steps_per_epoch, bool)
+            or not isinstance(raw_steps_per_epoch, (int, float))
+            or not float(raw_steps_per_epoch).is_integer()
+            or raw_steps_per_epoch <= 0
+        ):
+            raise RuntimeError("sampler ordering requires a finite train loader")
 
-            self._segment_start_checked = True
+        steps_per_epoch = int(raw_steps_per_epoch)
+        steps_since_segment_start = (
+            trainer.global_step - datamodule.sampler_start_global_step
+        )
+        if steps_since_segment_start < 0 or steps_since_segment_start % steps_per_epoch:
+            raise RuntimeError("training resumed away from a sampler epoch boundary")
 
-        assert self._next_sampler_epoch is not None
-
-        sampler.set_epoch(self._next_sampler_epoch)
+        sampler_epoch = (
+            datamodule.sampler_start_epoch
+            + steps_since_segment_start // steps_per_epoch
+        )
+        sampler.set_epoch(sampler_epoch)
         self._sampler_epoch = sampler.epoch
-        self._next_sampler_epoch += 1
         self._epoch_started_at = monotonic()
         self._epoch_started_at_utc = datetime.now(timezone.utc).isoformat()
 
