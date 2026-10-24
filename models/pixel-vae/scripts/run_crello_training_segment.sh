@@ -518,6 +518,7 @@ fit_args=(
     "--data.init_args.data_dir=$data_dir"
     "--data.init_args.batch_size=$batch_size"
     "--data.init_args.sampler_start_epoch=$start_epoch"
+    "--data.init_args.sampler_start_global_step=$start_global_step"
 )
 if [[ -n "$resume_path" ]]; then
     fit_args+=(--ckpt_path "$resume_path")

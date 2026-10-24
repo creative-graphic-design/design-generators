@@ -39,3 +39,4 @@ data:
     num_workers: 6
     pin_memory: true
     sampler_start_epoch: 0
+    sampler_start_global_step: 0
