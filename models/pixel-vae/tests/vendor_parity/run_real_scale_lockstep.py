@@ -26,8 +26,13 @@ from traingen.optim import KerasAdam
 
 repo_root = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(repo_root / "vendor" / "canvas-vae" / "src" / "pixel-vae"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from vendor_parity.lockstep_control import (  # noqa: E402
+    _retain_first_divergence,
+    _should_stop_after_divergence,
+)
 from pixelvae.model import PixelVAE  # noqa: E402
 from test_pixel_vae_cpu_parity import (  # noqa: E402
     _compare_batch_norm_state,
@@ -52,19 +57,6 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--record-only", action="store_true")
     return parser.parse_args()
-
-
-def _should_stop_after_divergence(
-    first_divergence: dict[str, JSONValue] | None, record_only: bool
-) -> bool:
-    return first_divergence is not None and not record_only
-
-
-def _retain_first_divergence(
-    first_divergence: dict[str, JSONValue] | None,
-    current_record: dict[str, JSONValue],
-) -> dict[str, JSONValue]:
-    return first_divergence if first_divergence is not None else current_record
 
 
 def _configure_devices(device: str) -> torch.device:

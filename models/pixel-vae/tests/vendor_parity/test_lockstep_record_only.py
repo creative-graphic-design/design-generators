@@ -1,6 +1,6 @@
 from pixel_vae.testing import JSONValue
 
-from vendor_parity.run_real_scale_lockstep import (
+from vendor_parity.lockstep_control import (
     _retain_first_divergence,
     _should_stop_after_divergence,
 )
