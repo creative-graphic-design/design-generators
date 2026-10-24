@@ -127,3 +127,42 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
     assert cast(torch.Tensor, sampled.sequences).shape == (1, 1)
 
     assert not hasattr(model, "generate_layout")
+
+
+def test_constrained_generation_retries_an_empty_probability_gate() -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="publaynet", task="ugen")
+    config = LayoutFormerPPConfig(
+        vocab_size=processor.tokenizer.vocab_size,
+        dataset="publaynet",
+        task="ugen",
+        max_position_embeddings=16,
+        d_model=16,
+        encoder_layers=1,
+        decoder_layers=1,
+        encoder_attention_heads=2,
+        decoder_attention_heads=2,
+        dropout=0.0,
+    )
+    model = LayoutFormerPPForConditionalGeneration(config)
+    with torch.no_grad():
+        model.out.weight.zero_()
+
+    encoded = processor(condition_type="unconditional")
+
+    def only_eos(
+        batch_idx: int, step: int, current: torch.Tensor
+    ) -> tuple[list[int], int | None]:
+        assert batch_idx == 0
+        assert step == current.numel()
+        return [model.eos_token_id], None
+
+    generated = model._generate_sequences(
+        encoded["input_ids"],
+        encoded["attention_mask"],
+        max_length=3,
+        constrained_decoding=True,
+        generation_constraint_fn=only_eos,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert generated.tolist() == [[model.eos_token_id]]

@@ -2,22 +2,29 @@ from __future__ import annotations
 
 import os
 import importlib
+import random
 import sys
 import types
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
 
+from laygen.common.conditions import ConditionType
+from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.common.testing import skip_or_fail_vendor_parity
 from layoutformerpp import (
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
+    LayoutFormerPPPipeline,
+    LayoutFormerPPProcessor,
     LayoutFormerPPTokenizer,
 )
 from layoutformerpp.conversion import load_original_state_dict
-from layoutformerpp.serialization import build_default_tokens
+from layoutformerpp.serialization import RELATION_TYPES, build_default_tokens
 from laygen.common.labels import labels_for_dataset
 from laygen.common.vendor import vendor_root
 
@@ -222,6 +229,364 @@ def _label_constraint(case: ParityCase, vendor_src: Path, vendor_tokenizer):
     )
     constraint.prepare([[1, 2]])
     return constraint
+
+
+@lru_cache(maxsize=1)
+def _rico_test_samples(test_path: str) -> dict[str, dict[str, object]]:
+    records = torch.load(test_path, map_location="cpu", weights_only=False)
+    return {
+        str(record["name"]): record for record in cast(list[dict[str, object]], records)
+    }
+
+
+def _sample_layout(
+    processor: LayoutFormerPPProcessor,
+    sample: dict[str, object],
+) -> tuple[list[int], list[str], torch.Tensor]:
+    labels = cast(torch.Tensor, sample["labels"]).long()
+    boxes = cast(torch.Tensor, sample["bboxes"]).float()
+    order = sorted(
+        range(labels.numel()), key=lambda index: f"label_{int(labels[index])}"
+    )
+    sorted_labels = [int(labels[index]) for index in order]
+    public_labels = [processor.sequence_id2label[label] for label in sorted_labels]
+    return sorted_labels, public_labels, boxes[order]
+
+
+def _vendor_task_constraint(
+    case: ParityCase,
+    vendor_src: Path,
+    vendor_tokenizer,
+    labels: list[int],
+    boxes: torch.Tensor,
+    relations: list[tuple[int, int, int, int, int]] | None = None,
+):
+    _install_vendor_packages(vendor_src)
+    constraint_module = importlib.import_module(
+        "model.layout_transformer.constrained_decoding"
+    )
+    index2label = _index2label(case)
+    label_set = set(index2label.values())
+
+    if case.task == "gen_ts":
+        constraint = constraint_module.TransformerSortByDictLabelSizeConstraint(
+            vendor_tokenizer,
+            128,
+            label_set,
+            index2label,
+            add_sep_token=True,
+        )
+        constraint.prepare([labels], [boxes.tolist()])
+        return constraint
+
+    if case.task == "gen_r":
+        relation_constraint = constraint_module.TransformerSortByDictRelationConstraint(
+            vendor_tokenizer,
+            128,
+            label_set,
+            index2label,
+            dict(enumerate(RELATION_TYPES)),
+            add_sep_token=True,
+        )
+        relation_constraint.prepare([labels], [relations or []])
+        return relation_constraint
+
+    constraint = constraint_module.TransformerSortByDictLabelConstraint(
+        vendor_tokenizer,
+        128,
+        label_set,
+        index2label,
+        add_sep_token=True,
+    )
+    constraint.prepare([labels])
+    return constraint
+
+
+def _vendor_input_text(
+    case: ParityCase,
+    vendor_src: Path,
+    vendor_tokenizer,
+    labels: list[int],
+    boxes: torch.Tensor,
+    relations: list[tuple[int, int, int, int, int]] | None = None,
+) -> str:
+    _install_vendor_packages(vendor_src)
+    _vendor_modules(vendor_src)
+    data_package = sys.modules["data"]
+    transforms = importlib.import_module("data.transforms")
+    setattr(data_package, "transforms", transforms)
+    setattr(data_package, "LayoutSequence", transforms.LayoutSequence)
+    tasks_package = types.ModuleType("tasks")
+    setattr(tasks_package, "__path__", [str(vendor_src / "tasks")])
+    sys.modules.setdefault("tasks", tasks_package)
+    for package_name in ("utils", "evaluation"):
+        package = types.ModuleType(package_name)
+        setattr(package, "__path__", [str(vendor_src / package_name)])
+        sys.modules.setdefault(package_name, package)
+
+    index2label = _index2label(case)
+    label2index = {label: index for index, label in index2label.items()}
+    if case.task in {"gen_t", "gen_ts"}:
+        serializer_class = importlib.import_module(
+            "tasks.gen_t"
+        ).T5LayoutSequenceForGenT
+        serializer = serializer_class(
+            "gen_ts" if case.task == "gen_ts" else "gen_t",
+            vendor_tokenizer,
+            index2label,
+            label2index,
+            add_sep_token=True,
+        )
+        return serializer.build_input_seq(labels, boxes)
+
+    if case.task == "gen_r":
+        serializer_class = importlib.import_module(
+            "tasks.gen_r"
+        ).T5LayoutSequenceForGenR
+        serializer = serializer_class(
+            vendor_tokenizer,
+            index2label,
+            label2index,
+            add_sep_token=True,
+        )
+        return serializer.build_input_seq(labels, relations or [])
+
+    serializer_class = importlib.import_module("tasks.refinement").T5LayoutSequence
+    serializer = serializer_class(
+        vendor_tokenizer,
+        index2label,
+        label2index,
+        add_sep_token=True,
+    )
+    return serializer.build_seq(labels, boxes)
+
+
+def _public_pipeline_vendor_parity(
+    case: ParityCase,
+    sample_name: str,
+    *,
+    seed: int,
+    relations: list[tuple[int, int, int, int, int]] | None = None,
+    refinement_noise_seed: int | None = None,
+) -> None:
+    device = torch.device(os.environ.get("LAYOUTFORMERPP_PARITY_DEVICE", "cpu"))
+    root = _repo_root()
+    checkpoint, vendor_src, vocab = _case_paths(root, case)
+    vendor_root_path = vendor_root(
+        "ms-layout-generation",
+        marker=VENDOR_MARKER,
+        repo_root=root,
+    )
+    test_path = (
+        vendor_root_path
+        / "LayoutDiffusion"
+        / "data"
+        / "raw_datasets"
+        / "rico"
+        / "pre_processed_20_25"
+        / "test.pt"
+    )
+    missing_paths = [path for path in (checkpoint, test_path) if not path.exists()]
+    if not vendor_src.exists():
+        missing_paths.append(vendor_src)
+    if missing_paths:
+        skip_or_fail_vendor_parity(
+            f"LayoutFormer++ assets are absent for {case.checkpoint_name}",
+            missing_paths=missing_paths,
+            regeneration_hint=(
+                "initialize the LayoutFormer++ vendor source and download the RICO "
+                "test split and checkpoint assets"
+            ),
+        )
+
+    samples = _rico_test_samples(str(test_path))
+    assert sample_name in samples
+    sample = samples[sample_name]
+    layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
+    vendor_tokenizer, tokenizer = _tokenizers(case, vocab, vendor_tokenizer_class)
+    config, state_dict, model = _models(case, checkpoint, tokenizer)
+    model.to(device)
+    processor = LayoutFormerPPProcessor(
+        tokenizer=tokenizer,
+        dataset=case.dataset,
+        task=case.task,
+    )
+    sorted_labels, public_labels, boxes = _sample_layout(processor, sample)
+    discrete_boxes = torch.floor(boxes * 127).long()
+    pipeline_boxes = boxes
+    condition = {
+        "gen_t": ConditionType.label,
+        "gen_ts": ConditionType.label_size,
+        "gen_r": ConditionType.relation,
+        "refinement": ConditionType.refinement,
+    }[case.task]
+    if refinement_noise_seed is not None:
+        noise_generator = torch.Generator(device="cpu").manual_seed(
+            refinement_noise_seed
+        )
+        pipeline_boxes = (
+            pipeline_boxes
+            + torch.randn(pipeline_boxes.shape, generator=noise_generator) * 0.01
+        ).clamp(0.0, 1.0)
+    input_discrete_boxes = torch.floor(pipeline_boxes * 127).long()
+
+    package_input_text = (
+        processor.gen_r_serializer.build_input_seq(sorted_labels, relations or [])
+        if case.task == "gen_r"
+        else processor.gen_t_serializer.build_input_seq(
+            "gen_ts" if case.task == "gen_ts" else "gen_t",
+            sorted_labels,
+            input_discrete_boxes.tolist(),
+        )
+        if case.task in {"gen_t", "gen_ts"}
+        else processor.serializer.build_seq(
+            sorted_labels, input_discrete_boxes.tolist()
+        )
+    )
+    input_text = _vendor_input_text(
+        case,
+        vendor_src,
+        vendor_tokenizer,
+        sorted_labels,
+        input_discrete_boxes,
+        relations,
+    )
+    assert input_text == package_input_text
+    encoded = processor(
+        condition_type=condition,
+        labels=cast(list[list[int | str]], [public_labels]),
+        bbox=[pipeline_boxes.tolist()],
+        relations=None if relations is None else [relations],
+        box_format="ltwh",
+        normalized=True,
+    )
+    vendor_encoded = vendor_tokenizer([input_text], add_eos=True, add_bos=False)
+    torch.testing.assert_close(encoded["input_ids"], vendor_encoded["input_ids"])
+    vendor_input_ids = vendor_encoded["input_ids"].to(device)
+    vendor_padding_mask = ~vendor_encoded["mask"].to(device).bool()
+    pipeline = LayoutFormerPPPipeline(model=model, processor=processor)
+    vendor_model = layout_transformer(
+        vocab_size=len(vendor_tokenizer),
+        max_len=config.max_position_embeddings,
+        bos_token_id=vendor_tokenizer.bos_token_id,
+        pad_token_id=vendor_tokenizer.pad_token_id,
+        eos_token_id=vendor_tokenizer.eos_token_id,
+        d_model=config.d_model,
+        num_layers=config.encoder_layers,
+        nhead=config.encoder_attention_heads,
+        dropout=config.dropout,
+        d_feedforward=config.dim_feedforward,
+        share_embedding=config.share_embedding,
+    )
+    vendor_model.load_state_dict(state_dict, strict=False)
+    vendor_model.to(device)
+    vendor_model.eval()
+    vendor_constraint = _vendor_task_constraint(
+        case,
+        vendor_src,
+        vendor_tokenizer,
+        sorted_labels,
+        discrete_boxes,
+        relations,
+    )
+    use_constrained_decoder = case.task in {"gen_t", "gen_ts", "gen_r"}
+    max_length = (
+        int(vendor_encoded["input_ids"].size(-1)) + 1
+        if case.task == "refinement"
+        else 150
+        if case.task == "gen_r"
+        else 120
+    )
+    random.seed(seed)
+    torch.manual_seed(seed)
+    with torch.no_grad():
+        vendor_sequences = vendor_model(
+            vendor_input_ids,
+            vendor_padding_mask,
+            max_length=max_length,
+            constrained_decoding=use_constrained_decoder,
+            generation_constraint_fn=vendor_constraint,
+        )["output"]
+    package_output = pipeline(
+        condition_type=condition,
+        labels=cast(list[list[int | str]], [public_labels]),
+        bbox=[pipeline_boxes.tolist()],
+        relations=None if relations is None else [relations],
+        box_format="ltwh",
+        generator=torch.Generator(device=device).manual_seed(seed),
+    )
+
+    assert isinstance(package_output, LayoutGenerationOutput)
+    package_sequences = package_output.sequences
+    assert isinstance(package_sequences, torch.Tensor)
+    assert torch.equal(package_sequences.cpu(), vendor_sequences.cpu()), (
+        f"{case.checkpoint_name} {sample_name} sequence mismatch"
+    )
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(
+    ("task", "sample_name"),
+    [
+        ("gen_t", "15468.json"),
+        ("gen_t", "2216.json"),
+        ("gen_ts", "15468.json"),
+        ("gen_ts", "2216.json"),
+    ],
+)
+def test_public_constrained_pipeline_matches_vendor(
+    task: str, sample_name: str
+) -> None:
+    _public_pipeline_vendor_parity(
+        ParityCase(dataset="rico", task=task),
+        sample_name,
+        seed=500,
+    )
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(
+    ("sample_name", "relations"),
+    [
+        (
+            "15468.json",
+            [
+                (0, 1, 1, 2, 4),
+                (0, 1, 2, 2, 3),
+                (1, 1, 2, 1, 3),
+                (1, 1, 2, 2, 0),
+                (1, 1, 5, 2, 5),
+                (1, 2, 2, 3, 3),
+                (1, 2, 2, 4, 3),
+                (2, 3, 5, 2, 2),
+            ],
+        ),
+        (
+            "2216.json",
+            [(2, 1, 8, 1, 5), (2, 1, 8, 2, 5), (5, 1, 8, 1, 3)],
+        ),
+    ],
+)
+def test_public_relation_pipeline_matches_vendor(
+    sample_name: str,
+    relations: list[tuple[int, int, int, int, int]],
+) -> None:
+    _public_pipeline_vendor_parity(
+        ParityCase(dataset="rico", task="gen_r"),
+        sample_name,
+        seed=500,
+        relations=relations,
+    )
+
+
+@pytest.mark.vendor_parity
+def test_public_refinement_pipeline_matches_vendor_with_gold_label_mask() -> None:
+    _public_pipeline_vendor_parity(
+        ParityCase(dataset="rico", task="refinement"),
+        "29588.json",
+        seed=100,
+        refinement_noise_seed=100,
+    )
 
 
 @pytest.mark.vendor_parity

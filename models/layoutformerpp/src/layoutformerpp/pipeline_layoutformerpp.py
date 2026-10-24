@@ -20,10 +20,16 @@ from laygen.pipelines.base import PipelineComponent
 from transformers import PretrainedConfig
 from transformers.pipelines.base import GenericTensor
 
-from .configuration_layoutformerpp import LayoutFormerPPConfig
+from .configuration_layoutformerpp import LayoutFormerPPConfig, TASK_DEFAULTS
+from .constraints import LayoutFormerPPGenerationConstraint
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
 from .processing_layoutformerpp import LayoutFormerPPProcessor
-from .tasks import OutputType
+from .tasks import (
+    OutputType,
+    TASK_TO_CONDITION,
+    normalize_layoutformerpp_dataset,
+    normalize_layoutformerpp_task,
+)
 
 LayoutFormerPPOutputDict: TypeAlias = dict[
     str,
@@ -164,7 +170,9 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             labels: Optional label conditions.
             bbox: Optional layout boxes for size/completion/refinement conditions.
             mask: Reserved public validity mask input.
-            relations: Optional relation tuples for relation-conditioned checkpoints.
+            relations: Relation tuples use one-based indexes within each label. For
+                non-canvas sources, the source element must precede its target in the
+                label sequence used for decoding.
             num_elements: Reserved v1 interface argument.
             box_format: Input and output bounding-box format.
             normalized: Whether public boxes are normalized.
@@ -177,11 +185,21 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             top_k: Top-k value used by the reference sampling loop.
             temperature: Sampling temperature.
 
+        When ``max_length`` is omitted and the model config matches its dataset/task
+        default, the pipeline uses 120 tokens for unconditional, completion, label,
+        and label-size generation, 150 for relation generation, or input length plus
+        one for refinement. This equality rule also applies when the config value was
+        set explicitly; pass ``max_length`` to select another per-call limit.
+
+        For batches larger than one, the probability gate uses row zero, relation
+        rollback uses the last row's rollback point, and a rollback truncates every
+        row to the same prefix.
+
         Returns:
             Layout generation output dataclass or dictionary.
 
         Raises:
-            ValueError: If processor inputs are invalid.
+            ValueError: If processor inputs or relation label/index references are invalid.
         """
         _ = (num_elements, num_inference_steps, return_intermediates)
         encoded = self.processor(
@@ -200,6 +218,48 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         input_ids = encoded["input_ids"].to(model_device)
         attention_mask = encoded["attention_mask"].to(model_device)
         condition = self.processor.normalize_condition_type(condition_type)
+        generation_constraint_fn = None
+        if condition in {
+            ConditionType.label,
+            ConditionType.label_size,
+            ConditionType.relation,
+            ConditionType.refinement,
+        }:
+            constraint_batch_size = input_ids.size(0)
+            row_lengths = (
+                [len(row) for row in labels]
+                if labels is not None
+                else [0] * constraint_batch_size
+            )
+            prepared_mask = self.processor._prepare_mask(
+                mask,
+                batch_size=constraint_batch_size,
+                row_lengths=row_lengths,
+            )
+            constraint_labels = self.processor._prepare_labels(
+                labels,
+                constraint_batch_size,
+                prepared_mask,
+            )
+            constraint_bboxes = self.processor._prepare_bbox(
+                bbox,
+                labels=constraint_labels,
+                box_format=box_format,
+                mask=prepared_mask,
+                normalized=normalized,
+                canvas_size=canvas_size,
+            )
+            generation_constraint_fn = LayoutFormerPPGenerationConstraint(
+                tokenizer=self.processor.tokenizer,
+                condition=condition,
+                labels=constraint_labels,
+                bboxes=constraint_bboxes,
+                relations=relations,
+                x_grid=self.processor.x_grid,
+                y_grid=self.processor.y_grid,
+                add_sep_token=self.processor.add_sep_token,
+            )
+
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
@@ -208,13 +268,36 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             ConditionType.unconditional,
             ConditionType.completion,
         }
+        model_task = normalize_layoutformerpp_task(self.model.config.task)
+        config_default_max_length = TASK_DEFAULTS[
+            (
+                normalize_layoutformerpp_dataset(self.model.config.dataset),
+                TASK_TO_CONDITION[model_task],
+            )
+        ]["decode_max_length"]
+        default_max_length = self.model.config.decode_max_length
+        if default_max_length == config_default_max_length:
+            default_max_length = 150 if condition is ConditionType.relation else 120
+            if condition is ConditionType.refinement:
+                default_max_length = input_ids.size(-1) + 1
+
         sequences = self.model._generate_sequences(
             input_ids,
             attention_mask,
-            max_length=max_length,
+            max_length=default_max_length if max_length is None else max_length,
             do_sample=default_do_sample if do_sample is None else do_sample,
             top_k=top_k,
             temperature=temperature,
+            constrained_decoding=(
+                condition
+                in {
+                    ConditionType.label,
+                    ConditionType.label_size,
+                    ConditionType.relation,
+                }
+                and (do_sample is None or do_sample)
+            ),
+            generation_constraint_fn=generation_constraint_fn,
             generator=generation_generator,
         )
         return self.processor.post_process_layouts(
