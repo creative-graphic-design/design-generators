@@ -20,6 +20,37 @@ def test_tokenizer_encode_decode_layout_round_trip() -> None:
     assert decoded["labels"][0, 0].item() == 0
 
 
+def test_tokenizer_decode_matches_vendor_oov_and_clipping() -> None:
+    """Decode a synthetic five-item sequence for OOV and clipping behavior.
+
+    This mirrors ``vendor/ralf/image2layout/train/helpers/layout_tokenizer.py``:
+    ``_detect_oov`` validates offset-adjusted geometry against ``N_bbox`` at
+    lines 200-211, and ``decode`` clips bucket indices in ``BaseBucketizer`` at
+    lines 58-60 before the sequence-level invalid handling at lines 390-401.
+    """
+    tokenizer = RalfLayoutTokenizer(
+        RalfConfig(
+            id2label={0: "logo", 1: "text", 2: "underlay", 3: "embellishment"},
+            max_seq_length=1,
+            num_bin=128,
+        )
+    )
+    sequence = torch.tensor([[2, 263, 518, 125, 211]])
+
+    single = tokenizer.decode_layout(sequence)
+    batched = tokenizer.decode_layout(
+        torch.cat([sequence, torch.tensor([[0, 260, 389, 4, 132]])])
+    )
+
+    expected_bbox = torch.tensor([[[0.94921875, 0.62109375, 0.02734375, 0.99609375]]])
+    assert single["mask"].tolist() == [[True]]
+    assert single["labels"].tolist() == [[2]]
+    assert torch.equal(single["bbox"], expected_bbox)
+    assert single["mask"].equal(batched["mask"][:1])
+    assert single["labels"].equal(batched["labels"][:1])
+    assert single["bbox"].equal(batched["bbox"][:1])
+
+
 def test_tokenizer_offsets_and_token_mask() -> None:
     config = RalfConfig(max_seq_length=1, num_bin=4)
     tokenizer = RalfLayoutTokenizer(config)
