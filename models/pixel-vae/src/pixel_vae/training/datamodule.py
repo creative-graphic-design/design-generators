@@ -195,6 +195,7 @@ class PixelVAEDataModule(L.LightningDataModule):
         num_workers: Number of PyTorch workers that load and decode batches.
         pin_memory: Whether to pin batches for asynchronous CUDA transfers.
         sampler_start_epoch: Source-order epoch to use when training resumes.
+        sampler_start_global_step: Checkpoint step at the start of this epoch.
     """
 
     def __init__(
@@ -204,14 +205,16 @@ class PixelVAEDataModule(L.LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         sampler_start_epoch: int = 0,
+        sampler_start_global_step: int = 0,
     ) -> None:
-        """Store the dataset location, loader settings, and sampler start epoch."""
+        """Store dataset, loader, and sampler resume settings."""
         super().__init__()
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.sampler_start_epoch = sampler_start_epoch
+        self.sampler_start_global_step = sampler_start_global_step
         self.worker_generator = torch.Generator(device="cpu").manual_seed(0)
         self.processor = PixelVAEImageProcessor()
         self.datasets: dict[str, _PixelVAERecordDataset] = {}
@@ -231,6 +234,9 @@ class PixelVAEDataModule(L.LightningDataModule):
 
         if self.sampler_start_epoch < 0:
             raise ValueError("sampler_start_epoch must be non-negative")
+
+        if self.sampler_start_global_step < 0:
+            raise ValueError("sampler_start_global_step must be non-negative")
 
         count_path = self.data_dir / "count.json"
         try:
