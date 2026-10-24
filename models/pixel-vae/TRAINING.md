@@ -51,6 +51,10 @@ The training config includes an epoch timing callback. Set `PIXELVAE_EPOCH_TIMIN
 
 The original image-record transform selects `imageElement`, `maskElement`, and `svgElement` images, then deduplicates identical PNG bytes within each split. [The Crello amendment records this selection.](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6065470695)
 
+## Segment Acceptance
+
+Accept a completed segment only after reading its `last.ckpt` back from the Hugging Face Hub: its SHA-256 must equal `checkpoints.last_sha256` in the segment report, and its stored `global_step` must equal `segment.global_step` in that report. A successful training exit code alone does not confirm that every artifact reached the Hub. The best checkpoint stores weights only and cannot resume optimizer state; continue segmented training from the verified full-state `last.ckpt`.
+
 Scheduler cadence — not applicable: the source and package use a constant learning rate. Importance sampler — not applicable: the training loop has no timestep or importance sampler. EMA — not applicable: the training loop has no exponential moving average. AMP — not applicable: the recipe uses float32. Multi-worker loader — applied: the sampler fixes record order in the main process, and the six-worker, persistent-worker, pinned-memory loader preserves the same first 20 batch tensor hashes at epochs 1 and 11 in the committed CPU regression test.
 
 ## Seed Policy
