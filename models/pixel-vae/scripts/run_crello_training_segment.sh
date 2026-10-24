@@ -512,15 +512,6 @@ if [[ "$start_epoch" == 0 || "$run_lockstep" == 1 ]]; then
     }
 fi
 
-best_output_path="$run_dir/checkpoints/best.ckpt"
-if [[ -n "$best_path" && ! -e "$best_output_path" && ! -L "$best_output_path" ]]; then
-    cp -- "$best_path" "$best_output_path"
-fi
-if [[ -n "$best_path" && ( ! -f "$best_output_path" || -L "$best_output_path" ) ]]; then
-    printf 'resume best checkpoint was not staged as a regular output file\n' >&2
-    exit 2
-fi
-
 export PIXELVAE_EPOCH_TIMING_FILE="$epoch_timing_path"
 stop_sampler() {
     if [[ -n "$sampler_pid" ]]; then
@@ -592,6 +583,15 @@ if ((train_status != 0)); then
     emit_scanned_log || true
     printf 'training segment failed with exit code %s\n' "$train_status" >&2
     exit "$train_status"
+fi
+best_output_path="$run_dir/checkpoints/best.ckpt"
+if [[ -n "$best_path" && ! -e "$best_output_path" && ! -L "$best_output_path" ]]; then
+    # Keep the previous best out of Lightning's checkpoint directory until the fit can replace it.
+    cp -- "$best_path" "$best_output_path"
+fi
+if [[ -n "$best_path" && ( ! -f "$best_output_path" || -L "$best_output_path" ) ]]; then
+    printf 'best checkpoint was not staged as a regular output file\n' >&2
+    exit 2
 fi
 stop_checkpoint_inventory
 record_checkpoint_inventory
