@@ -2,6 +2,8 @@ name: CI
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 10 * * *"
   pull_request:
     types:
       - opened
@@ -77,17 +79,19 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      non_markdown: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.non_markdown }}
-      docs_content: ${{ github.event_name == 'merge_group' && 'true' || steps.docs_filter.outputs.docs_content }}
+      non_markdown: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.non_markdown }}
+      docs_content: ${{ steps.docs_filter.outputs.docs_content }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Detect non-markdown changes
         id: filter
-        if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: every
           filters: |
@@ -97,8 +101,8 @@ jobs:
 
       - name: Detect documentation content changes
         id: docs_filter
-        if: github.event_name != 'merge_group'
-        uses: dorny/paths-filter@v3
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             docs_content:
@@ -149,13 +153,13 @@ jobs:
           #
           # pytest-models duplicates the coverage-enforcing member matrix, and
           # vulture runs as the dedicated Dead Code job below on merge queue,
-          # main pushes, and manual dispatches.
+          # main pushes, manual dispatches, and scheduled runs.
           SKIP: uv-lock,pytest-models,vulture
         run: uv run pre-commit run --all-files
 
   dead-code:
     name: Dead Code
-    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -223,6 +227,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -231,7 +237,16 @@ jobs:
 
       - name: List workspace members with tests
         id: members
-        run: echo "members=$(scripts/list_test_members.sh)" >> "${GITHUB_OUTPUT}"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            members="$(scripts/select_test_members.py --base "${BASE_SHA}" --head "${HEAD_SHA}")"
+          else
+            members="$(scripts/select_test_members.py)"
+          fi
+          echo "members=${members}" >> "${GITHUB_OUTPUT}"
 
   test-root-tooling:
     name: Test (root tooling)
@@ -325,7 +340,7 @@ jobs:
     needs:
       - changes
       - discover-test-members
-    if: needs.changes.outputs.non_markdown == 'true'
+    if: needs.changes.outputs.non_markdown == 'true' && needs.discover-test-members.outputs.members != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -372,30 +387,87 @@ jobs:
     name: Test
     needs:
       - changes
+      - discover-test-members
       - test-root-tooling
       - evaluation-extra-smoke
       - test-member
-    if: always() && needs.changes.outputs.non_markdown == 'true'
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - name: Check test results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          NON_MARKDOWN: ${{ needs.changes.outputs.non_markdown }}
+          DISCOVER_RESULT: ${{ needs.discover-test-members.result }}
+          MEMBERS: ${{ needs.discover-test-members.outputs.members }}
+          TEST_ROOT_RESULT: ${{ needs.test-root-tooling.result }}
+          EVALUATION_RESULT: ${{ needs.evaluation-extra-smoke.result }}
+          TEST_MEMBER_RESULT: ${{ needs.test-member.result }}
         run: |
-          if [ "${{ needs.test-root-tooling.result }}" != "success" ]; then
-            echo "Test (root tooling) result: ${{ needs.test-root-tooling.result }}" >&2
+          if [ "${CHANGES_RESULT}" != "success" ]; then
+            echo "Changes result: ${CHANGES_RESULT}" >&2
             exit 1
           fi
 
-          if [ "${{ needs.evaluation-extra-smoke.result }}" != "success" ]; then
-            echo "Evaluation extra smoke result: ${{ needs.evaluation-extra-smoke.result }}" >&2
+          if [ "${NON_MARKDOWN}" != "true" ]; then
+            echo "No non-Markdown changes; workspace tests were skipped."
+            exit 0
+          fi
+
+          if [ "${DISCOVER_RESULT}" != "success" ]; then
+            echo "Discover Test Members result: ${DISCOVER_RESULT}" >&2
             exit 1
           fi
 
-          if [ "${{ needs.test-member.result }}" != "success" ]; then
-            echo "Test (member) result: ${{ needs.test-member.result }}" >&2
+          if [ "${TEST_ROOT_RESULT}" != "success" ]; then
+            echo "Test (root tooling) result: ${TEST_ROOT_RESULT}" >&2
             exit 1
           fi
+
+          if [ "${EVALUATION_RESULT}" != "success" ]; then
+            echo "Evaluation extra smoke result: ${EVALUATION_RESULT}" >&2
+            exit 1
+          fi
+
+          if [ "${TEST_MEMBER_RESULT}" != "success" ]; then
+            if [ "${MEMBERS}" != "[]" ] || [ "${TEST_MEMBER_RESULT}" != "skipped" ]; then
+              echo "Test (member) result: ${TEST_MEMBER_RESULT}" >&2
+              exit 1
+            fi
+            echo "No workspace members with tests were selected."
+          fi
+
+  # Daily full member test failures notify the repository owner through this open tracking issue: https://github.com/creative-graphic-design/design-generators/issues/478.
+  notify-scheduled-failure:
+    name: Scheduled Failure Notification
+    needs:
+      - pr-metadata
+      - changes
+      - lint
+      - dead-code
+      - typecheck
+      - discover-test-members
+      - test-root-tooling
+      - evaluation-extra-smoke
+      - test-member
+      - test
+    if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: Comment on the tracking issue and notify a maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment 478 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --body "@shunk031 Daily full member test run failed: ${RUN_URL}"
 
   docs:
     name: Documentation

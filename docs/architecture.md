@@ -39,7 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Dependency environments
 
-A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings.
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. For pull requests and merge queue entries, the matrix selects test-bearing members from changed paths and transitive declared dependencies; any non-Markdown change outside a member directory selects all test-bearing members, while Markdown-only changes skip member tests. Non-Markdown main pushes, manual dispatches, and the daily scheduled run select the full member matrix. Selection follows declared `dependencies`, `optional-dependencies`, and dependency groups, always adds `devharness` for non-Markdown changes, and does not infer undeclared imports or shared test data.
 
 A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the root `evaluation` extra when they run `scripts/verify_evaluate_layout_metrics.py`. The root project installs no runtime dependencies by default; it owns the workspace-wide `transformers` and `diffusers` version floors and the `dev` and `docs` tooling groups, while workspace members own their runtime dependencies.
 
@@ -136,7 +136,7 @@ Move a helper into a shared package when at least two packages need the same beh
 
 ## Dependency direction
 
-All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
+All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed. `posgen` declares `laygen` in its `test` dependency group because its tests import `laygen.common`. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
 
@@ -147,7 +147,7 @@ The Transformers-side shared layout output in `laygen.modeling_outputs` is based
 ```mermaid
 graph LR
     laygen["laygen"] --> model_packages["model packages"]
-    laygen -. "optional; currently unused" .-> posgen["posgen"]
+    laygen -. "test dependency" .-> posgen["posgen"]
     posgen --> poster_models["poster or content-aware model packages"]
 ```
 
