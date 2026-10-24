@@ -360,10 +360,6 @@ if [[ "$cpu_rehearsal" != 1 && "$start_global_step" -ne "$((start_epoch * train_
     exit 2
 fi
 if [[ "$cpu_rehearsal" == 1 ]]; then
-    [[ "$end_epoch" == "$((start_epoch + 1))" && "$end_epoch" -le 250 ]] || {
-        printf 'CPU rehearsal must save one epoch after its loaded checkpoint\n' >&2
-        exit 2
-    }
     export CUDA_VISIBLE_DEVICES=''
     run_logged uv run --locked --package pixel-vae --extra training python - <<'PY'
 import torch
