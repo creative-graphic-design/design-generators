@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from time import monotonic
+from typing import cast
 
 import lightning as L
 import torch
@@ -16,6 +17,7 @@ from torch.optim import Optimizer
 
 from ..configuration_pixel_vae import PixelVAEConfig
 from ..modeling_pixel_vae import PixelVAEModel
+from .datamodule import PixelVAEDataModule
 from traingen.optim import KerasAdam
 
 
@@ -28,6 +30,7 @@ class PixelVAEEpochTimingCallback(L.Callback):
         self.output_path = output_path
         self._epoch_started_at: float | None = None
         self._epoch_started_at_utc: str | None = None
+        self._sampler_epoch: int | None = None
 
     def setup(
         self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
@@ -40,8 +43,12 @@ class PixelVAEEpochTimingCallback(L.Callback):
     def on_train_epoch_start(
         self, trainer: L.Trainer, pl_module: L.LightningModule
     ) -> None:
-        """Start measuring before the first training batch of an epoch."""
-        del trainer, pl_module
+        """Set and record the source-order index before each training epoch."""
+        del pl_module
+        datamodule = cast(PixelVAEDataModule, trainer.datamodule)
+        sampler = datamodule.samplers["train"]
+        sampler.set_epoch(trainer.current_epoch)
+        self._sampler_epoch = sampler.epoch
         self._epoch_started_at = monotonic()
         self._epoch_started_at_utc = datetime.now(timezone.utc).isoformat()
 
@@ -61,16 +68,19 @@ class PixelVAEEpochTimingCallback(L.Callback):
         if self.output_path is None:
             return
 
+        assert self._sampler_epoch is not None, "sampler epoch was not recorded"
         path = Path(self.output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         record: dict[str, int | float | str] = {
             "epoch": trainer.current_epoch + 1,
+            "sampler_epoch": self._sampler_epoch,
             "train_and_validation_wall_seconds": elapsed,
             "started_at_utc": started_at_utc or "",
             "finished_at_utc": finished_at.isoformat(),
         }
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, sort_keys=True) + "\n")
+        self._sampler_epoch = None
 
 
 class PixelVAETrainingModule(L.LightningModule):
