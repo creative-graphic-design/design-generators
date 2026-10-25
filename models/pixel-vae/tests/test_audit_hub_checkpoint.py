@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import runpy
-from types import SimpleNamespace
+from types import FunctionType, SimpleNamespace
 from typing import Callable, Literal, TypedDict, cast
 
 import pytest
@@ -38,7 +38,8 @@ def test_audit_pins_metadata_and_download_and_records_sha_mismatches(
 ) -> None:
     script_path = Path(__file__).parents[1] / "scripts" / "audit_hub_checkpoint.py"
     namespace = runpy.run_path(str(script_path))
-    main = cast(AuditMain, namespace["main"])
+    main_function = cast(FunctionType, namespace["main"])
+    main = cast(AuditMain, main_function)
     pinned_revision = "a" * 40
     checkpoint = "checkpoints/last.ckpt"
     content = b"tiny checkpoint bytes"
@@ -105,13 +106,13 @@ def test_audit_pins_metadata_and_download_and_records_sha_mismatches(
         revisions.append(revision)
         return str(downloaded)
 
-    monkeypatch.setitem(namespace, "HfApi", FakeApi)
-    monkeypatch.setitem(namespace, "RepoFile", FakeRepoFile)
-    monkeypatch.setitem(namespace, "hf_hub_download", download)
-    monkeypatch.setattr(
-        namespace["torch"],
-        "load",
-        lambda *_args, **_kwargs: {"epoch": 4, "global_step": 14},
+    monkeypatch.setitem(main_function.__globals__, "HfApi", FakeApi)
+    monkeypatch.setitem(main_function.__globals__, "RepoFile", FakeRepoFile)
+    monkeypatch.setitem(main_function.__globals__, "hf_hub_download", download)
+    monkeypatch.setitem(
+        main_function.__globals__,
+        "torch",
+        SimpleNamespace(load=lambda *_args, **_kwargs: {"epoch": 4, "global_step": 14}),
     )
 
     output = tmp_path / "audit.json"
