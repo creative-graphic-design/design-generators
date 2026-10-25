@@ -33,7 +33,7 @@ class AuditReport(TypedDict):
 AuditMain = Callable[[list[str] | None], int]
 
 
-def test_audit_pins_metadata_and_download_and_records_expected_sha_mismatch(
+def test_audit_pins_metadata_and_download_and_records_sha_mismatches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     script_path = Path(__file__).parents[1] / "scripts" / "audit_hub_checkpoint.py"
@@ -43,6 +43,7 @@ def test_audit_pins_metadata_and_download_and_records_expected_sha_mismatch(
     checkpoint = "checkpoints/last.ckpt"
     content = b"tiny checkpoint bytes"
     digest = hashlib.sha256(content).hexdigest()
+    metadata_digest = "0" * 64
     downloaded = tmp_path / "last.ckpt"
     downloaded.write_bytes(content)
     revisions: list[str] = []
@@ -83,7 +84,7 @@ def test_audit_pins_metadata_and_download_and_records_expected_sha_mismatch(
                 FakeRepoFile(
                     path=checkpoint,
                     size=len(content),
-                    lfs=SimpleNamespace(sha256=digest),
+                    lfs=SimpleNamespace(sha256=metadata_digest),
                 )
             ]
 
@@ -138,6 +139,10 @@ def test_audit_pins_metadata_and_download_and_records_expected_sha_mismatch(
     assert report["global_step"] == 14
     assert exit_code == 1
     assert report["checkpoint_sha256"] == digest
+    assert report["metadata_sha256"] == metadata_digest
+    assert (
+        "downloaded checkpoint SHA-256 differs from pinned metadata" in report["errors"]
+    )
     assert (
         "downloaded checkpoint SHA-256 differs from expected SHA-256"
         in report["errors"]
