@@ -413,10 +413,8 @@ if visible != 0:
 PY
     accelerator=cpu
 else
-    expected_end=$((start_epoch == 0 ? 10 : start_epoch + 68))
-    ((expected_end <= 250)) || expected_end=250
-    [[ "$end_epoch" == "$expected_end" ]] || {
-        printf 'production segment must end at the next boundary, epoch %s\n' "$expected_end" >&2
+    ((start_epoch < end_epoch && end_epoch <= 250)) || {
+        printf 'production segment end must be after the resume epoch and at most 250\n' >&2
         exit 2
     }
     if [[ ! ${CUDA_VISIBLE_DEVICES+x} ]]; then
