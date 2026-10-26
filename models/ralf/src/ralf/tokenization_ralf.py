@@ -296,12 +296,12 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
             values = tokens[..., var_idx]
             if key == "label":
                 labels = values.clamp(0, self.config.num_labels - 1)
-                mask &= values.lt(self.config.num_labels)
+                mask &= (values >= 0) & (values < self.config.num_labels)
                 eos_seen = torch.cumsum(values.eq(self.config.eos_token_id), dim=1) > 0
                 mask &= ~eos_seen
             else:
                 local = values - self.config.bbox_token_offset(key)
-                mask &= (local >= 0) & (local < self.config.num_bin)
+                mask &= (local >= 0) & (local < self.config.num_bbox_tokens)
                 bbox_parts[key] = self._dequantize(local)
         bbox = torch.stack(
             (
