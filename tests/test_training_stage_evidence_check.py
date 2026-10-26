@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -39,7 +40,22 @@ def write_training_md(root: Path, package: str, text: str) -> Path:
     path.write_text(text, encoding="utf-8")
     config_path = root / "models" / package / "configs" / "training" / "full.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text("trainer: {}\n", encoding="utf-8")
+    config_path.write_text(
+        "trainer:\n"
+        "  callbacks:\n"
+        "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
+        "      init_args:\n"
+        "        monitor: val_loss\n"
+        "        save_top_k: 1\n"
+        "        filename: best\n",
+        encoding="utf-8",
+    )
+    if not (root / ".git").exists():
+        subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "add", "--", config_path.relative_to(root).as_posix()],
+        check=True,
+    )
     return path
 
 
@@ -48,7 +64,7 @@ def complete_stage_evidence_table(checkpoint_fields: bool = True) -> str:
         " | Checkpoint Path | Checkpoint SHA-256 |" if checkpoint_fields else ""
     )
     checkpoint_values = (
-        " | `.cache/pkg/s3/checkpoints/last.ckpt` | "
+        " | `.cache/pkg/s3/checkpoints/best.ckpt` | "
         "`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` |"
         if checkpoint_fields
         else ""
@@ -56,14 +72,14 @@ def complete_stage_evidence_table(checkpoint_fields: bool = True) -> str:
     return f"""
 ## Stage Evidence
 
-| Stage | Command | Artifact | Result{checkpoint_headers}
-| --- | --- | --- | ---{(" | --- | --- |" if checkpoint_fields else "")}
-| S0 | `uv run pytest s0` | `.cache/pkg/s0.json` | Static config parity passed.{(" | — | — |" if checkpoint_fields else "")}
-| S1 | `uv run pytest s1` | `.cache/pkg/s1.json` | Fixed-batch trace parity passed.{(" | — | — |" if checkpoint_fields else "")}
-| S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | One optimizer step parity passed.{(" | — | — |" if checkpoint_fields else "")}
-| S3 | `uv run --package pkg --extra training traingen fit --config models/pkg/configs/training/full.yaml --trainer.max_epochs=1 --trainer.limit_train_batches=2 --trainer.limit_val_batches=2` | `.cache/pkg/s3/metrics.csv` | Multi-batch deterministic run passed.{checkpoint_values}
-| S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed.{(" | — | — |" if checkpoint_fields else "")}
-| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | training-seed n=3 accepted.{(" | — | — |" if checkpoint_fields else "")}
+| Stage | Command | Checkpoint Smoke Command | Full-run Config | Artifact | Result{checkpoint_headers}
+| --- | --- | --- | --- | --- | ---{(" | --- | --- |" if checkpoint_fields else "")}
+| S0 | `uv run pytest s0` | not required | not required | `.cache/pkg/s0.json` | Static config parity passed.{(" | — | — |" if checkpoint_fields else "")}
+| S1 | `uv run pytest s1` | not required | not required | `.cache/pkg/s1.json` | Fixed-batch trace parity passed.{(" | — | — |" if checkpoint_fields else "")}
+| S2 | `uv run pytest s2` | not required | not required | `.cache/pkg/s2.json` | One optimizer step parity passed.{(" | — | — |" if checkpoint_fields else "")}
+| S3 | `uv run pytest s3-trajectory` | `uv run --package pkg --extra training traingen fit --config models/pkg/configs/training/full.yaml --trainer.max_epochs=1 --trainer.limit_train_batches=2 --trainer.limit_val_batches=2` | not required | `.cache/pkg/s3/metrics.csv` | Multi-batch deterministic run passed.{checkpoint_values}
+| S4 | `uv run pytest s4` | not required | not required | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed.{(" | — | — |" if checkpoint_fields else "")}
+| S5 | `uv run train full` | not required | `models/pkg/configs/training/full.yaml` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | training-seed n=3 accepted.{(" | — | — |" if checkpoint_fields else "")}
 """
 
 
@@ -80,8 +96,7 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
 
 def test_s5_claim_checks_multiple_exact_stage_evidence_sections(tmp_path: Path) -> None:
     second_table = complete_stage_evidence_table().replace(
-        "| S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed. |",
-        "| S4 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |",
+        "Loader stream parity passed.", "TODO"
     )
     write_training_md(
         tmp_path,
@@ -615,6 +630,17 @@ def test_has_s5_claim_detects_each_claim_pattern(claim: str) -> None:
     assert check_training_stage_evidence.has_s5_claim(claim)
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "S5 on PubLayNet v1.2 is reproduced.",
+        "S5 with FID 3.21 is reproduced.",
+    ],
+)
+def test_has_s5_claim_detects_decimal_periods(claim: str) -> None:
+    assert check_training_stage_evidence.has_s5_claim(claim)
+
+
 def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     assert check_training_stage_evidence.has_s5_claim(
         "Training reproduction is achieved for RICO25; model card update pending."
@@ -833,36 +859,14 @@ Package training reproduction is achieved with training-seed n=3.
 {complete_stage_evidence_table(checkpoint_fields=False)}
 """
     path = write_training_md(tmp_path, "layout-dm", text)
-    write_checkpoint_grandfather_baseline(tmp_path, path, text)
+    write_checkpoint_grandfather_baseline(
+        tmp_path, path, path.read_text(encoding="utf-8")
+    )
     manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text('{"source_commit":"existing"}\n', encoding="utf-8")
 
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
-
-
-def test_post_rule_manifest_on_grandfathered_claim_requires_checkpoint_smoke(
-    tmp_path: Path,
-) -> None:
-    text = f"""
-# Training
-
-## Reproduction Results
-
-Package training reproduction is achieved with training-seed n=3.
-
-{complete_stage_evidence_table(checkpoint_fields=False)}
-"""
-    path = write_training_md(tmp_path, "layout-dm", text)
-    write_checkpoint_grandfather_baseline(tmp_path, path, text)
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text('{"launched_at":"2026-10-27T00:00:00Z"}\n', encoding="utf-8")
-
-    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
-        "models/layout-dm/TRAINING.md\tS3\t"
-        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
-    }
 
 
 def test_new_s5_record_without_checkpoint_smoke_fails(tmp_path: Path) -> None:
@@ -876,10 +880,11 @@ Package training reproduction is achieved with training-seed n=3.
 {complete_stage_evidence_table(checkpoint_fields=False)}
 """
     path = write_training_md(tmp_path, "layout-dm", old_text)
-    write_checkpoint_grandfather_baseline(tmp_path, path, old_text)
+    write_checkpoint_grandfather_baseline(
+        tmp_path, path, path.read_text(encoding="utf-8")
+    )
     new_text = old_text.replace(
-        "training-seed n=3 accepted.",
-        "training-seed n=3 accepted; launched_at=2026-10-27T00:00:00Z.",
+        "training-seed n=3 accepted.", "training-seed n=4 accepted."
     )
     path.write_text(new_text, encoding="utf-8")
 
@@ -922,22 +927,161 @@ Package training reproduction is achieved with training-seed n=3.
     }
 
 
-def test_post_rule_launch_manifest_without_claim_requires_checkpoint_smoke(
+@pytest.mark.parametrize(
+    "override",
+    [
+        "--trainer.enable_checkpointing false",
+        "--trainer.callbacks=[]",
+        "--trainer.limit_val_batches 0",
+        "--trainer.check_val_every_n_epoch 99",
+    ],
+)
+def test_checkpoint_smoke_rejects_unbounded_trainer_overrides(
+    tmp_path: Path, override: str
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        "--trainer.limit_val_batches=2` |",
+        f"--trainer.limit_val_batches=2 {override}` |",
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_allows_validation_every_epoch_override(
     tmp_path: Path,
 ) -> None:
-    text = complete_stage_evidence_table(checkpoint_fields=False).replace(
-        "training-seed n=3 accepted.", "not-yet-run."
+    table = complete_stage_evidence_table().replace(
+        "--trainer.limit_val_batches=2` |",
+        "--trainer.limit_val_batches=2 --trainer.check_val_every_n_epoch=1` |",
     )
-    path = write_training_md(
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "echo ",
+        "uv run --package pkg --extra training echo ",
+    ],
+)
+def test_checkpoint_smoke_requires_a_production_entry_point(
+    tmp_path: Path, prefix: str
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        "uv run --package pkg --extra training traingen fit",
+        f"{prefix}traingen fit",
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_rejects_multiple_config_arguments(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "--trainer.limit_val_batches=2` |",
+        "--trainer.limit_val_batches=2 --config models/layout-dm/configs/training/other.yaml` |",
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+@pytest.mark.parametrize(
+    "checkpoint_path",
+    [
+        ".cache/pkg/s3/checkpoints/last.ckpt",
+        ".cache/pkg/s3/checkpoints/last-v1.ckpt",
+    ],
+)
+def test_checkpoint_smoke_rejects_last_checkpoint(
+    tmp_path: Path, checkpoint_path: str
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        ".cache/pkg/s3/checkpoints/best.ckpt", checkpoint_path
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_rejects_path_outside_callback_filename_pattern(
+    tmp_path: Path,
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        ".cache/pkg/s3/checkpoints/best.ckpt",
+        ".cache/pkg/s3/checkpoints/other.ckpt",
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_requires_a_monitored_top_k_callback(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table()
+    path = write_training_md(tmp_path, "layout-dm", table)
+    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "monitor: val_loss", "monitor: null"
+        ),
+        encoding="utf-8",
+    )
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert not check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_config_must_match_launch_manifest(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table()
+    write_training_md(
         tmp_path,
         "layout-dm",
-        f"# Training\n\n## Reproduction Results\n\nS5 is not claimed.\n{text}",
+        f"# Training\n\n## Reproduction Results\n\nS5 is reproduced.\n{table}",
     )
     manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text('{"launched_at":"2026-10-27T00:00:00Z"}\n', encoding="utf-8")
+    manifest.write_text(
+        '{"config":"models/layout-dm/configs/training/other.yaml"}\n',
+        encoding="utf-8",
+    )
 
-    assert not check_training_stage_evidence.has_s5_claim(path.read_text())
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
         "models/layout-dm/TRAINING.md\tS3\t"
         + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
@@ -957,6 +1101,12 @@ Package training reproduction is achieved with training-seed n=3.
 
 {complete_stage_evidence_table()}
 """,
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        '{"config":"models/layout-dm/configs/training/full.yaml"}\n',
+        encoding="utf-8",
     )
 
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
