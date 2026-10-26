@@ -1,9 +1,10 @@
 import json
+import logging
 from pathlib import Path
 from typing import cast
 
-import torch
 import pytest
+import torch
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.pipelines import LayoutGenerationPipeline
@@ -15,7 +16,45 @@ from layoutformerpp import (
     LayoutGenerationOutput,
 )
 from layoutformerpp.constraints import LayoutFormerPPGenerationConstraint
+from layoutformerpp.geometry import discrete_ltwh_to_public
 from pytest import MonkeyPatch
+
+
+TRUNCATED_RICO25_SEQUENCE = (
+    "label_1 0 4 127 9 | label_1 0 14 127 3 | "
+    "label_1 0 23 127 3 | label_1 0 27 127 3 | "
+    "label_1 0 32 127 3 | label_1 0 35 127 3 | "
+    "label_1 0 42 127 3 | label_1 0 50 127 3 | "
+    "label_1 0 57 127 3 | label_1 0 67 127 3 | "
+    "label_1 0 73 127 3 | label_1 0 79 127 3 | "
+    "label_1 0 85 127 3 | label_1 0 96 127 3 | "
+    "label_1 0 105 127 3 | label_10 14 117 98 9 | "
+    "label_3 0 4 13 9 | label_3 13 14 12 6 | "
+    "label_4 0 23 127 3 | label_4 0 31 127 17 12"
+)
+VENDOR_ERROR_LABELS = [1] * 15 + [10, 3, 3, 4, 0]
+VENDOR_ERROR_BOXES = [
+    [0, 4, 127, 9],
+    [0, 14, 127, 3],
+    [0, 23, 127, 3],
+    [0, 27, 127, 3],
+    [0, 32, 127, 3],
+    [0, 35, 127, 3],
+    [0, 42, 127, 3],
+    [0, 50, 127, 3],
+    [0, 57, 127, 3],
+    [0, 67, 127, 3],
+    [0, 73, 127, 3],
+    [0, 79, 127, 3],
+    [0, 85, 127, 3],
+    [0, 96, 127, 3],
+    [0, 105, 127, 3],
+    [14, 117, 98, 9],
+    [0, 4, 13, 9],
+    [13, 14, 12, 6],
+    [0, 23, 127, 3],
+    [31, 127, 17, 12],
+]
 
 
 def test_save_load_smoke(tmp_path: Path) -> None:
@@ -43,6 +82,46 @@ def test_save_load_smoke(tmp_path: Path) -> None:
     assert isinstance(out, LayoutGenerationOutput)
     assert out.sequences is not None
     assert cast(torch.Tensor, out.sequences).shape[0] == 1
+
+
+@pytest.mark.parametrize(
+    "task", ("ugen", "gen_t", "gen_ts", "gen_r", "refinement", "completion")
+)
+def test_post_process_drops_unrecognized_truncated_element(
+    task: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task=task)
+    parsed = processor.serializer.parse_seq(TRUNCATED_RICO25_SEQUENCE)
+
+    # Pinned from vendor tasks/refinement.py::T5LayoutSequence.parse_seq, used by
+    # tasks/ugen.py::ugen_inference; its greedy final match parses label_4 0 as
+    # error label 0 with the shifted box [31, 127, 17, 12].
+    assert parsed is not None
+    assert parsed.labels == VENDOR_ERROR_LABELS
+    assert parsed.bbox == VENDOR_ERROR_BOXES
+
+    tokens = processor.tokenizer.encode_text(
+        TRUNCATED_RICO25_SEQUENCE, add_eos=False, add_bos=False
+    )
+    with caplog.at_level(logging.WARNING):
+        output = processor.post_process_layouts(tokens["input_ids"])
+    assert isinstance(output, LayoutGenerationOutput)
+
+    assert caplog.messages == [
+        "Dropped 1 unrecognized-label element from LayoutFormer++ output."
+    ]
+    expected_labels = [
+        processor.sequence_to_public[label] for label in VENDOR_ERROR_LABELS[:-1]
+    ]
+    assert output.labels[0].tolist() == expected_labels
+    assert output.mask[0].tolist() == [True] * 19
+    expected_bbox = discrete_ltwh_to_public(
+        torch.tensor(VENDOR_ERROR_BOXES[:-1]),
+        box_format=BoxFormat.xywh,
+        x_grid=processor.x_grid,
+        y_grid=processor.y_grid,
+    )
+    torch.testing.assert_close(output.bbox[0], expected_bbox)
 
 
 def test_config_roundtrip_preserves_token_fields() -> None:
