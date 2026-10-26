@@ -1,7 +1,7 @@
-"""Validate training claims and newly required production checkpoint evidence.
+"""Validate training evidence formats and new full-run checkpoint smoke claims.
 
-The checker validates document metadata and launch-manifest dates but does not
-hash artifact contents or scan README and model-card full-run claims.
+The checker does not execute recorded commands, hash artifact contents, or scan
+README and model-card claims.
 """
 
 from __future__ import annotations
@@ -10,10 +10,12 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
+import subprocess
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
+import yaml
 from devharness.baselines import (
     diff_entry_baseline,
     print_entries,
@@ -31,7 +33,6 @@ BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
 CHECKPOINT_GATE_BASELINE_RELATIVE_PATH = Path(
     "scripts/training_s5_checkpoint_gate_baseline.txt"
 )
-CHECKPOINT_GATE_EFFECTIVE_AT = datetime.fromisoformat("2026-10-26T14:08:00+09:00")
 TRAINING_GLOB = "models/*/TRAINING.md"
 STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
 MISSING_SECTION_STAGE = "*"
@@ -72,7 +73,8 @@ ARTIFACT_PREFIXES = (
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
 EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
-CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
+CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
+CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
     re.IGNORECASE,
@@ -83,20 +85,26 @@ POSITIVE_CLAIM_RE = re.compile(
 )
 CLAIM_PATTERNS = (
     re.compile(
-        r"\b(?:s-?5|stage\s*5)\b[^.;]{0,160}"
-        r"\b(?:accepted|achieved|complete|equivalent|evaluated|reproduced|verdict)\b",
+        r"\b(?:s-?5|stage\s*5)\b"
+        + CLAIM_GAP
+        + r"\b(?:accepted|achieved|complete|equivalent|evaluated|reproduced|verdict)\b",
         re.IGNORECASE,
     ),
     re.compile(r"\btraining-seed\s+n\s*=\s*\d+\b", re.IGNORECASE),
     re.compile(r"\btraining reproduction is achieved\b", re.IGNORECASE),
     re.compile(r"\bstatistically equivalent\b", re.IGNORECASE),
     re.compile(
-        r"\bfull[- ]run\b[^.;]{0,160}\b(?:comparison|evidence|statistical|verdict)\b"
-        r"[^.;]{0,160}\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
+        r"\bfull[- ]run\b"
+        + CLAIM_GAP
+        + r"\b(?:comparison|evidence|statistical|verdict)\b"
+        + CLAIM_GAP
+        + r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
         re.IGNORECASE,
     ),
 )
-CHECKPOINT_SMOKE_VIOLATION = "new or post-rule full-run record lacks bounded production checkpoint smoke evidence"
+CHECKPOINT_SMOKE_VIOLATION = (
+    "new or changed S5 claim lacks bounded production checkpoint smoke evidence"
+)
 
 
 @dataclass(frozen=True)
@@ -107,6 +115,8 @@ class StageEvidence:
     command: str
     artifact: str
     result: str
+    checkpoint_smoke_command: str = ""
+    full_run_config: str = ""
     checkpoint_path: str = ""
     checkpoint_sha256: str = ""
 
@@ -346,7 +356,12 @@ def _parse_stage_evidence_lines(
         }
         optional_positions = {
             name: headers.index(name) if name in headers else None
-            for name in ("checkpointpath", "checkpointsha256")
+            for name in (
+                "checkpointsmokecommand",
+                "fullrunconfig",
+                "checkpointpath",
+                "checkpointsha256",
+            )
         }
         evidence: dict[str, StageEvidence] = {}
         duplicates: set[str] = set()
@@ -382,6 +397,16 @@ def _parse_stage_evidence_lines(
                 command=cells[positions["command"]],
                 artifact=cells[positions["artifact"]],
                 result=cells[positions["result"]],
+                checkpoint_smoke_command=(
+                    cells[optional_positions["checkpointsmokecommand"]]
+                    if optional_positions["checkpointsmokecommand"] is not None
+                    else ""
+                ),
+                full_run_config=(
+                    cells[optional_positions["fullrunconfig"]]
+                    if optional_positions["fullrunconfig"] is not None
+                    else ""
+                ),
                 checkpoint_path=(
                     cells[optional_positions["checkpointpath"]]
                     if optional_positions["checkpointpath"] is not None
@@ -524,10 +549,13 @@ def current_entries(root: Path) -> set[str]:
 
 
 def is_bounded_production_checkpoint_smoke(
-    evidence: StageEvidence | None, package: str, root: Path
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
 ) -> bool:
-    """Return whether the production CLI record proves a saved checkpoint."""
-    if evidence is None:
+    """Return whether bounded production-command evidence identifies its checkpoint."""
+    if evidence is None or full_run_evidence is None:
         return False
 
     checkpoint_path = unquote_cell(evidence.checkpoint_path)
@@ -539,25 +567,62 @@ def is_bounded_production_checkpoint_smoke(
     ):
         return False
 
-    command = unquote_cell(evidence.command)
-    production_entry_point = re.search(
-        r"(?:^|\s)(?:traingen\s+fit|python\s+-m\s+traingen\.lightning\.cli\s+fit)(?:\s|$)",
-        command,
-    )
-    config_match = re.search(r"(?:^|\s)--config(?:=|\s+)([^\s]+)", command)
-    bounded_schedule = all(
-        re.search(rf"(?:^|\s)--trainer\.{name}(?:=|\s+){value}(?=\s|$)", command)
-        is not None
-        for name, value in (
-            ("max_epochs", "1"),
-            ("limit_train_batches", "2"),
-            ("limit_val_batches", "2"),
-        )
-    )
-    if production_entry_point is None or config_match is None or not bounded_schedule:
+    command = unquote_cell(evidence.checkpoint_smoke_command)
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
         return False
 
-    config_path = Path(config_match.group(1).strip("`\"'"))
+    has_production_entry_point = is_production_fit_command(tokens)
+    config_values: list[str] = []
+    trainer_overrides: dict[str, list[str]] = {}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--config" or token.startswith("--config="):
+            if "=" in token:
+                config_values.append(token.split("=", 1)[1])
+            elif index + 1 < len(tokens) and not tokens[index + 1].startswith("--"):
+                config_values.append(tokens[index + 1])
+                index += 1
+            else:
+                return False
+        elif token.startswith("--trainer."):
+            option = token.removeprefix("--trainer.")
+            if "=" in option:
+                name, value = option.split("=", 1)
+            elif index + 1 < len(tokens) and not tokens[index + 1].startswith("--"):
+                name, value = option, tokens[index + 1]
+                index += 1
+            else:
+                return False
+
+            trainer_overrides.setdefault(name, []).append(value)
+
+        index += 1
+
+    required = {
+        "max_epochs": "1",
+        "limit_train_batches": "2",
+        "limit_val_batches": "2",
+    }
+    allowed = {*required, "check_val_every_n_epoch"}
+    if (
+        not has_production_entry_point
+        or len(config_values) != 1
+        or set(trainer_overrides) - allowed
+        or any(
+            trainer_overrides.get(name) != [value] for name, value in required.items()
+        )
+        or trainer_overrides.get("check_val_every_n_epoch", ["1"]) != ["1"]
+    ):
+        return False
+
+    config_path = Path(config_values[0])
+    full_run_config = unquote_cell(full_run_evidence.full_run_config)
+    if config_values[0] != full_run_config:
+        return False
+
     return (
         not config_path.is_absolute()
         and ".." not in config_path.parts
@@ -565,35 +630,178 @@ def is_bounded_production_checkpoint_smoke(
         and config_path.suffix in {".yaml", ".yml"}
         and "training" in config_path.parts
         and (root / config_path).is_file()
+        and is_tracked_file(root, config_path)
+        and manifest_config_matches(full_run_evidence, full_run_config, root)
+        and callback_checkpoint_filename_matches(
+            root / config_path, Path(checkpoint_path).name
+        )
     )
 
 
-def checkpoint_manifest_is_post_rule(row: StageEvidence, root: Path) -> bool | None:
-    """Return whether a referenced launch manifest is post-rule or undated."""
-    manifest, _parity_path = parse_s5_artifact_paths(row.artifact)
-    if manifest is None or not is_artifact_path(manifest):
+def is_production_fit_command(tokens: list[str]) -> bool:
+    """Recognize a direct training entry point or one launched through uv."""
+    if any(token in {"&&", "||", ";", "|", ">", "<", "&"} for token in tokens):
+        return False
+
+    index = 0
+    while index < len(tokens) and re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[index]
+    ):
+        index += 1
+
+    if tokens[index : index + 2] == ["traingen", "fit"]:
+        return True
+
+    if tokens[index : index + 4] == ["python", "-m", "traingen.lightning.cli", "fit"]:
+        return True
+
+    if tokens[index : index + 2] != ["uv", "run"]:
+        return False
+
+    index += 2
+    options_with_values = {
+        "--config-file",
+        "--directory",
+        "--env-file",
+        "--extra",
+        "--package",
+        "--project",
+        "--python",
+        "--with",
+    }
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+
+        if token in options_with_values:
+            index += 2
+            continue
+
+        if token.startswith("-"):
+            index += 1
+            continue
+
+        break
+
+    return tokens[index : index + 2] == ["traingen", "fit"] or tokens[
+        index : index + 4
+    ] == ["python", "-m", "traingen.lightning.cli", "fit"]
+
+
+def is_tracked_file(root: Path, path: Path) -> bool:
+    """Return whether Git tracks a repository-relative file."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", path.as_posix()],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def manifest_config_matches(
+    evidence: StageEvidence, full_run_config: str, root: Path
+) -> bool:
+    """Match the recorded full-run config to a locally available launch manifest."""
+    manifest, _parity_path = parse_s5_artifact_paths(evidence.artifact)
+    if manifest is None:
         return False
 
     manifest_path = root / manifest
     if not manifest_path.is_file():
+        return True
+
+    try:
+        manifest_config = json.loads(manifest_path.read_text(encoding="utf-8"))[
+            "config"
+        ]
+    except (KeyError, OSError, TypeError, json.JSONDecodeError):
+        return False
+
+    return isinstance(manifest_config, str) and manifest_config == full_run_config
+
+
+def callback_checkpoint_filename_matches(
+    config_path: Path, checkpoint_filename: str
+) -> bool:
+    """Reject last-only files and honor explicit monitored callback filename patterns."""
+    if re.fullmatch(r"last(?:-v\d+)?\.ckpt", checkpoint_filename, re.IGNORECASE):
         return False
 
     try:
-        launch_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        launched_at = datetime.fromisoformat(
-            str(launch_manifest["launched_at"]).replace("Z", "+00:00")
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return False
+
+    if not isinstance(config, dict):
+        return False
+
+    trainer = config.get("trainer", {})
+    callbacks = trainer.get("callbacks", []) if isinstance(trainer, dict) else []
+    if not isinstance(callbacks, list):
+        return False
+
+    patterns = []
+    for callback in callbacks:
+        if not isinstance(callback, dict) or not str(
+            callback.get("class_path", "")
+        ).endswith("ModelCheckpoint"):
+            continue
+
+        init_args = callback.get("init_args", {})
+        if not isinstance(init_args, dict):
+            return False
+
+        try:
+            save_top_k = int(init_args.get("save_top_k", 1))
+        except (TypeError, ValueError):
+            return False
+
+        if save_top_k == 0 or not init_args.get("monitor"):
+            continue
+
+        filename = init_args.get("filename")
+        auto_insert_metric_name = bool(init_args.get("auto_insert_metric_name", True))
+        patterns.append(
+            (
+                str(filename) if filename is not None else "{epoch}-{step}",
+                auto_insert_metric_name,
+            )
         )
-    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
-        return None
 
-    if launched_at.tzinfo is None:
-        return None
+    if not patterns:
+        return False
 
-    return launched_at >= CHECKPOINT_GATE_EFFECTIVE_AT
+    return any(
+        checkpoint_filename_matches_pattern(pattern, checkpoint_filename, auto_insert)
+        for pattern, auto_insert in patterns
+    )
+
+
+def checkpoint_filename_matches_pattern(
+    pattern: str, filename: str, auto_insert_metric_name: bool
+) -> bool:
+    """Match a rendered checkpoint filename against a callback's filename pattern."""
+    pattern_parts = re.split(r"(\{[^{}]+\})", pattern)
+    rendered = ""
+    for part in pattern_parts:
+        if part.startswith("{") and part.endswith("}"):
+            field = part[1:-1].split(":", 1)[0]
+            field_name = rf"(?:{re.escape(field)}=)?" if auto_insert_metric_name else ""
+            rendered += field_name + r"[^/]+"
+        else:
+            rendered += re.escape(part)
+
+    if not pattern.endswith(".ckpt"):
+        rendered += r"(?:-v\d+)?\.ckpt"
+
+    return re.fullmatch(rendered, filename) is not None
 
 
 def checkpoint_gate_entries(root: Path) -> set[str]:
-    """Return new full-run records without production checkpoint smoke evidence."""
+    """Return new S5 claims without production checkpoint smoke evidence."""
     baseline_path = root / CHECKPOINT_GATE_BASELINE_RELATIVE_PATH
     grandfathered = (
         read_entry_baseline(baseline_path) if baseline_path.is_file() else set()
@@ -616,21 +824,11 @@ def checkpoint_gate_entries(root: Path) -> set[str]:
             continue
 
         for _heading, evidence, _duplicates in sections:
-            s5_row = evidence.get("S5")
-            manifest_post_rule = (
-                checkpoint_manifest_is_post_rule(s5_row, root)
-                if s5_row is not None
-                else None
-            )
-            post_rule_manifest = s5_row is not None and (
-                manifest_post_rule is True
-                or (manifest_post_rule is None and not grandfathered_claim)
-            )
-            if not new_claim and not post_rule_manifest:
+            if not new_claim:
                 continue
 
             if not is_bounded_production_checkpoint_smoke(
-                evidence.get("S3"), path.parent.name, root
+                evidence.get("S3"), evidence.get("S5"), path.parent.name, root
             ):
                 entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
 
@@ -647,9 +845,7 @@ def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
     print_entries("Stale training stage evidence baseline entries:", "-", stale)
-    print_entries(
-        "New production checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
-    )
+    print_entries("New S5 checkpoint smoke violations:", "+", sorted(checkpoint_gaps))
     return 1
 
 
@@ -668,7 +864,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         print_entries(
-            "New production checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
+            "New S5 checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
         )
         return 1
     exit_status = check_training_stage_evidence(ROOT, BASELINE_PATH)
