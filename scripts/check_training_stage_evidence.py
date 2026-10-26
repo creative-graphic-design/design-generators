@@ -1,14 +1,17 @@
-"""Validate training claims against recorded stage-evidence rows.
+"""Validate training claims and newly required production checkpoint evidence.
 
-The checker validates claim/document shape only. It does not inspect artifact
-contents and it does not scan README or model-card full training run claims.
+The checker validates document metadata and launch-manifest dates but does not
+hash artifact contents or scan README and model-card full-run claims.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from devharness.baselines import (
@@ -25,6 +28,10 @@ from devharness.markdown import (
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
+CHECKPOINT_GATE_BASELINE_RELATIVE_PATH = Path(
+    "scripts/training_s5_checkpoint_gate_baseline.txt"
+)
+CHECKPOINT_GATE_EFFECTIVE_AT = datetime.fromisoformat("2026-10-26T14:08:00+09:00")
 TRAINING_GLOB = "models/*/TRAINING.md"
 STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
 MISSING_SECTION_STAGE = "*"
@@ -76,7 +83,7 @@ POSITIVE_CLAIM_RE = re.compile(
 )
 CLAIM_PATTERNS = (
     re.compile(
-        r"\b(?:s-?5|stage\s*5)\b.{0,160}"
+        r"\b(?:s-?5|stage\s*5)\b[^.;]{0,160}"
         r"\b(?:accepted|achieved|complete|equivalent|evaluated|reproduced|verdict)\b",
         re.IGNORECASE,
     ),
@@ -84,11 +91,12 @@ CLAIM_PATTERNS = (
     re.compile(r"\btraining reproduction is achieved\b", re.IGNORECASE),
     re.compile(r"\bstatistically equivalent\b", re.IGNORECASE),
     re.compile(
-        r"\bfull[- ]run\b.{0,160}\b(?:comparison|evidence|statistical|verdict)\b"
-        r".{0,160}\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
+        r"\bfull[- ]run\b[^.;]{0,160}\b(?:comparison|evidence|statistical|verdict)\b"
+        r"[^.;]{0,160}\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
         re.IGNORECASE,
     ),
 )
+CHECKPOINT_SMOKE_VIOLATION = "new or post-rule full-run record lacks bounded production checkpoint smoke evidence"
 
 
 @dataclass(frozen=True)
@@ -99,6 +107,8 @@ class StageEvidence:
     command: str
     artifact: str
     result: str
+    checkpoint_path: str = ""
+    checkpoint_sha256: str = ""
 
     @property
     def is_complete(self) -> bool:
@@ -275,16 +285,39 @@ def clause_around_match(text: str, start: int, end: int) -> str:
 
 def has_s5_claim(text: str) -> bool:
     """Return whether the document claims full training run results."""
+    return bool(s5_claim_clauses(text))
+
+
+def s5_claim_clauses(text: str) -> tuple[str, ...]:
+    """Return the clauses that contain full-run claims."""
     normalized = claim_text(text)
+    clauses = []
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
             clause = clause_around_match(normalized, match.start(), match.end())
             if NEGATED_CLAIM_RE.search(clause):
                 if POSITIVE_CLAIM_RE.search(match.group(0)):
-                    return True
+                    clauses.append(clause)
                 continue
-            return True
-    return False
+            clauses.append(clause)
+    return tuple(sorted(clauses))
+
+
+def s5_record_signature(text: str) -> str:
+    """Return a stable fingerprint for a document's recorded full-run claim."""
+    stage_rows = []
+    for _heading, evidence, _duplicates in parse_stage_evidence_sections(text):
+        row = evidence.get("S5")
+        if row is not None:
+            stage_rows.append((row.command, row.artifact, row.result))
+
+    payload = json.dumps(
+        {"claim_clauses": s5_claim_clauses(text), "stage_rows": stage_rows},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _parse_stage_evidence_lines(
@@ -310,6 +343,10 @@ def _parse_stage_evidence_lines(
         positions = {
             name: headers.index(name)
             for name in ("stage", "command", "artifact", "result")
+        }
+        optional_positions = {
+            name: headers.index(name) if name in headers else None
+            for name in ("checkpointpath", "checkpointsha256")
         }
         evidence: dict[str, StageEvidence] = {}
         duplicates: set[str] = set()
@@ -345,6 +382,16 @@ def _parse_stage_evidence_lines(
                 command=cells[positions["command"]],
                 artifact=cells[positions["artifact"]],
                 result=cells[positions["result"]],
+                checkpoint_path=(
+                    cells[optional_positions["checkpointpath"]]
+                    if optional_positions["checkpointpath"] is not None
+                    else ""
+                ),
+                checkpoint_sha256=(
+                    cells[optional_positions["checkpointsha256"]]
+                    if optional_positions["checkpointsha256"] is not None
+                    else ""
+                ),
             )
             row_index += 1
         tables.append((evidence, duplicates))
@@ -476,15 +523,133 @@ def current_entries(root: Path) -> set[str]:
     return entries
 
 
+def is_bounded_production_checkpoint_smoke(
+    evidence: StageEvidence | None, package: str, root: Path
+) -> bool:
+    """Return whether the production CLI record proves a saved checkpoint."""
+    if evidence is None:
+        return False
+
+    checkpoint_path = unquote_cell(evidence.checkpoint_path)
+    checkpoint_sha256 = unquote_cell(evidence.checkpoint_sha256)
+    if (
+        not is_artifact_path(checkpoint_path)
+        or not checkpoint_path.endswith(".ckpt")
+        or re.fullmatch(r"[0-9a-fA-F]{64}", checkpoint_sha256) is None
+    ):
+        return False
+
+    command = unquote_cell(evidence.command)
+    production_entry_point = re.search(
+        r"(?:^|\s)(?:traingen\s+fit|python\s+-m\s+traingen\.lightning\.cli\s+fit)(?:\s|$)",
+        command,
+    )
+    config_match = re.search(r"(?:^|\s)--config(?:=|\s+)([^\s]+)", command)
+    bounded_schedule = all(
+        re.search(rf"(?:^|\s)--trainer\.{name}(?:=|\s+){value}(?=\s|$)", command)
+        is not None
+        for name, value in (
+            ("max_epochs", "1"),
+            ("limit_train_batches", "2"),
+            ("limit_val_batches", "2"),
+        )
+    )
+    if production_entry_point is None or config_match is None or not bounded_schedule:
+        return False
+
+    config_path = Path(config_match.group(1).strip("`\"'"))
+    return (
+        not config_path.is_absolute()
+        and ".." not in config_path.parts
+        and config_path.parts[:2] == ("models", package)
+        and config_path.suffix in {".yaml", ".yml"}
+        and "training" in config_path.parts
+        and (root / config_path).is_file()
+    )
+
+
+def checkpoint_manifest_is_post_rule(row: StageEvidence, root: Path) -> bool | None:
+    """Return whether a referenced launch manifest is post-rule or undated."""
+    manifest, _parity_path = parse_s5_artifact_paths(row.artifact)
+    if manifest is None or not is_artifact_path(manifest):
+        return False
+
+    manifest_path = root / manifest
+    if not manifest_path.is_file():
+        return False
+
+    try:
+        launch_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        launched_at = datetime.fromisoformat(
+            str(launch_manifest["launched_at"]).replace("Z", "+00:00")
+        )
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+    if launched_at.tzinfo is None:
+        return None
+
+    return launched_at >= CHECKPOINT_GATE_EFFECTIVE_AT
+
+
+def checkpoint_gate_entries(root: Path) -> set[str]:
+    """Return new full-run records without production checkpoint smoke evidence."""
+    baseline_path = root / CHECKPOINT_GATE_BASELINE_RELATIVE_PATH
+    grandfathered = (
+        read_entry_baseline(baseline_path) if baseline_path.is_file() else set()
+    )
+    entries: set[str] = set()
+
+    for path in training_docs(root):
+        text = path.read_text(encoding="utf-8")
+        relative_path = path.relative_to(root).as_posix()
+        claimed = has_s5_claim(text)
+        signature_entry = f"{relative_path}\t{s5_record_signature(text)}"
+        grandfathered_claim = claimed and signature_entry in grandfathered
+        new_claim = claimed and not grandfathered_claim
+        sections = parse_stage_evidence_sections(text)
+
+        if not sections:
+            if new_claim:
+                entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
+
+            continue
+
+        for _heading, evidence, _duplicates in sections:
+            s5_row = evidence.get("S5")
+            manifest_post_rule = (
+                checkpoint_manifest_is_post_rule(s5_row, root)
+                if s5_row is not None
+                else None
+            )
+            post_rule_manifest = s5_row is not None and (
+                manifest_post_rule is True
+                or (manifest_post_rule is None and not grandfathered_claim)
+            )
+            if not new_claim and not post_rule_manifest:
+                continue
+
+            if not is_bounded_production_checkpoint_smoke(
+                evidence.get("S3"), path.parent.name, root
+            ):
+                entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
+
+    return entries
+
+
 def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
     """Check current training evidence violations against the baseline."""
     current_snapshot = current_entries(root)
     baseline_snapshot = read_entry_baseline(baseline_path)
     unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
-    if not unexpected and not stale:
+    checkpoint_gaps = checkpoint_gate_entries(root)
+    if not unexpected and not stale and not checkpoint_gaps:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
     print_entries("Stale training stage evidence baseline entries:", "-", stale)
+    print_entries(
+        "New production checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
+    )
     return 1
 
 
@@ -498,7 +663,14 @@ def main(argv: list[str] | None = None) -> int:
     should_update_baseline = bool(namespace.write_baseline)
     if should_update_baseline:
         write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
-        return 0
+        checkpoint_gaps = checkpoint_gate_entries(ROOT)
+        if not checkpoint_gaps:
+            return 0
+
+        print_entries(
+            "New production checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
+        )
+        return 1
     exit_status = check_training_stage_evidence(ROOT, BASELINE_PATH)
     return exit_status
 
