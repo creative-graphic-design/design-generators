@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import torch
+from unittest.mock import patch
+
 import pytest
+import torch
 
 from pixel_vae import PixelVAEConfig, PixelVAEEncoder, PixelVAEModel
 from pixel_vae.modeling_pixel_vae import (
     PixelVAEBatchNorm2d,
+    PixelVAEMobileNetV2,
     pixelvae_reconstruction_loss,
 )
 
@@ -25,6 +28,41 @@ def test_mobile_net_v2_topology_and_posterior_mean_shape() -> None:
     assert tuple(mean.shape) == (1, 8)
     assert mean.dtype is torch.float32
     assert torch.isfinite(output.loss)
+
+
+def test_mobile_net_v2_residual_uses_pre_expansion_features() -> None:
+    backbone = PixelVAEMobileNetV2(PixelVAEConfig()).eval()
+    captured: dict[str, torch.Tensor] = {}
+    handles = [
+        backbone.layers[name].register_forward_hook(
+            lambda _module, _inputs, output, *, key=name: captured.__setitem__(
+                key, output
+            )
+        )
+        for name in ("block_1_project_BN", "block_2_project_BN")
+    ]
+    apply_conv = backbone._apply_conv
+
+    def capture_next_block_input(name: str, inputs: torch.Tensor) -> torch.Tensor:
+        if name == "block_3_expand":
+            captured["block_2_add"] = inputs
+
+        return apply_conv(name, inputs)
+
+    pixels = torch.linspace(0.0, 1.0, 4 * 32 * 32).reshape(1, 4, 32, 32)
+    try:
+        with (
+            patch.object(backbone, "_apply_conv", side_effect=capture_next_block_input),
+            torch.inference_mode(),
+        ):
+            backbone(pixels)
+            expected = captured["block_1_project_BN"] + captured["block_2_project_BN"]
+            matches_reference_add = torch.equal(captured["block_2_add"], expected)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    assert matches_reference_add
 
 
 def test_encoder_can_be_saved_and_loaded_locally(tmp_path) -> None:
@@ -89,7 +127,7 @@ def test_model_rejects_invalid_inputs() -> None:
         model(torch.zeros(1, 3, 256, 256))
 
 
-def test_keras_batch_norm_uses_biased_variance_and_ema() -> None:
+def test_batch_norm_uses_biased_output_and_unbiased_moving_variance() -> None:
     norm = PixelVAEBatchNorm2d(1, eps=1e-3, momentum=0.5).train()
     values = torch.tensor([[[[1.0, 3.0]]]])
     normalized = norm(values)
@@ -101,12 +139,20 @@ def test_keras_batch_norm_uses_biased_variance_and_ema() -> None:
         rtol=1e-4,
     )
     torch.testing.assert_close(norm.running_mean, torch.tensor([1.0]))
-    torch.testing.assert_close(norm.running_var, torch.tensor([1.0]))
+    torch.testing.assert_close(norm.running_var, torch.tensor([1.5]))
 
     norm.eval()
     torch.testing.assert_close(
-        norm(values), torch.tensor([[[[0.0, 2.0]]]]) * epsilon_scale
+        norm(values), torch.tensor([[[[0.0, 2.0]]]]) * torch.rsqrt(torch.tensor(1.501))
     )
+
+
+def test_batch_norm_keeps_single_sample_running_variance_finite() -> None:
+    norm = PixelVAEBatchNorm2d(1, eps=1e-3, momentum=0.5).train()
+    normalized = norm(torch.tensor([[[[3.0]]]]))
+
+    torch.testing.assert_close(normalized, torch.zeros_like(normalized))
+    torch.testing.assert_close(norm.running_var, torch.tensor([0.5]))
 
 
 def test_reconstruction_masks_rgb_for_transparent_targets() -> None:
