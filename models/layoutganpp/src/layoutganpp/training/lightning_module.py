@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from jaxtyping import Float32, Int64, Shaped
 from lightning.pytorch import LightningModule
+from lightning.pytorch.core.optimizer import LightningOptimizer
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from numpy.typing import NDArray
 
@@ -88,9 +89,13 @@ class LayoutGANPPTrainingModule(LightningModule):
         """Run one manually ordered generator/discriminator update."""
         del batch_idx
         optimizers = cast(
-            list[torch.optim.Optimizer], self.optimizers(use_pl_optimizer=False)
+            list[torch.optim.Optimizer | LightningOptimizer], self.optimizers()
         )
         optimizer_g, optimizer_d = optimizers
+        if isinstance(optimizer_d, LightningOptimizer):
+            # Count the GAN iteration by its generator update, not both optimizer steps.
+            optimizer_d = optimizer_d.optimizer
+
         self.latest_step_trace = run_gan_iteration(
             self.generator,
             self.discriminator,

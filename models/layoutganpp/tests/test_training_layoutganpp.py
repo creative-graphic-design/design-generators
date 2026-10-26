@@ -1,4 +1,7 @@
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -271,6 +274,89 @@ def test_full_run_checkpoint_configs_select_best_maximum_iou(tmp_path):
 
     assert checkpoint_callback.best_model_score == pytest.approx(0.8)
     assert "epoch=000001" in Path(checkpoint_callback.best_model_path).name
+
+
+def test_production_entrypoint_writes_best_checkpoint_for_bounded_full_run(tmp_path):
+    repository_root = Path(__file__).resolve().parents[3]
+    config_path = (
+        Path(__file__).parents[1] / "configs" / "training" / "layoutganpp_magazine.yaml"
+    )
+    config = yaml.safe_load(config_path.read_text())
+    checkpoint_dir = tmp_path / "checkpoints"
+    config["trainer"].update(
+        {
+            "accelerator": "cpu",
+            "devices": 1,
+            "max_epochs": 1,
+            "max_steps": 1,
+            "logger": False,
+            "enable_progress_bar": False,
+            "default_root_dir": str(tmp_path / "runs"),
+        }
+    )
+    config["model"]["init_args"].update(
+        {
+            "generator_d_model": 4,
+            "generator_nhead": 1,
+            "generator_num_layers": 1,
+            "discriminator_d_model": 4,
+            "discriminator_nhead": 1,
+            "discriminator_num_layers": 1,
+        }
+    )
+    config["data"]["init_args"].update(
+        {
+            "data_root": None,
+            "batch_size": 2,
+            "num_workers": 0,
+            "synthetic_size": 2,
+            "shuffle_train": False,
+        }
+    )
+    checkpoint_config = next(
+        callback
+        for callback in config["trainer"]["callbacks"]
+        if callback["class_path"] == "lightning.pytorch.callbacks.ModelCheckpoint"
+    )
+    checkpoint_config["init_args"]["dirpath"] = str(checkpoint_dir)
+    test_config_path = tmp_path / "layoutganpp_magazine.yaml"
+    test_config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+
+    traingen = shutil.which("traingen")
+    assert traingen is not None
+    environment = os.environ.copy()
+    environment["CUDA_VISIBLE_DEVICES"] = ""
+    result = subprocess.run(
+        [traingen, "fit", "--config", str(test_config_path)],
+        cwd=repository_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    checkpoints = list(checkpoint_dir.glob("*.ckpt"))
+    assert len(checkpoints) == 1
+    checkpoint_path = checkpoints[0]
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    optimizer_steps = [
+        {int(state["step"].item()) for state in optimizer_state["state"].values()}
+        for optimizer_state in checkpoint["optimizer_states"]
+    ]
+    assert optimizer_steps == [{1}, {1}]
+    generator_updates = next(iter(optimizer_steps[0]))
+    assert checkpoint["global_step"] == generator_updates
+
+    checkpoint_callback = next(
+        state
+        for state in checkpoint["callbacks"].values()
+        if state.get("best_model_path")
+    )
+    assert Path(checkpoint_callback["best_model_path"]) == checkpoint_path
+    best_score = float(checkpoint_callback["best_model_score"])
+    assert f"iou={best_score:.6f}" in checkpoint_path.name
 
 
 def test_vendor_schedule_matches_iteration_and_validation_cadence():
