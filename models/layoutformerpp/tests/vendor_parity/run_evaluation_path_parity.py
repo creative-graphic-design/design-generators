@@ -88,6 +88,12 @@ def _git_revision(path: Path) -> str:
     ).strip()
 
 
+def _package_evaluator_source_commit(
+    root: Path, reused_source_commit: str | None = None
+) -> str:
+    return reused_source_commit or _git_revision(root)
+
+
 def _git_worktree_dirty(path: Path) -> bool:
     status = subprocess.check_output(
         [
@@ -864,7 +870,9 @@ def _orchestrate(args: argparse.Namespace) -> None:
         },
         "systems": {
             "package": {
-                "evaluator_source_commit": _git_revision(root),
+                "evaluator_source_commit": _package_evaluator_source_commit(
+                    root, args.package_evaluator_source_commit
+                ),
                 "predictions": {
                     "path": str(package_prediction_path.relative_to(root)),
                     "sha256": sha256(package_prediction_path),
@@ -921,7 +929,11 @@ def main() -> None:
     parser.add_argument("--entrypoint", default="main.py")
     parser.add_argument("--reuse-original", action="store_true")
     parser.add_argument("--reuse-package", action="store_true")
+    parser.add_argument("--package-evaluator-source-commit")
     args = parser.parse_args()
+    if args.package_evaluator_source_commit and not args.reuse_package:
+        parser.error("--package-evaluator-source-commit requires --reuse-package")
+
     if args.mode == "orchestrate":
         if args.family is None or args.data_root is None or args.output is None:
             parser.error("orchestrate requires --family, --data-root, and --output")

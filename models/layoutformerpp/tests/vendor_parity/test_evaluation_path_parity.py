@@ -16,6 +16,7 @@ from run_evaluation_path_parity import (
     _PackageAdapter,
     _apply_evaluation_environment,
     _git_worktree_dirty,
+    _package_evaluator_source_commit,
     _original_entrypoint_path,
     _record_entrypoint,
     _record_path,
@@ -327,3 +328,12 @@ def test_git_worktree_dirty_detects_untracked_files(tmp_path: Path) -> None:
     (tmp_path / "untracked.txt").write_text("local change", encoding="utf-8")
 
     assert _git_worktree_dirty(tmp_path)
+
+
+def test_reused_package_source_commit_preserves_evaluator_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(parity_runner, "_git_revision", lambda _root: "current")
+
+    assert _package_evaluator_source_commit(tmp_path) == "current"
+    assert _package_evaluator_source_commit(tmp_path, "recorded") == "recorded"
