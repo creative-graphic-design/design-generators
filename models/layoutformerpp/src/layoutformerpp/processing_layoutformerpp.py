@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from os import PathLike
 from pathlib import Path
 from typing import Final, Literal, TypeAlias, assert_never, cast
@@ -404,31 +405,52 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         """Parse generated token ids to the common layout output schema."""
         texts = self.tokenizer.batch_decode(sequences, skip_special_tokens=True)
         parsed = [self.serializer.parse_seq(text.strip()) for text in texts]
+        recognized: list[tuple[list[int], list[list[int]]] | None] = []
+        dropped_count = 0
+        for item in parsed:
+            if item is None:
+                recognized.append(None)
+                continue
+
+            public_labels: list[int] = []
+            public_boxes: list[list[int]] = []
+            for label, box in zip(item.labels, item.bbox, strict=True):
+                if label not in self.sequence_to_public:
+                    # Original tasks/refinement.py::T5LayoutSequence.parse_seq keeps error label 0
+                    # with its parsed (possibly shifted) box; tasks/ugen.py uses that parser.
+                    # Drop it here because the public schema has no unknown category.
+                    dropped_count += 1
+                    continue
+
+                public_labels.append(self.sequence_to_public[label])
+                public_boxes.append(box)
+
+            recognized.append((public_labels, public_boxes))
+
+        if dropped_count:
+            logging.warning(
+                "Dropped %d unrecognized-label element%s from LayoutFormer++ output.",
+                dropped_count,
+                "" if dropped_count == 1 else "s",
+            )
+
         max_len = max(
-            (len(item.labels) for item in parsed if item is not None), default=0
+            (len(item[0]) for item in recognized if item is not None),
+            default=0,
         )
         if max_len == 0:
             max_len = 1
         label_rows: list[Int[torch.Tensor, "elements"]] = []
         bbox_rows: list[Int[torch.Tensor, "elements 4"]] = []
         mask_rows: list[Bool[torch.Tensor, "elements"]] = []
-        for item in parsed:
-            if item is None:
+        for item in recognized:
+            if item is None or not item[0]:
                 labels = torch.zeros(max_len, dtype=torch.long)
                 boxes = torch.zeros(max_len, 4, dtype=torch.long)
                 mask = torch.zeros(max_len, dtype=torch.bool)
             else:
-                try:
-                    public_labels = [
-                        self.sequence_to_public[label] for label in item.labels
-                    ]
-                except KeyError as exc:
-                    raise ValueError(
-                        f"Unknown internal label id in generated sequence: {exc.args[0]}"
-                    ) from exc
-
-                labels = torch.tensor(public_labels, dtype=torch.long)
-                boxes = torch.tensor(item.bbox, dtype=torch.long)
+                labels = torch.tensor(item[0], dtype=torch.long)
+                boxes = torch.tensor(item[1], dtype=torch.long)
                 mask = torch.ones(len(labels), dtype=torch.bool)
                 if len(labels) < max_len:
                     pad = max_len - len(labels)

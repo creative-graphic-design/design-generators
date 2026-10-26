@@ -48,6 +48,8 @@ This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autor
 
 LayoutFormer++ is a `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the original-implementation discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
+Public outputs omit generated elements whose labels cannot be mapped to the selected dataset, and one warning reports the number omitted. The original parser keeps these elements with error label 0 and its parsed box, which may be shifted by truncation; this package deliberately drops them because the public schema has no unknown-label category, so element-count and box metrics may differ from vendor results.
+
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, label_size, completion, refinement, relation.
