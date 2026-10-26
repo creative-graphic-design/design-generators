@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -13,7 +14,8 @@ import torch
 from run_evaluation_path_parity import (
     _PackageAdapter,
     _apply_evaluation_environment,
-    _campaign_eval_main_path,
+    _git_worktree_dirty,
+    _original_entrypoint_path,
     _record_entrypoint,
     _record_path,
     _resolved_argv,
@@ -27,6 +29,8 @@ REQUIRED_KEYS = {
     "training_seed",
     "same_weight_route",
     "runtime_freeze_sha256",
+    "dirty_tree",
+    "runner",
     "weights",
     "inputs",
     "settings",
@@ -36,7 +40,6 @@ REQUIRED_KEYS = {
 }
 
 
-@pytest.mark.vendor_parity
 @pytest.mark.parametrize(
     ("family", "condition", "max_length"),
     [
@@ -112,7 +115,6 @@ def test_package_adapter_uses_public_pipeline_and_its_constraints(
         assert pipeline_calls[0]["relations"] == [[(2, 1, 1, 1, 3)]]
 
 
-@pytest.mark.vendor_parity
 def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
     artifact = {
         "record_type": "evaluation_path_parity",
@@ -121,6 +123,14 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
         "training_seed": 0,
         "same_weight_route": "converted original checkpoint loaded by the package model and original evaluator",
         "runtime_freeze_sha256": "0" * 64,
+        "dirty_tree": False,
+        "runner": {
+            "path": (
+                "models/layoutformerpp/tests/vendor_parity/"
+                "run_evaluation_path_parity.py"
+            ),
+            "sha256": "0" * 64,
+        },
         "weights": {"path": ".cache/example.pth", "sha256": "0" * 64},
         "inputs": {
             "path": "<dataset root>/rico/pre_processed_20_25/test.pt",
@@ -141,9 +151,10 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
     assert REQUIRED_KEYS <= loaded.keys()
     assert loaded["mode"] == "bitwise"
     assert loaded["inputs"]["sample_count"] == 3729
+    assert loaded["dirty_tree"] is False
+    assert loaded["runner"]["sha256"] == "0" * 64
 
 
-@pytest.mark.vendor_parity
 def test_campaign_entrypoint_is_preserved() -> None:
     assert (
         _record_entrypoint(
@@ -159,7 +170,6 @@ def test_campaign_entrypoint_is_preserved() -> None:
     )
 
 
-@pytest.mark.vendor_parity
 def test_resolved_argv_handles_wrapped_campaign_entrypoint() -> None:
     record = {
         "command": (
@@ -183,20 +193,20 @@ def test_resolved_argv_handles_wrapped_campaign_entrypoint() -> None:
     ]
 
 
-@pytest.mark.vendor_parity
-def test_campaign_eval_entrypoint_is_found_above_vendor_source(tmp_path: Path) -> None:
+def test_campaign_eval_entrypoint_uses_vendor_main_without_cache(
+    tmp_path: Path,
+) -> None:
     vendor_src = tmp_path / "vendor" / "source"
     vendor_src.mkdir(parents=True)
-    eval_main = tmp_path.joinpath(
+    main = vendor_src / "main.py"
+    main.touch()
+
+    assert _original_entrypoint_path(vendor_src, "eval_main.py") == main
+    assert not tmp_path.joinpath(
         ".cache", "layoutformerpp", "s5", "current", "eval_main.py"
-    )
-    eval_main.parent.mkdir(parents=True)
-    eval_main.touch()
-
-    assert _campaign_eval_main_path(vendor_src) == eval_main
+    ).exists()
 
 
-@pytest.mark.vendor_parity
 def test_campaign_record_path_selects_training_seed_and_system(tmp_path: Path) -> None:
     assert _record_path(tmp_path, "refinement", 2, "package") == tmp_path.joinpath(
         ".cache",
@@ -212,7 +222,6 @@ def test_campaign_record_path_selects_training_seed_and_system(tmp_path: Path) -
     )
 
 
-@pytest.mark.vendor_parity
 def test_campaign_evaluation_thread_settings_are_applied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -236,3 +245,12 @@ def test_campaign_evaluation_thread_settings_are_applied(
 
     assert os.environ["OMP_NUM_THREADS"] == "8"
     assert calls == [("threads", 8), ("interop", 1)]
+
+
+def test_git_worktree_dirty_detects_untracked_files(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    assert not _git_worktree_dirty(tmp_path)
+
+    (tmp_path / "untracked.txt").write_text("local change", encoding="utf-8")
+
+    assert _git_worktree_dirty(tmp_path)

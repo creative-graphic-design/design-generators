@@ -63,6 +63,21 @@ def _git_revision(path: Path) -> str:
     ).strip()
 
 
+def _git_worktree_dirty(path: Path) -> bool:
+    status = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(path),
+            "status",
+            "--porcelain",
+            "--untracked-files=normal",
+        ],
+        text=True,
+    )
+    return bool(status.strip())
+
+
 def _install_deepspeed_scheduler() -> None:
     """Expose the vendor scheduler without importing its obsolete package."""
     scheduler_path = None
@@ -146,6 +161,12 @@ def _record_entrypoint(record: dict[str, Any]) -> str:
     return candidates[0]
 
 
+def _original_entrypoint_path(vendor_src: Path, recorded_entrypoint: str) -> Path:
+    if recorded_entrypoint == "eval_main.py":
+        return vendor_src / "main.py"
+    return vendor_src / recorded_entrypoint
+
+
 def _resolved_argv(
     record: dict[str, Any], *, data_root: Path, output: Path
 ) -> list[str]:
@@ -171,18 +192,6 @@ def _resolved_argv(
     data_index = argv.index("--data_dir") + 1
     argv[data_index] = str(data_root)
     return argv
-
-
-def _campaign_eval_main_path(vendor_src: Path) -> Path:
-    vendor_src = vendor_src.resolve()
-    for root in (vendor_src, *vendor_src.parents):
-        entrypoint = root.joinpath(
-            ".cache", "layoutformerpp", "s5", "current", "eval_main.py"
-        )
-        if entrypoint.is_file():
-            return entrypoint
-
-    raise FileNotFoundError("campaign eval_main.py is missing above vendor source")
 
 
 def _resolved_config(
@@ -229,10 +238,7 @@ def _apply_evaluation_environment(settings: dict[str, int]) -> None:
 def _run_original(vendor_src: Path, argv: list[str], entrypoint: str) -> None:
     _install_deepspeed_scheduler()
     vendor_src = vendor_src.resolve()
-    if entrypoint == "eval_main.py":
-        entrypoint_path = _campaign_eval_main_path(vendor_src)
-    else:
-        entrypoint_path = vendor_src / entrypoint
+    entrypoint_path = _original_entrypoint_path(vendor_src, entrypoint)
     if not entrypoint_path.is_file():
         raise FileNotFoundError(entrypoint_path)
     os.chdir(vendor_src)
@@ -778,6 +784,11 @@ def _orchestrate(args: argparse.Namespace) -> None:
         "family": args.family,
         "mode": "bitwise",
         "training_seed": int(source_record["seed"]),
+        "dirty_tree": _git_worktree_dirty(root),
+        "runner": {
+            "path": str(Path(__file__).resolve().relative_to(root)),
+            "sha256": sha256(Path(__file__).resolve()),
+        },
         "same_weight_route": "converted original checkpoint loaded by the package model and original evaluator",
         "runtime_freeze_sha256": runtime_freeze_sha256,
         "source_records": [
