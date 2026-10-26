@@ -47,6 +47,7 @@ TASK_MODULES = {
     "refinement": "tasks.refinement",
     "completion": "tasks.completion",
 }
+RICO25_SPLIT_FILES = ("train.pt", "val.pt", "test.pt")
 
 
 def sha256(path: Path) -> str:
@@ -55,6 +56,30 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _validate_rico25_inputs(
+    data_root: Path,
+    expected_test_sha256: str,
+    expected_split_sha256: dict[str, str] | None = None,
+) -> dict[str, str]:
+    processed_dir = data_root / "rico" / "pre_processed_20_25"
+    split_paths = {
+        filename: processed_dir / filename for filename in RICO25_SPLIT_FILES
+    }
+    missing = [filename for filename, path in split_paths.items() if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"incomplete RICO25 processed data; missing: {', '.join(missing)}"
+        )
+
+    split_sha256 = {filename: sha256(path) for filename, path in split_paths.items()}
+    if split_sha256["test.pt"] != expected_test_sha256:
+        raise RuntimeError("RICO25 TEST input SHA-256 differs from the S5 record")
+    if expected_split_sha256 is not None and split_sha256 != expected_split_sha256:
+        raise RuntimeError("RICO25 split SHA-256 values changed after preflight")
+
+    return split_sha256
 
 
 def _git_revision(path: Path) -> str:
@@ -235,7 +260,16 @@ def _apply_evaluation_environment(settings: dict[str, int]) -> None:
         torch.set_num_interop_threads(settings["torch_num_interop_threads"])
 
 
-def _run_original(vendor_src: Path, argv: list[str], entrypoint: str) -> None:
+def _run_original(
+    vendor_src: Path,
+    argv: list[str],
+    entrypoint: str,
+    *,
+    data_root: Path,
+    expected_test_sha256: str,
+    expected_split_sha256: dict[str, str] | None = None,
+) -> None:
+    _validate_rico25_inputs(data_root, expected_test_sha256, expected_split_sha256)
     _install_deepspeed_scheduler()
     vendor_src = vendor_src.resolve()
     entrypoint_path = _original_entrypoint_path(vendor_src, entrypoint)
@@ -433,7 +467,11 @@ def _run_package(
     weights: Path,
     argv: list[str],
     family: str,
+    *,
+    expected_test_sha256: str,
+    expected_split_sha256: dict[str, str] | None = None,
 ) -> None:
+    _validate_rico25_inputs(data_root, expected_test_sha256, expected_split_sha256)
     _install_deepspeed_scheduler()
     vendor_src = vendor_src.resolve()
     os.chdir(vendor_src)
@@ -658,6 +696,7 @@ def _orchestrate(args: argparse.Namespace) -> None:
 
     runtime_freeze_sha256 = str(source_record["runtime_freeze_sha256"])
     input_sha256 = str(source_record["inputs"]["sha256"])
+    input_split_sha256 = _validate_rico25_inputs(args.data_root, input_sha256)
     output = root / args.output
     output.mkdir(parents=True, exist_ok=True)
     weights = root.joinpath(
@@ -718,6 +757,12 @@ def _orchestrate(args: argparse.Namespace) -> None:
                 str(args.vendor_src),
                 "--entrypoint",
                 _record_entrypoint(source_record),
+                "--data-root",
+                str(args.data_root),
+                "--expected-test-sha256",
+                input_sha256,
+                "--expected-split-sha256-json",
+                json.dumps(input_split_sha256),
                 "--argv-json",
                 json.dumps(argv["vendor"]),
                 "--evaluation-environment-json",
@@ -742,6 +787,10 @@ def _orchestrate(args: argparse.Namespace) -> None:
                 str(weights),
                 "--family",
                 args.family,
+                "--expected-test-sha256",
+                input_sha256,
+                "--expected-split-sha256-json",
+                json.dumps(input_split_sha256),
                 "--argv-json",
                 json.dumps(argv["package"]),
                 "--evaluation-environment-json",
@@ -799,6 +848,7 @@ def _orchestrate(args: argparse.Namespace) -> None:
         "inputs": {
             "path": "<dataset root>/rico/pre_processed_20_25/test.pt",
             "sha256": input_sha256,
+            "split_sha256": input_split_sha256,
             "sample_count": len(original_predictions),
         },
         "settings": {
@@ -862,6 +912,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--vendor-src", type=Path, required=True)
     parser.add_argument("--data-root", type=Path)
+    parser.add_argument("--expected-test-sha256")
+    parser.add_argument("--expected-split-sha256-json")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--weights", type=Path)
     parser.add_argument("--argv-json")
@@ -877,10 +929,26 @@ def main() -> None:
         return
     if args.argv_json is None:
         parser.error("child mode requires --argv-json")
+    if (
+        args.data_root is None
+        or args.expected_test_sha256 is None
+        or args.expected_split_sha256_json is None
+    ):
+        parser.error(
+            "child mode requires --data-root and both expected input SHA-256 values"
+        )
     argv = json.loads(args.argv_json)
+    expected_split_sha256 = json.loads(args.expected_split_sha256_json)
     _apply_evaluation_environment(json.loads(args.evaluation_environment_json))
     if args.mode == "original":
-        _run_original(args.vendor_src, argv, args.entrypoint)
+        _run_original(
+            args.vendor_src,
+            argv,
+            args.entrypoint,
+            data_root=args.data_root,
+            expected_test_sha256=args.expected_test_sha256,
+            expected_split_sha256=expected_split_sha256,
+        )
         return
     if (
         args.output is None
@@ -899,6 +967,8 @@ def main() -> None:
         args.weights,
         argv,
         args.family,
+        expected_test_sha256=args.expected_test_sha256,
+        expected_split_sha256=expected_split_sha256,
     )
 
 

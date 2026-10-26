@@ -10,6 +10,7 @@ from typing import Any  # noqa: TID251 - call spies record dynamic pipeline keyw
 
 import pytest
 import torch
+import run_evaluation_path_parity as parity_runner
 
 from run_evaluation_path_parity import (
     _PackageAdapter,
@@ -19,6 +20,10 @@ from run_evaluation_path_parity import (
     _record_entrypoint,
     _record_path,
     _resolved_argv,
+    _run_original,
+    _run_package,
+    _validate_rico25_inputs,
+    sha256,
 )
 
 
@@ -135,6 +140,9 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
         "inputs": {
             "path": "<dataset root>/rico/pre_processed_20_25/test.pt",
             "sha256": "0" * 64,
+            "split_sha256": {
+                name: "0" * 64 for name in ("train.pt", "val.pt", "test.pt")
+            },
             "sample_count": 3729,
         },
         "settings": {"resolved": {}, "sampling_seed": 500},
@@ -153,6 +161,71 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
     assert loaded["inputs"]["sample_count"] == 3729
     assert loaded["dirty_tree"] is False
     assert loaded["runner"]["sha256"] == "0" * 64
+    assert set(loaded["inputs"]["split_sha256"]) == {
+        "train.pt",
+        "val.pt",
+        "test.pt",
+    }
+
+
+@pytest.mark.parametrize("mode", ("original", "package"))
+def test_child_evaluator_refuses_partial_rico25_inputs_before_vendor(
+    mode: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    processed_dir = data_root / "rico" / "pre_processed_20_25"
+    processed_dir.mkdir(parents=True)
+    test_path = processed_dir / "test.pt"
+    original_test = b"recorded test split"
+    test_path.write_bytes(original_test)
+
+    monkeypatch.setattr(
+        parity_runner,
+        "_install_deepspeed_scheduler",
+        lambda: pytest.fail("vendor code ran before checking the split files"),
+    )
+
+    with pytest.raises(FileNotFoundError, match="train.pt, val.pt"):
+        if mode == "original":
+            _run_original(
+                tmp_path / "vendor",
+                [],
+                "main.py",
+                data_root=data_root,
+                expected_test_sha256=sha256(test_path),
+            )
+        else:
+            _run_package(
+                tmp_path,
+                tmp_path / "vendor",
+                data_root,
+                tmp_path / "output",
+                tmp_path / "weights.pth",
+                [],
+                "label",
+                expected_test_sha256=sha256(test_path),
+            )
+
+    assert test_path.read_bytes() == original_test
+    assert not (processed_dir / "train.pt").exists()
+    assert not (processed_dir / "val.pt").exists()
+
+
+def test_rico25_guard_rejects_test_hash_mismatch_without_writing(
+    tmp_path: Path,
+) -> None:
+    processed_dir = tmp_path / "rico" / "pre_processed_20_25"
+    processed_dir.mkdir(parents=True)
+    split_contents = {name: name.encode() for name in ("train.pt", "val.pt", "test.pt")}
+    for name, content in split_contents.items():
+        (processed_dir / name).write_bytes(content)
+
+    with pytest.raises(RuntimeError, match="TEST input SHA-256 differs"):
+        _validate_rico25_inputs(tmp_path, "0" * 64)
+
+    assert {
+        name: (processed_dir / name).read_bytes() for name in split_contents
+    } == split_contents
 
 
 def test_campaign_entrypoint_is_preserved() -> None:
