@@ -1,0 +1,10 @@
+# Existing S5 claim fingerprints as of 2026-10-26 14:08 JST.
+# Keep these entries fixed; new or changed claims require checkpoint smoke evidence.
+models/canvas-vae/TRAINING.md	342d456549d1074e90334bc909457618e53e12f2c0f598dc6eac9ae11f8a1d13
+models/cgb-dm/TRAINING.md	590c1410e12904af1b547cfe6cbedad087b13af9b305b7498bd5bc65e459f574
+models/dlt/TRAINING.md	669467d74ef9ecc5a310fc94b37c10865474b775812accf827b9e5ecd7abb7b0
+models/layout-corrector/TRAINING.md	6b03a1d3ee5b1b38875d704456b52864a42d17423e9bad48496fa00a45112cec
+models/layout-dm/TRAINING.md	ca0423cc45bf19664e9bfb6d25683bd024e6f4817edc079d98a23b142ecbaf83
+models/layout-flow/TRAINING.md	dd75f7831cc6cbd448ef292a0a95756c5256e4c5e25ea28b4f37ec5ce1025ae8
+models/layoutdiffusion/TRAINING.md	b9d822c66e1ebad9bf232bedf84835289725e828dbdf3139d10d917a263ee7fb
+models/radm/TRAINING.md	945af942b39f2790d93bf53fe4bfcaae745103f1e895f5856071e85b71955309

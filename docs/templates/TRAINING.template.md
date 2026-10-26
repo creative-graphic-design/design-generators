@@ -66,14 +66,16 @@ describe evaluation-seed evidence as training-seed reproduction.
 
 ## Stage Evidence
 
-| Stage | Command     | Artifact                                                                                                                        | Result     |
-| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
-| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
-| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
-| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
-| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
-| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json; evaluation-path-parity: <repo/cache-relative path or project issue/PR URL>` | `<result>` |
+Replace every placeholder in this reusable evidence table with a command, artifact, and result from the package. The table tracks static config (S0), fixed-batch trace (S1), one optimizer step (S2), multi-batch training (S3), loader stream (S4), and full-run comparison (S5), as defined in the training reproduction protocol. The multi-batch training checkpoint path identifies the callback-written file evaluation will use, and its SHA-256 identifies those exact bytes. The full-run launch manifest records the configuration and evaluator; the evaluation-path artifact shows that package and reference predictions use the same inputs and settings.
+
+| Stage | Command     | Artifact                                                                                                                                                      | Result     | Checkpoint Path                                     | Checkpoint SHA-256       |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------- | ------------------------ |
+| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | `.cache/<package>/s3/checkpoints/<checkpoint>.ckpt` | `<64-character SHA-256>` |
+| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json; evaluation-path-parity: <path to comparison proving both evaluations used identical inputs and settings>` | `<result>` | not required                                        | not required             |
 
 ## Reproduction Results
 

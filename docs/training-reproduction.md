@@ -8,6 +8,8 @@ tags:
 
 # Training Reproduction
 
+Package authors and reviewers use this protocol to decide whether a full-run campaign can launch. The check asks whether the shipped production command writes the evaluation checkpoint: run the shipped configuration through `traingen fit` for one epoch with two training and two validation batches. The required result is a callback-written `.ckpt` recorded with its cache-relative path and SHA-256 in the multi-batch training row's `Checkpoint Path` and `Checkpoint SHA-256` cells; stop the launch if the file is absent. Apply this check to launch manifests with timezone-aware `launched_at` at or after 2026-10-26 14:08 JST and full-run results first recorded or changed on or after that time. Earlier full-run results remain valid as recorded and need no backfill. Checkpoint count and equality between Lightning `global_step` and optimizer updates do not affect launch readiness.
+
 Training-first packages must prove that package-local training can reproduce the original training behavior before they claim trained-checkpoint support. A training-first package is one whose trained weights come from retraining rather than from converting public original weights. This page is the canonical protocol for staged training reproduction, evidence recording, and pull request gating.
 
 Use this protocol when a package has no public original weights, when retraining is the intended weight path, or when a package README claims that trained package checkpoints reproduce the original method. Inference-only conversion parity is separate and does not replace these training checks.
@@ -31,7 +33,9 @@ Follow the stages in order. Record S0-S2 evidence in the model issue, then recor
 | S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                                          |
 | S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                                   |
 
-Every full run that makes an S5 claim must have one launch manifest: a JSON file written before the S5 launch with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; the S5 Stage Evidence row's Artifact cell cites its repository- or cache-relative path, such as `.cache/<package>/full-run/<dataset>/manifest.json`.
+Every full run that makes an S5 claim must have one launch manifest: a JSON file written before the S5 launch with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and timezone-aware ISO 8601 `launched_at`; the S5 Stage Evidence row's Artifact cell cites its repository- or cache-relative path, such as `.cache/<package>/full-run/<dataset>/manifest.json`.
+
+Before marking a campaign healthy, the campaign owner confirms that each run's launch-status update lists its first checkpoint path, saved training step, and checkpoint callback's monitored metric value.
 
 Before launching S5 or making an S5 claim, also complete the [evaluation-path parity prerequisite](#evaluation-path-parity-prerequisite).
 
