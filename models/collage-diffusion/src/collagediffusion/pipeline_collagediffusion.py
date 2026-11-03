@@ -295,7 +295,7 @@ def _resize_mask_to_query(
     size: tuple[int, int],
     device: torch.device,
 ) -> Float[torch.Tensor, "query"]:
-    """Return one flattened mask value for each spatial attention query."""
+    """Resize a visible mask with the reference tensor-sampling semantics."""
     mask_tensor = torch.as_tensor(mask, device=device, dtype=torch.float64)
     batched_mask = mask_tensor.unsqueeze(0).unsqueeze(0)
     resized_mask = F.interpolate(
@@ -303,7 +303,7 @@ def _resize_mask_to_query(
         size=size,
         mode="bilinear",
         align_corners=False,
-        antialias=True,
+        antialias=False,
     )
     resized_mask = resized_mask.squeeze(0).squeeze(0)
     query_length = size[0] * size[1]

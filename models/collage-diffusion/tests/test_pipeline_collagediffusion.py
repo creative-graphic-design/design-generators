@@ -485,7 +485,7 @@ def test_attention_guidance_changes_only_conditional_token_scores() -> None:
     assert torch.equal(scores[:, :, :, 1], torch.zeros_like(scores[:, :, :, 1]))
 
 
-def test_attention_guidance_uses_antialiased_mask_resize() -> None:
+def test_attention_guidance_matches_reference_mask_resize() -> None:
     visible_mask = np.array(
         [
             [1.0, 0.0, 0.0, 1.0],
@@ -513,7 +513,7 @@ def test_attention_guidance_uses_antialiased_mask_resize() -> None:
         size=(2, 2),
         mode="bilinear",
         align_corners=False,
-        antialias=True,
+        antialias=False,
     )
     resized_visible_mask = resized_visible_mask.squeeze(0).squeeze(0)
     expected_mask = resized_visible_mask.reshape(4)
