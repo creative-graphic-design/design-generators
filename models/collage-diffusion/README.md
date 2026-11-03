@@ -136,7 +136,7 @@ This example follows the Toy Box setup in the [Collage Diffusion notebook](https
 
 The left panel shows the source collage and the right panel shows the generated image. Generation uses `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, seed `0`, 50 requested inference steps (40 active at strength `0.8`), and 512 × 512 resolution. The base checkpoint is licensed under the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base).
 
-![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collagediffusion/toy-box-diffusers-comparison.png)
+![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collagediffusion/toy-box-diffusers-comparison-de56004.png)
 
 ```python
 from diffusers import EulerAncestralDiscreteScheduler
