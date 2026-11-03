@@ -413,6 +413,7 @@ def _expected_icon(path: Path, label: str, message: str | None) -> str | None:
 
     if label == "task":
         return ROOT_TASK_BADGE_ICONS.get(message)
+
     if label == "content":
         return ROOT_CONTENT_BADGE_ICONS.get(message)
 
