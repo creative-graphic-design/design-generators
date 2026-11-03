@@ -604,17 +604,19 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
             ("content-agnostic", "single-task", ("label",)),
         )
 
-    with pytest.raises(AssertionError, match="must not be text-to-image"):
+    with pytest.raises(AssertionError, match="must not be an image generation task"):
         card.assert_pipeline_tag(
             path,
-            'pipeline_tag: other\nmodel-index:\n  - task:\n      type: "text-to-image"',
+            "pipeline_tag: other\nmodel-index:\n- name: example\n  results:\n"
+            '  - task:\n      type: "text-to-image"',
             ("content-agnostic", "single-task", ("label",)),
         )
 
     with pytest.raises(AssertionError, match="task.type must be 'other'"):
         card.assert_pipeline_tag(
             path,
-            "pipeline_tag: other\nmodel-index:\n  - task:\n      type: text-classification",
+            "pipeline_tag: other\nmodel-index:\n- name: example\n  results:\n"
+            "  - task:\n      type: text-classification",
             ("content-agnostic", "single-task", ("label",)),
         )
 
@@ -624,7 +626,8 @@ def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
     card.assert_pipeline_tag(
         path,
         "pipeline_tag: image-feature-extraction\nmodel-index:\n"
-        "  - task:\n      type: image-feature-extraction",
+        "- name: example\n  results:\n  - task:\n"
+        "      type: image-feature-extraction",
         ("content-agnostic", "single-task", ("label",)),
     )
 
@@ -1299,8 +1302,10 @@ pipeline_tag: other
 datasets:
   - creative-graphic-design/Rico
 model-index:
-  - task:
-      type: other
+  - name: Example
+    results:
+      - task:
+          type: other
 ---
 """
     path = Path("models/layout-dm/README.md")
@@ -1605,13 +1610,17 @@ def test_image_generation_frontmatter_contract_follows_task(
     assert model_type == expected
 
     def model_readme(pipeline_tag: str, model_index_tasks: tuple[str, ...]) -> str:
-        model_index = "".join(
+        results = "".join(
             f"  - task:\n      type: {model_index_task}\n"
+            "    dataset:\n      type: example-dataset\n      name: Example\n"
+            "      args:\n        metadata:\n          task:\n"
+            f"            type: {other_task}\n"
+            "    metrics:\n      - type: example-metric\n        value: 0.5\n"
             for model_index_task in model_index_tasks
         )
         return (
             f"---\nlicense: mit\npipeline_tag: {pipeline_tag}\ndatasets:\n"
-            f"model-index:\n{model_index}---\n{line}"
+            f"model-index:\n- name: Example\n  results:\n{results}---\n{line}"
         )
 
     card.assert_expected_frontmatter(path, model_readme(task, (task,)))
@@ -1624,6 +1633,27 @@ def test_image_generation_frontmatter_contract_follows_task(
         task,
         conditioning,
     )
+
+
+def test_layout_frontmatter_rejects_image_generation_model_index_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = Path("models/example/README.md")
+    monkeypatch.setitem(
+        card.EXPECTED_FRONTMATTER,
+        "example",
+        {"license": "mit", "datasets": []},
+    )
+    text = (
+        "---\nlicense: mit\npipeline_tag: other\ndatasets:\nmodel-index:\n"
+        "- name: Example\n  results:\n  - task:\n      type: other\n"
+        "  - task:\n      type: image-to-image\n---\n"
+        "- **Model type:** content-agnostic; task: single-task; "
+        "conditioning: label.\n"
+    )
+
+    with pytest.raises(AssertionError, match="must not be an image generation task"):
+        card.assert_expected_frontmatter(path, text)
 
 
 @pytest.mark.parametrize(
