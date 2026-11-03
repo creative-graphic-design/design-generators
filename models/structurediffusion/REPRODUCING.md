@@ -102,6 +102,6 @@ colab stop -s structurediffusion-cpu-parity
 colab sessions
 ```
 
-Record that private artifact readback and SHA-256 verification passed. Do not publish the result repository or generated images.
+Record that private artifact readback and SHA-256 verification passed. Do not publish the private parity result bundle or the reference/package comparison images.
 
 The package does not convert the Stable Diffusion checkpoint, so no checkpoint-conversion command is required. The CPU unit suite covers a local `save_pretrained` to `from_pretrained` round trip with tiny randomly initialized components; it needs neither network access nor Stable Diffusion weights.
