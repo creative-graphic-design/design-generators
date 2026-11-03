@@ -23,7 +23,7 @@ model-index:
         metrics:
           - type: "vendor-parity"
             value: 0.0
-            name: "Bit-exact CPU image comparison against attention reference"
+            name: "Bit-exact CPU image comparison against reference images"
 ---
 
 <!-- --8<-- [start:card] -->
@@ -216,20 +216,20 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 The independent CPU comparison covers 64×64 and 512×512 outputs for `A red car and a white sheep`, seed 42, 10 `🧨diffusers` PNDM steps through its PLMS path, guidance scale 7.5, and CPU float32 execution. Each reference/package pair receives the same precomputed starting latent. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input.
 
-The test independently compares vendor-derived noun phrases, token spans, and key/value conditioning with the package, then compares cross-attention output. The reference image uses a separate base `🧨diffusers` pipeline instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use `🧨diffusers`, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
+The test directly compares vendor-derived noun phrases and token spans, and compares independently assembled key/value conditioning with the package conditioning. For the image comparison, a separate base `🧨diffusers` pipeline uses the pinned vendor attention processors to generate the reference image; the test compares that final image with the `StructureDiffusionPipeline` output. It does not capture or compare per-layer attention outputs. Both model loading and sampling use `🧨diffusers`, so this checks structured conditioning and its end-to-end image result without reproducing the vendor checkpoint loader or sampler implementation.
 
 ### Parity Results
 
-| Check                                                           | Cases | Criterion                                                              | Result                                                                                                                                                               |
-| --------------------------------------------------------------- | ----: | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 64×64 CPU image output against the pinned attention reference   |     1 | Exact phrase/span alignment, K/V conditioning, and image SHA-256 match | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`. |
-| 512×512 CPU image output against the pinned attention reference |     1 | Exact phrase/span alignment, K/V conditioning, and image SHA-256 match | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`. |
+| Check                                                | Cases | Criterion                                                                          | Result                                                                                                                                                                                         |
+| ---------------------------------------------------- | ----: | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 64×64 CPU image output against the reference image   |     1 | Exact phrase and token-span match; K/V max difference ≤ `1e-6`; image MAE < `1e-3` | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`; bit-exact, SHA-256 match. |
+| 512×512 CPU image output against the reference image |     1 | Exact phrase and token-span match; K/V max difference ≤ `1e-6`; image MAE < `1e-3` | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`; bit-exact, SHA-256 match. |
 
 The independent comparison ran on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac`; the reviewer recorded the full inputs, initial latents, measurements, and runtimes in the [formal parity result](https://github.com/creative-graphic-design/design-generators/issues/485#issuecomment-6608854871). Both resolutions were bit-exact: the package and reference image SHA-256 values matched.
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base `🧨diffusers` pipeline. `🧨diffusers` supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched at 64×64 and 512×512, including identical output-image SHA-256 values.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare noun phrases, token spans, and K/V conditioning directly, then compare final generated images using the same scheduler, seed, and initial latent. A separate base `🧨diffusers` pipeline runs the pinned reference attention processors to generate the reference image; the test does not compare per-layer attention outputs. `🧨diffusers` supplies model loading and sampling in both paths, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched phrase and span outputs exactly, had zero measured K/V differences, and produced bit-exact 64×64 and 512×512 images with identical SHA-256 values.
 
 ## Environmental Impact
 
