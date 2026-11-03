@@ -49,7 +49,7 @@ class StructuredAttentionProcessor:
         temb: Float[torch.Tensor, "batch channels"] | None = None,
         scale: float | None = None,
     ) -> Float[torch.Tensor, "..."]:
-        """Run ordinary attention or the source method's structured attention."""
+        """Run ordinary attention or noun-phrase-aware key/value attention."""
         del scale
         if (
             attn.to_q is None

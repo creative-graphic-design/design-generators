@@ -244,7 +244,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
             save_attention_maps=save_attention_maps,
         )
         self.__dict__["attention_maps"] = ()
-        original_processors = cast(
+        previous_processors = cast(
             dict[str, Callable[..., Float[torch.Tensor, "..."]]],
             dict(self.unet.attn_processors),
         )
@@ -252,7 +252,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
         replacement_processors: dict[
             str, Callable[..., Float[torch.Tensor, "..."]]
         ] = {}
-        for name, processor in original_processors.items():
+        for name, processor in previous_processors.items():
             if name.endswith("attn2.processor"):
                 structured_processor = StructuredAttentionProcessor(
                     name,
@@ -310,7 +310,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
         finally:
             del self._call_request
             del self._processors_for_call
-            self.unet.set_attn_processor(dict(original_processors))
+            self.unet.set_attn_processor(dict(previous_processors))
 
     def _install_conditioning(
         self,

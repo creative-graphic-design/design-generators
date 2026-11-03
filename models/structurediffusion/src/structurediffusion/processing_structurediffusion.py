@@ -36,7 +36,7 @@ class _Tokenizer(Protocol):
 
 @dataclass(frozen=True)
 class NounPhrase:
-    """A parsed noun phrase with character offsets into its normalized prompt."""
+    """A parsed noun phrase with character offsets into normalized prompt text."""
 
     text: str
     start: int
@@ -44,7 +44,7 @@ class NounPhrase:
 
 
 def normalize_prompt(prompt: str) -> str:
-    """Normalize prompt casing and surrounding punctuation like the source demo."""
+    """Normalize casing and trailing punctuation before parsing and token alignment."""
     return prompt.lower().strip().strip(".").strip()
 
 
@@ -52,7 +52,7 @@ def constituency_noun_phrases(prompt: str) -> list[NounPhrase]:
     """Parse a prompt and return its multi-token noun phrases.
 
     The full prompt is represented separately by the pipeline. Returned offsets
-    refer to the original normalized prompt so they can be aligned to CLIP BPEs.
+    refer to normalized prompt text so they can be aligned to CLIP BPE tokens.
     Stanza models must be installed before this function runs.
     """
     document = _constituency_pipeline()(prompt)
