@@ -72,14 +72,18 @@ class StructuredAttentionProcessor:
             batch_size, channel, height, width = hidden_states.shape
             spatial_shape = (height, width)
             spatial_dimensions = (channel, height, width)
-            hidden_states = hidden_states.view(batch_size, channel, height * width)
-            hidden_states = hidden_states.transpose(1, 2)
+            spatial_tokens: Float[torch.Tensor, "batch channels tokens"] = (
+                hidden_states.view(batch_size, channel, height * width)
+            )
+            hidden_states = spatial_tokens.transpose(1, 2)
 
         batch_size = hidden_states.shape[0]
         if attn.group_norm is not None:
-            hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(
-                1, 2
+            channels_first: Float[torch.Tensor, "batch channels tokens"] = (
+                hidden_states.transpose(1, 2)
             )
+            normalized_channels = attn.group_norm(channels_first)
+            hidden_states = normalized_channels.transpose(1, 2)
 
         query = attn.to_q(hidden_states)
         if encoder_hidden_states is None:
@@ -142,25 +146,25 @@ class StructuredAttentionProcessor:
             height, width = spatial_shape
             for probabilities in self._last_probabilities:
                 map_batch = probabilities.shape[0] // attn.heads
-                self.attention_maps.append(
-                    probabilities.reshape(
-                        map_batch,
-                        attn.heads,
-                        height,
-                        width,
-                        probabilities.shape[-1],
-                    )[..., :20]
-                    .detach()
-                    .cpu()
+                spatial_attention: Float[
+                    torch.Tensor, "batch heads height width tokens"
+                ] = probabilities.reshape(
+                    map_batch,
+                    attn.heads,
+                    height,
+                    width,
+                    probabilities.shape[-1],
                 )
+                saved_tokens = spatial_attention[..., :20]
+                saved_attention = saved_tokens.detach().cpu()
+                self.attention_maps.append(saved_attention)
 
         output = attn.to_out[0](output)
         output = attn.to_out[1](output)
         if spatial_dimensions is not None:
             channel, height, width = spatial_dimensions
-            output = output.transpose(-1, -2).reshape(
-                batch_size, channel, height, width
-            )
+            spatial_tokens = output.transpose(-1, -2)
+            output = spatial_tokens.reshape(batch_size, channel, height, width)
 
         if attn.residual_connection:
             output = output + residual
@@ -178,8 +182,10 @@ class StructuredAttentionProcessor:
             raise ValueError("Attention layers must define key and value projections.")
 
         query_heads = self._to_heads(query, attn.heads)
-        key_heads = self._to_heads(attn.to_k(context), attn.heads)
-        value_heads = self._to_heads(attn.to_v(context), attn.heads)
+        key_projection = attn.to_k(context)
+        key_heads = self._to_heads(key_projection, attn.heads)
+        value_projection = attn.to_v(context)
+        value_heads = self._to_heads(value_projection, attn.heads)
         if attn.norm_q is not None:
             query_heads = attn.norm_q(query_heads)
 
@@ -217,16 +223,17 @@ class StructuredAttentionProcessor:
             normalized = (
                 attn.norm_encoder_hidden_states(context) if attn.norm_cross else context
             )
-            projected = self._to_heads(attn.to_k(normalized), attn.heads)
+            key_projection = attn.to_k(normalized)
+            projected = self._to_heads(key_projection, attn.heads)
             if attn.norm_k is not None:
                 projected = attn.norm_k(projected)
 
             key_heads.append(projected)
 
-        value_heads = [
-            self._to_heads(attn.to_v(context), attn.heads)
-            for context in conditioning.values
-        ]
+        value_heads: list[Float[torch.Tensor, "batch_heads tokens head_dim"]] = []
+        for context in conditioning.values:
+            value_projection = attn.to_v(context)
+            value_heads.append(self._to_heads(value_projection, attn.heads))
         probabilities = [
             self._attention_probabilities(attn, query_heads, key, attention_mask)
             for key in key_heads
@@ -258,16 +265,23 @@ class StructuredAttentionProcessor:
                 for key_index, value_index in pairs
             ]
         ).repeat_interleave(attn.heads, dim=1)
-        weights = validity[:, :, None, None].to(outputs.dtype)
-        outputs = (outputs * weights).sum(dim=0) / weights.sum(dim=0).clamp_min(1)
+        output_weights: Float[torch.Tensor, "pairs batch_heads 1 1"] = (
+            validity.to(outputs.dtype).unsqueeze(-1).unsqueeze(-1)
+        )
+        weighted_outputs = outputs * output_weights
+        summed_weights = output_weights.sum(dim=0).clamp_min(1)
+        outputs = weighted_outputs.sum(dim=0) / summed_weights
 
-        self._last_probabilities = [
-            attention
-            * conditioning.key_validity[key_index]
-            .repeat_interleave(attn.heads)
-            .to(attention.dtype)[:, None, None]
-            for key_index, attention in enumerate(probabilities)
-        ]
+        saved_probabilities: list[Float[torch.Tensor, "batch_heads query tokens"]] = []
+        for key_index, attention in enumerate(probabilities):
+            key_validity = conditioning.key_validity[key_index]
+            head_validity = key_validity.repeat_interleave(attn.heads)
+            attention_weights: Float[torch.Tensor, "batch_heads 1 1"] = (
+                head_validity.to(attention.dtype).unsqueeze(-1).unsqueeze(-1)
+            )
+            saved_probabilities.append(attention * attention_weights)
+
+        self._last_probabilities = saved_probabilities
         return self._from_heads(outputs, attn.heads)
 
     @staticmethod
@@ -276,11 +290,16 @@ class StructuredAttentionProcessor:
     ) -> Float[torch.Tensor, "batch_heads sequence head_dim"]:
         batch_size, sequence_length, inner_dim = projected.shape
         head_dim = inner_dim // heads
-        return (
+        head_layout: Float[torch.Tensor, "batch sequence heads head_dim"] = (
             projected.view(batch_size, sequence_length, heads, head_dim)
-            .transpose(1, 2)
-            .reshape(batch_size * heads, sequence_length, head_dim)
         )
+        heads_first: Float[torch.Tensor, "batch heads sequence head_dim"] = (
+            head_layout.transpose(1, 2)
+        )
+        merged_batch = heads_first.reshape(
+            batch_size * heads, sequence_length, head_dim
+        )
+        return merged_batch
 
     @staticmethod
     def _from_heads(
@@ -288,11 +307,16 @@ class StructuredAttentionProcessor:
     ) -> Float[torch.Tensor, "batch sequence inner_dim"]:
         batch_heads, sequence_length, head_dim = values.shape
         batch_size = batch_heads // heads
-        return (
-            values.view(batch_size, heads, sequence_length, head_dim)
-            .transpose(1, 2)
-            .reshape(batch_size, sequence_length, heads * head_dim)
+        head_layout: Float[torch.Tensor, "batch heads sequence head_dim"] = values.view(
+            batch_size, heads, sequence_length, head_dim
         )
+        batch_first: Float[torch.Tensor, "batch sequence heads head_dim"] = (
+            head_layout.transpose(1, 2)
+        )
+        merged_heads = batch_first.reshape(
+            batch_size, sequence_length, heads * head_dim
+        )
+        return merged_heads
 
     @staticmethod
     def _attention_probabilities(
@@ -304,7 +328,8 @@ class StructuredAttentionProcessor:
         scores = torch.bmm(query, key.transpose(1, 2)) * attn.scale
         if attention_mask is not None:
             if attention_mask.ndim == 2:
-                mask = attention_mask.repeat_interleave(attn.heads, dim=0).unsqueeze(1)
+                mask_per_head = attention_mask.repeat_interleave(attn.heads, dim=0)
+                mask = mask_per_head.unsqueeze(1)
             elif attention_mask.ndim == 4:
                 mask = attention_mask.reshape(
                     -1, attention_mask.shape[-2], attention_mask.shape[-1]

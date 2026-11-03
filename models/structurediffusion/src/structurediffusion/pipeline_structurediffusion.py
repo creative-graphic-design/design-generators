@@ -329,12 +329,15 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
                 "The encoded prompt batch does not match prompt and num_images_per_prompt."
             )
 
-        base_contexts = prompt_embeds.reshape(
-            batch_size,
-            num_images_per_prompt,
-            prompt_embeds.shape[1],
-            prompt_embeds.shape[2],
-        )[:, 0]
+        prompt_contexts: Float[torch.Tensor, "prompts images tokens dim"] = (
+            prompt_embeds.reshape(
+                batch_size,
+                num_images_per_prompt,
+                prompt_embeds.shape[1],
+                prompt_embeds.shape[2],
+            )
+        )
+        base_contexts: Float[torch.Tensor, "batch tokens dim"] = prompt_contexts[:, 0]
         phrase_groups = [
             self._parse_prompt(prompt_text, request.parser_type)
             for prompt_text in request.prompts
@@ -404,18 +407,26 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
             aligned_groups.append(aligned)
 
         max_phrase_count = max((len(group) for group in aligned_groups), default=0)
-        aligned_contexts = tuple(
-            torch.cat(
-                [
-                    group[index][0]
-                    if index < len(group)
-                    else base_contexts[prompt_index : prompt_index + 1]
-                    for prompt_index, group in enumerate(aligned_groups)
-                ],
-                dim=0,
-            )
-            for index in range(max_phrase_count)
-        )
+        aligned_context_batches: list[Float[torch.Tensor, "batch tokens dim"]] = []
+        for phrase_index in range(max_phrase_count):
+            phrase_contexts_for_batch: list[
+                Float[torch.Tensor, "batch tokens dim"]
+            ] = []
+            for prompt_index, group in enumerate(aligned_groups):
+                if phrase_index < len(group):
+                    aligned_context, _token_span = group[phrase_index]
+                    prompt_phrase_context = aligned_context
+                else:
+                    prompt_phrase_context = base_contexts[
+                        prompt_index : prompt_index + 1
+                    ]
+
+                phrase_contexts_for_batch.append(prompt_phrase_context)
+
+            phrase_context_batch = torch.cat(phrase_contexts_for_batch, dim=0)
+            aligned_context_batches.append(phrase_context_batch)
+
+        aligned_contexts = tuple(aligned_context_batches)
         aligned_validity = tuple(
             torch.tensor(
                 [index < len(group) for group in aligned_groups],
