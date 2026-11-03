@@ -8,20 +8,42 @@ tags:
   - structured-diffusion-guidance
   - text-to-image
   - layout-generation
+datasets: []
 base_model: CompVis/stable-diffusion-v1-4
+model-index:
+  - name: "StructureDiffusion"
+    results:
+      - task:
+          type: "text-to-image"
+          name: "Text-to-image generation"
+        dataset:
+          type: "synthetic"
+          name: "Single prompt CPU parity fixture"
+          split: "one prompt"
+        metrics:
+          - type: "vendor-parity"
+            value: "Pending Colab CPU comparison"
+            name: "Vendor parity"
 ---
 
 <!-- --8<-- [start:card] -->
 
 # Model Card for StructureDiffusion
 
-[StructureDiffusion](https://arxiv.org/abs/2212.05032) is a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. This package provides a Diffusers pipeline for the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
+[![paper](https://img.shields.io/static/v1?label=paper&message=ICLR+2023&color=blue&style=flat-square)](https://arxiv.org/abs/2212.05032)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICLR+2023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=orange&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+
+This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
 
 ## Model Details
 
 ### Model Description
 
-`StructureDiffusionPipeline` subclasses [`diffusers.StableDiffusionPipeline`](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img), so it uses standard Diffusers loading, device placement, callbacks, scheduler, and image output behavior. `parser_type` selects constituency parsing or optional scene-graph parsing. `conjunction=True` uses phrase-specific keys with one combined value; the default uses the full prompt as the key and the full prompt plus phrase encodings as values.
+`StructureDiffusionPipeline` subclasses [`diffusers.StableDiffusionPipeline`](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/text2img), so it uses the framework's standard loading, device placement, callbacks, scheduler, and image output behavior. `parser_type` selects constituency parsing or optional scene-graph parsing. `conjunction=True` uses phrase-specific keys with one combined value; the default uses the full prompt as the key and the full prompt plus phrase encodings as values.
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
@@ -49,6 +71,10 @@ base_model: CompVis/stable-diffusion-v1-4
 ### Direct Use
 
 Use the pipeline for research inference on English prompts that describe multiple objects, attributes, or relations. The method changes cross-attention conditioning and does not train or fine-tune Stable Diffusion weights.
+
+### Downstream Use
+
+Use generated images as draft visual material for creative-design workflows after inspecting them for prompt adherence and content suitability.
 
 ### Out-of-Scope Use
 
@@ -99,7 +125,7 @@ This method adds no training data or learned weights. The selected Stable Diffus
 
 ### Training Procedure
 
-No training or checkpoint conversion is performed by this package. It loads the released Diffusers-format base checkpoint and changes the denoising pipeline's text-conditioning path.
+No training or checkpoint conversion is performed by this package. It loads the released pipeline-format base checkpoint and changes the denoising pipeline's text-conditioning path.
 
 ## Evaluation
 
@@ -109,9 +135,9 @@ The comparison fixture uses the prompt `A red car and a white sheep`, seed 42, 5
 
 ### Parity Results
 
-| Check                                                                 | Cases | Criterion                                                                     | Result                 |
-| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------- | ---------------------- |
-| CPU image output against the pinned official attention implementation |     0 | Phrase and CLIP token-span match; mean absolute image difference below `1e-3` | Pending Colab CPU run. |
+| Check                                                                 | Cases | Criterion                                                                     | Result                                 |
+| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------- | -------------------------------------- |
+| CPU image output against the pinned official attention implementation |     0 | Phrase and CLIP token-span match; mean absolute image difference below `1e-3` | not run; pending Colab CPU comparison. |
 
 ## Reproducibility
 
@@ -129,7 +155,7 @@ The pipeline retains Stable Diffusion's VAE, CLIP text encoder, U-Net, and sched
 
 ### Compute Infrastructure
 
-The package supports Diffusers CPU and accelerator execution. The currently planned agreement run uses Colab CPU only; no GPU comparison is included.
+The package supports `🧨diffusers` CPU and accelerator execution. The currently planned agreement run uses Colab CPU only; no GPU comparison is included.
 
 #### Software
 
@@ -143,6 +169,9 @@ Runtime dependencies are declared in `models/structurediffusion/pyproject.toml`.
   author={Feng, Weixi and He, Xuehai and Fu, Tsu-Jui and Jampani, Varun and Akula, Arjun and Narayana, Pradyumna and Basu, Sugato and Wang, Xin Eric and Wang, William Yang},
   booktitle={International Conference on Learning Representations},
   year={2023},
+  eprint={2212.05032},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
   url={https://arxiv.org/abs/2212.05032}
 }
 ```

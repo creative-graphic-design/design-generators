@@ -10,6 +10,7 @@ from .constants import (
     BANNED_PATTERNS,
     EXPECTED_FRONTMATTER,
     EXPECTED_MODEL_NAMES,
+    EXPECTED_PIPELINE_TAGS,
     EXPECTED_REPOSITORY_LINKS,
     MODEL_MEMBER_DIRS,
     PROMPT_ONLY_SLUGS,
@@ -191,24 +192,21 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
 
 
 def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
-    """Require the model-card task metadata for layout generation."""
+    """Require the model-card task metadata registered for this package."""
+    expected_pipeline_tag = EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
-    if pipeline_tag != "other":
+    if pipeline_tag != expected_pipeline_tag:
         raise AssertionError(
-            f"{path}: pipeline_tag must be 'other' for layout generation, got {pipeline_tag!r}"
+            f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
-
-    bad_task = re.search(
-        r'^\s+type:\s*["\']?text-to-image["\']?\s*$', frontmatter, re.MULTILINE
-    )
-    if bad_task:
-        raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
 
     task_types = re.findall(
         r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
     )
-    if "other" not in task_types and "model-index:" in frontmatter:
-        raise AssertionError(f"{path}: model-index task.type must be 'other'")
+    if expected_pipeline_tag not in task_types and "model-index:" in frontmatter:
+        raise AssertionError(
+            f"{path}: model-index task.type must be {expected_pipeline_tag!r}"
+        )
 
 
 def assert_model_index_policy(path: Path, frontmatter: str) -> None:

@@ -1,8 +1,10 @@
 # Reproducing StructureDiffusion CPU Agreement
 
-This guide runs package tests and compares generated images against the pinned official attention implementation on a Colab CPU runtime. The comparison uses the official `CrossAttention.multi_qkv` implementation with the same Stable Diffusion v1.4 Diffusers weights, parser outputs, scheduler, seed, and starting latent. It does not run or patch the vendor demo's CUDA-only model loader.
+This guide runs package tests and compares generated images against the pinned official attention implementation on a Colab CPU runtime. The comparison uses the official `CrossAttention.multi_qkv` implementation with the same Stable Diffusion v1.4 weights in the released pipeline format, parser outputs, scheduler, seed, and starting latent. It does not run or patch the vendor demo's CUDA-only model loader.
 
 Run from the repository root. Do not install the model package dependencies on a machine whose free disk space is below 3 GB. Generated images and metric JSON files belong under `.cache/structurediffusion/` and are not committed.
+
+Workflow order: install the CPU environment, download parser and model assets, run unit and repository checks, compare the package with the reference, then stop the Colab session.
 
 ## 1. Check out the source revision
 
@@ -51,6 +53,7 @@ COVERAGE_FILE=/content/sdg-root-coverage/.coverage \
   .venv/bin/coverage report --rcfile=/dev/null
 .venv/bin/zensical build --strict -f mkdocs.yml
 UV_NO_SYNC=1 MEMBER_TEST_RUNNER_DEPS=0 scripts/run_member_tests.sh models/structurediffusion
+UV_NO_SYNC=1 uv run --package structurediffusion pytest models/structurediffusion/tests -m "not vendor_parity and not integration"
 ```
 
 ## 4. Rehearse at 64×64
@@ -58,7 +61,7 @@ UV_NO_SYNC=1 MEMBER_TEST_RUNNER_DEPS=0 scripts/run_member_tests.sh models/struct
 Use the same marked test for the rehearsal and the final 512×512 comparison. The rehearsal checks model loading, parsing, token alignment, the vendor processor, and CPU memory use; it is not the reported image-parity result.
 
 ```bash
-PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=64 .venv/bin/pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
+UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=64 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
 Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; the final run uses the same 10 steps and initial latent shape `[1, 4, 64, 64]` for each path.
@@ -68,7 +71,7 @@ Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512
 Proceed only if the measured time projection remains within the approved worker budget of 1 CU. The run uses one prompt (`A red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 DDIM steps, CPU float32, and one precomputed initial latent for both paths.
 
 ```bash
-PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 .venv/bin/pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
+UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
 The test writes `.cache/structurediffusion/parity/cpu-512.json` with the phrase list, CLIP spans, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. Generated images are compared in memory and are not saved.
