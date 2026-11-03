@@ -15,9 +15,12 @@ from .constants import (
     EXPECTED_MODEL_NAMES,
     EXPECTED_PIPELINE_TAGS,
     EXPECTED_REPOSITORY_LINKS,
-    MODEL_CONTENT_VALUES,
+    IMAGE_GENERATION_CATEGORY,
+    IMAGE_GENERATION_CONDITIONING_ORDER,
+    IMAGE_GENERATION_TASK_VALUES,
+    LAYOUT_TASK_VALUES,
     MODEL_CONDITIONING_ORDER,
-    MODEL_TASK_VALUES,
+    MODEL_TYPE_VALUES,
     MODEL_MEMBER_DIRS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
@@ -247,7 +250,7 @@ def model_member_slugs() -> set[str]:
 ModelType: TypeAlias = tuple[str, str, tuple[str, ...]]
 
 _MODEL_TYPE_LINE_RE = re.compile(
-    r"^- \*\*Model type:\*\* (?P<content>[^;\n]+); task: (?P<task>[^;\n]+); conditioning: "
+    r"^- \*\*Model type:\*\* (?P<category>[^;\n]+); task: (?P<task>[^;\n]+); conditioning: "
     r"(?P<conditioning>[^.\n]+)\.$"
 )
 
@@ -264,38 +267,58 @@ def parse_model_type(path: Path, text: str) -> ModelType:
     if match is None:
         raise AssertionError(
             f"{path}: Model type line must match "
-            "'- **Model type:** <content>; task: <task>; conditioning: <values>.'"
+            "'- **Model type:** <category>; task: <task>; conditioning: <values>.'"
         )
 
-    content = match.group("content")
-    if content not in MODEL_CONTENT_VALUES:
+    category = match.group("category")
+    if category not in MODEL_TYPE_VALUES:
         raise AssertionError(
-            f"{path}: Model type content value {content!r} is invalid; "
-            f"expected one of {MODEL_CONTENT_VALUES}"
+            f"{path}: Model type category value {category!r} is invalid; "
+            f"expected one of {MODEL_TYPE_VALUES}"
         )
 
     task = match.group("task")
-    if task not in MODEL_TASK_VALUES:
-        raise AssertionError(
-            f"{path}: Model type task value {task!r} is invalid; "
-            f"expected one of {MODEL_TASK_VALUES}"
-        )
-
     conditioning = tuple(
         value.strip() for value in match.group("conditioning").split(",")
     )
     if any(not value for value in conditioning):
         raise AssertionError(f"{path}: Model type conditioning values cannot be empty")
 
-    for value in conditioning:
-        if value not in MODEL_CONDITIONING_ORDER:
-            raise AssertionError(
-                f"{path}: Model type conditioning value {value!r} is invalid; "
-                f"expected one of {MODEL_CONDITIONING_ORDER}"
-            )
-
     if len(set(conditioning)) != len(conditioning):
         raise AssertionError(f"{path}: Model type conditioning values must be unique")
+
+    if category == IMAGE_GENERATION_CATEGORY:
+        if task not in IMAGE_GENERATION_TASK_VALUES:
+            raise AssertionError(
+                f"{path}: image generation task value {task!r} is invalid; "
+                f"expected one of {IMAGE_GENERATION_TASK_VALUES}"
+            )
+
+        conditioning_order = IMAGE_GENERATION_CONDITIONING_ORDER
+    else:
+        if task not in LAYOUT_TASK_VALUES:
+            raise AssertionError(
+                f"{path}: Model type task value {task!r} is invalid; "
+                f"expected one of {LAYOUT_TASK_VALUES}"
+            )
+
+        conditioning_order = MODEL_CONDITIONING_ORDER
+
+    for value in conditioning:
+        if value not in conditioning_order:
+            raise AssertionError(
+                f"{path}: Model type conditioning value {value!r} is invalid; "
+                f"expected one of {conditioning_order}"
+            )
+
+    if category == IMAGE_GENERATION_CATEGORY:
+        positions = [conditioning_order.index(value) for value in conditioning]
+        if positions != sorted(positions):
+            raise AssertionError(
+                f"{path}: Model type conditioning values must use the canonical order"
+            )
+
+        return category, task, conditioning
 
     special_values = {"evaluation", "saliency", "none"}
     if len(conditioning) > 1 and special_values.intersection(conditioning):
@@ -321,13 +344,13 @@ def parse_model_type(path: Path, text: str) -> ModelType:
             f"{path}: task-agnostic or task-aware is required for multiple conditioning values"
         )
 
-    positions = [MODEL_CONDITIONING_ORDER.index(value) for value in conditioning]
+    positions = [conditioning_order.index(value) for value in conditioning]
     if positions != sorted(positions):
         raise AssertionError(
             f"{path}: Model type conditioning values must use the canonical order"
         )
 
-    return content, task, conditioning
+    return category, task, conditioning
 
 
 def library_member_slugs() -> set[str]:
@@ -349,10 +372,15 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
-def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
+def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> None:
     """Require the model-card task metadata declared for this package."""
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
-    expected_pipeline_tag = EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
+    category, task, _ = model_type
+    expected_pipeline_tag = (
+        task
+        if category == IMAGE_GENERATION_CATEGORY
+        else EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
+    )
     if pipeline_tag != expected_pipeline_tag:
         raise AssertionError(
             f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
@@ -431,7 +459,8 @@ def assert_expected_frontmatter(path: Path, text: str) -> None:
 
     frontmatter = _frontmatter(text)
     assert_frontmatter_list_unique(path, frontmatter)
-    assert_pipeline_tag(path, frontmatter)
+    model_type = parse_model_type(path, text)
+    assert_pipeline_tag(path, frontmatter, model_type)
     assert_model_index_policy(path, frontmatter)
     actual_license = _frontmatter_scalar(frontmatter, "license")
     expected_license = expected["license"]

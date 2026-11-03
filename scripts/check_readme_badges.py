@@ -100,10 +100,31 @@ ROOT_TASK_BADGE_COLORS = {
     "single-task": "6b7280",
     "evaluation": "6b7280",
     "saliency": "f39c12",
+    "text-to-image": "6b7280",
+    "image-to-image": "6b7280",
 }
 ROOT_CONTENT_BADGE_COLORS = {
     "content-agnostic": "2f80ed",
     "content-aware": "eb5757",
+    "text": "2f80ed",
+    "layers": "eb5757",
+    "layers + text": "eb5757",
+}
+ROOT_TASK_BADGE_ICONS = {
+    "task-agnostic": "🎯",
+    "task-aware": "🎯",
+    "single-task": "🎯",
+    "evaluation": "🎯",
+    "saliency": "🎯",
+    "text-to-image": "🎨",
+    "image-to-image": "🎨",
+}
+ROOT_CONTENT_BADGE_ICONS = {
+    "content-agnostic": "🖼️",
+    "content-aware": "🖼️",
+    "text": "📝",
+    "layers": "🧩",
+    "layers + text": "🧩",
 }
 ROOT_LIBRARY_BADGE_COLORS = {
     "laygen": "2f80ed",
@@ -386,6 +407,18 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
 
 
+def _expected_icon(path: Path, label: str, message: str | None) -> str | None:
+    if not _is_root_readme(path) or message is None:
+        return None
+
+    if label == "task":
+        return ROOT_TASK_BADGE_ICONS.get(message)
+    if label == "content":
+        return ROOT_CONTENT_BADGE_ICONS.get(message)
+
+    return None
+
+
 def _iter_badges(path: Path) -> list[Badge]:
     badges: list[Badge] = []
     text = path.read_text(encoding="utf-8")
@@ -451,6 +484,13 @@ def _iter_badges(path: Path) -> list[Badge]:
 
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
+        expected_icon = _expected_icon(path, label, message)
+        if expected_icon is not None and query["label"][0] != expected_icon:
+            raise AssertionError(
+                f"{path}:{line}: badge {label!r} icon {query['label'][0]!r} "
+                f"!= {expected_icon!r}: {url}"
+            )
+
         allowed_logos = _allowed_logos(path, label, message)
         if logo not in allowed_logos:
             raise AssertionError(

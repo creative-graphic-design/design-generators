@@ -598,18 +598,24 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
         card.assert_frontmatter_list_unique(path, "tags:\n  - one\n  - one\n")
 
     with pytest.raises(AssertionError, match="pipeline_tag"):
-        card.assert_pipeline_tag(path, "pipeline_tag: text")
+        card.assert_pipeline_tag(
+            path,
+            "pipeline_tag: text",
+            ("content-agnostic", "single-task", ("label",)),
+        )
 
     with pytest.raises(AssertionError, match="must not be text-to-image"):
         card.assert_pipeline_tag(
             path,
             'pipeline_tag: other\nmodel-index:\n  - name: example\n    results:\n      type: "text-to-image"',
+            ("content-agnostic", "single-task", ("label",)),
         )
 
     with pytest.raises(AssertionError, match="task.type must be 'other'"):
         card.assert_pipeline_tag(
             path,
             "pipeline_tag: other\nmodel-index:\n  - task:\n      type: text-classification",
+            ("content-agnostic", "single-task", ("label",)),
         )
 
 
@@ -619,6 +625,7 @@ def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
         path,
         "pipeline_tag: image-feature-extraction\nmodel-index:\n"
         "  - task:\n      type: image-feature-extraction",
+        ("content-agnostic", "single-task", ("label",)),
     )
 
 
@@ -683,11 +690,11 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
         ),
         (
             "- **Model type:** image-aware; task: single-task; conditioning: none.\n",
-            "content value",
+            "category value",
         ),
         (
             "- **Model type:** Content-agnostic; task: single-task; conditioning: none.\n",
-            "content value",
+            "category value",
         ),
         (
             "- **Model type:** content-agnostic; task: single-task; conditioning: label-size.\n",
@@ -778,17 +785,32 @@ def test_model_type_contract_rejects_empty_conditioning_value() -> None:
 
 
 def _catalog_badge(kind: str, message: str) -> str:
-    emoji = "%F0%9F%8E%AF" if kind == "task" else "%F0%9F%96%BC%EF%B8%8F"
+    emojis = {
+        ("task", "text-to-image"): "%F0%9F%8E%A8",
+        ("task", "image-to-image"): "%F0%9F%8E%A8",
+        ("content", "text"): "%F0%9F%93%9D",
+        ("content", "layers + text"): "%F0%9F%A7%A9",
+    }
+    emoji = emojis.get(
+        (kind, message),
+        "%F0%9F%8E%AF" if kind == "task" else "%F0%9F%96%BC%EF%B8%8F",
+    )
     colors = {
         "task-agnostic": "2f80ed",
         "task-aware": "9b51e0",
         "single-task": "6b7280",
+        "text-to-image": "6b7280",
+        "image-to-image": "6b7280",
         "content-agnostic": "2f80ed",
         "content-aware": "eb5757",
+        "text": "2f80ed",
+        "layers + text": "eb5757",
     }
+    encoded_message = message.replace(" ", "%20").replace("+", "%2B")
+
     return (
         f"![{kind}: {message}](https://img.shields.io/static/v1?label={emoji}"
-        f"&message={message}&color={colors[message]})"
+        f"&message={encoded_message}&color={colors[message]})"
     )
 
 
@@ -1282,18 +1304,23 @@ model-index:
 ---
 """
     path = Path("models/layout-dm/README.md")
+    model_readme = (
+        f"{frontmatter}\n"
+        "- **Model type:** content-agnostic; task: task-agnostic; "
+        "conditioning: unconditional, label, label_size, completion, refinement.\n"
+    )
     with pytest.raises(AssertionError, match="frontmatter license"):
-        card.assert_expected_frontmatter(path, frontmatter)
+        card.assert_expected_frontmatter(path, model_readme)
 
     with pytest.raises(AssertionError, match="datasets missing"):
         card.assert_expected_frontmatter(
-            path, frontmatter.replace("license: mit", "license: apache-2.0")
+            path, model_readme.replace("license: mit", "license: apache-2.0")
         )
 
     with pytest.raises(AssertionError, match="dataset badges"):
         card.assert_expected_frontmatter(
             path,
-            frontmatter.replace("license: mit", "license: apache-2.0").replace(
+            model_readme.replace("license: mit", "license: apache-2.0").replace(
                 "creative-graphic-design/Rico",
                 "creative-graphic-design/Rico\n  - creative-graphic-design/PubLayNet",
             ),
@@ -1538,3 +1565,102 @@ pip install \\
             REPO_ROOT / "models" / "smarttext" / "README.md",
             text,
         )
+
+
+@pytest.mark.parametrize(
+    ("line", "task", "conditioning", "expected"),
+    [
+        (
+            "- **Model type:** image generation; task: text-to-image; conditioning: text.\n",
+            "text-to-image",
+            "text",
+            ("image generation", "text-to-image", ("text",)),
+        ),
+        (
+            "- **Model type:** image generation; task: image-to-image; conditioning: layers, text.\n",
+            "image-to-image",
+            "layers + text",
+            ("image generation", "image-to-image", ("layers", "text")),
+        ),
+    ],
+)
+def test_image_generation_model_type_and_pipeline_tag_follow_task(
+    line: str,
+    task: str,
+    conditioning: str,
+    expected: tuple[str, str, tuple[str, ...]],
+) -> None:
+    path = Path("models/example/README.md")
+    model_type = card.parse_model_type(path, line)
+
+    assert model_type == expected
+    card.assert_pipeline_tag(path, f"pipeline_tag: {task}\n", model_type)
+    with pytest.raises(AssertionError, match="pipeline_tag"):
+        card.assert_pipeline_tag(path, "pipeline_tag: other\n", model_type)
+
+    assert root_readme._model_catalog_badge_values(model_type) == (
+        task,
+        conditioning,
+    )
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        (
+            "- **Model type:** image generation; task: single-task; conditioning: text.\n",
+            "image generation task value",
+        ),
+        (
+            "- **Model type:** image generation; task: text-to-image; conditioning: label.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** image generation; task: image-to-image; conditioning: text, layers.\n",
+            "canonical order",
+        ),
+    ],
+)
+def test_image_generation_model_type_rejects_out_of_policy_values(
+    line: str, message: str
+) -> None:
+    with pytest.raises(AssertionError, match=message):
+        card.parse_model_type(Path("models/example/README.md"), line)
+
+
+@pytest.mark.parametrize(
+    ("task", "conditioning", "line"),
+    [
+        (
+            "text-to-image",
+            "text",
+            "- **Model type:** image generation; task: text-to-image; conditioning: text.\n",
+        ),
+        (
+            "image-to-image",
+            "layers + text",
+            "- **Model type:** image generation; task: image-to-image; conditioning: layers, text.\n",
+        ),
+    ],
+)
+def test_docs_index_model_table_accepts_image_generation_models(
+    tmp_path: Path, task: str, conditioning: str, line: str
+) -> None:
+    _write_model_type_fixture(tmp_path, "layout-dm", line)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row(task, conditioning)}\n",
+        encoding="utf-8",
+    )
+
+    assert root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    ) == {"layout-dm"}

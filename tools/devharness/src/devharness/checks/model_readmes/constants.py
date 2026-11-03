@@ -33,13 +33,16 @@ DOCS_MODEL_TABLE_HEADER = [
     "Docs",
 ]
 MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
-MODEL_TASK_VALUES = (
+IMAGE_GENERATION_CATEGORY = "image generation"
+MODEL_TYPE_VALUES = (*MODEL_CONTENT_VALUES, IMAGE_GENERATION_CATEGORY)
+LAYOUT_TASK_VALUES = (
     "task-agnostic",
     "task-aware",
     "single-task",
     "evaluation",
     "saliency",
 )
+IMAGE_GENERATION_TASK_VALUES = ("text-to-image", "image-to-image")
 MODEL_CONDITIONING_ORDER = (
     "unconditional",
     "label",
@@ -55,6 +58,7 @@ MODEL_CONDITIONING_ORDER = (
     "saliency",
     "none",
 )
+IMAGE_GENERATION_CONDITIONING_ORDER = ("layers", "text")
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )

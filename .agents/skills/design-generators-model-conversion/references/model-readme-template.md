@@ -69,7 +69,8 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
-- **Model type:** <content-agnostic|content-aware>; task: <task-agnostic|task-aware|single-task|evaluation|saliency>; conditioning: <canonical values in conventions order>.
+<!-- Choose the category-specific task, conditioning, and pipeline_tag values from [the model catalog conventions](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-catalog-classification). -->
+- **Model type:** <category>; task: <category-specific task>; conditioning: <canonical values in conventions order>.
 - **Language(s) (NLP):** <not-applicable-or-language-list>
 - **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
