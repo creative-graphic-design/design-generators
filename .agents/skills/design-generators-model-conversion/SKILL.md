@@ -22,7 +22,7 @@ Confirm the checkpoint/dataset/task matrix and license from the issue and origin
 
 Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API. Use the [model and serialization rules](docs/conventions.md#model-and-serialization-rules) for public pipeline arguments, output schemas, model entry points, and serialization rules.
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, `TRAINING.md`, and the model issue. Keep detailed original-code correspondence in these paths rather than the public runtime API. Use the [model and serialization rules](docs/conventions.md#model-and-serialization-rules) for public pipeline arguments, output schemas, model entry points, and serialization rules.
 
 ## Package and interface
 
