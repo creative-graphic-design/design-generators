@@ -30,11 +30,12 @@ model-index:
 
 # Model Card for StructureDiffusion
 
-[![paper](https://img.shields.io/static/v1?label=paper&message=ICLR+2023&color=blue&style=flat-square)](https://arxiv.org/abs/2212.05032)
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2212.05032&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2212.05032)
 ![venue](https://img.shields.io/static/v1?label=venue&message=ICLR+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=orange&style=flat-square)
+![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
