@@ -17,6 +17,7 @@ from .constants import (
     PROMPT_ONLY_STALE_PHRASES,
     REQUIRED_HEADINGS,
     REPO_ROOT,
+    USAGE_FIRST_REQUIRED_HEADINGS,
 )
 from .install import project_metadata
 
@@ -227,10 +228,10 @@ def assert_model_index_policy(path: Path, frontmatter: str) -> None:
         raise AssertionError(f"{path}: weight-backed README must include model-index")
 
 
-def assert_heading_order(path: Path, text: str) -> None:
-    """Require model-card headings in the documented order."""
+def _assert_heading_order(path: Path, text: str, required_headings: list[str]) -> None:
+    """Require model-card headings in one documented order."""
     cursor = -1
-    for heading in REQUIRED_HEADINGS:
+    for heading in required_headings:
         pattern = (
             rf"^{re.escape(heading)}.*$"
             if heading.endswith(" ")
@@ -245,6 +246,19 @@ def assert_heading_order(path: Path, text: str) -> None:
             raise AssertionError(f"{path}: missing required heading {heading!r}")
 
         cursor = matches[0].start()
+
+
+def assert_heading_order(path: Path, text: str) -> None:
+    """Accept existing order and the usage-first order from the checklist."""
+    for required_headings in (REQUIRED_HEADINGS, USAGE_FIRST_REQUIRED_HEADINGS):
+        try:
+            _assert_heading_order(path, text, required_headings)
+        except AssertionError:
+            continue
+
+        return
+
+    _assert_heading_order(path, text, REQUIRED_HEADINGS)
 
 
 def assert_frontmatter(path: Path, text: str) -> None:

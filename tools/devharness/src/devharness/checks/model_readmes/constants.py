@@ -110,6 +110,27 @@ REQUIRED_HEADINGS = [
     "## Reproducibility",
 ]
 
+USAGE_FIRST_REQUIRED_HEADINGS = [
+    "# Model Card for ",
+    "## Model Details",
+    "### Model Description",
+    "### Model Sources",
+    "## Supported Checkpoints",
+    "## Uses",
+    "### Direct Use",
+    "### Downstream Use",
+    "### Out-of-Scope Use",
+    "## How to Get Started with the Model",
+    "## Bias, Risks, and Limitations",
+    "### Recommendations",
+    "## Training Details",
+    "### Training Data",
+    "### Training Procedure",
+    "## Evaluation",
+    "### Parity Results",
+    "## Reproducibility",
+]
+
 BANNED_PATTERNS = [
     r"GEN_AI_PROXY_PAT",
     r"genai[-_]?gateway",

@@ -23,7 +23,7 @@ model-index:
         metrics:
           - type: "vendor-parity"
             value: 0.0
-            name: "Mean absolute pixel difference"
+            name: "Provisional pre-commit mean absolute pixel difference"
 ---
 
 <!-- --8<-- [start:card] -->
@@ -35,7 +35,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=MAE%3C1e-3&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
@@ -132,19 +132,19 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 ### Testing Data, Factors & Metrics
 
-The comparison fixture receives `A red car and a white sheep`, seed 42, 512×512 output, 10 Diffusers PNDM steps through its PLMS path, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the reference and package. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input. The 64×64 run is only a CPU rehearsal.
+The comparison fixture receives `A red car and a white sheep`, seed 42, 512×512 output, 10 `🧨diffusers` PNDM steps through its PLMS path, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the reference and package. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input. The 64×64 run is only a CPU rehearsal.
 
-The test checks vendor noun-phrase extraction and token spans, independently assembled phrase keys and values from the vendor `multi_align` path, and cross-attention output. The reference image uses a separate base `diffusers.StableDiffusionPipeline` instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use Diffusers, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
+The test checks vendor noun-phrase extraction and token spans, independently assembled phrase keys and values from the vendor `multi_align` path, and cross-attention output. The reference image uses a separate base `🧨diffusers` pipeline instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use `🧨diffusers`, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
 
 ### Parity Results
 
-| Check                                                   | Cases | Criterion                                                                        | Result                                                                                                                                           |
-| ------------------------------------------------------- | ----: | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| CPU image output against the pinned attention reference |     1 | Phrase and CLIP token-span match; K/V max difference `0`; image MAE below `1e-3` | A 512×512 pre-commit working-tree run met these values; this is provisional, not formal parity. Independent rerun of the pushed head is pending. |
+| Check                                                   | Cases | Criterion                                                                           | Result                                                                                                                                         |
+| ------------------------------------------------------- | ----: | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPU image output against the pinned attention reference |     1 | Phrase and token-span match; K/V max difference `atol=1e-6`; image MAE below `1e-3` | The pre-commit working-tree run observed zero differences, but formal parity has not run on the pushed head; the independent rerun is pending. |
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base Diffusers pipeline. Diffusers supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. Formal parity remains pending an independent rerun of the pushed PR head.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base `🧨diffusers` pipeline. `🧨diffusers` supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. Formal parity remains pending an independent rerun of the pushed PR head.
 
 ## Environmental Impact
 

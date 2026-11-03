@@ -1,6 +1,6 @@
 # Reproducing StructureDiffusion CPU Agreement
 
-This guide runs package tests and compares generated images against a pinned attention reference on a standard Colab CPU runtime. It checks noun-phrase extraction, CLIP token spans, independently assembled keys and values, cross-attention, and image output. The reference uses a separate base `diffusers.StableDiffusionPipeline` instance with the reference `CrossAttention.multi_qkv`; the package uses `StructureDiffusionPipeline`. Both model loading and sampling use Diffusers, so the comparison does not claim parity with the reference checkpoint loader or native sampler implementation.
+This guide runs package tests and compares generated images against a pinned attention reference on a standard Colab CPU runtime. It checks noun-phrase extraction, CLIP token spans, independently assembled keys and values, cross-attention, and image output. The reference uses a separate base `🧨diffusers` pipeline instance with the reference `CrossAttention.multi_qkv`; the package uses `StructureDiffusionPipeline`. Both model loading and sampling use `🧨diffusers`, so the comparison does not claim parity with the reference checkpoint loader or native sampler implementation.
 
 Run from the repository root. Do not install the model package dependencies on a machine whose free disk space is below 3 GB. Generated images and metric JSON files belong under `.cache/structurediffusion/` and are not committed.
 
@@ -64,13 +64,13 @@ Use the same marked test for the rehearsal and the final 512×512 comparison. Th
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=64 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
-Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; proceed only if the full run remains within the 0.5 CU cap. The final run uses the same 10 PNDM steps through Diffusers' PLMS path and the same initial latent shape `[1, 4, 64, 64]` for each path.
+Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; proceed only if the full run remains within the 0.5 CU cap. The final run uses the same 10 PNDM steps through the `🧨diffusers` PLMS path and the same initial latent shape `[1, 4, 64, 64]` for each path.
 
 The executed 64×64 rehearsal passed in 92.2 seconds with peak RSS 5,497 MiB and zero pixel difference. This is a CPU execution and memory check; the reported parity result is the 512×512 comparison below.
 
 ## 5. Compare at 512×512
 
-Proceed only if the measured time projection remains within the 0.5 CU worker budget. The comparison fixture uses the input prompt (`A red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 Diffusers PNDM steps with `skip_prk_steps=True`, CPU float32, and one precomputed initial latent for both paths. The package receives the capitalized prompt; the vendor reference applies its own `preprocess_prompts` lowercasing before parsing and token alignment.
+Proceed only if the measured time projection remains within the 0.5 CU worker budget. The comparison fixture uses the input prompt (`A red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 `🧨diffusers` PNDM steps with `skip_prk_steps=True`, CPU float32, and one precomputed initial latent for both paths. The package receives the capitalized prompt; the vendor reference applies its own `preprocess_prompts` lowercasing before parsing and token alignment.
 
 ```bash
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s

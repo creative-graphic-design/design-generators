@@ -21,7 +21,11 @@ from devharness.checks.model_readmes import (
     reproducing,
     root_readme,
 )
-from devharness.checks.model_readmes.constants import find_repo_root
+from devharness.checks.model_readmes.constants import (
+    REQUIRED_HEADINGS,
+    USAGE_FIRST_REQUIRED_HEADINGS,
+    find_repo_root,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -53,6 +57,24 @@ def test_model_readme_cli_resolves_root_from_subdirectory() -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert result.stdout == "Model README checks passed.\n"
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    "required_headings",
+    [REQUIRED_HEADINGS, USAGE_FIRST_REQUIRED_HEADINGS],
+    ids=["existing", "usage-first"],
+)
+def test_card_heading_order_accepts_supported_orders(
+    tmp_path: Path,
+    required_headings: list[str],
+) -> None:
+    path = tmp_path / "README.md"
+    text = "\n".join(
+        f"{heading}Example" if heading.endswith(" ") else heading
+        for heading in required_headings
+    )
+
+    card.assert_heading_order(path, text)
 
 
 def test_model_readme_cli_reports_missing_workspace_root() -> None:

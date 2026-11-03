@@ -237,6 +237,7 @@ class StructuredAttentionProcessor:
         for context in conditioning.values:
             value_projection = attn.to_v(context)
             value_heads.append(self._to_heads(value_projection, attn.heads))
+
         probabilities = [
             self._attention_probabilities(attn, query_heads, key, attention_mask)
             for key in key_heads
