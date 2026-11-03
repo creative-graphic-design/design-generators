@@ -1645,6 +1645,13 @@ def test_image_generation_frontmatter_contract_follows_task(
         "model-index: [{name: Example, results: [{task: {type: text-to-image}}]}]",
         "model-index:\n    - name: Example\n      results:\n"
         "        - task:\n            type: text-to-image",
+        "model-index:\n  - name: Example\n    results:\n"
+        "      - task:\n          type: text-to-image\n"
+        "        dataset:\n            type: example-dataset",
+        "model-index:\n  - name: Example\n    results:\n"
+        "      - dataset:\n          type: example-dataset\n"
+        "        name: Example\n        task:\n"
+        "          type: text-to-image",
     ],
 )
 def test_image_generation_frontmatter_rejects_unsupported_model_index_format(
