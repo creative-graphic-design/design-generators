@@ -204,9 +204,7 @@ def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
         r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
     )
     if expected_pipeline_tag == "other" and "text-to-image" in task_types:
-        raise AssertionError(
-            f"{path}: model-index task.type must not be text-to-image"
-        )
+        raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
 
     if expected_pipeline_tag not in task_types and "model-index:" in frontmatter:
         raise AssertionError(
