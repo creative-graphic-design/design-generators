@@ -91,6 +91,7 @@ nav:
           - postero: api/models/postero.md
           - ralf: api/models/ralf.md
           - smarttext: api/models/smarttext.md
+          - structurediffusion: api/models/structurediffusion.md
 
 markdown_extensions:
   - admonition

@@ -1,0 +1,51 @@
+[project]
+name = "structurediffusion"
+version = "0.1.0"
+description = "Diffusers pipeline for training-free structured diffusion guidance."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "nltk>=3.8",
+    "numpy>=1.24",
+    "pillow>=10",
+    "stanza>=1.8",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+scene-graph = ["SceneGraphParser>=0.1.0"]
+vendor = [
+    "einops>=0.8",
+]
+
+[tool.design-generators]
+framework = "diffusers"
+task = "text-to-image-generation"
+conditions = ["prompt"]
+datasets = []
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires downloaded Stable Diffusion weights and parser models",
+    "vendor_parity: requires Stable Diffusion weights and the pinned vendor source",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["structurediffusion"]
+omit = [
+    "models/structurediffusion/tests/vendor_parity/*",
+    "*/tests/vendor_parity/*",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
