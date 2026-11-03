@@ -6,6 +6,15 @@ Workflow order: download the upstream example inputs in Colab, run CPU contract 
 
 The authors' notebook is the single behavior reference. Its temporary comparison runner is prepared and run in Colab and is not stored in this repository. The source repository and the notebook-linked image and embedding assets have no declared distribution license; do not add the notebook code or those assets here. The notebook names `stabilityai/stable-diffusion-2-1-base`, which now returns HTTP 404. Use `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`; the matching weight hashes and component-file SHA-256 manifest are recorded under “Base Checkpoint Provenance and Integrity” in the package README. Both comparison paths must load the same pinned snapshot. Save comparison output only in private Hub storage and keep its path out of this repository.
 
+## Parity-Sensitive Implementation Choices
+
+These details explain behavior that must remain aligned when comparing the package with the notebook reference:
+
+- Layer compositing passes each RGBA image as its own Pillow paste mask. For partially transparent pixels, Pillow applies alpha both as source opacity and as mask opacity, so the effective alpha is squared. The visible-mask and noise-map paths preserve that behavior.
+- The reference inserts a textual-inversion token before its layer description. When textual inversion is enabled for any layer, it widens every matched token span one position to the left and leaves the end unchanged. A layer without its own embedding can therefore include the preceding word, such as `a`; this edge case is retained for comparison.
+- Attention masks are converted to float64 and resized to each query grid with bilinear interpolation and `antialias=True`. This matches the reference's numerical mask path before the per-layer score bias is applied.
+- The source-strength map is quantized to uint8 before nearest-neighbor resizing to the latent grid. Attention guidance scales with scheduler sigma, with normalized timestep as the fallback when sigma values are unavailable; preservation uses the timestep-dependent threshold and neighborhood dilation.
+
 ## CPU Workspace Setup
 
 Run these commands in the named Colab CPU session. Use the repository's standard workspace dependency configuration.

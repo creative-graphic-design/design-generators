@@ -95,10 +95,10 @@ def _placed_alpha(
     height: int,
 ) -> Float[np.ndarray, "height width"]:
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    # Match the notebook's RGBA-as-mask paste, which multiplies partial alpha by itself.
+    # Using the RGBA image as its own paste mask multiplies partial alpha by itself.
     canvas.paste(layer.image, layer.position, layer.image)
 
-    # Keep float64 until uint8 quantization to match the notebook's mask arithmetic.
+    # Keep alpha arithmetic at float64 until conversion to the 8-bit noise map.
     return np.asarray(canvas.getchannel("A"), dtype=np.float64) / 255.0
 
 
@@ -142,7 +142,7 @@ def compose_collage_layers(
 
     composite = Image.new("RGB", (width, height), background_color)
     for layer in layers:
-        # The notebook also passes each RGBA layer as its own paste mask here.
+        # Use each RGBA layer's alpha as its paste mask while compositing.
         composite.paste(layer.image, layer.position, layer.image)
 
     visible_masks: list[Float[np.ndarray, "height width"]] = []
@@ -249,11 +249,7 @@ def _prompt_token_spans(
             span = _find_token_span(prompt_ids, layer_ids)
 
         if textual_inversion_enabled:
-            # The notebook inserts TI tokens before layer phrases, so it expands
-            # every span one token left (keeping the end) to include that token.
-            # It also expands layers without TI, which can include a preceding
-            # word such as "a". Preserve this possible notebook quirk for parity;
-            # whether to change the default behavior remains undecided.
+            # Extend each span's start one token left to include a prepended TI token.
             span = tuple(range(span[0] - 1, span[-1] + 1))
 
         spans.append(span)
@@ -299,11 +295,7 @@ def _resize_mask_to_query(
     size: tuple[int, int],
     device: torch.device,
 ) -> Float[torch.Tensor, "query"]:
-    """Resize a mask with the notebook's interpolation settings for parity.
-
-    The reference uses float64 bilinear interpolation with antialiasing when it
-    resizes visible masks to each attention layer's query grid.
-    """
+    """Return one flattened mask value for each spatial attention query."""
     mask_tensor = torch.as_tensor(mask, device=device, dtype=torch.float64)
     batched_mask = mask_tensor.unsqueeze(0).unsqueeze(0)
     resized_mask = F.interpolate(
@@ -664,7 +656,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
         latent_timestep = timesteps[:1].repeat(num_images_per_prompt)
         latents = self.scheduler.add_noise(init_latents, initial_noise, latent_timestep)
         noise_mask_pixels = np.rint(noise_map * 255.0).astype(np.uint8)
-        # Match the notebook's uint8 mask quantization and nearest-neighbor resize.
+        # Quantize the source strength map before resizing it to the latent grid.
         noise_mask_image = Image.fromarray(noise_mask_pixels)
         noise_mask_image = noise_mask_image.resize(
             (latents.shape[-1], latents.shape[-2]),
@@ -719,7 +711,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             with self.progress_bar(total=effective_steps) as progress_bar:
                 for step_index, timestep in enumerate(timesteps):
                     if attention_control_enabled:
-                        # The notebook scales attention guidance with sigma; use normalized t if unavailable.
+                        # Scheduler sigma controls attention strength; use normalized t if unavailable.
                         sigma = (
                             float(self.scheduler.sigmas[step_index].item())
                             if hasattr(self.scheduler, "sigmas")
@@ -766,7 +758,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                         init_latents, step_noise, timestep_batch
                     )
                     timestep_value = float(timestep.item())
-                    # Match the notebook's timestep-dependent threshold and mask dilation.
+                    # Apply the timestep-dependent preservation threshold and spread it to neighbors.
                     mask_t = (noise_mask > 1.0 - timestep_value / 1000.0).to(
                         latents.dtype
                     )
