@@ -35,7 +35,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=MAE%3C1e-3&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
@@ -81,14 +81,6 @@ Use generated images as draft visual material for creative-design workflows afte
 
 Do not treat generated images as verified depictions of real people or events, or use them as evidence that prompt attributes were rendered correctly. The pipeline does not provide an image safety guarantee.
 
-## Bias, Risks, and Limitations
-
-Generation behavior inherits the training data, biases, and restrictions of the selected Stable Diffusion checkpoint. The default constituency parser is English-only and requires the [Stanza](https://stanfordnlp.github.io/stanza/) English tokenizer, POS, and constituency models to be installed separately. Scene-graph parsing is an optional extra with its own [spaCy](https://spacy.io/) English model prerequisite. Outputs vary with the checkpoint, parser, scheduler, device, precision, and library versions.
-
-### Recommendations
-
-Inspect generated images before downstream use, and record the checkpoint revision, parser, scheduler, dimensions, seed, and inference steps when comparing results.
-
 ## How to Get Started with the Model
 
 Install the package from this repository and download the parser models before the first inference:
@@ -118,6 +110,14 @@ image = result.images[0]
 
 The optional scene-graph parser can be installed with the `scene-graph` extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
 
+## Bias, Risks, and Limitations
+
+Generation behavior inherits the training data, biases, and restrictions of the selected Stable Diffusion checkpoint. The default constituency parser is English-only and requires the [Stanza](https://stanfordnlp.github.io/stanza/) English tokenizer, POS, and constituency models to be installed separately. Scene-graph parsing is an optional extra with its own [spaCy](https://spacy.io/) English model prerequisite. Outputs vary with the checkpoint, parser, scheduler, device, precision, and library versions.
+
+### Recommendations
+
+Inspect generated images before downstream use, and record the checkpoint revision, parser, scheduler, dimensions, seed, and inference steps when comparing results.
+
 ## Training Details
 
 ### Training Data
@@ -132,17 +132,19 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 ### Testing Data, Factors & Metrics
 
-The comparison fixture uses the prompt `a red car and a white sheep`, seed 42, 512×512 output, 10 DDIM steps, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the official attention reference and this package. It uses lowercase because the official reference's case-sensitive parser-to-token alignment raises `IndexError` for the capitalized `A`; this package normalizes prompt casing before parsing and accepts the capitalized example above. The 64×64 run is only a CPU rehearsal.
+The comparison fixture receives `A red car and a white sheep`, seed 42, 512×512 output, 10 Diffusers PNDM steps through its PLMS path, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the reference and package. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input. The 64×64 run is only a CPU rehearsal.
+
+The test checks vendor noun-phrase extraction and token spans, independently assembled phrase keys and values from the vendor `multi_align` path, and cross-attention output. The reference image uses a separate base `diffusers.StableDiffusionPipeline` instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use Diffusers, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
 
 ### Parity Results
 
-| Check                                                                 | Cases | Criterion                                                                     | Result                                                                                  |
-| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| CPU image output against the pinned official attention implementation |     1 | Phrase and CLIP token-span match; mean absolute image difference below `1e-3` | passed at 512×512: max/mean/RMS absolute difference `0.0`; 887.0 s; peak RSS 6,062 MiB. |
+| Check                                                   | Cases | Criterion                                                                        | Result                                                                                                                                           |
+| ------------------------------------------------------- | ----: | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CPU image output against the pinned attention reference |     1 | Phrase and CLIP token-span match; K/V max difference `0`; image MAE below `1e-3` | A 512×512 pre-commit working-tree run met these values; this is provisional, not formal parity. Independent rerun of the pushed head is pending. |
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned official attention implementation using the same parser output, scheduler, seed, and initial latent.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base Diffusers pipeline. Diffusers supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. Formal parity remains pending an independent rerun of the pushed PR head.
 
 ## Environmental Impact
 
@@ -156,7 +158,7 @@ The pipeline retains Stable Diffusion's VAE, CLIP text encoder, U-Net, and sched
 
 ### Compute Infrastructure
 
-The package supports `🧨diffusers` CPU and accelerator execution. The currently planned agreement run uses Colab CPU only; no GPU comparison is included.
+The package supports `🧨diffusers` CPU and accelerator execution. A pre-commit working-tree comparison used a standard Colab CPU; no GPU comparison is included. That run took 996.7 seconds including setup and reached 6,573.1 MiB peak process RSS. It is provisional; the formal comparison must run against the pushed PR head.
 
 #### Software
 

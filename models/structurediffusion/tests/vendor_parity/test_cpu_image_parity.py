@@ -1,22 +1,25 @@
 from __future__ import annotations
 
 import ast
+import gc
 import hashlib
 import json
 import os
 import resource
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 import numpy as np
 import pytest
 import torch
-from diffusers import DDIMScheduler, StableDiffusionPipeline
+from diffusers import PNDMScheduler, StableDiffusionPipeline
 from diffusers.models.attention_processor import Attention
 from jaxtyping import Bool, Float
 from nltk.tree import Tree
+from PIL import Image
 
 from structurediffusion.modeling_structurediffusion import (
     StructuredAttentionProcessor,
@@ -28,19 +31,66 @@ from structurediffusion.pipeline_structurediffusion import (
     _StructuredCall,
 )
 from structurediffusion.processing_structurediffusion import (
+    NounPhrase,
+    _constituency_pipeline,
+    normalize_prompt,
     token_span_from_char_span,
 )
 
-PROMPT = "a red car and a white sheep"
+PROMPT = "A red car and a white sheep"
 GUIDANCE_SCALE = 7.5
 INFERENCE_STEPS = 10
 SEED = 42
+CONDITIONING_ATOL = 1e-6
+
+
+class _VendorGetAllNps(Protocol):
+    def __call__(
+        self,
+        tree: Tree,
+        full_sent: str,
+        tokens: list[str],
+    ) -> tuple[
+        list[str],
+        list[tuple[int, int]],
+        list[list[str | tuple[int, int]]],
+    ]: ...
+
+
+class _VendorMultiAlign(Protocol):
+    def __call__(
+        self,
+        main_seq: torch.Tensor,
+        seq: torch.Tensor,
+        span: tuple[int, int],
+        dim: int = 1,
+    ) -> torch.Tensor: ...
+
+
+@dataclass(frozen=True)
+class _VendorPromptFunctions:
+    preprocess_prompts: Callable[[str], str]
+    get_all_nps: _VendorGetAllNps
+    multi_align: _VendorMultiAlign
+
+
+@dataclass(frozen=True)
+class _VendorConditioning:
+    """Reference keys and values assembled through the vendor alignment path."""
+
+    keys: tuple[Float[torch.Tensor, "batch tokens dim"], ...]
+    values: tuple[Float[torch.Tensor, "batch tokens dim"], ...]
 
 
 class VendorAttentionReferenceProcessor:
-    """Call the pinned source's multi_qkv implementation with Diffusers weights."""
+    """Run the pinned vendor multi_qkv with weights from a Diffusers layer."""
 
-    def __init__(self, layer_name: str, attention: Attention) -> None:
+    def __init__(
+        self,
+        layer_name: str,
+        attention: Attention,
+        conditioning: _VendorConditioning,
+    ) -> None:
         from structured_stable_diffusion.modules.attention import (
             CrossAttention as VendorCrossAttention,
         )
@@ -51,7 +101,7 @@ class VendorAttentionReferenceProcessor:
             )
 
         self.layer_name = layer_name
-        self.conditioning: StructuredConditioning | None = None
+        self.conditioning = conditioning
         self.reference = VendorCrossAttention(
             query_dim=attention.query_dim,
             context_dim=attention.cross_attention_dim,
@@ -75,9 +125,6 @@ class VendorAttentionReferenceProcessor:
         scale: float | None = None,
     ) -> Float[torch.Tensor, "..."]:
         del scale
-        conditioning = self.conditioning
-        if conditioning is None or not conditioning.do_classifier_free_guidance:
-            raise ValueError("The vendor reference requires classifier-free guidance.")
         if encoder_hidden_states is None or attention_mask is not None:
             raise ValueError(
                 "The Stable Diffusion reference expects unmasked text context."
@@ -90,9 +137,8 @@ class VendorAttentionReferenceProcessor:
         residual = hidden_states
         if attn.spatial_norm is not None:
             hidden_states = attn.spatial_norm(hidden_states, temb)
-        input_ndim = hidden_states.ndim
         spatial_dimensions: tuple[int, int, int] | None = None
-        if input_ndim == 4:
+        if hidden_states.ndim == 4:
             batch_size, channel, height, width = hidden_states.shape
             spatial_dimensions = (channel, height, width)
             hidden_states = hidden_states.view(batch_size, channel, height * width)
@@ -108,17 +154,17 @@ class VendorAttentionReferenceProcessor:
             raise ValueError("Unexpected normalized attention layer in SD 1.4.")
 
         query = attn.to_q(hidden_states)
-        base_batch = conditioning.keys[0].shape[0]
+        base_batch = self.conditioning.keys[0].shape[0]
         if batch_size != base_batch * 2:
             raise ValueError(
-                "The vendor reference requires matching CFG query batches."
+                "The vendor reference requires matching classifier-free guidance batches."
             )
-        unconditional_context = encoder_hidden_states[:base_batch]
+
         output = self.reference.multi_qkv(
             query,
-            unconditional_context,
-            list(conditioning.keys),
-            list(conditioning.values),
+            encoder_hidden_states[:base_batch],
+            list(self.conditioning.keys),
+            list(self.conditioning.values),
             mask=None,
         )
         output = attn.to_out[0](output)
@@ -137,17 +183,17 @@ class VendorAttentionReferenceProcessor:
         return output / attn.rescale_output_factor
 
 
-def _vendor_parser_function(
-    repo_root: Path,
-) -> Callable[
-    [Tree, str, list[str]],
-    tuple[list[str], list[tuple[int, int]], list[tuple[str, tuple[int, int]]]],
-]:
+def _vendor_prompt_functions(repo_root: Path) -> _VendorPromptFunctions:
     source_path = (
         repo_root / "vendor/structured-diffusion-guidance/scripts/txt2img_demo.py"
     )
     source_tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    requested = {"get_all_nps", "get_token_alignment_map"}
+    requested = {
+        "get_all_nps",
+        "get_token_alignment_map",
+        "multi_align",
+        "preprocess_prompts",
+    }
     definitions = [
         node
         for node in source_tree.body
@@ -159,12 +205,10 @@ def _vendor_parser_function(
     module = ast.Module(body=cast(list[ast.stmt], definitions), type_ignores=[])
     namespace: dict[str, object] = {"np": np}
     exec(compile(module, str(source_path), "exec"), namespace)
-    return cast(
-        Callable[
-            [Tree, str, list[str]],
-            tuple[list[str], list[tuple[int, int]], list[tuple[str, tuple[int, int]]]],
-        ],
-        namespace["get_all_nps"],
+    return _VendorPromptFunctions(
+        preprocess_prompts=cast(Callable[[str], str], namespace["preprocess_prompts"]),
+        get_all_nps=cast(_VendorGetAllNps, namespace["get_all_nps"]),
+        multi_align=cast(_VendorMultiAlign, namespace["multi_align"]),
     )
 
 
@@ -174,59 +218,196 @@ def _image_array(images: object) -> Float[np.ndarray, "batch height width channe
     return cast(Float[np.ndarray, "batch height width channels"], images)
 
 
-def _generate_with_vendor_attention(
+def _configure_plms_scheduler(pipe: StableDiffusionPipeline) -> None:
+    pipe.scheduler = PNDMScheduler.from_config(
+        pipe.scheduler.config,
+        skip_prk_steps=True,
+        timestep_spacing="leading",
+        steps_offset=1,
+    )
+
+
+def _capture_package_conditioning(
     pipe: StructureDiffusionPipeline,
     prompt: str,
-    latents: Float[torch.Tensor, "batch channels height width"],
-) -> Float[np.ndarray, "batch height width channels"]:
-    original_processors = dict(pipe.unet.attn_processors)
-    reference_processors: list[VendorAttentionReferenceProcessor] = []
-    replacements: dict[str, object] = {}
-    for name, processor in original_processors.items():
-        if name.endswith("attn2.processor"):
-            layer = pipe.unet.get_submodule(name.removesuffix(".processor"))
-            reference = VendorAttentionReferenceProcessor(name, layer)
-            reference_processors.append(reference)
-            replacements[name] = reference
-        else:
-            replacements[name] = processor
-
-    if not reference_processors:
-        raise RuntimeError("The U-Net has no cross-attention layers to compare.")
-
-    pipe.unet.set_attn_processor(replacements)
-    pipe._call_request = _StructuredCall(
-        prompts=(prompt,),
+) -> tuple[StructuredConditioning, list[NounPhrase], list[tuple[int, int]]]:
+    normalized_prompt = normalize_prompt(prompt)
+    request = _StructuredCall(
+        prompts=(normalized_prompt,),
         parser_type=ParserType.constituency,
         conjunction=False,
         save_attention_maps=False,
     )
-    pipe._processors_for_call = cast(
-        list[StructuredAttentionProcessor],
-        reference_processors,
-    )
+    phrases = pipe._parse_prompt(normalized_prompt, ParserType.constituency)
+    package_spans = [
+        token_span_from_char_span(
+            pipe.tokenizer,
+            normalized_prompt,
+            phrase.start,
+            phrase.end,
+            pipe.tokenizer.model_max_length,
+        )
+        for phrase in phrases
+    ]
+    spans = [span for span in package_spans if span is not None]
+    if len(spans) != len(package_spans):
+        raise AssertionError("The package could not align every extracted phrase.")
+
+    processor = StructuredAttentionProcessor("conditioning-capture", False)
+    pipe._processors_for_call = [processor]
     try:
-        result = StableDiffusionPipeline.__call__(
+        prompt_embeds, _ = StableDiffusionPipeline.encode_prompt(
             pipe,
+            prompt=normalized_prompt,
+            device=torch.device("cpu"),
+            num_images_per_prompt=1,
+            do_classifier_free_guidance=True,
+        )
+        pipe._install_conditioning(
+            request,
+            prompt_embeds,
+            torch.device("cpu"),
+            num_images_per_prompt=1,
+            do_classifier_free_guidance=True,
+            lora_scale=None,
+            clip_skip=None,
+        )
+        conditioning = processor.conditioning
+        if conditioning is None:
+            raise AssertionError("The package did not install structured conditioning.")
+
+        return conditioning, phrases, spans
+    finally:
+        del pipe._processors_for_call
+
+
+def _build_vendor_conditioning(
+    pipe: StableDiffusionPipeline,
+    raw_prompt: str,
+    vendor: _VendorPromptFunctions,
+) -> tuple[_VendorConditioning, str, list[str], list[tuple[int, int]]]:
+    prompt = vendor.preprocess_prompts(raw_prompt)
+    sentence = _constituency_pipeline()(prompt).sentences[0]
+    tree = Tree.fromstring(str(sentence.constituency))
+    phrases, spans, _ = vendor.get_all_nps(
+        tree,
+        prompt,
+        pipe.tokenizer.tokenize(prompt),
+    )
+    if not phrases or len(phrases) != len(spans):
+        raise AssertionError("The vendor did not return matching phrases and spans.")
+
+    encoded_contexts, _ = StableDiffusionPipeline.encode_prompt(
+        pipe,
+        prompt=phrases,
+        device=torch.device("cpu"),
+        num_images_per_prompt=1,
+        do_classifier_free_guidance=False,
+    )
+    base_context = encoded_contexts[:1]
+    aligned_phrase_contexts = tuple(
+        vendor.multi_align(
+            base_context.clone(), phrase_context.unsqueeze(0), span, dim=1
+        )
+        for phrase_context, span in zip(encoded_contexts[1:], spans[1:], strict=True)
+    )
+    return (
+        _VendorConditioning(
+            keys=(base_context,),
+            values=(base_context, *aligned_phrase_contexts),
+        ),
+        prompt,
+        phrases,
+        [(start + 1, end + 1) for start, end in spans[1:]],
+    )
+
+
+def _conditioning_difference(
+    package: StructuredConditioning,
+    vendor: _VendorConditioning,
+    field: str,
+) -> float:
+    package_tensors = package.keys if field == "keys" else package.values
+    vendor_tensors = vendor.keys if field == "keys" else vendor.values
+    if len(package_tensors) != len(vendor_tensors):
+        raise AssertionError(f"Package and vendor {field} counts differ.")
+
+    differences: list[float] = []
+    for package_tensor, vendor_tensor in zip(
+        package_tensors, vendor_tensors, strict=True
+    ):
+        if package_tensor.shape != vendor_tensor.shape:
+            raise AssertionError(f"Package and vendor {field} shapes differ.")
+
+        differences.append(float((package_tensor - vendor_tensor).abs().max().item()))
+
+    return max(differences, default=0.0)
+
+
+def _assert_conditionings_match(
+    package: StructuredConditioning,
+    vendor: _VendorConditioning,
+) -> tuple[float, float]:
+    key_difference = _conditioning_difference(package, vendor, "keys")
+    value_difference = _conditioning_difference(package, vendor, "values")
+    if key_difference > CONDITIONING_ATOL or value_difference > CONDITIONING_ATOL:
+        raise AssertionError(
+            "The package and vendor conditioning differs: "
+            f"max key difference={key_difference}, "
+            f"max value difference={value_difference}."
+        )
+
+    return key_difference, value_difference
+
+
+def _generate_with_vendor_attention(
+    pipe: StableDiffusionPipeline,
+    prompt: str,
+    latents: Float[torch.Tensor, "batch channels height width"],
+    conditioning: _VendorConditioning,
+) -> Float[np.ndarray, "batch height width channels"]:
+    original_processors = dict(pipe.unet.attn_processors)
+    replacements: dict[str, object] = {}
+    for name, processor in original_processors.items():
+        if name.endswith("attn2.processor"):
+            layer = pipe.unet.get_submodule(name.removesuffix(".processor"))
+            replacements[name] = VendorAttentionReferenceProcessor(
+                name,
+                layer,
+                conditioning,
+            )
+        else:
+            replacements[name] = processor
+
+    if all(not name.endswith("attn2.processor") for name in original_processors):
+        raise RuntimeError("The U-Net has no cross-attention layers to compare.")
+
+    pipe.unet.set_attn_processor(replacements)
+    try:
+        result = pipe(
             prompt=prompt,
             height=latents.shape[-2] * pipe.vae_scale_factor,
             width=latents.shape[-1] * pipe.vae_scale_factor,
             num_inference_steps=INFERENCE_STEPS,
             guidance_scale=GUIDANCE_SCALE,
-            eta=0.0,
             latents=latents.clone(),
             output_type="np",
         )
         return _image_array(result.images)
     finally:
-        del pipe._call_request
-        del pipe._processors_for_call
         pipe.unet.set_attn_processor(original_processors)
 
 
+def _save_image(
+    path: Path, image_batch: Float[np.ndarray, "batch height width channels"]
+) -> None:
+    pixels = np.round(np.clip(image_batch[0], 0.0, 1.0) * 255).astype(np.uint8)
+    Image.fromarray(pixels).save(path)
+
+
 @pytest.mark.vendor_parity
-def test_cpu_image_matches_pinned_vendor_attention() -> None:
-    """Compare one CPU image with the official source's structured attention."""
+def test_cpu_image_matches_independent_vendor_path() -> None:
+    """Check vendor phrase spans, K/V composition, attention, and generated pixels."""
     if os.getenv("PARITY_REQUIRE") != "1":
         pytest.skip("Set PARITY_REQUIRE=1 to run the Stable Diffusion CPU comparison.")
 
@@ -244,99 +425,121 @@ def test_cpu_image_matches_pinned_vendor_attention() -> None:
     torch.set_num_threads(int(os.getenv("SDG_CPU_THREADS", "2")))
     started = time.perf_counter()
     model_id = os.getenv("SDG_MODEL_ID", "CompVis/stable-diffusion-v1-4")
-    pipe = StructureDiffusionPipeline.from_pretrained(
+    package_load_started = time.perf_counter()
+    package_pipe = StructureDiffusionPipeline.from_pretrained(
         model_id,
         torch_dtype=torch.float32,
         safety_checker=None,
         use_safetensors=True,
     )
-    pipe.scheduler = DDIMScheduler.from_config(
-        pipe.scheduler.config,
-        timestep_spacing="leading",
-        steps_offset=1,
-        clip_sample=False,
-    )
-    pipe.to("cpu")
-    model_load_seconds = time.perf_counter() - started
+    _configure_plms_scheduler(package_pipe)
+    package_pipe.to("cpu")
+    package_model_load_seconds = time.perf_counter() - package_load_started
 
-    prompt = PROMPT
-    phrases = pipe._parse_prompt(prompt, ParserType.constituency)
-    tokenizer = pipe.tokenizer
-    vendor_get_all_nps = _vendor_parser_function(repo_root)
-    from structurediffusion.processing_structurediffusion import (
-        _constituency_pipeline,
+    package_conditioning, package_phrases, package_spans = (
+        _capture_package_conditioning(package_pipe, PROMPT)
     )
+    vendor = _vendor_prompt_functions(repo_root)
+    vendor_prompt = vendor.preprocess_prompts(PROMPT)
+    if vendor_prompt != normalize_prompt(PROMPT):
+        raise AssertionError("Package and vendor prompt preprocessing differs.")
 
-    sentence = _constituency_pipeline()(prompt).sentences[0]
-    tree = Tree.fromstring(str(sentence.constituency))
-    vendor_phrases, vendor_spans, _ = vendor_get_all_nps(
-        tree,
-        prompt,
-        tokenizer.tokenize(prompt),
-    )
-    package_spans = [
-        token_span_from_char_span(
-            tokenizer,
-            prompt,
-            phrase.start,
-            phrase.end,
-            tokenizer.model_max_length,
-        )
-        for phrase in phrases
-    ]
-    vendor_package_spans = [(start + 1, end + 1) for start, end in vendor_spans[1:]]
-    if [phrase.text for phrase in phrases] != vendor_phrases[1:]:
-        raise AssertionError(
-            "The package and vendor parsers extracted different phrases."
-        )
-    if package_spans != vendor_package_spans:
-        raise AssertionError(
-            "The package and vendor parsers aligned different CLIP tokens."
-        )
-
-    latent_side = resolution // pipe.vae_scale_factor
+    latent_side = resolution // package_pipe.vae_scale_factor
     generator = torch.Generator(device="cpu").manual_seed(SEED)
     latents = torch.randn(
-        (1, pipe.unet.config.in_channels, latent_side, latent_side),
+        (1, package_pipe.unet.config.in_channels, latent_side, latent_side),
         generator=generator,
         dtype=torch.float32,
     )
     latent_digest = hashlib.sha256(latents.numpy().tobytes()).hexdigest()
-    reference_started = time.perf_counter()
-    reference_images = _generate_with_vendor_attention(pipe, prompt, latents)
-    reference_seconds = time.perf_counter() - reference_started
     package_started = time.perf_counter()
-    package_result = pipe(
-        prompt,
+    package_result = package_pipe(
+        PROMPT,
         parser_type=ParserType.constituency,
         conjunction=False,
         height=resolution,
         width=resolution,
         num_inference_steps=INFERENCE_STEPS,
         guidance_scale=GUIDANCE_SCALE,
-        eta=0.0,
         latents=latents.clone(),
         output_type="np",
     )
-    package_seconds = time.perf_counter() - package_started
     package_images = _image_array(package_result.images)
+    package_generation_seconds = time.perf_counter() - package_started
+    del package_pipe
+    gc.collect()
+
+    reference_load_started = time.perf_counter()
+    reference_pipe = StableDiffusionPipeline.from_pretrained(
+        model_id,
+        torch_dtype=torch.float32,
+        safety_checker=None,
+        use_safetensors=True,
+    )
+    _configure_plms_scheduler(reference_pipe)
+    reference_pipe.to("cpu")
+    reference_model_load_seconds = time.perf_counter() - reference_load_started
+
+    conditioning_started = time.perf_counter()
+    (
+        vendor_conditioning,
+        vendor_prompt,
+        reference_phrases,
+        reference_spans,
+    ) = _build_vendor_conditioning(reference_pipe, PROMPT, vendor)
+    reference_conditioning_seconds = time.perf_counter() - conditioning_started
+    if reference_phrases[1:] != [phrase.text for phrase in package_phrases]:
+        raise AssertionError("Vendor phrase extraction changed between pipelines.")
+    if reference_spans != package_spans:
+        raise AssertionError("Vendor token spans changed between pipelines.")
+    key_conditioning_difference, value_conditioning_difference = (
+        _assert_conditionings_match(package_conditioning, vendor_conditioning)
+    )
+
+    reference_started = time.perf_counter()
+    reference_images = _generate_with_vendor_attention(
+        reference_pipe,
+        vendor_prompt,
+        latents,
+        vendor_conditioning,
+    )
+    reference_generation_seconds = time.perf_counter() - reference_started
+    del reference_pipe
+    gc.collect()
+
     difference = np.abs(package_images - reference_images)
     metrics = {
+        "input_prompt": PROMPT,
+        "vendor_preprocessed_prompt": vendor_prompt,
         "resolution": resolution,
-        "prompt": PROMPT,
         "seed": SEED,
         "steps": INFERENCE_STEPS,
-        "scheduler": "DDIM, leading spacing, steps_offset=1, eta=0",
+        "scheduler": (
+            "Diffusers PNDMScheduler PLMS path, skip_prk_steps=True, "
+            "timestep_spacing=leading, steps_offset=1"
+        ),
         "guidance_scale": GUIDANCE_SCALE,
-        "parser": "Stanza constituency",
-        "phrases": [phrase.text for phrase in phrases],
-        "token_spans": package_spans,
+        "parser": "Stanza constituency; phrase extraction and BPE mapping checked against vendor functions",
+        "vendor_phrases": reference_phrases,
+        "package_phrases": [phrase.text for phrase in package_phrases],
+        "vendor_token_spans_with_bos": reference_spans,
+        "package_token_spans_with_bos": package_spans,
         "initial_latent_shape": list(latents.shape),
         "initial_latent_sha256": latent_digest,
+        "vendor_key_count": len(vendor_conditioning.keys),
+        "vendor_value_count": len(vendor_conditioning.values),
+        "max_abs_key_conditioning_difference": key_conditioning_difference,
+        "max_abs_value_conditioning_difference": value_conditioning_difference,
+        "package_pipeline_class": "StructureDiffusionPipeline",
+        "reference_pipeline_class": "StableDiffusionPipeline",
+        "reference_attention": "Pinned vendor CrossAttention.multi_qkv",
+        "model_loading_and_sampler": "Diffusers for both separate pipeline instances",
         "device": "cpu",
-        "model_load_seconds": model_load_seconds,
-        "reference_generation_seconds": reference_seconds,
-        "package_generation_seconds": package_seconds,
+        "package_model_load_seconds": package_model_load_seconds,
+        "package_generation_seconds": package_generation_seconds,
+        "reference_model_load_seconds": reference_model_load_seconds,
+        "reference_conditioning_seconds": reference_conditioning_seconds,
+        "reference_generation_seconds": reference_generation_seconds,
         "max_abs_pixel_difference": float(difference.max()),
         "mean_abs_pixel_difference": float(difference.mean()),
         "root_mean_square_pixel_difference": float(np.sqrt(np.mean(difference**2))),
@@ -352,6 +555,8 @@ def test_cpu_image_matches_pinned_vendor_attention() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"cpu-{resolution}.json"
     output_path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    _save_image(output_dir / f"package-{resolution}.png", package_images)
+    _save_image(output_dir / f"reference-{resolution}.png", reference_images)
     print(json.dumps(metrics, indent=2))
 
     assert (
