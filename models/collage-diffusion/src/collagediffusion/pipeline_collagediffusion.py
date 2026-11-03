@@ -675,7 +675,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
         )
 
         # 6. Install layer-aware attention processors and prepare scheduler arguments.
-        original_processors = dict(self.unet.attn_processors)
+        previous_processors = dict(self.unet.attn_processors)
         controlled_processors = {
             name: _CollageCrossAttentionProcessor(
                 visible_masks=visible_masks,
@@ -687,7 +687,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             )
             if name.endswith(".attn2.processor")
             else processor
-            for name, processor in original_processors.items()
+            for name, processor in previous_processors.items()
         }
         controlled_attention_processors = tuple(
             processor
@@ -778,7 +778,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                     progress_bar.update()
         finally:
             if attention_control_enabled:
-                self.unet.set_attn_processor(original_processors)
+                self.unet.set_attn_processor(previous_processors)
 
         # 8. Decode the final latent and return the standard Diffusers output.
         decoded = self.vae.decode(
