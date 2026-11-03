@@ -69,7 +69,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
-<!-- Choose the category-specific task, conditioning, and pipeline_tag values from [the model catalog conventions](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-catalog-classification). -->
+<!-- Choose the category-specific task, conditioning, pipeline_tag, and model-index task values from [the model catalog conventions](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-catalog-classification). -->
 - **Model type:** <category>; task: <category-specific task>; conditioning: <canonical values in conventions order>.
 - **Language(s) (NLP):** <not-applicable-or-language-list>
 - **License:** <license-id-or-unknown>

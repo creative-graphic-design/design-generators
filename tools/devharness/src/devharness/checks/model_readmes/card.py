@@ -373,8 +373,10 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
 
 
 def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
-    """Return values declared by model-index task.type fields."""
+    """Return values declared by model-index result task.type fields."""
     model_index_indent: int | None = None
+    results_indent: int | None = None
+    result_indent: int | None = None
     task_indent: int | None = None
     task_types: list[str] = []
 
@@ -390,14 +392,47 @@ def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
 
             continue
 
-        if indentation <= model_index_indent:
+        is_list_item = line.lstrip().startswith("-")
+        if indentation < model_index_indent or (
+            indentation == model_index_indent and not is_list_item
+        ):
             break
 
-        task_match = re.fullmatch(r"(?P<indent> *)(?P<list>-\s*)?task:", line)
+        if re.fullmatch(r" *results:", line):
+            results_indent = indentation
+            result_indent = None
+            task_indent = None
+
+            continue
+
+        if results_indent is None:
+            continue
+
+        if indentation < results_indent or (
+            indentation == results_indent and not is_list_item
+        ):
+            results_indent = None
+            result_indent = None
+            task_indent = None
+
+            continue
+
+        if is_list_item and indentation in {results_indent, results_indent + 2}:
+            result_indent = indentation + 2
+            task_indent = None
+            task_match = re.fullmatch(r"(?P<indent> *)(?P<list>-\s*)task:", line)
+            if task_match is not None:
+                task_indent = len(task_match.group("indent")) + 2
+
+            continue
+
+        if result_indent is None:
+            continue
+
+        task_match = re.fullmatch(r" *task:", line)
         if task_match is not None:
-            task_indent = len(task_match.group("indent")) + (
-                2 if task_match.group("list") else 0
-            )
+            if indentation == result_indent:
+                task_indent = indentation
 
             continue
 
@@ -440,9 +475,10 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
             )
 
     if has_model_index and category != IMAGE_GENERATION_CATEGORY:
-        if "text-to-image" in task_types:
+        if any(task_type in IMAGE_GENERATION_TASK_VALUES for task_type in task_types):
             raise AssertionError(
-                f"{path}: model-index task.type must not be text-to-image"
+                f"{path}: model-index task.type must not be an image generation task, "
+                f"got {task_types}"
             )
 
     expected_task = (
