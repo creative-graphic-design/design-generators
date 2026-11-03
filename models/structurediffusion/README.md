@@ -175,7 +175,7 @@ Runtime dependencies are declared in `models/structurediffusion/pyproject.toml`.
   eprint={2212.05032},
   archivePrefix={arXiv},
   primaryClass={cs.CV},
-  url={https://arxiv.org/abs/2212.05032}
+  url = "https://arxiv.org/abs/2212.05032"
 }
 ```
 
