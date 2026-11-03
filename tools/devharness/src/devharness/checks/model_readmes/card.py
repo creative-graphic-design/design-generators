@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TypeAlias
@@ -372,11 +373,56 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
+@dataclass(frozen=True)
+class _ModelIndexScalar:
+    value: str
+
+
+@dataclass(frozen=True)
+class _ModelIndexMapping:
+    entries: tuple[tuple[str, _ModelIndexNode], ...]
+
+
+@dataclass(frozen=True)
+class _ModelIndexSequence:
+    items: tuple[_ModelIndexNode, ...]
+
+
+_ModelIndexNode: TypeAlias = (
+    _ModelIndexScalar | _ModelIndexMapping | _ModelIndexSequence
+)
+
+
+@dataclass(frozen=True)
+class _ModelIndexLine:
+    indentation: int
+    content: str
+
+
+_MODEL_INDEX_FIELD_ORDER = {
+    ("model-index", "[]"): ("name", "results"),
+    ("model-index", "[]", "results", "[]"): ("task", "dataset", "metrics"),
+    ("model-index", "[]", "results", "[]", "task"): ("type", "name"),
+    ("model-index", "[]", "results", "[]", "dataset"): (
+        "type",
+        "name",
+        "config",
+        "split",
+        "args",
+    ),
+    ("model-index", "[]", "results", "[]", "metrics", "[]"): (
+        "type",
+        "value",
+        "name",
+    ),
+}
+
+
 def _unsupported_model_index_format(path: Path) -> AssertionError:
     """Return an explicit error for model-index syntax the checker cannot read."""
     return AssertionError(
         f"{path}: cannot read this model-index format; use block-style YAML "
-        "with two-space indentation"
+        "with two-space indentation and canonical field order"
     )
 
 
@@ -428,37 +474,32 @@ def _starts_flow_collection(content: str) -> bool:
     return value[key_separator.end() :].startswith(("{", "["))
 
 
-def _model_index_task_types(path: Path, frontmatter: str) -> tuple[str, ...]:
-    """Return task types from the documented block-style model-index shape."""
-    lines = frontmatter.splitlines()
-    model_index_start: int | None = None
-    for line_number, line in enumerate(lines):
-        content = _strip_yaml_comment(line).strip()
+def _model_index_block(frontmatter: str) -> str | None:
+    """Extract a model-index block through the next top-level key."""
+    lines = frontmatter.splitlines(keepends=True)
+    for start, line in enumerate(lines):
+        content = _strip_yaml_comment(line.rstrip("\r\n")).strip()
         if not re.match(r"[\"']?model-index[\"']?\s*:", content):
             continue
 
-        leading = re.match(r"[ \t]*", line)
-        assert leading is not None
-        if leading.group() or content != "model-index:":
-            raise _unsupported_model_index_format(path)
+        end = next(
+            (
+                index
+                for index in range(start + 1, len(lines))
+                if lines[index].strip() and not lines[index][0].isspace()
+            ),
+            len(lines),
+        )
 
-        model_index_start = line_number
+        return "".join(lines[start:end])
 
-        break
+    return None
 
-    if model_index_start is None:
-        return ()
 
-    task_types: list[str] = []
-    model_entry_seen = False
-    model_entry_results_seen = False
-    results_active = False
-    results_waiting_for_item = False
-    result_active = False
-    result_has_task_type = False
-    task_active = False
-
-    for line in lines[model_index_start + 1 :]:
+def _model_index_lines(path: Path, block: str) -> tuple[_ModelIndexLine, ...]:
+    """Tokenize the supported block subset while rejecting flow collections."""
+    lines: list[_ModelIndexLine] = []
+    for line in block.splitlines():
         uncommented = _strip_yaml_comment(line)
         if not uncommented.strip():
             continue
@@ -469,125 +510,293 @@ def _model_index_task_types(path: Path, frontmatter: str) -> tuple[str, ...]:
         if "\t" in indentation_text:
             raise _unsupported_model_index_format(path)
 
-        indentation = len(indentation_text)
-        content = uncommented[indentation:].strip()
-        if indentation == 0:
-            if result_active and not result_has_task_type:
-                raise _unsupported_model_index_format(path)
-
-            break
-
-        if indentation % 2 != 0 or _starts_flow_collection(content):
+        content = uncommented[len(indentation_text) :].strip()
+        if _starts_flow_collection(content):
             raise _unsupported_model_index_format(path)
 
-        if results_waiting_for_item and (
-            indentation != 6 or not re.fullmatch(r"-\s+task:", content)
+        lines.append(_ModelIndexLine(len(indentation_text), content))
+
+    return tuple(lines)
+
+
+def _mapping_entry(content: str) -> tuple[str, str | None] | None:
+    match = re.fullmatch(r"(?P<key>[A-Za-z0-9_-]+):(?:\s+(?P<value>.+))?", content)
+    if match is None:
+        return None
+
+    value = match.group("value")
+    return match.group("key"), value.strip() if value is not None else None
+
+
+def _ordered_model_index_entries(
+    entries: tuple[tuple[str, _ModelIndexNode], ...], path: tuple[str, ...]
+) -> tuple[tuple[str, _ModelIndexNode], ...]:
+    order = _MODEL_INDEX_FIELD_ORDER.get(path)
+    if order is None:
+        return tuple(sorted(entries, key=lambda entry: entry[0]))
+
+    rank = {key: index for index, key in enumerate(order)}
+    return tuple(
+        sorted(entries, key=lambda entry: (rank.get(entry[0], len(rank)), entry[0]))
+    )
+
+
+def _parse_model_index_block(
+    path: Path,
+    lines: tuple[_ModelIndexLine, ...],
+    index: int = 0,
+    canonical_indentation: int = 0,
+    node_path: tuple[str, ...] = (),
+) -> tuple[_ModelIndexNode, int]:
+    """Parse the small block-YAML subset used by model-card model-index data."""
+    if index >= len(lines):
+        raise _unsupported_model_index_format(path)
+
+    line = lines[index]
+    if line.content == "-" or line.content.startswith("- "):
+        sequence_indentation = line.indentation
+        items: list[_ModelIndexNode] = []
+        sibling_order = _MODEL_INDEX_FIELD_ORDER.get(node_path + ("[]",), ())
+
+        while (
+            index < len(lines)
+            and lines[index].indentation == sequence_indentation
+            and (lines[index].content == "-" or lines[index].content.startswith("- "))
         ):
-            raise _unsupported_model_index_format(path)
-
-        if indentation == 2 and content.startswith("-"):
-            if result_active and not result_has_task_type:
-                raise _unsupported_model_index_format(path)
-
-            if model_entry_seen and not model_entry_results_seen:
-                raise _unsupported_model_index_format(path)
-
-            if not re.match(r"-\s+name\s*:", content):
-                raise _unsupported_model_index_format(path)
-
-            model_entry_seen = True
-            model_entry_results_seen = False
-            results_active = False
-            results_waiting_for_item = False
-            result_active = False
-            task_active = False
-
-            continue
-
-        if not model_entry_seen and indentation == 4:
-            raise _unsupported_model_index_format(path)
-
-        if (
-            model_entry_seen
-            and not model_entry_results_seen
-            and re.match(r"results\s*:", content)
-            and indentation != 4
-        ):
-            raise _unsupported_model_index_format(path)
-
-        if indentation == 4 and model_entry_seen:
-            if re.match(r"results\s*:", content):
-                if content != "results:" or model_entry_results_seen:
-                    raise _unsupported_model_index_format(path)
-
-                model_entry_results_seen = True
-                results_active = True
-                results_waiting_for_item = True
-                result_active = False
-                task_active = False
+            rest = lines[index].content[1:].strip()
+            index += 1
+            first_entry = _mapping_entry(rest)
+            if first_entry is None:
+                items.append(_ModelIndexScalar(rest))
 
                 continue
 
-            if results_waiting_for_item:
-                raise _unsupported_model_index_format(path)
+            first_key, first_value = first_entry
+            item_path = node_path + ("[]",)
+            entries: list[tuple[str, _ModelIndexNode]] = []
+            seen_keys = {first_key}
 
-            if result_active and not result_has_task_type:
-                raise _unsupported_model_index_format(path)
+            if first_value is None:
+                next_entry = (
+                    _mapping_entry(lines[index].content) if index < len(lines) else None
+                )
+                is_sibling = next_entry is not None and next_entry[0] in sibling_order
+                if (
+                    index < len(lines)
+                    and lines[index].indentation > sequence_indentation
+                    and not is_sibling
+                ):
+                    value, index = _parse_model_index_block(
+                        path,
+                        lines,
+                        index,
+                        canonical_indentation + 4,
+                        item_path + (first_key,),
+                    )
+                else:
+                    value = _ModelIndexScalar("")
+            else:
+                value = _ModelIndexScalar(first_value)
 
-            results_active = False
-            result_active = False
-            task_active = False
+            entries.append((first_key, value))
+
+            while index < len(lines):
+                entry = _mapping_entry(lines[index].content)
+                if (
+                    entry is None
+                    or entry[0] not in sibling_order
+                    or entry[0] in seen_keys
+                ):
+                    break
+
+                key, raw_value = entry
+                seen_keys.add(key)
+                index += 1
+                if raw_value is None:
+                    if (
+                        index < len(lines)
+                        and lines[index].indentation > lines[index - 1].indentation
+                    ):
+                        child, index = _parse_model_index_block(
+                            path,
+                            lines,
+                            index,
+                            canonical_indentation + 4,
+                            item_path + (key,),
+                        )
+                    else:
+                        child = _ModelIndexScalar("")
+                else:
+                    child = _ModelIndexScalar(raw_value)
+
+                entries.append((key, child))
+
+            items.append(
+                _ModelIndexMapping(
+                    _ordered_model_index_entries(tuple(entries), item_path)
+                )
+            )
+
+        return _ModelIndexSequence(tuple(items)), index
+
+    indentation = line.indentation
+    entries = []
+    seen_keys: set[str] = set()
+    while (
+        index < len(lines)
+        and lines[index].indentation == indentation
+        and not lines[index].content.startswith("-")
+    ):
+        entry = _mapping_entry(lines[index].content)
+        if entry is None:
+            raise _unsupported_model_index_format(path)
+
+        key, raw_value = entry
+        if key in seen_keys:
+            raise _unsupported_model_index_format(path)
+
+        seen_keys.add(key)
+        index += 1
+        if raw_value is None:
+            if index < len(lines) and lines[index].indentation > indentation:
+                value, index = _parse_model_index_block(
+                    path,
+                    lines,
+                    index,
+                    canonical_indentation + 2,
+                    node_path + (key,),
+                )
+            else:
+                value = _ModelIndexScalar("")
+        else:
+            value = _ModelIndexScalar(raw_value)
+
+        entries.append((key, value))
+
+    return _ModelIndexMapping(
+        _ordered_model_index_entries(tuple(entries), node_path)
+    ), index
+
+
+def _serialize_model_index_node(
+    node: _ModelIndexNode, indentation: int, node_path: tuple[str, ...] = ()
+) -> list[str]:
+    """Write a parsed model-index node in canonical block style."""
+    prefix = " " * indentation
+    if isinstance(node, _ModelIndexScalar):
+        return [prefix + node.value]
+
+    if isinstance(node, _ModelIndexMapping):
+        output: list[str] = []
+        for key, value in _ordered_model_index_entries(node.entries, node_path):
+            entry_prefix = prefix + f"{key}:"
+            if isinstance(value, _ModelIndexScalar):
+                output.append(entry_prefix + (f" {value.value}" if value.value else ""))
+            else:
+                output.append(entry_prefix)
+                output.extend(
+                    _serialize_model_index_node(
+                        value, indentation + 2, node_path + (key,)
+                    )
+                )
+
+        return output
+
+    output = []
+    item_path = node_path + ("[]",)
+    for item in node.items:
+        if not isinstance(item, _ModelIndexMapping):
+            scalar = item.value if isinstance(item, _ModelIndexScalar) else ""
+            output.append(prefix + (f"- {scalar}" if scalar else "-"))
 
             continue
 
-        if indentation == 6 and results_active:
-            if not re.fullmatch(r"-\s+task:", content):
-                raise _unsupported_model_index_format(path)
+        entries = _ordered_model_index_entries(item.entries, item_path)
+        if not entries:
+            raise ValueError("model-index sequence mappings must not be empty")
 
-            if result_active and not result_has_task_type:
-                raise _unsupported_model_index_format(path)
+        first_key, first_value = entries[0]
+        item_prefix = prefix + f"- {first_key}:"
+        if isinstance(first_value, _ModelIndexScalar):
+            output.append(
+                item_prefix + (f" {first_value.value}" if first_value.value else "")
+            )
+        else:
+            output.append(item_prefix)
+            output.extend(
+                _serialize_model_index_node(
+                    first_value, indentation + 4, item_path + (first_key,)
+                )
+            )
 
-            results_waiting_for_item = False
-            result_active = True
-            result_has_task_type = False
-            task_active = True
+        for key, value in entries[1:]:
+            entry_prefix = " " * (indentation + 2) + f"{key}:"
+            if isinstance(value, _ModelIndexScalar):
+                output.append(entry_prefix + (f" {value.value}" if value.value else ""))
+            else:
+                output.append(entry_prefix)
+                output.extend(
+                    _serialize_model_index_node(
+                        value, indentation + 4, item_path + (key,)
+                    )
+                )
 
-            continue
+    return output
 
-        if indentation == 8 and result_active:
-            if not result_has_task_type or re.match(r"task\s*:", content):
-                raise _unsupported_model_index_format(path)
 
-            task_active = False
+def _node_mapping_value(node: _ModelIndexNode, key: str) -> _ModelIndexNode | None:
+    if not isinstance(node, _ModelIndexMapping):
+        return None
 
-            continue
+    return next((value for entry_key, value in node.entries if entry_key == key), None)
 
-        if task_active and indentation >= 10:
-            type_match = re.fullmatch(r"type\s*:\s*(.+?)\s*", content)
-            if type_match is not None:
-                if indentation != 10 or result_has_task_type:
-                    raise _unsupported_model_index_format(path)
 
-                task_type = type_match.group(1)
-                if task_type[:1] == task_type[-1:] and task_type[:1] in {"'", '"'}:
-                    task_type = task_type[1:-1]
-
-                if not task_type:
-                    raise _unsupported_model_index_format(path)
-
-                task_types.append(task_type)
-                result_has_task_type = True
-
-    if results_waiting_for_item or (result_active and not result_has_task_type):
+def _model_index_tasks(path: Path, node: _ModelIndexNode) -> tuple[str, ...]:
+    model_index = _node_mapping_value(node, "model-index")
+    if not isinstance(model_index, _ModelIndexSequence):
         raise _unsupported_model_index_format(path)
 
-    if not model_entry_seen:
-        raise _unsupported_model_index_format(path)
+    task_types: list[str] = []
+    for model in model_index.items:
+        results = _node_mapping_value(model, "results")
+        if not isinstance(results, _ModelIndexSequence):
+            raise _unsupported_model_index_format(path)
 
-    if not model_entry_results_seen:
-        raise _unsupported_model_index_format(path)
+        for result in results.items:
+            task = _node_mapping_value(result, "task")
+            task_type = _node_mapping_value(task, "type") if task is not None else None
+            if not isinstance(task_type, _ModelIndexScalar) or not task_type.value:
+                raise _unsupported_model_index_format(path)
+
+            value = task_type.value
+            if value[:1] == value[-1:] and value[:1] in {"'", '"'}:
+                value = value[1:-1]
+
+            task_types.append(value)
 
     return tuple(task_types)
+
+
+def _model_index_task_types(path: Path, frontmatter: str) -> tuple[str, ...]:
+    """Read model-index tasks and reject any noncanonical block serialization."""
+    block = _model_index_block(frontmatter)
+    if block is None:
+        return ()
+
+    lines = _model_index_lines(path, block)
+    node, consumed = _parse_model_index_block(path, lines)
+    if consumed != len(lines):
+        raise _unsupported_model_index_format(path)
+
+    canonical_lines = _serialize_model_index_node(node, 0)
+    canonical_block = "\n".join(canonical_lines)
+    if block.endswith("\n"):
+        canonical_block += "\n"
+
+    if canonical_block != block:
+        raise _unsupported_model_index_format(path)
+
+    return _model_index_tasks(path, node)
 
 
 def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> None:
