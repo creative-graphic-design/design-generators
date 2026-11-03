@@ -375,6 +375,7 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
 def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
     """Return values declared by model-index result task.type fields."""
     model_index_indent: int | None = None
+    model_item_indent: int | None = None
     results_indent: int | None = None
     result_indent: int | None = None
     task_indent: int | None = None
@@ -398,7 +399,20 @@ def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
         ):
             break
 
-        if re.fullmatch(r" *results:", line):
+        if is_list_item and (
+            model_item_indent is None or indentation == model_item_indent
+        ):
+            model_item_indent = indentation
+            results_indent = None
+            result_indent = None
+            task_indent = None
+
+            continue
+
+        if model_item_indent is None:
+            continue
+
+        if re.fullmatch(r" *results:", line) and indentation == model_item_indent + 2:
             results_indent = indentation
             result_indent = None
             task_indent = None

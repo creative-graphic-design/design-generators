@@ -1615,6 +1615,8 @@ def test_image_generation_frontmatter_contract_follows_task(
             "    dataset:\n      type: example-dataset\n      name: Example\n"
             "      args:\n        metadata:\n          task:\n"
             f"            type: {other_task}\n"
+            "        results:\n          - task:\n"
+            f"              type: {other_task}\n"
             "    metrics:\n      - type: example-metric\n        value: 0.5\n"
             for model_index_task in model_index_tasks
         )
