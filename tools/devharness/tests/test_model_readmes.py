@@ -607,7 +607,7 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
     with pytest.raises(AssertionError, match="must not be text-to-image"):
         card.assert_pipeline_tag(
             path,
-            'pipeline_tag: other\nmodel-index:\n  - name: example\n    results:\n      type: "text-to-image"',
+            'pipeline_tag: other\nmodel-index:\n  - task:\n      type: "text-to-image"',
             ("content-agnostic", "single-task", ("label",)),
         )
 
@@ -1568,42 +1568,57 @@ pip install \\
 
 
 @pytest.mark.parametrize(
-    ("line", "task", "conditioning", "expected"),
+    ("line", "task", "other_task", "conditioning", "expected"),
     [
         (
             "- **Model type:** image generation; task: text-to-image; conditioning: text.\n",
             "text-to-image",
+            "image-to-image",
             "text",
             ("image generation", "text-to-image", ("text",)),
         ),
         (
             "- **Model type:** image generation; task: image-to-image; conditioning: layers, text.\n",
             "image-to-image",
+            "text-to-image",
             "layers + text",
             ("image generation", "image-to-image", ("layers", "text")),
         ),
     ],
 )
-def test_image_generation_model_type_and_pipeline_tag_follow_task(
+def test_image_generation_frontmatter_contract_follows_task(
+    monkeypatch: pytest.MonkeyPatch,
     line: str,
     task: str,
+    other_task: str,
     conditioning: str,
     expected: tuple[str, str, tuple[str, ...]],
 ) -> None:
     path = Path("models/example/README.md")
+    monkeypatch.setitem(
+        card.EXPECTED_FRONTMATTER,
+        "example",
+        {"license": "mit", "datasets": []},
+    )
     model_type = card.parse_model_type(path, line)
 
     assert model_type == expected
-    frontmatter = f"pipeline_tag: {task}\nmodel-index:\n  - task:\n      type: {task}\n"
-    card.assert_pipeline_tag(path, frontmatter, model_type)
-    with pytest.raises(AssertionError, match="pipeline_tag"):
-        card.assert_pipeline_tag(path, "pipeline_tag: other\n", model_type)
-    with pytest.raises(AssertionError, match="model-index task.type"):
-        card.assert_pipeline_tag(
-            path,
-            f"pipeline_tag: {task}\nmodel-index:\n  - task:\n      type: other\n",
-            model_type,
+
+    def model_readme(pipeline_tag: str, model_index_tasks: tuple[str, ...]) -> str:
+        model_index = "".join(
+            f"  - task:\n      type: {model_index_task}\n"
+            for model_index_task in model_index_tasks
         )
+        return (
+            f"---\nlicense: mit\npipeline_tag: {pipeline_tag}\ndatasets:\n"
+            f"model-index:\n{model_index}---\n{line}"
+        )
+
+    card.assert_expected_frontmatter(path, model_readme(task, (task,)))
+    with pytest.raises(AssertionError, match="pipeline_tag"):
+        card.assert_expected_frontmatter(path, model_readme("other", (task,)))
+    with pytest.raises(AssertionError, match="model-index task.type values"):
+        card.assert_expected_frontmatter(path, model_readme(task, (task, other_task)))
 
     assert root_readme._model_catalog_badge_values(model_type) == (
         task,
