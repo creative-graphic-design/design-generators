@@ -31,7 +31,7 @@ from structurediffusion.processing_structurediffusion import (
     token_span_from_char_span,
 )
 
-PROMPT = "A red car and a white sheep"
+PROMPT = "a red car and a white sheep"
 GUIDANCE_SCALE = 7.5
 INFERENCE_STEPS = 10
 SEED = 42

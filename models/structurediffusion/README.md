@@ -108,7 +108,7 @@ pipe = StructureDiffusionPipeline.from_pretrained(
 )
 pipe.to("cpu")
 result = pipe(
-    "A red car and a white sheep",
+    "a red car and a white sheep",
     parser_type="constituency",
     num_inference_steps=10,
     generator=torch.Generator(device="cpu").manual_seed(42),
@@ -132,7 +132,7 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 ### Testing Data, Factors & Metrics
 
-The comparison fixture uses the prompt `A red car and a white sheep`, seed 42, 512×512 output, 10 DDIM steps, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the official attention reference and this package. The 64×64 run is only a CPU rehearsal.
+The comparison fixture uses the prompt `a red car and a white sheep`, seed 42, 512×512 output, 10 DDIM steps, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the official attention reference and this package. The 64×64 run is only a CPU rehearsal.
 
 ### Parity Results
 
