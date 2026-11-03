@@ -758,6 +758,10 @@ def _model_index_tasks(path: Path, node: _ModelIndexNode) -> tuple[str, ...]:
 
     task_types: list[str] = []
     for model in model_index.items:
+        name = _node_mapping_value(model, "name")
+        if not isinstance(name, _ModelIndexScalar) or not name.value:
+            raise _unsupported_model_index_format(path)
+
         results = _node_mapping_value(model, "results")
         if not isinstance(results, _ModelIndexSequence):
             raise _unsupported_model_index_format(path)
