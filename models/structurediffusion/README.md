@@ -110,6 +110,88 @@ image = result.images[0]
 
 The optional scene-graph parser can be installed with the `scene-graph` extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
 
+## Examples
+
+The following example generates both images with the same Stable Diffusion v1.4 checkpoint, prompt, seed, scheduler, and sampling settings. It uses the regular `🧨diffusers` pipeline for the baseline and `StructureDiffusionPipeline` for structured guidance. Set `HF_TOKEN_FILE` to a private file containing a Hugging Face token after accepting the checkpoint's access terms. Install the package and download the English Stanza parser models as shown above before running this code.
+
+| Stable Diffusion v1.4                                                                                                                                                                                                                                     | StructureDiffusion                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Stable Diffusion v1.4 output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/stable-diffusion-v1-4-red-teddy-bear-glass.png) | ![StructureDiffusion output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/structurediffusion-red-teddy-bear-glass.png) |
+
+Both images use the prompt `A red teddy bear in a Christmas hat sitting next to a glass`, base model revision `133a221b8aa7292a167afc5127cb63fb5005638b`, seed `42`, 30 inference steps, 512×512 resolution, guidance scale `7.5`, and the PNDM scheduler with `skip_prk_steps=True`. The base checkpoint is licensed under CreativeML OpenRAIL-M.
+
+```python
+import gc
+import os
+from pathlib import Path
+
+import torch
+from diffusers import PNDMScheduler, StableDiffusionPipeline
+from structurediffusion import StructureDiffusionPipeline
+
+MODEL_ID = "CompVis/stable-diffusion-v1-4"
+MODEL_REVISION = "133a221b8aa7292a167afc5127cb63fb5005638b"
+PROMPT = "A red teddy bear in a Christmas hat sitting next to a glass"
+SEED = 42
+OUTPUT_DIR = Path("structurediffusion-examples")
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+torch.set_num_threads(2)
+token = Path(os.environ["HF_TOKEN_FILE"]).read_text().strip()
+
+
+def make_generator():
+    return torch.Generator(device="cpu").manual_seed(SEED)
+
+
+baseline = StableDiffusionPipeline.from_pretrained(
+    MODEL_ID,
+    revision=MODEL_REVISION,
+    torch_dtype=torch.float32,
+    token=token,
+)
+baseline.scheduler = PNDMScheduler.from_config(
+    baseline.scheduler.config,
+    skip_prk_steps=True,
+)
+baseline.to("cpu")
+baseline_image = baseline(
+    PROMPT,
+    height=512,
+    width=512,
+    num_inference_steps=30,
+    guidance_scale=7.5,
+    generator=make_generator(),
+).images[0]
+baseline_image.save(OUTPUT_DIR / "stable-diffusion-v1-4-red-teddy-bear-glass.png")
+del baseline, baseline_image
+gc.collect()
+
+structured = StructureDiffusionPipeline.from_pretrained(
+    MODEL_ID,
+    revision=MODEL_REVISION,
+    torch_dtype=torch.float32,
+    token=token,
+)
+structured.scheduler = PNDMScheduler.from_config(
+    structured.scheduler.config,
+    skip_prk_steps=True,
+)
+structured.to("cpu")
+structured_image = structured(
+    PROMPT,
+    parser_type="constituency",
+    height=512,
+    width=512,
+    num_inference_steps=30,
+    guidance_scale=7.5,
+    generator=make_generator(),
+).images[0]
+structured_image.save(OUTPUT_DIR / "structurediffusion-red-teddy-bear-glass.png")
+del structured, structured_image
+gc.collect()
+```
+
 ## Bias, Risks, and Limitations
 
 Generation behavior inherits the training data, biases, and restrictions of the selected Stable Diffusion checkpoint. The default constituency parser is English-only and requires the [Stanza](https://stanfordnlp.github.io/stanza/) English tokenizer, POS, and constituency models to be installed separately. Scene-graph parsing is an optional extra with its own [spaCy](https://spacy.io/) English model prerequisite. Outputs vary with the checkpoint, parser, scheduler, device, precision, and library versions.
