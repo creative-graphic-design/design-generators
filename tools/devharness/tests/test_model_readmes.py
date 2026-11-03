@@ -607,16 +607,16 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
     with pytest.raises(AssertionError, match="must not be an image generation task"):
         card.assert_pipeline_tag(
             path,
-            "pipeline_tag: other\nmodel-index:\n- name: example\n  results:\n"
-            '  - task:\n      type: "text-to-image"',
+            "pipeline_tag: other\nmodel-index:\n  - name: example\n"
+            '    results:\n      - task:\n          type: "text-to-image"',
             ("content-agnostic", "single-task", ("label",)),
         )
 
     with pytest.raises(AssertionError, match="task.type must be 'other'"):
         card.assert_pipeline_tag(
             path,
-            "pipeline_tag: other\nmodel-index:\n- name: example\n  results:\n"
-            "  - task:\n      type: text-classification",
+            "pipeline_tag: other\nmodel-index:\n  - name: example\n"
+            "    results:\n      - task:\n          type: text-classification",
             ("content-agnostic", "single-task", ("label",)),
         )
 
@@ -626,8 +626,8 @@ def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
     card.assert_pipeline_tag(
         path,
         "pipeline_tag: image-feature-extraction\nmodel-index:\n"
-        "- name: example\n  results:\n  - task:\n"
-        "      type: image-feature-extraction",
+        "  - name: example\n    results:\n      - task:\n"
+        "          type: image-feature-extraction",
         ("content-agnostic", "single-task", ("label",)),
     )
 
@@ -1611,18 +1611,20 @@ def test_image_generation_frontmatter_contract_follows_task(
 
     def model_readme(pipeline_tag: str, model_index_tasks: tuple[str, ...]) -> str:
         results = "".join(
-            f"  - task:\n      type: {model_index_task}\n"
-            "    dataset:\n      type: example-dataset\n      name: Example\n"
-            "      args:\n        metadata:\n          task:\n"
-            f"            type: {other_task}\n"
-            "        results:\n          - task:\n"
-            f"              type: {other_task}\n"
-            "    metrics:\n      - type: example-metric\n        value: 0.5\n"
+            f"      - task:\n          type: {model_index_task}\n"
+            "        dataset:\n          type: example-dataset\n"
+            "          name: Example\n          args:\n"
+            "            metadata:\n              task:\n"
+            f"                type: {other_task}\n"
+            "            results:\n              - task:\n"
+            f"                  type: {other_task}\n"
+            "        metrics:\n          - type: example-metric\n"
+            "            value: 0.5\n"
             for model_index_task in model_index_tasks
         )
         return (
             f"---\nlicense: mit\npipeline_tag: {pipeline_tag}\ndatasets:\n"
-            f"model-index:\n- name: Example\n  results:\n{results}---\n{line}"
+            f"model-index:\n  - name: Example\n    results:\n{results}---\n{line}"
         )
 
     card.assert_expected_frontmatter(path, model_readme(task, (task,)))
@@ -1637,6 +1639,28 @@ def test_image_generation_frontmatter_contract_follows_task(
     )
 
 
+@pytest.mark.parametrize(
+    "model_index",
+    [
+        "model-index: [{name: Example, results: [{task: {type: text-to-image}}]}]",
+        "model-index:\n    - name: Example\n      results:\n"
+        "        - task:\n            type: text-to-image",
+    ],
+)
+def test_image_generation_frontmatter_rejects_unsupported_model_index_format(
+    model_index: str,
+) -> None:
+    path = Path("models/example/README.md")
+    text = f"pipeline_tag: text-to-image\n{model_index}"
+
+    with pytest.raises(AssertionError, match="cannot read this model-index format"):
+        card.assert_pipeline_tag(
+            path,
+            text,
+            ("image generation", "text-to-image", ("text",)),
+        )
+
+
 def test_layout_frontmatter_rejects_image_generation_model_index_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1648,8 +1672,9 @@ def test_layout_frontmatter_rejects_image_generation_model_index_task(
     )
     text = (
         "---\nlicense: mit\npipeline_tag: other\ndatasets:\nmodel-index:\n"
-        "- name: Example\n  results:\n  - task:\n      type: other\n"
-        "  - task:\n      type: image-to-image\n---\n"
+        "  - name: Example\n    results:\n      - task:\n"
+        "          type: other\n      - task:\n"
+        "          type: image-to-image\n---\n"
         "- **Model type:** content-agnostic; task: single-task; "
         "conditioning: label.\n"
     )
