@@ -64,9 +64,9 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 #### Model catalog classification
 
-`Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
+Each model README has one classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <values>.` For layout-generation models, `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
 
-`Task` is classified as follows:
+For layout-generation models, `Task` is classified as follows:
 
 - `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference; this value requires two or more accepted generation conditions.
 - `task-aware`: a separate checkpoint or training run exists for each accepted generation condition; this value requires two or more accepted generation conditions.
@@ -74,11 +74,14 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 - `evaluation`: the package evaluates layouts rather than generating them.
 - `saliency`: the package predicts saliency rather than generating layouts.
 
+Image-generation models use `image generation` as the `Model type` category and `text-to-image` or `image-to-image` as the task. Their conditioning values are `layers` and `text`, listed in that order when both are accepted; the model catalog displays those values in the `Content` column joined by a plus sign. For this category, the Hugging Face model-card `pipeline_tag` matches the task value. `layers` describes layer-based image input and is not a layout `condition_type`.
+
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
 The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
 
 - `evaluation`: evaluate layouts rather than generate them.
+- `layers`: describe layer-based image input to an image-generation model.
 - `saliency`: predict saliency as the package's primary public operation.
 - `none`: the package's only accepted condition is `content_image`.
 
