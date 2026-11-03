@@ -372,6 +372,50 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
+def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
+    """Return values declared by model-index task.type fields."""
+    model_index_indent: int | None = None
+    task_indent: int | None = None
+    task_types: list[str] = []
+
+    for line in frontmatter.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        indentation = len(line) - len(line.lstrip())
+        if model_index_indent is None:
+            if re.fullmatch(r" *model-index:", line):
+                model_index_indent = indentation
+
+            continue
+
+        if indentation <= model_index_indent:
+            break
+
+        task_match = re.fullmatch(r"(?P<indent> *)(?P<list>-\s*)?task:", line)
+        if task_match is not None:
+            task_indent = len(task_match.group("indent")) + (
+                2 if task_match.group("list") else 0
+            )
+
+            continue
+
+        if task_indent is None:
+            continue
+
+        if indentation <= task_indent:
+            task_indent = None
+
+            continue
+
+        type_match = re.fullmatch(r" *type:\s*[\"']?([^\"'\n]+?)[\"']?\s*", line)
+        if type_match is not None and indentation == task_indent + 2:
+            task_types.append(type_match.group(1))
+
+    return tuple(task_types)
+
+
 def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> None:
     """Require the model-card task metadata declared for this package."""
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
@@ -386,26 +430,27 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
             f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
 
-    if category != IMAGE_GENERATION_CATEGORY:
-        bad_task = re.search(
-            r'^\s+type:\s*["\']?text-to-image["\']?\s*$',
-            frontmatter,
-            re.MULTILINE,
-        )
-        if bad_task:
+    task_types = _model_index_task_types(frontmatter)
+    has_model_index = "model-index:" in frontmatter
+    if has_model_index and category == IMAGE_GENERATION_CATEGORY:
+        if not task_types or any(task_type != task for task_type in task_types):
+            raise AssertionError(
+                f"{path}: model-index task.type values must match image generation "
+                f"task {task!r}, got {task_types}"
+            )
+
+    if has_model_index and category != IMAGE_GENERATION_CATEGORY:
+        if "text-to-image" in task_types:
             raise AssertionError(
                 f"{path}: model-index task.type must not be text-to-image"
             )
 
-    task_types = re.findall(
-        r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
-    )
     expected_task = (
         task
         if category == IMAGE_GENERATION_CATEGORY
         else EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
     )
-    if expected_task not in task_types and "model-index:" in frontmatter:
+    if expected_task not in task_types and has_model_index:
         raise AssertionError(f"{path}: model-index task.type must be {expected_task!r}")
 
 
