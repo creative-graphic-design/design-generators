@@ -15,8 +15,11 @@ from typing import Protocol, cast
 import numpy as np
 import pytest
 import torch
-from diffusers import PNDMScheduler, StableDiffusionPipeline
+from diffusers import PNDMScheduler
 from diffusers.models.attention_processor import Attention
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import (
+    StableDiffusionPipeline,
+)
 from jaxtyping import Bool, Float
 from nltk.tree import Tree
 from PIL import Image
@@ -48,7 +51,7 @@ class _VendorGetAllNps(Protocol):
     def __call__(
         self,
         tree: Tree,
-        full_sent: str,
+        _full_sent: str,
         tokens: list[str],
     ) -> tuple[
         list[str],
@@ -60,7 +63,7 @@ class _VendorGetAllNps(Protocol):
 class _VendorMultiAlign(Protocol):
     def __call__(
         self,
-        main_seq: torch.Tensor,
+        _main_seq: torch.Tensor,
         seq: torch.Tensor,
         span: tuple[int, int],
         dim: int = 1,
@@ -219,12 +222,16 @@ def _image_array(images: object) -> Float[np.ndarray, "batch height width channe
 
 
 def _configure_plms_scheduler(pipe: StableDiffusionPipeline) -> None:
-    pipe.scheduler = PNDMScheduler.from_config(
+    scheduler = PNDMScheduler.from_config(
         pipe.scheduler.config,
         skip_prk_steps=True,
         timestep_spacing="leading",
         steps_offset=1,
     )
+    if isinstance(scheduler, tuple):
+        raise TypeError("PNDMScheduler.from_config returned unused configuration.")
+
+    pipe.scheduler = scheduler
 
 
 def _capture_package_conditioning(
