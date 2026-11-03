@@ -66,7 +66,7 @@ UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SD
 
 Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; proceed only if the full run remains within the 0.5 CU cap. The final run uses the same 10 PNDM steps through the `🧨diffusers` PLMS path and the same initial latent shape `[1, 4, 64, 64]` for each path.
 
-The executed 64×64 rehearsal passed in 92.2 seconds with peak RSS 5,497 MiB and zero pixel difference. This is a CPU execution and memory check; the reported parity result is the 512×512 comparison below.
+The independent comparison on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac` also measured the 64×64 case. It completed in 126.777 seconds and matched the reference phrases, token spans, conditioning, and image output exactly; see the formal results below.
 
 ## 5. Compare at 512×512
 
@@ -76,9 +76,22 @@ Proceed only if the measured time projection remains within the 0.5 CU worker bu
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
-The test writes `.cache/structurediffusion/parity/cpu-512.json` with phrase lists, independently mapped CLIP spans, key/value conditioning differences, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. It also writes `package-512.png` and `reference-512.png`. Before stopping the Colab session, store result files in private storage, download them again, and verify each SHA-256 digest. Keep credentials out of notebook output and logs; inspect logs for token-shaped strings before uploading. The reported image criterion is mean absolute pixel difference below `1e-3`.
+The test writes `.cache/structurediffusion/parity/cpu-512.json` with phrase lists, independently mapped CLIP spans, key/value conditioning differences, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. It also writes `package-512.png` and `reference-512.png`. Before stopping the Colab session, store result files in private storage, download them again, and verify each SHA-256 digest. Keep credentials out of notebook output and logs; inspect logs for token-shaped strings before uploading. The test's image assertion accepts mean absolute pixel difference below `1e-3`; the formal result below achieved the stricter bit-exact match, with equal image SHA-256 values.
 
-The pre-commit working-tree run at 512×512 reported phrase and CLIP-span matches, zero maximum key and value differences, and zero maximum, mean, and RMS image differences. Its runner wall time was 996.7 seconds (981.2 seconds reported by the test), with 6,573.1 MiB peak RSS, or approximately 0.022 CU on a standard CPU at 0.08 CU/hour. This run was based on commit `7a8a3a6836ae60cf7328a4cc439d94ccc5222449` with uncommitted changes, so these values are preliminary and are not formal parity evidence. The metrics JSON did not contain a Git SHA. Formal parity is pending an independent rerun by the reviewer on the pushed PR head; do not report these values as the formal result.
+The reviewer independently ran the comparison from commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac` on a standard CPU with input prompt `A red car and a white sheep`, seed 42, guidance scale 7.5, the same initial CPU latent for both paths, and 10 `🧨diffusers` PNDM steps through its PLMS path. The vendor demo lowercases its prompt before parsing and alignment. The result details are recorded in the [formal parity comment](https://github.com/creative-graphic-design/design-generators/issues/485#issuecomment-6608854871).
+
+| Measurement                                        | 64×64                                                              | 512×512                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Noun phrases                                       | `a red car`; `a white sheep`                                       | `a red car`; `a white sheep`                                       |
+| Vendor/package BOS-inclusive CLIP spans            | `[1, 4)`; `[5, 8)` / match                                         | `[1, 4)`; `[5, 8)` / match                                         |
+| Key/value count                                    | 1 / 3                                                              | 1 / 3                                                              |
+| Initial latent SHA-256                             | `9ff459eefd9169b11138967326b63683050096a4f7b9df76ecb1bb893ad4c84f` | `e97f3de04c7c6ba86354db4402b91d4402ede9c72aabed29a96dd7d635a798ba` |
+| Maximum absolute key/value conditioning difference | 0.0 / 0.0                                                          | 0.0 / 0.0                                                          |
+| Maximum / mean / RMS absolute pixel difference     | 0.0 / 0.0 / 0.0                                                    | 0.0 / 0.0 / 0.0                                                    |
+| Reference/package image SHA-256                    | Match                                                              | Match                                                              |
+| Test runtime                                       | 126.777 seconds                                                    | 948.902 seconds                                                    |
+
+At each resolution, the vendor-derived phrase alignment, independently assembled conditioning, attention output, and generated image matched exactly. Model loading and sampling use `🧨diffusers` in both paths; this comparison does not claim parity with the vendor checkpoint loader or sampler.
 
 ## 6. Check outputs and stop the Colab session
 

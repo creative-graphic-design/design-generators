@@ -18,12 +18,12 @@ model-index:
           name: "Text-to-image generation"
         dataset:
           type: "synthetic"
-          name: "Single prompt CPU parity fixture"
-          split: "one prompt at 512x512"
+          name: "CPU parity fixture"
+          split: "one prompt at 64x64 and 512x512"
         metrics:
           - type: "vendor-parity"
             value: 0.0
-            name: "Provisional pre-commit mean absolute pixel difference"
+            name: "Bit-exact CPU image comparison against attention reference"
 ---
 
 <!-- --8<-- [start:card] -->
@@ -35,7 +35,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
@@ -214,23 +214,26 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 ### Testing Data, Factors & Metrics
 
-The comparison fixture receives `A red car and a white sheep`, seed 42, 512×512 output, 10 `🧨diffusers` PNDM steps through its PLMS path, guidance scale 7.5, CPU float32 execution, and one precomputed starting latent shared by the reference and package. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input. The 64×64 run is only a CPU rehearsal.
+The independent CPU comparison covers 64×64 and 512×512 outputs for `A red car and a white sheep`, seed 42, 10 `🧨diffusers` PNDM steps through its PLMS path, guidance scale 7.5, and CPU float32 execution. Each reference/package pair receives the same precomputed starting latent. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input.
 
-The test checks vendor noun-phrase extraction and token spans, independently assembled phrase keys and values from the vendor `multi_align` path, and cross-attention output. The reference image uses a separate base `🧨diffusers` pipeline instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use `🧨diffusers`, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
+The test independently compares vendor-derived noun phrases, token spans, and key/value conditioning with the package, then compares cross-attention output. The reference image uses a separate base `🧨diffusers` pipeline instance with the pinned vendor `CrossAttention.multi_qkv`; the package image uses `StructureDiffusionPipeline`. Both model loading and sampling use `🧨diffusers`, so this comparison isolates structured conditioning and attention rather than reproducing the vendor checkpoint loader or sampler implementation.
 
 ### Parity Results
 
-| Check                                                   | Cases | Criterion                                                                           | Result                                                                                                                                         |
-| ------------------------------------------------------- | ----: | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| CPU image output against the pinned attention reference |     1 | Phrase and token-span match; K/V max difference `atol=1e-6`; image MAE below `1e-3` | The pre-commit working-tree run observed zero differences, but formal parity has not run on the pushed head; the independent rerun is pending. |
+| Check                                                           | Cases | Criterion                                                              | Result                                                                                                                                                               |
+| --------------------------------------------------------------- | ----: | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 64×64 CPU image output against the pinned attention reference   |     1 | Exact phrase/span alignment, K/V conditioning, and image SHA-256 match | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`. |
+| 512×512 CPU image output against the pinned attention reference |     1 | Exact phrase/span alignment, K/V conditioning, and image SHA-256 match | `a red car` / `a white sheep`; spans `[1, 4)` / `[5, 8)`; 1 key / 3 values; K/V max differences `0.0` / `0.0`; pixel max/mean/RMS differences `0.0` / `0.0` / `0.0`. |
+
+The independent comparison ran on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac`; the reviewer recorded the full inputs, initial latents, measurements, and runtimes in the [formal parity result](https://github.com/creative-graphic-design/design-generators/issues/485#issuecomment-6608854871). Both resolutions were bit-exact: the package and reference image SHA-256 values matched.
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base `🧨diffusers` pipeline. `🧨diffusers` supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. Formal parity remains pending an independent rerun of the pushed PR head.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare generated images with the pinned attention reference using the same parser output, scheduler, seed, and initial latent. The test independently checks phrase spans and key/value conditioning, then runs the reference attention in a separate base `🧨diffusers` pipeline. `🧨diffusers` supplies model loading and sampling, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched at 64×64 and 512×512, including identical output-image SHA-256 values.
 
 ## Environmental Impact
 
-No model training is performed. CPU inference is computationally expensive; runtime depends on the host CPU, image dimensions, and denoising steps.
+No model training is performed. The formal standard-CPU comparison took 126.777 seconds at 64×64 and 948.902 seconds at 512×512; no GPU comparison is included.
 
 ## Technical Specifications
 
@@ -240,7 +243,7 @@ The pipeline retains Stable Diffusion's VAE, CLIP text encoder, U-Net, and sched
 
 ### Compute Infrastructure
 
-The package supports `🧨diffusers` CPU and accelerator execution. A pre-commit working-tree comparison used a standard Colab CPU; no GPU comparison is included. That run took 996.7 seconds including setup and reached 6,573.1 MiB peak process RSS. It is provisional; the formal comparison must run against the pushed PR head.
+The package supports `🧨diffusers` CPU and accelerator execution. The recorded comparison timings are test-process runtimes on a standard Colab CPU; setup time and GPU performance are not included.
 
 #### Software
 
