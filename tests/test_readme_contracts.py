@@ -81,7 +81,7 @@ def test_root_readme_model_classification_badges_follow_policy() -> None:
         if badge.label in {"task", "content"}
     ]
 
-    assert len(badges) == 62
+    assert len(badges) == 64
     assert {badge.label for badge in badges} == {"task", "content"}
 
 
