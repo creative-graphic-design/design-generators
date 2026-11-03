@@ -22,7 +22,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![framework](https://img.shields.io/static/v1?label=framework&message=diffusers&color=red&style=flat-square&logo=huggingface&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=image-harmonization&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package exposes Collage Diffusion as a `🧨diffusers` pipeline that harmonizes text-described RGBA layers into a single image.
@@ -42,7 +42,7 @@ Collage Diffusion combines a scene prompt with ordered RGBA image layers. Visibl
 
 ### Model Sources
 
-- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here.
+- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here. Notebook-linked image layers and textual-inversion embeddings are archived, with source links and integrity records, in the [public documentation image dataset](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collagediffusion/drive-archive).
 - **Paper:** [Collage Diffusion](https://arxiv.org/abs/2303.00262).
 - **Related implementation:** [Collage Diffusion UI](https://github.com/linden-li/collage-diffusion-ui) was inspected as a secondary reference. Its repository also has no declared license; its code is not included here.
 - **Released weights:** The package does not contain its own weights. It loads the [Stable Diffusion 2.1 base mirror](https://huggingface.co/sd2-community/stable-diffusion-2-1-base) at a pinned revision.
@@ -128,6 +128,106 @@ Saved harmonized.png
 
 Textual-inversion embeddings are caller-supplied with a token-to-file mapping, and the matching token is set on its `CollageLayer`. ControlNet and textual-inversion training are outside this package's current scope.
 
+### Examples
+
+#### Toy Box collage
+
+This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [public Hub archive](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collagediffusion/drive-archive). The dataset card declares Apache-2.0, but the source files do not state a clear per-file license, so their terms remain unclear.
+
+The left panel shows the source collage and the right panel shows the generated image. Generation uses `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, seed `0`, 50 requested inference steps (40 active at strength `0.8`), and 512 × 512 resolution. The base checkpoint is licensed under the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base).
+
+![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collagediffusion/toy-box-diffusers-comparison.png)
+
+```python
+from diffusers import EulerAncestralDiscreteScheduler
+from diffusers.utils import load_image, make_image_grid
+from huggingface_hub import hf_hub_download
+from collagediffusion import CollageDiffusionPipeline, CollageLayer, compose_collage_layers
+
+
+dataset_id = "creative-graphic-design/documentation-images"
+archive_path = "collagediffusion/drive-archive"
+image_base_url = f"https://huggingface.co/datasets/{dataset_id}/resolve/main/{archive_path}"
+
+
+def load_layer(filename: str):
+    return load_image(
+        f"{image_base_url}/image_layers/toyBox2/layers/{filename}",
+        convert_method=lambda image: image.convert("RGBA"),
+    )
+
+
+textual_inversion_embeddings = {
+    "<fda>": hf_hub_download(
+        repo_id=dataset_id,
+        repo_type="dataset",
+        filename=f"{archive_path}/asset_library/toyBox2-teddy_bear/lora_weight_e999_s1000.ti.pt",
+    ),
+    "<xtc>": hf_hub_download(
+        repo_id=dataset_id,
+        repo_type="dataset",
+        filename=f"{archive_path}/asset_library/toyBox2-wood_train/lora_weight_e999_s1000.ti.pt",
+    ),
+}
+
+layers = [
+    CollageLayer(
+        image=load_layer("_0004_background.png"),
+        prompt="background",
+        noise_level=0.8,
+        positive_attention_weight=0.0,
+        negative_attention_weight=0.5,
+    ),
+    CollageLayer(
+        image=load_layer("_0003_football.png"),
+        prompt="american football",
+        noise_level=0.2,
+        positive_attention_weight=0.5,
+        negative_attention_weight=0.5,
+    ),
+    CollageLayer(
+        image=load_layer("_0002_teddy_bear.png"),
+        prompt="teddy bear",
+        noise_level=0.8,
+        positive_attention_weight=0.2,
+        negative_attention_weight=0.5,
+        textual_inversion_token="<fda>",
+    ),
+    CollageLayer(
+        image=load_layer("_0000_wood_train.png"),
+        prompt="wood train",
+        noise_level=0.5,
+        positive_attention_weight=0.2,
+        negative_attention_weight=0.5,
+        textual_inversion_token="<xtc>",
+    ),
+]
+
+input_collage, _ = compose_collage_layers(layers, width=512, height=512)
+pipe = CollageDiffusionPipeline.from_pretrained(
+    "sd2-community/stable-diffusion-2-1-base",
+    revision="4e63672c03103b6c636b8fb4119ba982469b2955",
+)
+pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+result = pipe(
+    prompt="a teddy bear, a wood train, and an american football, in front of a tan background",
+    layers=layers,
+    textual_inversion_embeddings=textual_inversion_embeddings,
+    negative_prompt="collage",
+    strength=0.8,
+    num_inference_steps=50,
+    guidance_scale=7.5,
+    noise_blur=20,
+    seed=0,
+).images[0]
+make_image_grid([input_collage, result], rows=1, cols=2).save("toy-box-diffusers-comparison.png")
+print("Saved toy-box-diffusers-comparison.png")
+```
+
+```text
+Saved toy-box-diffusers-comparison.png
+```
+
 ### Downstream Use
 
 Generated images may be used for design exploration after human review of object placement, appearance, and the licenses attached to all input layers and model weights.
@@ -138,7 +238,7 @@ This pipeline does not guarantee semantic accuracy, rights clearance for caller-
 
 ## Bias, Risks, and Limitations
 
-Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The source notebook's example image and embedding folders do not state their origin or license; they are used only in the requested private comparison and are not distributed with this package. The paper's ControlNet extension and textual-inversion training are not implemented here.
+Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The notebook-linked example images and embeddings do not state their origin or license. Copies are available in the public documentation image archive with source URLs and integrity records. The paper's ControlNet extension and textual-inversion training are not implemented here.
 
 ### Recommendations
 
@@ -193,7 +293,7 @@ This package contains no training procedure and no Collage Diffusion checkpoint.
 
 #### Testing Data
 
-Ordinary tests use small synthetic RGBA layers. The private parity comparison uses one example collage and its embedding from the authors' notebook-linked assets; those assets are not included in the repository.
+Ordinary tests use small synthetic RGBA layers. The parity comparison uses one example collage and its embeddings from the authors' notebook-linked assets; public archive copies are linked above.
 
 #### Factors
 
@@ -201,13 +301,18 @@ The reference comparison holds the input layers, preprocessing, textual-inversio
 
 #### Metrics
 
-Compare generated RGB pixels with maximum absolute difference and PSNR; also compare per-step latents where available. Report the measured values after the named Colab CPU run.
+Compare generated RGB pixels with maximum absolute difference and PSNR; also compare per-step latents where available. One 512 × 512 CPU comparison used the same pinned checkpoint, layers, embedding, scheduler, seed, and 10 requested steps (8 active at strength 0.8). The measurements below cover that input and seed; they do not establish equivalence for other inputs.
 
 ### Parity Results
 
-| Check                                |   Cases | Criterion                                                                             | Result      |
-| ------------------------------------ | ------: | ------------------------------------------------------------------------------------- | ----------- |
-| Notebook-to-package image comparison | 0 pairs | Same input, seed, scheduler, and 10 steps; maximum absolute pixel difference and PSNR | not run yet |
+One worker-run comparison of the notebook reference using `🧨diffusers` `0.10.0` and this package using `🧨diffusers` `0.39.0` meets the provisional tolerances below. The acceptance cutoffs sit just above the measured cross-version differences shown in the table; masks and noise inputs match exactly, and the first difference appears in text embeddings at `5.4538e-6`. These criteria cover this version pair and the one tested input and seed only. The independent reviewer rerun is pending, so these worker-run measurements remain provisional.
+
+| Check                      |            Cases | Acceptance criterion                                     | Worker-run result                                         |
+| -------------------------- | ---------------: | -------------------------------------------------------- | --------------------------------------------------------- |
+| Final RGB image            | 1 input and seed | max abs `atol=2.1e-3`; RMSE ≤ `1.2e-3`; PSNR ≥ `59.0 dB` | max abs `0.00202799`; RMSE `0.00111856`; PSNR `59.03 dB`  |
+| Per-step latent            |   8 active steps | max abs `atol=2.5e-4`; RMSE ≤ `8e-6`                     | max abs `0.00024360`; RMSE `0.00000742`; PSNR `127.47 dB` |
+| U-Net noise prediction     |   8 active steps | max abs `atol=2.6e-4`; RMSE ≤ `1.2e-5`                   | max abs `0.00025465`; RMSE `0.00001100`; PSNR `113.28 dB` |
+| Inputs and text embeddings | 1 input and seed | masks/noise exact; text embedding max abs `atol=5.5e-6`  | masks/noise exact; first difference `5.4538e-6`           |
 
 ## Reproducibility
 
@@ -237,7 +342,7 @@ Use Python 3.11 or newer, `🧨diffusers`, `🤗transformers`, PyTorch, Pillow, 
 
 ## License
 
-Package code follows the repository's Apache-2.0 license. The upstream notebook and UI source repositories do not declare a repository license; their implementations are referenced but not copied or distributed. Stable Diffusion 2.1 base is subject to its upstream CreativeML Open RAIL++-M terms. The notebook-linked example images and embeddings have no stated source or license and are not redistributed.
+Package code follows the repository's Apache-2.0 license. The upstream notebook and UI source repositories do not declare a repository license; their implementations are referenced but not copied or distributed. Stable Diffusion 2.1 base is subject to its upstream CreativeML Open RAIL++-M terms. The notebook-linked example images and embeddings have no stated source or license; public archive copies are provided with source links and SHA-256 records, and their terms remain unclear.
 
 ## Citation
 
