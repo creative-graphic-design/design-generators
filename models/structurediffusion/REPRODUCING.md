@@ -68,7 +68,7 @@ Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512
 
 ## 5. Compare at 512×512
 
-Proceed only if the measured time projection remains within the approved worker budget of 1 CU. The run uses one prompt (`a red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 DDIM steps, CPU float32, and one precomputed initial latent for both paths.
+Proceed only if the measured time projection remains within the approved worker budget of 1 CU. The comparison fixture uses one prompt (`a red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 DDIM steps, CPU float32, and one precomputed initial latent for both paths. It uses lowercase because the official reference's case-sensitive parser-to-token alignment raises `IndexError` for an uppercase `A`; the package accepts capitalized prompts, as tested by its CPU suite.
 
 ```bash
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s

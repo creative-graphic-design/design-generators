@@ -133,14 +133,16 @@ def test_call_installs_conditioning_and_restores_processors(
     import structurediffusion.pipeline_structurediffusion as module
 
     monkeypatch.setattr(StableDiffusionPipeline, "encode_prompt", _encode_prompt)
-    monkeypatch.setattr(
-        module,
-        "constituency_noun_phrases",
-        lambda prompt: [
+    parsed_prompts: list[str] = []
+
+    def parse_prompt(prompt: str) -> list[NounPhrase]:
+        parsed_prompts.append(prompt)
+        return [
             NounPhrase("a red car", 0, 9),
             NounPhrase("a white sheep", 14, 27),
-        ],
-    )
+        ]
+
+    monkeypatch.setattr(module, "constituency_noun_phrases", parse_prompt)
     original_call = object()
     pipe = _pipeline()
     original_processors = dict(pipe.unet.attn_processors)
@@ -169,6 +171,7 @@ def test_call_installs_conditioning_and_restores_processors(
     result = pipe("A red car and a white sheep.", num_images_per_prompt=2)
 
     assert result is original_call
+    assert parsed_prompts == ["a red car and a white sheep"]
     assert pipe.unet.attn_processors == original_processors
     assert pipe.attention_maps == ()
 

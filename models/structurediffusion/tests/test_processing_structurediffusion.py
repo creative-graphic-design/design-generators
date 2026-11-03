@@ -21,7 +21,7 @@ class WordTokenizer:
 
     @staticmethod
     def tokenize(text: str) -> list[str]:
-        return text.split()
+        return text.lower().split()
 
 
 @dataclass
@@ -116,6 +116,12 @@ def test_token_span_uses_real_bpe_positions_and_clamps_eos() -> None:
 
     assert token_span_from_char_span(tokenizer, prompt, 6, 9, 8) == (3, 4)
     assert token_span_from_char_span(tokenizer, prompt, 22, 27, 6) is None
+
+
+def test_token_span_handles_capitalized_prompt_with_lowercasing_tokenizer() -> None:
+    prompt = "A red car and a white sheep"
+
+    assert token_span_from_char_span(WordTokenizer(), prompt, 6, 9, 8) == (3, 4)
 
 
 def test_token_span_rejects_invalid_character_ranges() -> None:
