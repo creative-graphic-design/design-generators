@@ -1653,6 +1653,14 @@ def test_image_generation_frontmatter_contract_follows_task(
         "        name: Example\n        task:\n"
         "          type: text-to-image",
         "model-index:\n  - results:\n      - task:\n          type: text-to-image",
+        "model-index:\n  - name: &example Example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: !example Example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: *example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: 16\n    results:\n"
+        "      - task:\n          type: text-to-image",
     ],
 )
 def test_image_generation_frontmatter_rejects_unsupported_model_index_format(

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
@@ -376,6 +377,8 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
 @dataclass(frozen=True)
 class _ModelIndexScalar:
     value: str
+    canonical: str
+    kind: Literal["string", "number"]
 
 
 @dataclass(frozen=True)
@@ -417,13 +420,46 @@ _MODEL_INDEX_FIELD_ORDER = {
     ),
 }
 
+_MODEL_INDEX_PLAIN_STRING = re.compile(r"[A-Za-z][A-Za-z0-9./ -]*")
+_MODEL_INDEX_DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?")
+_MODEL_INDEX_YAML_WORDS = {"false", "n", "no", "null", "off", "on", "true", "y", "yes"}
+
 
 def _unsupported_model_index_format(path: Path) -> AssertionError:
     """Return an explicit error for model-index syntax the checker cannot read."""
     return AssertionError(
         f"{path}: cannot read this model-index format; use block-style YAML "
-        "with two-space indentation and canonical field order"
+        "with two-space indentation, canonical field order, and supported scalars"
     )
+
+
+def _parse_model_index_scalar(path: Path, raw: str) -> _ModelIndexScalar:
+    """Parse only scalar forms that can be written back unambiguously."""
+    if raw.startswith('"'):
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise _unsupported_model_index_format(path) from error
+
+        if not isinstance(value, str):
+            raise _unsupported_model_index_format(path)
+
+        return _ModelIndexScalar(
+            value,
+            json.dumps(value, ensure_ascii=False),
+            "string",
+        )
+
+    if _MODEL_INDEX_DECIMAL.fullmatch(raw) and raw != "-0":
+        return _ModelIndexScalar(raw, raw, "number")
+
+    if (
+        _MODEL_INDEX_PLAIN_STRING.fullmatch(raw)
+        and raw.casefold() not in _MODEL_INDEX_YAML_WORDS
+    ):
+        return _ModelIndexScalar(raw, raw, "string")
+
+    raise _unsupported_model_index_format(path)
 
 
 def _strip_yaml_comment(line: str) -> str:
@@ -567,7 +603,7 @@ def _parse_model_index_block(
             index += 1
             first_entry = _mapping_entry(rest)
             if first_entry is None:
-                items.append(_ModelIndexScalar(rest))
+                items.append(_parse_model_index_scalar(path, rest))
 
                 continue
 
@@ -594,9 +630,9 @@ def _parse_model_index_block(
                         item_path + (first_key,),
                     )
                 else:
-                    value = _ModelIndexScalar("")
+                    raise _unsupported_model_index_format(path)
             else:
-                value = _ModelIndexScalar(first_value)
+                value = _parse_model_index_scalar(path, first_value)
 
             entries.append((first_key, value))
 
@@ -625,9 +661,9 @@ def _parse_model_index_block(
                             item_path + (key,),
                         )
                     else:
-                        child = _ModelIndexScalar("")
+                        raise _unsupported_model_index_format(path)
                 else:
-                    child = _ModelIndexScalar(raw_value)
+                    child = _parse_model_index_scalar(path, raw_value)
 
                 entries.append((key, child))
 
@@ -667,9 +703,9 @@ def _parse_model_index_block(
                     node_path + (key,),
                 )
             else:
-                value = _ModelIndexScalar("")
+                raise _unsupported_model_index_format(path)
         else:
-            value = _ModelIndexScalar(raw_value)
+            value = _parse_model_index_scalar(path, raw_value)
 
         entries.append((key, value))
 
@@ -684,14 +720,14 @@ def _serialize_model_index_node(
     """Write a parsed model-index node in canonical block style."""
     prefix = " " * indentation
     if isinstance(node, _ModelIndexScalar):
-        return [prefix + node.value]
+        return [prefix + node.canonical]
 
     if isinstance(node, _ModelIndexMapping):
         output: list[str] = []
         for key, value in _ordered_model_index_entries(node.entries, node_path):
             entry_prefix = prefix + f"{key}:"
             if isinstance(value, _ModelIndexScalar):
-                output.append(entry_prefix + (f" {value.value}" if value.value else ""))
+                output.append(entry_prefix + f" {value.canonical}")
             else:
                 output.append(entry_prefix)
                 output.extend(
@@ -706,7 +742,7 @@ def _serialize_model_index_node(
     item_path = node_path + ("[]",)
     for item in node.items:
         if not isinstance(item, _ModelIndexMapping):
-            scalar = item.value if isinstance(item, _ModelIndexScalar) else ""
+            scalar = item.canonical if isinstance(item, _ModelIndexScalar) else ""
             output.append(prefix + (f"- {scalar}" if scalar else "-"))
 
             continue
@@ -718,9 +754,7 @@ def _serialize_model_index_node(
         first_key, first_value = entries[0]
         item_prefix = prefix + f"- {first_key}:"
         if isinstance(first_value, _ModelIndexScalar):
-            output.append(
-                item_prefix + (f" {first_value.value}" if first_value.value else "")
-            )
+            output.append(item_prefix + f" {first_value.canonical}")
         else:
             output.append(item_prefix)
             output.extend(
@@ -732,7 +766,7 @@ def _serialize_model_index_node(
         for key, value in entries[1:]:
             entry_prefix = " " * (indentation + 2) + f"{key}:"
             if isinstance(value, _ModelIndexScalar):
-                output.append(entry_prefix + (f" {value.value}" if value.value else ""))
+                output.append(entry_prefix + f" {value.canonical}")
             else:
                 output.append(entry_prefix)
                 output.extend(
@@ -759,7 +793,11 @@ def _model_index_tasks(path: Path, node: _ModelIndexNode) -> tuple[str, ...]:
     task_types: list[str] = []
     for model in model_index.items:
         name = _node_mapping_value(model, "name")
-        if not isinstance(name, _ModelIndexScalar) or not name.value:
+        if (
+            not isinstance(name, _ModelIndexScalar)
+            or name.kind != "string"
+            or not name.value
+        ):
             raise _unsupported_model_index_format(path)
 
         results = _node_mapping_value(model, "results")
@@ -769,13 +807,14 @@ def _model_index_tasks(path: Path, node: _ModelIndexNode) -> tuple[str, ...]:
         for result in results.items:
             task = _node_mapping_value(result, "task")
             task_type = _node_mapping_value(task, "type") if task is not None else None
-            if not isinstance(task_type, _ModelIndexScalar) or not task_type.value:
+            if (
+                not isinstance(task_type, _ModelIndexScalar)
+                or task_type.kind != "string"
+                or not task_type.value
+            ):
                 raise _unsupported_model_index_format(path)
 
             value = task_type.value
-            if value[:1] == value[-1:] and value[:1] in {"'", '"'}:
-                value = value[1:-1]
-
             task_types.append(value)
 
     return tuple(task_types)
