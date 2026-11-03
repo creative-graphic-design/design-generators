@@ -372,95 +372,220 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
-def _model_index_task_types(frontmatter: str) -> tuple[str, ...]:
-    """Return values declared by model-index result task.type fields."""
-    model_index_indent: int | None = None
-    model_item_indent: int | None = None
-    results_indent: int | None = None
-    result_indent: int | None = None
-    task_indent: int | None = None
+def _unsupported_model_index_format(path: Path) -> AssertionError:
+    """Return an explicit error for model-index syntax the checker cannot read."""
+    return AssertionError(
+        f"{path}: cannot read this model-index format; use block-style YAML "
+        "with two-space indentation"
+    )
+
+
+def _strip_yaml_comment(line: str) -> str:
+    """Remove a YAML comment while preserving quoted hash characters."""
+    quote: str | None = None
+    position = 0
+    while position < len(line):
+        character = line[position]
+        if quote == "'":
+            if character == "'":
+                if line[position + 1 : position + 2] == "'":
+                    position += 2
+
+                    continue
+
+                quote = None
+        elif quote == '"':
+            if character == "\\":
+                position += 2
+
+                continue
+
+            if character == '"':
+                quote = None
+        elif character in {"'", '"'}:
+            quote = character
+        elif character == "#" and (position == 0 or line[position - 1].isspace()):
+            return line[:position]
+
+        position += 1
+
+    return line
+
+
+def _starts_flow_collection(content: str) -> bool:
+    """Return whether a YAML line starts a flow-style mapping or sequence."""
+    value = content.strip()
+    if value.startswith("-"):
+        value = value[1:].lstrip()
+
+    if value.startswith(("{", "[")):
+        return True
+
+    key_separator = re.match(r"[^:]+:\s*", value)
+    if key_separator is None:
+        return False
+
+    return value[key_separator.end() :].startswith(("{", "["))
+
+
+def _model_index_task_types(path: Path, frontmatter: str) -> tuple[str, ...]:
+    """Return task types from the documented block-style model-index shape."""
+    lines = frontmatter.splitlines()
+    model_index_start: int | None = None
+    for line_number, line in enumerate(lines):
+        content = _strip_yaml_comment(line).strip()
+        if not re.match(r"[\"']?model-index[\"']?\s*:", content):
+            continue
+
+        leading = re.match(r"[ \t]*", line)
+        assert leading is not None
+        if leading.group() or content != "model-index:":
+            raise _unsupported_model_index_format(path)
+
+        model_index_start = line_number
+
+        break
+
+    if model_index_start is None:
+        return ()
+
     task_types: list[str] = []
+    model_entry_seen = False
+    model_entry_results_seen = False
+    results_active = False
+    results_waiting_for_item = False
+    result_active = False
+    result_has_task_type = False
+    task_active = False
 
-    for line in frontmatter.splitlines():
-        stripped = line.strip()
-        if not stripped:
+    for line in lines[model_index_start + 1 :]:
+        uncommented = _strip_yaml_comment(line)
+        if not uncommented.strip():
             continue
 
-        indentation = len(line) - len(line.lstrip())
-        if model_index_indent is None:
-            if re.fullmatch(r" *model-index:", line):
-                model_index_indent = indentation
+        leading = re.match(r"[ \t]*", uncommented)
+        assert leading is not None
+        indentation_text = leading.group()
+        if "\t" in indentation_text:
+            raise _unsupported_model_index_format(path)
 
-            continue
+        indentation = len(indentation_text)
+        content = uncommented[indentation:].strip()
+        if indentation == 0:
+            if result_active and not result_has_task_type:
+                raise _unsupported_model_index_format(path)
 
-        is_list_item = line.lstrip().startswith("-")
-        if indentation < model_index_indent or (
-            indentation == model_index_indent and not is_list_item
-        ):
             break
 
-        if is_list_item and (
-            model_item_indent is None or indentation == model_item_indent
+        if indentation % 2 != 0 or _starts_flow_collection(content):
+            raise _unsupported_model_index_format(path)
+
+        if results_waiting_for_item and (
+            indentation != 6 or not re.fullmatch(r"-\s+task:", content)
         ):
-            model_item_indent = indentation
-            results_indent = None
-            result_indent = None
-            task_indent = None
+            raise _unsupported_model_index_format(path)
+
+        if indentation == 2 and content.startswith("-"):
+            if result_active and not result_has_task_type:
+                raise _unsupported_model_index_format(path)
+
+            if model_entry_seen and not model_entry_results_seen:
+                raise _unsupported_model_index_format(path)
+
+            if not re.match(r"-\s+name\s*:", content):
+                raise _unsupported_model_index_format(path)
+
+            model_entry_seen = True
+            model_entry_results_seen = False
+            results_active = False
+            results_waiting_for_item = False
+            result_active = False
+            task_active = False
 
             continue
 
-        if model_item_indent is None:
-            continue
+        if not model_entry_seen and indentation == 4:
+            raise _unsupported_model_index_format(path)
 
-        if re.fullmatch(r" *results:", line) and indentation == model_item_indent + 2:
-            results_indent = indentation
-            result_indent = None
-            task_indent = None
-
-            continue
-
-        if results_indent is None:
-            continue
-
-        if indentation < results_indent or (
-            indentation == results_indent and not is_list_item
+        if (
+            model_entry_seen
+            and not model_entry_results_seen
+            and re.match(r"results\s*:", content)
+            and indentation != 4
         ):
-            results_indent = None
-            result_indent = None
-            task_indent = None
+            raise _unsupported_model_index_format(path)
+
+        if indentation == 4 and model_entry_seen:
+            if re.match(r"results\s*:", content):
+                if content != "results:" or model_entry_results_seen:
+                    raise _unsupported_model_index_format(path)
+
+                model_entry_results_seen = True
+                results_active = True
+                results_waiting_for_item = True
+                result_active = False
+                task_active = False
+
+                continue
+
+            if results_waiting_for_item:
+                raise _unsupported_model_index_format(path)
+
+            if result_active and not result_has_task_type:
+                raise _unsupported_model_index_format(path)
+
+            results_active = False
+            result_active = False
+            task_active = False
 
             continue
 
-        if is_list_item and indentation in {results_indent, results_indent + 2}:
-            result_indent = indentation + 2
-            task_indent = None
-            task_match = re.fullmatch(r"(?P<indent> *)(?P<list>-\s*)task:", line)
-            if task_match is not None:
-                task_indent = len(task_match.group("indent")) + 2
+        if indentation == 6 and results_active:
+            if not re.fullmatch(r"-\s+task:", content):
+                raise _unsupported_model_index_format(path)
+
+            if result_active and not result_has_task_type:
+                raise _unsupported_model_index_format(path)
+
+            results_waiting_for_item = False
+            result_active = True
+            result_has_task_type = False
+            task_active = True
 
             continue
 
-        if result_indent is None:
-            continue
+        if indentation == 8 and result_active:
+            if not result_has_task_type or re.match(r"task\s*:", content):
+                raise _unsupported_model_index_format(path)
 
-        task_match = re.fullmatch(r" *task:", line)
-        if task_match is not None:
-            if indentation == result_indent:
-                task_indent = indentation
+            task_active = False
 
             continue
 
-        if task_indent is None:
-            continue
+        if task_active and indentation >= 10:
+            type_match = re.fullmatch(r"type\s*:\s*(.+?)\s*", content)
+            if type_match is not None:
+                if indentation != 10 or result_has_task_type:
+                    raise _unsupported_model_index_format(path)
 
-        if indentation <= task_indent:
-            task_indent = None
+                task_type = type_match.group(1)
+                if task_type[:1] == task_type[-1:] and task_type[:1] in {"'", '"'}:
+                    task_type = task_type[1:-1]
 
-            continue
+                if not task_type:
+                    raise _unsupported_model_index_format(path)
 
-        type_match = re.fullmatch(r" *type:\s*[\"']?([^\"'\n]+?)[\"']?\s*", line)
-        if type_match is not None and indentation == task_indent + 2:
-            task_types.append(type_match.group(1))
+                task_types.append(task_type)
+                result_has_task_type = True
+
+    if results_waiting_for_item or (result_active and not result_has_task_type):
+        raise _unsupported_model_index_format(path)
+
+    if not model_entry_seen:
+        raise _unsupported_model_index_format(path)
+
+    if not model_entry_results_seen:
+        raise _unsupported_model_index_format(path)
 
     return tuple(task_types)
 
@@ -479,7 +604,7 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
             f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
 
-    task_types = _model_index_task_types(frontmatter)
+    task_types = _model_index_task_types(path, frontmatter)
     has_model_index = "model-index:" in frontmatter
     if has_model_index and category == IMAGE_GENERATION_CATEGORY:
         if not task_types or any(task_type != task for task_type in task_types):
