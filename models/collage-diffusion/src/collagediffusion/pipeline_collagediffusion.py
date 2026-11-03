@@ -94,10 +94,11 @@ def _placed_alpha(
     width: int,
     height: int,
 ) -> Float[np.ndarray, "height width"]:
-    canvas = Image.new("L", (width, height), 0)
-    canvas.paste(layer.image.getchannel("A"), layer.position)
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    canvas.paste(layer.image, layer.position, layer.image)
 
-    return np.asarray(canvas, dtype=np.float32) / 255.0
+    # Keep notebook precision until the mask is quantized into the noise map.
+    return np.asarray(canvas.getchannel("A"), dtype=np.float64) / 255.0
 
 
 def compose_collage_layers(
@@ -148,11 +149,9 @@ def compose_collage_layers(
 
         top_canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         for top_layer in layers[index + 1 :]:
-            placed_top_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-            placed_top_layer.paste(top_layer.image, top_layer.position)
-            top_canvas = Image.alpha_composite(top_canvas, placed_top_layer)
+            top_canvas.paste(top_layer.image, top_layer.position, top_layer.image)
 
-        top_alpha = np.asarray(top_canvas.getchannel("A"), dtype=np.float32) / 255.0
+        top_alpha = np.asarray(top_canvas.getchannel("A"), dtype=np.float64) / 255.0
         visible_masks.append(layer_alpha * (1.0 - top_alpha))
 
     return composite, visible_masks
@@ -235,17 +234,23 @@ def _prompt_token_spans(
 ) -> tuple[tuple[int, ...], ...]:
     prompt_ids = tokenizer.encode(prompt, add_special_tokens=True)
     spans: list[tuple[int, ...]] = []
-    for layer in layers:
-        phrase = layer.prompt
-        if layer.textual_inversion_token is not None:
-            phrase = f"{layer.textual_inversion_token} {phrase}"
+    textual_inversion_enabled = any(
+        layer.textual_inversion_token is not None for layer in layers
+    )
 
+    for layer in layers:
         try:
-            layer_ids = tokenizer.encode(f" {phrase}", add_special_tokens=False)
-            spans.append(_find_token_span(prompt_ids, layer_ids))
+            layer_ids = tokenizer.encode(f" {layer.prompt}", add_special_tokens=False)
+            span = _find_token_span(prompt_ids, layer_ids)
         except ValueError:
-            layer_ids = tokenizer.encode(phrase, add_special_tokens=False)
-            spans.append(_find_token_span(prompt_ids, layer_ids))
+            layer_ids = tokenizer.encode(layer.prompt, add_special_tokens=False)
+            span = _find_token_span(prompt_ids, layer_ids)
+
+        if textual_inversion_enabled:
+            # The notebook shifts every matched phrase left once when TI is enabled.
+            span = tuple(range(span[0] - 1, span[-1] + 1))
+
+        spans.append(span)
 
     return tuple(spans)
 
@@ -414,12 +419,13 @@ class _CollageCrossAttentionProcessor:
         target_width = query_length // target_height
         latent_masks = [
             F.interpolate(
-                torch.as_tensor(mask, device=scores.device, dtype=scores.dtype)[
+                torch.as_tensor(mask, device=scores.device, dtype=torch.float64)[
                     None, None
                 ],
                 size=(target_height, target_width),
                 mode="bilinear",
                 align_corners=False,
+                antialias=True,
             )[0, 0].reshape(query_length)
             for mask in self.visible_masks
         ]
@@ -648,14 +654,16 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             else processor
             for name, processor in original_processors.items()
         }
+        controlled_attention_processors = tuple(
+            processor
+            for processor in controlled_processors.values()
+            if isinstance(processor, _CollageCrossAttentionProcessor)
+        )
         attention_control_enabled = any(
             layer.positive_attention_weight or layer.negative_attention_weight
             for layer in layers
         )
-        if attention_control_enabled and not any(
-            isinstance(processor, _CollageCrossAttentionProcessor)
-            for processor in controlled_processors.values()
-        ):
+        if attention_control_enabled and not controlled_attention_processors:
             raise ValueError("the U-Net exposes no cross-attention processors")
 
         if attention_control_enabled:
@@ -672,9 +680,8 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                             if hasattr(self.scheduler, "sigmas")
                             else float(timestep.item()) / 1000.0
                         )
-                        for processor in controlled_processors.values():
-                            if isinstance(processor, _CollageCrossAttentionProcessor):
-                                processor.sigma = sigma
+                        for processor in controlled_attention_processors:
+                            processor.sigma = sigma
 
                     latent_model_input = (
                         torch.cat([latents] * 2)

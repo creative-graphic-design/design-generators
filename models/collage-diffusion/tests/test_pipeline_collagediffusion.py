@@ -39,7 +39,10 @@ class FakeTokenizer:
             "a red cat": [1, 2, 3],
             " red cat": [2, 3],
             "red cat": [2, 3],
+            " blue dog": [5, 6],
+            "blue dog": [5, 6],
             "a <cat> red cat": [1, 4, 2, 3],
+            "a <cat> red cat, a blue dog": [1, 4, 2, 3, 7, 1, 5, 6],
             " <cat> red cat": [4, 2, 3],
             "<cat> red cat": [4, 2, 3],
         }.get(text, [])
@@ -86,7 +89,7 @@ class FakeScheduler:
 
     def set_timesteps(self, steps: int, *, device: torch.device) -> None:
         self.timesteps = torch.linspace(900, 100, steps, device=device).round()
-        self.sigmas = torch.linspace(1.0, 0.1, steps + 1, device=device)
+        self.sigmas = torch.linspace(2.0, 0.1, steps + 1, device=device)
 
     def add_noise(
         self,
@@ -119,9 +122,11 @@ class FakeUNet:
 
     def __init__(self) -> None:
         self.attn_processors: dict[str, object] = {"down.attn2.processor": object()}
+        self.attention_processor_sigmas: list[float] = []
 
     def set_attn_processor(self, processors: dict[str, object]) -> None:
-        self.attn_processors = processors
+        self.attn_processors = dict(processors)
+        processors.clear()
 
     def __call__(
         self,
@@ -131,6 +136,11 @@ class FakeUNet:
         encoder_hidden_states: torch.Tensor,
     ) -> SimpleNamespace:
         del timestep, encoder_hidden_states
+        self.attention_processor_sigmas.extend(
+            float(processor.sigma)
+            for processor in self.attn_processors.values()
+            if isinstance(processor, _CollageCrossAttentionProcessor)
+        )
         return SimpleNamespace(sample=torch.zeros_like(latents))
 
 
@@ -303,21 +313,26 @@ def test_layer_validation(
         )
 
 
-def test_compose_layers_respects_order_occlusion_and_alpha() -> None:
+def test_compose_layers_matches_notebook_alpha_mask_paste_semantics() -> None:
     translucent = Image.new("RGBA", (2, 1), (255, 0, 0, 128))
-    opaque = Image.new("RGBA", (1, 1), (0, 0, 255, 255))
+    top = Image.new("RGBA", (2, 1), (0, 0, 255, 128))
+    top.putpixel((1, 0), (0, 0, 255, 255))
     layers = [
         make_layer(translucent),
-        make_layer(opaque, prompt="blue square", position=(1, 0)),
+        make_layer(top, prompt="blue square"),
     ]
 
     collage, masks = compose_collage_layers(layers, width=2, height=1)
 
     assert collage.size == (2, 1)
     assert collage.getpixel((1, 0)) == (0, 0, 255)
-    assert masks[0][0, 0] == pytest.approx(128 / 255)
+    assert masks[0].dtype == np.float64
+    assert masks[1].dtype == np.float64
+    pasted_alpha = 64 / 255
+    assert masks[0][0, 0] == pytest.approx(pasted_alpha * (1 - pasted_alpha))
     assert masks[0][0, 1] == 0
-    assert masks[1][0, 1] == 1
+    assert masks[1][0, 0] == pytest.approx(pasted_alpha)
+    assert masks[1][0, 1] == pytest.approx(1)
 
 
 @pytest.mark.parametrize(
@@ -411,6 +426,17 @@ def test_prompt_layer_spans_include_textual_inversion_token() -> None:
     )
 
 
+def test_prompt_layer_spans_match_notebook_shift_with_textual_inversion() -> None:
+    layers = [
+        make_layer(textual_inversion_token="<cat>"),
+        make_layer(prompt="blue dog"),
+    ]
+
+    assert _prompt_token_spans(
+        FakeTokenizer(), "a <cat> red cat, a blue dog", layers
+    ) == ((2, 3, 4), (6, 7, 8))
+
+
 @pytest.mark.parametrize(
     ("prompt_ids", "layer_ids"),
     [([], [1]), ([1, 2], []), ([101, 1, 2], [3])],
@@ -457,6 +483,44 @@ def test_attention_guidance_changes_only_conditional_token_scores() -> None:
     assert torch.all(scores[1, :, [0, 2], 2] > 2.0)
     assert torch.all(scores[1, :, [1, 3], 2] < 2.0)
     assert torch.equal(scores[:, :, :, 1], torch.zeros_like(scores[:, :, :, 1]))
+
+
+def test_attention_guidance_uses_antialiased_mask_resize() -> None:
+    visible_mask = np.array(
+        [
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    processor = _CollageCrossAttentionProcessor(
+        visible_masks=[visible_mask],
+        token_spans=[(2,)],
+        layers=[make_layer(positive_attention_weight=1.0)],
+        output_size=(2, 2),
+        batch_size=1,
+        classifier_free_guidance=False,
+    )
+    processor.sigma = 0.5
+    scores = torch.zeros((1, 1, 4, 3))
+    scores[:, :, :, 2] = 2.0
+    expected_mask = torch.nn.functional.interpolate(
+        torch.as_tensor(visible_mask)[None, None],
+        size=(2, 2),
+        mode="bilinear",
+        align_corners=False,
+        antialias=True,
+    )[0, 0].reshape(4)
+    expected_scores = scores.clone()
+    expected_scores[0, 0, :, 2] += (
+        expected_mask * math.log(math.log(processor.sigma + 1.01) + 1.0) * 2.0
+    )
+
+    processor._apply_layer_guidance(scores)
+
+    torch.testing.assert_close(scores, expected_scores)
 
 
 def test_attention_processor_returns_projected_hidden_states() -> None:
@@ -574,6 +638,7 @@ def test_pipeline_generates_batch_and_restores_attention_processors() -> None:
     assert pipeline.num_timesteps == 1
     assert len(latents) == 1
     assert latents[0].shape == (2, 4, 8, 8)
+    assert pipeline.unet.attention_processor_sigmas == [2.0]
     assert pipeline.num_timesteps == 1
     assert pipeline.unet.attn_processors == original_processors
 
