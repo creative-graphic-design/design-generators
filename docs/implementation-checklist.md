@@ -94,6 +94,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 
 ## Code and review safeguards
 
+- [ ] For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference`, following the model-conversion skill's Source Language rule; put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
 - [ ] Use `StrEnum` with `auto()` for closed string sets rather than bare `str`, `tuple[str, ...]`, or string-literal unions; type alias tables as `dict[SomeAliasEnum, SomeEnum]`, and use shared dataset and condition enums instead of local redefinitions.
 - [ ] Use `typing.assert_never` for exhaustive enum dispatch.
 - [ ] Annotate module constants with `Final[...]`, including tokens, thresholds, and paths.

@@ -13,7 +13,7 @@ Paths below are relative to the repository root. Read the model issue's plan, am
 
 - Read `docs/implementation-checklist.md` for a new model package or a complete conversion review; use only the affected sections for maintenance.
 - Use `docs/roadmap.md` to resolve the method/package identity and planned scope, and `docs/data-sources.md` for approved datasets and their configs.
-- Use `docs/conventions.md` for public interfaces, schema, and framework selection; use the [Class Design And Code Style](AGENTS.md#class-design-and-code-style) rules and `uv run --package devharness devharness check jaxtyping-annotations` for typing policy. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
+- Use `docs/conventions.md` for public interfaces, schema, and framework selection; use [Class Design And Code Style](AGENTS.md#class-design-and-code-style) for typing and runtime-comment policy, and `uv run --package devharness devharness check jaxtyping-annotations` for typing verification. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
 - Use the `design-generators-documentation` skill for README, model-card, and reproduction instructions. Its starting template is `references/model-readme-template.md` in this skill directory.
 
 Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the coordinator checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
@@ -22,7 +22,7 @@ Confirm the checkpoint/dataset/task matrix and license from the issue and origin
 
 Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API. Use the [model and serialization rules](docs/conventions.md#model-and-serialization-rules) for public pipeline arguments, output schemas, model entry points, and serialization rules.
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, `TRAINING.md`, and the model issue. Keep detailed original-code correspondence in these paths rather than the public runtime API. Use the [model and serialization rules](docs/conventions.md#model-and-serialization-rules) for public pipeline arguments, output schemas, model entry points, and serialization rules.
 
 ## Package and interface
 
