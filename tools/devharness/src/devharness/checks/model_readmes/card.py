@@ -386,16 +386,25 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
             f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
 
-    bad_task = re.search(
-        r'^\s+type:\s*["\']?text-to-image["\']?\s*$', frontmatter, re.MULTILINE
-    )
-    if bad_task:
-        raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
+    if category != IMAGE_GENERATION_CATEGORY:
+        bad_task = re.search(
+            r'^\s+type:\s*["\']?text-to-image["\']?\s*$',
+            frontmatter,
+            re.MULTILINE,
+        )
+        if bad_task:
+            raise AssertionError(
+                f"{path}: model-index task.type must not be text-to-image"
+            )
 
     task_types = re.findall(
         r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
     )
-    expected_task = EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
+    expected_task = (
+        task
+        if category == IMAGE_GENERATION_CATEGORY
+        else EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
+    )
     if expected_task not in task_types and "model-index:" in frontmatter:
         raise AssertionError(f"{path}: model-index task.type must be {expected_task!r}")
 
