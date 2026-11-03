@@ -250,7 +250,7 @@ Package code follows the repository's Apache-2.0 license. The upstream notebook 
   eprint = {2303.00262},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
-  url = {https://arxiv.org/abs/2303.00262},
+  url = "https://arxiv.org/abs/2303.00262",
 }
 ```
 
