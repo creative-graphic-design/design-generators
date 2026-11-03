@@ -19,11 +19,11 @@ model-index:
         dataset:
           type: "synthetic"
           name: "Single prompt CPU parity fixture"
-          split: "one prompt"
+          split: "one prompt at 512x512"
         metrics:
           - type: "vendor-parity"
-            value: "Pending Colab CPU comparison"
-            name: "Vendor parity"
+            value: 0.0
+            name: "Mean absolute pixel difference"
 ---
 
 <!-- --8<-- [start:card] -->
@@ -35,7 +35,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
@@ -136,9 +136,9 @@ The comparison fixture uses the prompt `a red car and a white sheep`, seed 42, 5
 
 ### Parity Results
 
-| Check                                                                 | Cases | Criterion                                                                     | Result                                 |
-| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------- | -------------------------------------- |
-| CPU image output against the pinned official attention implementation |     0 | Phrase and CLIP token-span match; mean absolute image difference below `1e-3` | not run; pending Colab CPU comparison. |
+| Check                                                                 | Cases | Criterion                                                                     | Result                                                                                  |
+| --------------------------------------------------------------------- | ----: | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| CPU image output against the pinned official attention implementation |     1 | Phrase and CLIP token-span match; mean absolute image difference below `1e-3` | passed at 512×512: max/mean/RMS absolute difference `0.0`; 887.0 s; peak RSS 6,062 MiB. |
 
 ## Reproducibility
 

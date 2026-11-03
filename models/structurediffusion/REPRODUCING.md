@@ -66,6 +66,8 @@ UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SD
 
 Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; the final run uses the same 10 steps and initial latent shape `[1, 4, 64, 64]` for each path.
 
+The executed 64×64 rehearsal passed in 96.9 seconds with peak RSS 4,957 MiB and zero pixel difference. This is a CPU execution and memory check; the reported parity result is the 512×512 comparison below.
+
 ## 5. Compare at 512×512
 
 Proceed only if the measured time projection remains within the approved worker budget of 1 CU. The comparison fixture uses one prompt (`a red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 DDIM steps, CPU float32, and one precomputed initial latent for both paths. It uses lowercase because the official reference's case-sensitive parser-to-token alignment raises `IndexError` for an uppercase `A`; the package accepts capitalized prompts, as tested by its CPU suite.
@@ -74,7 +76,7 @@ Proceed only if the measured time projection remains within the approved worker 
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structurediffusion pytest models/structurediffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
-The test writes `.cache/structurediffusion/parity/cpu-512.json` with the phrase list, CLIP spans, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. Generated images are compared in memory and are not saved.
+The test writes `.cache/structurediffusion/parity/cpu-512.json` with the phrase list, CLIP spans, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. Generated images are compared in memory and are not saved. The 512×512 CPU comparison passed; reference generation took 430.2 seconds and package generation took 451.6 seconds, with all three absolute pixel-difference metrics equal to `0.0`.
 
 ## 6. Check outputs and stop the Colab session
 
