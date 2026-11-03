@@ -22,7 +22,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![framework](https://img.shields.io/static/v1?label=framework&message=diffusers&color=red&style=flat-square&logo=huggingface&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=image-harmonization&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package exposes Collage Diffusion as a `🧨diffusers` pipeline that harmonizes text-described RGBA layers into a single image.
@@ -305,14 +305,14 @@ Compare generated RGB pixels with maximum absolute difference and PSNR; also com
 
 ### Parity Results
 
-One worker-run comparison of the notebook reference using `🧨diffusers` `0.10.0` and this package using `🧨diffusers` `0.39.0` meets the provisional tolerances below. The acceptance cutoffs sit just above the measured cross-version differences shown in the table; masks and noise inputs match exactly, and the first difference appears in text embeddings at `5.4538e-6`. These criteria cover this version pair and the one tested input and seed only. The independent reviewer rerun is pending, so these worker-run measurements remain provisional.
+The package's vendor parity is not verified until the coordinator completes an independent acceptance rerun. The measurements below are descriptive results from one CPU comparison of the notebook reference with `🧨diffusers` `0.10.0` and this package with `🧨diffusers` `0.39.0`; they do not define an acceptance threshold. The first observed difference was in text embeddings (max absolute difference `7.62939e-6`); masks, noise maps, and scheduler noise inputs matched exactly.
 
-| Check                      |            Cases | Acceptance criterion                                     | Worker-run result                                         |
-| -------------------------- | ---------------: | -------------------------------------------------------- | --------------------------------------------------------- |
-| Final RGB image            | 1 input and seed | max abs `atol=2.1e-3`; RMSE ≤ `1.2e-3`; PSNR ≥ `59.0 dB` | max abs `0.00202799`; RMSE `0.00111856`; PSNR `59.03 dB`  |
-| Per-step latent            |   8 active steps | max abs `atol=2.5e-4`; RMSE ≤ `8e-6`                     | max abs `0.00024360`; RMSE `0.00000742`; PSNR `127.47 dB` |
-| U-Net noise prediction     |   8 active steps | max abs `atol=2.6e-4`; RMSE ≤ `1.2e-5`                   | max abs `0.00025465`; RMSE `0.00001100`; PSNR `113.28 dB` |
-| Inputs and text embeddings | 1 input and seed | masks/noise exact; text embedding max abs `atol=5.5e-6`  | masks/noise exact; first difference `5.4538e-6`           |
+| Check                      | Cases            | Observed worker-run result                                                   |
+| -------------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| Final RGB image            | 1 input and seed | max abs `0.00201568`; RMSE `0.00111883`; PSNR `59.02473 dB`                  |
+| Per-step latent            | 8 active steps   | max abs `0.00014627`; RMSE `0.00000699`                                      |
+| U-Net noise prediction     | 8 active steps   | max abs `0.00024784`; RMSE `0.00001056`                                      |
+| Inputs and text embeddings | 1 input and seed | masks/noise exact; first observed difference in text embeddings `7.62939e-6` |
 
 ## Reproducibility
 
