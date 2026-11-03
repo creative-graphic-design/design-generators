@@ -1594,9 +1594,16 @@ def test_image_generation_model_type_and_pipeline_tag_follow_task(
     model_type = card.parse_model_type(path, line)
 
     assert model_type == expected
-    card.assert_pipeline_tag(path, f"pipeline_tag: {task}\n", model_type)
+    frontmatter = f"pipeline_tag: {task}\nmodel-index:\n  - task:\n      type: {task}\n"
+    card.assert_pipeline_tag(path, frontmatter, model_type)
     with pytest.raises(AssertionError, match="pipeline_tag"):
         card.assert_pipeline_tag(path, "pipeline_tag: other\n", model_type)
+    with pytest.raises(AssertionError, match="model-index task.type"):
+        card.assert_pipeline_tag(
+            path,
+            f"pipeline_tag: {task}\nmodel-index:\n  - task:\n      type: other\n",
+            model_type,
+        )
 
     assert root_readme._model_catalog_badge_values(model_type) == (
         task,
