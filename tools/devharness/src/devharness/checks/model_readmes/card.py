@@ -444,22 +444,26 @@ def _parse_model_index_scalar(path: Path, raw: str) -> _ModelIndexScalar:
         if not isinstance(value, str):
             raise _unsupported_model_index_format(path)
 
-        return _ModelIndexScalar(
-            value,
-            json.dumps(value, ensure_ascii=False),
-            "string",
-        )
-
-    if _MODEL_INDEX_DECIMAL.fullmatch(raw) and raw != "-0":
-        return _ModelIndexScalar(raw, raw, "number")
-
-    if (
+        canonical = json.dumps(value, ensure_ascii=False)
+        kind: Literal["string", "number"] = "string"
+    elif _MODEL_INDEX_DECIMAL.fullmatch(raw) and raw != "-0":
+        value = raw
+        canonical = raw
+        kind = "number"
+    elif (
         _MODEL_INDEX_PLAIN_STRING.fullmatch(raw)
         and raw.casefold() not in _MODEL_INDEX_YAML_WORDS
     ):
-        return _ModelIndexScalar(raw, raw, "string")
+        value = raw
+        canonical = raw
+        kind = "string"
+    else:
+        raise _unsupported_model_index_format(path)
 
-    raise _unsupported_model_index_format(path)
+    if any(not 0x20 <= ord(character) <= 0x7E for character in value):
+        raise _unsupported_model_index_format(path)
+
+    return _ModelIndexScalar(value, canonical, kind)
 
 
 def _strip_yaml_comment(line: str) -> str:

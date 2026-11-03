@@ -76,7 +76,7 @@ For layout-generation models, `Task` is classified as follows:
 
 Image-generation models use `image generation` as the `Model type` category and `text-to-image` or `image-to-image` as the task. Their conditioning values are `layers` and `text`, listed in that order when both are accepted; the model catalog displays those values in the `Content` column joined by a plus sign. In model cards, `pipeline_tag` and every `model-index` result's `task.type` match the task value. `layers` describes layer-based image input and is not a layout `condition_type`.
 
-Model-card `model-index` frontmatter uses block-style YAML with two-space indentation, canonical field order, safe plain scalars, JSON-style double-quoted strings, and canonical decimal scalars. The stdlib-only `devharness check model-readmes` reserializes the parsed block and rejects any byte-level difference with an explicit format error.
+Model-card `model-index` frontmatter uses block-style YAML with two-space indentation and canonical field order; scalar values, including JSON-style double-quoted strings, contain only printable ASCII (`0x20`–`0x7E`). The stdlib-only `devharness check model-readmes` reserializes the parsed block and rejects any byte-level difference with an explicit format error.
 
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
