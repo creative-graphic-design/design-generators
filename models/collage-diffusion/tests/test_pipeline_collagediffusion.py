@@ -506,13 +506,17 @@ def test_attention_guidance_uses_antialiased_mask_resize() -> None:
     processor.sigma = 0.5
     scores = torch.zeros((1, 1, 4, 3))
     scores[:, :, :, 2] = 2.0
-    expected_mask = torch.nn.functional.interpolate(
-        torch.as_tensor(visible_mask)[None, None],
+    visible_mask_tensor = torch.as_tensor(visible_mask)
+    batched_visible_mask = visible_mask_tensor.unsqueeze(0).unsqueeze(0)
+    resized_visible_mask = torch.nn.functional.interpolate(
+        batched_visible_mask,
         size=(2, 2),
         mode="bilinear",
         align_corners=False,
         antialias=True,
-    )[0, 0].reshape(4)
+    )
+    resized_visible_mask = resized_visible_mask.squeeze(0).squeeze(0)
+    expected_mask = resized_visible_mask.reshape(4)
     expected_scores = scores.clone()
     expected_scores[0, 0, :, 2] += (
         expected_mask * math.log(math.log(processor.sigma + 1.01) + 1.0) * 2.0

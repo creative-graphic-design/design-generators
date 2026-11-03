@@ -95,9 +95,10 @@ def _placed_alpha(
     height: int,
 ) -> Float[np.ndarray, "height width"]:
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    # Match the notebook's RGBA-as-mask paste, which multiplies partial alpha by itself.
     canvas.paste(layer.image, layer.position, layer.image)
 
-    # Keep notebook precision until the mask is quantized into the noise map.
+    # Keep float64 until uint8 quantization to match the notebook's mask arithmetic.
     return np.asarray(canvas.getchannel("A"), dtype=np.float64) / 255.0
 
 
@@ -141,6 +142,7 @@ def compose_collage_layers(
 
     composite = Image.new("RGB", (width, height), background_color)
     for layer in layers:
+        # The notebook also passes each RGBA layer as its own paste mask here.
         composite.paste(layer.image, layer.position, layer.image)
 
     visible_masks: list[Float[np.ndarray, "height width"]] = []
@@ -247,7 +249,11 @@ def _prompt_token_spans(
             span = _find_token_span(prompt_ids, layer_ids)
 
         if textual_inversion_enabled:
-            # The notebook shifts every matched phrase left once when TI is enabled.
+            # The notebook inserts TI tokens before layer phrases, so it expands
+            # every span one token left (keeping the end) to include that token.
+            # It also expands layers without TI, which can include a preceding
+            # word such as "a". Preserve this possible notebook quirk for parity;
+            # whether to change the default behavior remains undecided.
             span = tuple(range(span[0] - 1, span[-1] + 1))
 
         spans.append(span)
@@ -287,6 +293,32 @@ def _inject_textual_inversion_tokens(
     return prompt
 
 
+def _resize_mask_to_query(
+    mask: Float[np.ndarray, "height width"],
+    *,
+    size: tuple[int, int],
+    device: torch.device,
+) -> Float[torch.Tensor, "query"]:
+    """Resize a mask with the notebook's interpolation settings for parity.
+
+    The reference uses float64 bilinear interpolation with antialiasing when it
+    resizes visible masks to each attention layer's query grid.
+    """
+    mask_tensor = torch.as_tensor(mask, device=device, dtype=torch.float64)
+    batched_mask = mask_tensor.unsqueeze(0).unsqueeze(0)
+    resized_mask = F.interpolate(
+        batched_mask,
+        size=size,
+        mode="bilinear",
+        align_corners=False,
+        antialias=True,
+    )
+    resized_mask = resized_mask.squeeze(0).squeeze(0)
+    query_length = size[0] * size[1]
+
+    return resized_mask.reshape(query_length)
+
+
 class _CollageCrossAttentionProcessor:
     """Apply visible-layer logit guidance through Diffusers' processor API."""
 
@@ -318,6 +350,7 @@ class _CollageCrossAttentionProcessor:
         temb: Float[torch.Tensor, "..."] | None = None,
         scale: float | None = None,
     ) -> Float[torch.Tensor, "batch sequence channels"]:
+        # Add per-layer score bias before softmax; CFG leaves unconditional rows unchanged.
         del scale
         residual = hidden_states
         spatial_dimensions: tuple[int, int, int] | None = None
@@ -328,9 +361,8 @@ class _CollageCrossAttentionProcessor:
         if input_ndim == 4:
             batch_size, channel, height, width = hidden_states.shape
             spatial_dimensions = (channel, height, width)
-            hidden_states = hidden_states.view(
-                batch_size, channel, height * width
-            ).transpose(1, 2)
+            hidden_states = hidden_states.view(batch_size, channel, height * width)
+            hidden_states = hidden_states.transpose(1, 2)
 
         batch_size, sequence_length, _ = (
             hidden_states.shape
@@ -346,9 +378,9 @@ class _CollageCrossAttentionProcessor:
             )
 
         if attn.group_norm is not None:
-            hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(
-                1, 2
-            )
+            hidden_states = hidden_states.transpose(1, 2)
+            hidden_states = attn.group_norm(hidden_states)
+            hidden_states = hidden_states.transpose(1, 2)
 
         query = attn.to_q(hidden_states)
         if encoder_hidden_states is None:
@@ -369,9 +401,12 @@ class _CollageCrossAttentionProcessor:
         key = to_k(encoder_hidden_states)
         value = to_v(encoder_hidden_states)
         head_dim = key.shape[-1] // attn.heads
-        query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+        query = query.view(batch_size, -1, attn.heads, head_dim)
+        query = query.transpose(1, 2)
+        key = key.view(batch_size, -1, attn.heads, head_dim)
+        key = key.transpose(1, 2)
+        value = value.view(batch_size, -1, attn.heads, head_dim)
+        value = value.transpose(1, 2)
 
         if attn.norm_q is not None:
             query = attn.norm_q(query)
@@ -389,16 +424,16 @@ class _CollageCrossAttentionProcessor:
         softmax_scores = scores.float() if attn.upcast_softmax else scores
         attention_probs = softmax_scores.softmax(dim=-1).to(value.dtype)
         output = torch.matmul(attention_probs, value)
-        output = output.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
+        output = output.transpose(1, 2)
+        output = output.reshape(batch_size, -1, attn.heads * head_dim)
         output = output.to(query.dtype)
         output = to_out[0](output)
         output = to_out[1](output)
 
         if spatial_dimensions is not None:
             channel, height, width = spatial_dimensions
-            output = output.transpose(-1, -2).reshape(
-                batch_size, channel, height, width
-            )
+            output = output.transpose(-1, -2)
+            output = output.reshape(batch_size, channel, height, width)
 
         if attn.residual_connection:
             output = output + residual
@@ -418,17 +453,14 @@ class _CollageCrossAttentionProcessor:
 
         target_width = query_length // target_height
         latent_masks = [
-            F.interpolate(
-                torch.as_tensor(mask, device=scores.device, dtype=torch.float64)[
-                    None, None
-                ],
+            _resize_mask_to_query(
+                mask,
                 size=(target_height, target_width),
-                mode="bilinear",
-                align_corners=False,
-                antialias=True,
-            )[0, 0].reshape(query_length)
+                device=scores.device,
+            )
             for mask in self.visible_masks
         ]
+        # CFG batches unconditional rows before conditional rows; guide only the latter.
         cfg_offset = self.batch_size if self.classifier_free_guidance else 0
         sigma_scale = math.log(math.log(max(self.sigma, 0.0) + 1.01) + 1.0)
 
@@ -445,14 +477,11 @@ class _CollageCrossAttentionProcessor:
 
                     token_scores = scores[conditional_index, :, :, token_index]
                     max_score = token_scores.max()
-                    bias = (
-                        (
-                            mask[None, :] * layer.positive_attention_weight
-                            - (1.0 - mask[None, :]) * layer.negative_attention_weight
-                        )
-                        * sigma_scale
-                        * max_score
-                    )
+                    visible_mask = mask.unsqueeze(0)
+                    non_visible_mask = 1.0 - visible_mask
+                    positive_bias = visible_mask * layer.positive_attention_weight
+                    negative_bias = non_visible_mask * layer.negative_attention_weight
+                    bias = (positive_bias - negative_bias) * sigma_scale * max_score
                     scores[conditional_index, :, :, token_index] += bias
 
 
@@ -530,6 +559,8 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             TypeError: If a layer sequence contains an unsupported value.
             ValueError: If prompts, layer controls, or generation settings are invalid.
         """
+        # Add layer-aware attention guidance and restore source regions during denoising.
+        # 1. Validate prompts, layers, and generation settings.
         if not prompt.strip():
             raise ValueError("prompt must be non-empty")
 
@@ -563,6 +594,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                 "height and width must be divisible by the VAE scale factor"
             )
 
+        # 2. Prepare layer prompts, collage image, visible masks, and noise map.
         generator = resolve_torch_generator(generator=generator, seed=seed)
         prompt = _inject_textual_inversion_tokens(
             prompt, layers, textual_inversion_embeddings
@@ -581,6 +613,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
         image = self.image_processor.preprocess(collage, height=height, width=width)
         image = image.to(device=device, dtype=self.unet.dtype)
 
+        # 3. Encode the prompt and batch both guidance branches when guidance_scale > 1.
         do_classifier_free_guidance = guidance_scale > 1.0
         prompt_embeds, negative_prompt_embeds = self.encode_prompt(
             prompt,
@@ -595,8 +628,10 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                     "classifier-free guidance requires negative prompt embeddings"
                 )
 
+            # Concatenate both branches so the U-Net handles them in one call.
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
 
+        # 4. Encode the collage and prepare its initial latent and noise.
         encoded = self.vae.encode(image)
         init_latents = encoded.latent_dist.sample(generator=generator)
         init_latents = init_latents * self.vae.config.scaling_factor
@@ -608,6 +643,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             dtype=init_latents.dtype,
         )
 
+        # 5. Set img2img timesteps and build the latent-resolution preservation mask.
         self.scheduler.set_timesteps(num_inference_steps, device=device)
         scheduler_offset = int(self.scheduler.config.get("steps_offset", 0))
         init_timestep = min(
@@ -627,19 +663,26 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
 
         latent_timestep = timesteps[:1].repeat(num_images_per_prompt)
         latents = self.scheduler.add_noise(init_latents, initial_noise, latent_timestep)
-        noise_mask_image = Image.fromarray(
-            np.rint(noise_map * 255.0).astype(np.uint8)
-        ).resize(
+        noise_mask_pixels = np.rint(noise_map * 255.0).astype(np.uint8)
+        # Match the notebook's uint8 mask quantization and nearest-neighbor resize.
+        noise_mask_image = Image.fromarray(noise_mask_pixels)
+        noise_mask_image = noise_mask_image.resize(
             (latents.shape[-1], latents.shape[-2]),
             resample=Image.Resampling.NEAREST,
         )
-        preservation_mask = 1.0 - (
-            np.asarray(noise_mask_image, dtype=np.float32).copy() / 255.0
-        )
-        noise_mask = torch.as_tensor(
+        noise_mask_values = np.asarray(noise_mask_image, dtype=np.float32)
+        noise_mask_values = noise_mask_values.copy()
+        normalized_noise_mask = noise_mask_values / 255.0
+        preservation_mask = 1.0 - normalized_noise_mask
+        preservation_mask_tensor = torch.as_tensor(
             preservation_mask, device=device, dtype=latents.dtype
-        )[None, None].expand(num_images_per_prompt, 1, *latents.shape[-2:])
+        )
+        batched_preservation_mask = preservation_mask_tensor.unsqueeze(0).unsqueeze(0)
+        noise_mask = batched_preservation_mask.expand(
+            num_images_per_prompt, 1, *latents.shape[-2:]
+        )
 
+        # 6. Install layer-aware attention processors and prepare scheduler arguments.
         original_processors = dict(self.unet.attn_processors)
         controlled_processors = {
             name: _CollageCrossAttentionProcessor(
@@ -672,9 +715,11 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
         self._num_timesteps = len(timesteps)
         try:
+            # 7. Denoise, applying attention guidance and layer-specific preservation.
             with self.progress_bar(total=effective_steps) as progress_bar:
                 for step_index, timestep in enumerate(timesteps):
                     if attention_control_enabled:
+                        # The notebook scales attention guidance with sigma; use normalized t if unavailable.
                         sigma = (
                             float(self.scheduler.sigmas[step_index].item())
                             if hasattr(self.scheduler, "sigmas")
@@ -697,11 +742,13 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                         encoder_hidden_states=prompt_embeds,
                     ).sample
                     if do_classifier_free_guidance:
+                        # Standard CFG: unconditional + scale * (conditional - unconditional).
                         unconditional, conditional = noise_prediction.chunk(2)
                         noise_prediction = unconditional + guidance_scale * (
                             conditional - unconditional
                         )
 
+                    # Advance x_t to x_(t-1); the mask below restores source regions.
                     latents = self.scheduler.step(
                         noise_prediction,
                         timestep,
@@ -719,6 +766,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
                         init_latents, step_noise, timestep_batch
                     )
                     timestep_value = float(timestep.item())
+                    # Match the notebook's timestep-dependent threshold and mask dilation.
                     mask_t = (noise_mask > 1.0 - timestep_value / 1000.0).to(
                         latents.dtype
                     )
@@ -740,6 +788,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             if attention_control_enabled:
                 self.unet.set_attn_processor(original_processors)
 
+        # 8. Decode the final latent and return the standard Diffusers output.
         decoded = self.vae.decode(
             latents / self.vae.config.scaling_factor, return_dict=False
         )[0]
