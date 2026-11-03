@@ -119,6 +119,11 @@ result = pipe(
     num_inference_steps=20,
 )
 result.images[0].save("harmonized.png")
+print("Saved harmonized.png")
+```
+
+```text
+Saved harmonized.png
 ```
 
 Textual-inversion embeddings are caller-supplied with a token-to-file mapping, and the matching token is set on its `CollageLayer`. ControlNet and textual-inversion training are outside this package's current scope.
@@ -245,6 +250,7 @@ Package code follows the repository's Apache-2.0 license. The upstream notebook 
   eprint = {2303.00262},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
+  url = {https://arxiv.org/abs/2303.00262},
 }
 ```
 
