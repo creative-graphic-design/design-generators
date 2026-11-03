@@ -153,6 +153,7 @@ def token_span_from_char_span(
     if start < 0 or end <= start or end > len(prompt):
         raise ValueError("Phrase character offsets must be a non-empty prompt span.")
 
+    # CLIP reserves token index 0 for BOS, so shift text-token offsets by one.
     start_token = len(tokenizer.tokenize(prompt[:start])) + 1
     end_token = len(tokenizer.tokenize(prompt[:end])) + 1
     end_token = min(end_token, sequence_length - 1)
@@ -181,6 +182,7 @@ def align_phrase_context(
         raise ValueError("Prompt and phrase context batches must match.")
 
     aligned = prompt_context.clone()
+    # Skip the phrase encoding's BOS token and copy only the aligned phrase tokens.
     aligned[:, start:end] = phrase_context[:, 1 : 1 + span_length]
     return aligned
 

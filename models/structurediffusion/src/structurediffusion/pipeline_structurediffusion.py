@@ -228,6 +228,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
         Raises:
             ValueError: If the parser or prompt batch is invalid.
         """
+        # 1. Normalize and validate the structured prompt inputs.
         normalized_parser = normalize_parser_type(parser_type)
         prompt_items = [prompt] if isinstance(prompt, str) else prompt
         normalized_prompts = tuple(normalize_prompt(item) for item in prompt_items)
@@ -237,6 +238,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
         if num_images_per_prompt < 1:
             raise ValueError("num_images_per_prompt must be positive.")
 
+        # 2. Prepare the per-call parser and attention-map state.
         request = _StructuredCall(
             prompts=normalized_prompts,
             parser_type=normalized_parser,
@@ -268,10 +270,12 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
                 "The U-Net has no cross-attention processors to replace."
             )
 
+        # 3. Replace only cross-attention processors; self-attention stays unchanged.
         self.unet.set_attn_processor(replacement_processors)
         self._call_request = request
         self._processors_for_call = active_processors
         try:
+            # 4. Run the inherited text-to-image denoising and decoding stages.
             result = super().__call__(
                 prompt=(
                     normalized_prompts[0]
@@ -308,6 +312,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
             )
             return result
         finally:
+            # 5. Restore the U-Net processors even if generation raises an error.
             del self._call_request
             del self._processors_for_call
             self.unet.set_attn_processor(dict(previous_processors))
@@ -342,6 +347,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
             self._parse_prompt(prompt_text, request.parser_type)
             for prompt_text in request.prompts
         ]
+        # Encode each parsed phrase separately so its CLIP tokens can be aligned below.
         phrase_texts = [phrase.text for group in phrase_groups for phrase in group]
         phrase_contexts: Float[torch.Tensor, "phrases tokens dim"] | None = None
         if phrase_texts:
@@ -436,6 +442,8 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
             for index in range(max_phrase_count)
         )
         base_validity = torch.ones(batch_size, dtype=torch.bool, device=device)
+        # Conjunction mode uses phrase keys with one composed value; the default uses
+        # one full-prompt key with separate phrase values.
         if request.conjunction:
             combined_contexts: list[Float[torch.Tensor, "batch tokens dim"]] = []
             for prompt_index, base_context in enumerate(base_contexts):

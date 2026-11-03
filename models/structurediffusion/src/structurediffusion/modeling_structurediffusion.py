@@ -101,6 +101,8 @@ class StructuredAttentionProcessor:
                 encoder_hidden_states,
                 attention_mask,
             )
+        # CFG concatenates unconditional and conditional embeddings before this processor.
+        # Keep the unconditional half on ordinary attention and structure the conditional half.
         elif conditioning.do_classifier_free_guidance:
             base_batch = conditioning.keys[0].shape[0]
             if batch_size != 2 * base_batch:
@@ -218,6 +220,7 @@ class StructuredAttentionProcessor:
         if attn.norm_q is not None:
             query_heads = attn.norm_q(query_heads)
 
+        # Project keys and values from their separate contexts before pairing them below.
         key_heads: list[Float[torch.Tensor, "batch_heads tokens head_dim"]] = []
         for context in conditioning.keys:
             normalized = (
@@ -239,6 +242,8 @@ class StructuredAttentionProcessor:
             for key in key_heads
         ]
 
+        # Pair each key's attention scores with the corresponding value contexts.
+        # A singleton side is reused when only one key or value context is present.
         if len(probabilities) == len(value_heads):
             pairs = list(
                 zip(range(len(probabilities)), range(len(value_heads)), strict=True)
@@ -265,6 +270,7 @@ class StructuredAttentionProcessor:
                 for key_index, value_index in pairs
             ]
         ).repeat_interleave(attn.heads, dim=1)
+        # Placeholder phrase contexts are excluded when averaging the valid pairs.
         output_weights: Float[torch.Tensor, "pairs batch_heads 1 1"] = (
             validity.to(outputs.dtype).unsqueeze(-1).unsqueeze(-1)
         )
