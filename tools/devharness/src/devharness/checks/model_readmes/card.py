@@ -24,12 +24,13 @@ from .constants import (
     MODEL_CONDITIONING_ORDER,
     MODEL_TYPE_VALUES,
     MODEL_MEMBER_DIRS,
+    NO_MODEL_WEIGHTS_SLUGS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
     REQUIRED_HEADINGS,
     REPO_ROOT,
 )
-from .install import project_metadata
+from .install import _project_name, project_metadata
 
 
 def section(text: str, heading: str) -> str:
@@ -888,7 +889,7 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
 def assert_model_index_policy(path: Path, frontmatter: str) -> None:
     """Require model-index metadata only for weight-backed model cards."""
     has_model_index = "model-index:" in frontmatter
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         if has_model_index:
             raise AssertionError(
                 f"{path}: prompt-only README must not include model-index"
@@ -1073,10 +1074,10 @@ def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
     if "<<'PY'" in get_started or '<<"PY"' in get_started:
         raise AssertionError(f"{path}: Get Started must not use heredoc examples")
 
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         required = [
             "git clone https://github.com/creative-graphic-design/design-generators.git",
-            f"uv sync --package {path.parent.name}",
+            f"uv sync --package {_project_name(path.parent)}",
             "no learned checkpoints",
         ]
         missing = [snippet for snippet in required if snippet not in get_started]

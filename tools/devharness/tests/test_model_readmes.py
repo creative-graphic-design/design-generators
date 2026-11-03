@@ -78,6 +78,11 @@ def test_model_readme_policy_runs_in_process() -> None:
     check.check()
 
 
+def test_code_only_pipeline_model_card_does_not_claim_its_own_checkpoint() -> None:
+    path = REPO_ROOT / "models" / "collage-diffusion" / "README.md"
+    card.assert_model_index_policy(path, "---\nlicense: apache-2.0\n---\n")
+
+
 def test_model_readme_dispatch_rejects_unsupported_command(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

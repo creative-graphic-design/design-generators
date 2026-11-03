@@ -67,6 +67,7 @@ nav:
           - canvas-vae: api/models/canvas-vae.md
           - pixel-vae: api/models/pixel-vae.md
           - cgb-dm: api/models/cgb-dm.md
+          - collage-diffusion: api/models/collage-diffusion.md
           - coarse-to-fine: api/models/coarse-to-fine.md
           - dlt: api/models/dlt.md
           - ds-gan: api/models/ds-gan.md
