@@ -104,7 +104,7 @@ CONTRACTS = (
         ),
     ),
     TrainingImportContract(
-        package_name="layout-diffusion",
+        package_name="layout_diffusion",
         training_module="layout_diffusion.training",
         eager_exports=(
             "LayoutDiffusionDataset",

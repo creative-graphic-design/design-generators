@@ -3,6 +3,6 @@
 # Remove entries as TRAINING.md files adopt docs/templates/TRAINING.template.md.
 models/cgb-dm/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
 models/dlt/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
+models/layout-diffusion/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
 models/layout-dm/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
 models/layout-flow/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
-models/layout-diffusion/TRAINING.md	Comparison Scope	missing Comparison Scope subsection
