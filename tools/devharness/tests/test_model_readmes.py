@@ -512,6 +512,23 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
         card.assert_code_fences_tagged(path, "<<'PY'\ncode\nPY\n")
 
 
+def test_model_readme_examples_do_not_replace_loaded_schedulers() -> None:
+    path = Path("models/example/README.md")
+    with pytest.raises(
+        AssertionError, match="do not replace a loaded pipeline scheduler"
+    ):
+        card.assert_no_postload_scheduler_replacement(
+            path,
+            "```python\npipe.scheduler = PNDMScheduler.from_config(pipe.scheduler.config)\n```\n",
+        )
+
+    card.assert_no_postload_scheduler_replacement(
+        path,
+        "```python\nscheduler = PNDMScheduler.from_pretrained(model_id, subfolder='scheduler')\n"
+        "pipe = StableDiffusionPipeline.from_pretrained(model_id, scheduler=scheduler)\n```\n",
+    )
+
+
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:

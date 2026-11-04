@@ -118,7 +118,7 @@ The following example generates both images with the same Stable Diffusion v1.4 
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Stable Diffusion v1.4 output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/stable-diffusion-v1-4-red-teddy-bear-glass.png) | ![StructureDiffusion output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/structurediffusion-red-teddy-bear-glass.png) |
 
-Both images use the prompt `A red teddy bear in a Christmas hat sitting next to a glass`, base model revision `133a221b8aa7292a167afc5127cb63fb5005638b`, seed `42`, 30 inference steps, 512×512 resolution, guidance scale `7.5`, and the PNDM scheduler with `skip_prk_steps=True`. The base checkpoint is licensed under CreativeML OpenRAIL-M.
+Both images use the prompt `A red teddy bear in a Christmas hat sitting next to a glass`, base model revision `133a221b8aa7292a167afc5127cb63fb5005638b`, seed `42`, 30 inference steps, 512×512 resolution, guidance scale `7.5`, and the checkpoint's PNDM scheduler (`skip_prk_steps=True`). The pinned checkpoint already provides this scheduler configuration, so the example uses it directly. The base checkpoint is licensed under CreativeML OpenRAIL-M.
 
 ```python
 import gc
@@ -126,7 +126,7 @@ import os
 from pathlib import Path
 
 import torch
-from diffusers import PNDMScheduler, StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline
 from structurediffusion import StructureDiffusionPipeline
 
 MODEL_ID = "CompVis/stable-diffusion-v1-4"
@@ -150,10 +150,6 @@ baseline = StableDiffusionPipeline.from_pretrained(
     torch_dtype=torch.float32,
     token=token,
 )
-baseline.scheduler = PNDMScheduler.from_config(
-    baseline.scheduler.config,
-    skip_prk_steps=True,
-)
 baseline.to("cpu")
 baseline_image = baseline(
     PROMPT,
@@ -172,10 +168,6 @@ structured = StructureDiffusionPipeline.from_pretrained(
     revision=MODEL_REVISION,
     torch_dtype=torch.float32,
     token=token,
-)
-structured.scheduler = PNDMScheduler.from_config(
-    structured.scheduler.config,
-    skip_prk_steps=True,
 )
 structured.to("cpu")
 structured_image = structured(

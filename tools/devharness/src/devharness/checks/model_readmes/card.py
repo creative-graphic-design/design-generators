@@ -466,6 +466,23 @@ def assert_code_fences_tagged(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: unterminated code fence")
 
 
+def assert_no_postload_scheduler_replacement(path: Path, text: str) -> None:
+    """Require README Python examples to select schedulers during pipeline loading."""
+    python_fences = re.finditer(
+        r"^```(?:python|py)(?:[ \t]+[^\n]*)?[ \t]*\n(?P<code>.*?)^```[ \t]*$",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    for fence in python_fences:
+        first_code_line = text.count("\n", 0, fence.start("code")) + 1
+        for offset, line in enumerate(fence.group("code").splitlines()):
+            if re.match(r"^\s*[A-Za-z_]\w*\.scheduler\s*=", line):
+                raise AssertionError(
+                    f"{path}:{first_code_line + offset}: do not replace a loaded pipeline scheduler; "
+                    "use the checkpoint scheduler or pass a configured scheduler to from_pretrained(..., scheduler=...)"
+                )
+
+
 def assert_banned_patterns(path: Path, text: str) -> None:
     """Reject credentials and repository-process language in reader-facing text."""
     for pattern in BANNED_PATTERNS:
