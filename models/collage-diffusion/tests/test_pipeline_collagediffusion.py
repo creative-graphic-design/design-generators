@@ -649,7 +649,7 @@ def test_pipeline_requires_scheduler_sigmas() -> None:
     from diffusers import PNDMScheduler
 
     pipeline = make_pipeline()
-    pipeline.scheduler = PNDMScheduler(num_train_timesteps=20)
+    object.__setattr__(pipeline, "scheduler", PNDMScheduler(num_train_timesteps=20))
 
     with pytest.raises(
         ValueError,
@@ -662,7 +662,11 @@ def test_pipeline_runs_with_euler_ancestral_scheduler() -> None:
     from diffusers import EulerAncestralDiscreteScheduler
 
     pipeline = make_pipeline()
-    pipeline.scheduler = EulerAncestralDiscreteScheduler(num_train_timesteps=20)
+    object.__setattr__(
+        pipeline,
+        "scheduler",
+        EulerAncestralDiscreteScheduler(num_train_timesteps=20),
+    )
 
     output = pipeline(
         "a red cat",
@@ -676,8 +680,9 @@ def test_pipeline_runs_with_euler_ancestral_scheduler() -> None:
 
     assert isinstance(output, StableDiffusionPipelineOutput)
     assert len(output.images) == 1
+    sigmas = getattr(pipeline.scheduler, "sigmas")
     assert pipeline.unet.attention_processor_sigmas == pytest.approx(
-        [float(pipeline.scheduler.sigmas[0].item())]
+        [float(sigmas[0].item())]
     )
 
 
