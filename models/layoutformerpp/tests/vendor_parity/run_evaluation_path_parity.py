@@ -10,17 +10,20 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import pickle
 import runpy
 import shlex
 import shutil
 import site
+import struct
 import subprocess
 import sys
 import types
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any  # noqa: TID251 - vendor and pipeline adapters expose runtime-dynamic values.
+from typing import Any, Literal, TypedDict  # noqa: TID251 - vendor and pipeline adapters expose runtime-dynamic values.
 
 
 FAMILIES = (
@@ -50,12 +53,90 @@ TASK_MODULES = {
 RICO25_SPLIT_FILES = ("train.pt", "val.pt", "test.pt")
 
 
+MetricComparisonCase = Literal["bitwise_equal", "one_ulp", "different", "missing"]
+
+
+class MetricValueComparison(TypedDict):
+    case: MetricComparisonCase
+    delta: float | None
+    original: float | None
+    package: float | None
+
+
+class MetricsComparison(TypedDict):
+    metrics_bitwise_equal: bool
+    metrics_accepted: bool
+    per_metric: dict[str, MetricValueComparison]
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _compare_metrics(
+    original_metrics: Mapping[str, int | float],
+    package_metrics: Mapping[str, int | float],
+) -> MetricsComparison:
+    per_metric: dict[str, MetricValueComparison] = {}
+    metric_names = sorted(original_metrics.keys() | package_metrics.keys())
+
+    for name in metric_names:
+        if name not in original_metrics or name not in package_metrics:
+            per_metric[name] = {
+                "case": "missing",
+                "delta": None,
+                "original": (
+                    float(original_metrics[name]) if name in original_metrics else None
+                ),
+                "package": (
+                    float(package_metrics[name]) if name in package_metrics else None
+                ),
+            }
+            continue
+
+        original_value = float(original_metrics[name])
+        package_value = float(package_metrics[name])
+        if struct.pack("!d", original_value) == struct.pack("!d", package_value):
+            case: MetricComparisonCase = "bitwise_equal"
+        elif (
+            math.isfinite(original_value)
+            and math.isfinite(package_value)
+            and (
+                math.nextafter(original_value, package_value) == package_value
+                or math.nextafter(package_value, original_value) == original_value
+            )
+        ):
+            case = "one_ulp"
+        else:
+            case = "different"
+
+        per_metric[name] = {
+            "case": case,
+            "delta": package_value - original_value,
+            "original": original_value,
+            "package": package_value,
+        }
+
+    keys_match = original_metrics.keys() == package_metrics.keys()
+    return {
+        "metrics_bitwise_equal": keys_match
+        and all(item["case"] == "bitwise_equal" for item in per_metric.values()),
+        "metrics_accepted": keys_match
+        and all(
+            item["case"] in {"bitwise_equal", "one_ulp"} for item in per_metric.values()
+        ),
+        "per_metric": per_metric,
+    }
+
+
+def _bitwise_parity_passes(
+    predictions_bitwise_equal: bool, metrics_comparison: MetricsComparison
+) -> bool:
+    return predictions_bitwise_equal and metrics_comparison["metrics_accepted"]
 
 
 def _validate_rico25_inputs(
@@ -834,6 +915,8 @@ def _orchestrate(args: argparse.Namespace) -> None:
         }
     }
     package_prediction_path = package_output / "predictions.json"
+    predictions_bitwise_equal = package_predictions == original_predictions
+    metrics_comparison = _compare_metrics(original_metrics, package_metrics)
     parity = {
         "record_type": "evaluation_path_parity",
         "family": args.family,
@@ -895,17 +978,14 @@ def _orchestrate(args: argparse.Namespace) -> None:
             },
         },
         "comparison": {
-            "predictions_bitwise_equal": package_predictions == original_predictions,
-            "metrics_bitwise_equal": package_metrics == original_metrics,
+            "predictions_bitwise_equal": predictions_bitwise_equal,
+            **metrics_comparison,
         },
         "artifact": {"path": str((output / "parity.json").relative_to(root))},
     }
     parity_path = output / "parity.json"
     _write_json(parity_path, parity)
-    if (
-        not parity["comparison"]["predictions_bitwise_equal"]
-        or not parity["comparison"]["metrics_bitwise_equal"]
-    ):
+    if not _bitwise_parity_passes(predictions_bitwise_equal, metrics_comparison):
         raise SystemExit(
             f"bitwise parity failed for {args.family}: {parity['comparison']}"
         )

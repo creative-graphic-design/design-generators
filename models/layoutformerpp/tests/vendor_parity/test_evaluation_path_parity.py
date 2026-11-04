@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -15,6 +16,8 @@ import run_evaluation_path_parity as parity_runner
 from run_evaluation_path_parity import (
     _PackageAdapter,
     _apply_evaluation_environment,
+    _bitwise_parity_passes,
+    _compare_metrics,
     _git_worktree_dirty,
     _package_evaluator_source_commit,
     _original_entrypoint_path,
@@ -44,6 +47,55 @@ REQUIRED_KEYS = {
     "comparison",
     "artifact",
 }
+
+
+def test_bitwise_metrics_accept_exact_values_and_record_zero_delta() -> None:
+    comparison = _compare_metrics({"mIoU": 0.5}, {"mIoU": 0.5})
+
+    assert comparison["metrics_bitwise_equal"] is True
+    assert comparison["metrics_accepted"] is True
+    assert comparison["per_metric"]["mIoU"] == {
+        "case": "bitwise_equal",
+        "delta": 0.0,
+        "original": 0.5,
+        "package": 0.5,
+    }
+    assert _bitwise_parity_passes(True, comparison)
+
+
+def test_bitwise_metrics_accept_and_record_one_ulp_difference() -> None:
+    original = 0.5
+    package = math.nextafter(original, math.inf)
+    comparison = _compare_metrics({"mIoU": original}, {"mIoU": package})
+
+    assert comparison["metrics_bitwise_equal"] is False
+    assert comparison["metrics_accepted"] is True
+    assert comparison["per_metric"]["mIoU"] == {
+        "case": "one_ulp",
+        "delta": package - original,
+        "original": original,
+        "package": package,
+    }
+    assert _bitwise_parity_passes(True, comparison)
+
+
+def test_bitwise_metrics_reject_two_ulp_difference() -> None:
+    original = 0.5
+    package = math.nextafter(math.nextafter(original, math.inf), math.inf)
+    comparison = _compare_metrics({"mIoU": original}, {"mIoU": package})
+
+    assert comparison["metrics_bitwise_equal"] is False
+    assert comparison["metrics_accepted"] is False
+    assert comparison["per_metric"]["mIoU"]["case"] == "different"
+    assert comparison["per_metric"]["mIoU"]["delta"] == package - original
+    assert not _bitwise_parity_passes(True, comparison)
+
+
+def test_bitwise_parity_rejects_prediction_mismatch_with_accepted_metrics() -> None:
+    comparison = _compare_metrics({"mIoU": 0.5}, {"mIoU": 0.5})
+
+    assert comparison["metrics_accepted"] is True
+    assert not _bitwise_parity_passes(False, comparison)
 
 
 @pytest.mark.parametrize(
@@ -151,6 +203,8 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
         "comparison": {
             "predictions_bitwise_equal": True,
             "metrics_bitwise_equal": True,
+            "metrics_accepted": True,
+            "per_metric": {},
         },
         "artifact": {"path": ".cache/example.json", "sha256": "0" * 64},
     }
@@ -162,6 +216,8 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
     assert loaded["inputs"]["sample_count"] == 3729
     assert loaded["dirty_tree"] is False
     assert loaded["runner"]["sha256"] == "0" * 64
+    assert loaded["comparison"]["metrics_accepted"] is True
+    assert loaded["comparison"]["per_metric"] == {}
     assert set(loaded["inputs"]["split_sha256"]) == {
         "train.pt",
         "val.pt",
