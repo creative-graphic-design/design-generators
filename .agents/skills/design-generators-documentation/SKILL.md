@@ -40,6 +40,8 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
+- Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
+
 - Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
 
 - Each model package README has exactly one structured classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <comma-separated values>.` Category-specific values, task and conditioning relationships, Hugging Face `pipeline_tag`, and model-index task rules come from [the model catalog classification conventions](docs/conventions.md#model-catalog-classification). Do not add package-specific exceptions to those shared rules.

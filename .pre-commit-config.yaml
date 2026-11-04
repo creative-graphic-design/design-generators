@@ -142,3 +142,9 @@ repos:
         entry: uv run --package devharness devharness check model-readmes
         language: system
         pass_filenames: false
+
+      - id: scheduler-loading
+        name: Diffusers scheduler loading
+        entry: uv run --package devharness devharness check scheduler-loading
+        language: system
+        pass_filenames: false
