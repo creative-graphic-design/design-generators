@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: ralf
-    options:
-        show_submodules: true

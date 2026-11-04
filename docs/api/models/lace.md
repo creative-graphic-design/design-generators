@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: lace
-    options:
-        show_submodules: true

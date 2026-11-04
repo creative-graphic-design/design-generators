@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: pixel_vae
-options:
-show_submodules: true

@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: traingen_parity
-    options:
-        show_submodules: true

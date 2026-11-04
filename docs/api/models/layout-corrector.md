@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layout_corrector
-    options:
-        show_submodules: true

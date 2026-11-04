@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layoutprompter
-    options:
-        show_submodules: true

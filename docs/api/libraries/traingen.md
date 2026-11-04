@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: traingen
-    options:
-        show_submodules: true

@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layout_fid
-    options:
-        show_submodules: true

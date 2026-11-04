@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: posterllama
-    options:
-        show_submodules: true

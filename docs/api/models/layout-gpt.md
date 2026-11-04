@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layout_gpt
-    options:
-        show_submodules: true

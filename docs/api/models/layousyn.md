@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layousyn
-    options:
-        show_submodules: true

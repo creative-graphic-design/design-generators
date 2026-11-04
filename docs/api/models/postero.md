@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: postero
-    options:
-        show_submodules: true

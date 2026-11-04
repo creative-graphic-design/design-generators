@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: radm
-options:
-show_submodules: true
