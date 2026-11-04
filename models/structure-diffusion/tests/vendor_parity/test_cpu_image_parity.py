@@ -221,17 +221,19 @@ def _image_array(images: object) -> Float[np.ndarray, "batch height width channe
     return cast(Float[np.ndarray, "batch height width channels"], images)
 
 
-def _configure_plms_scheduler(pipe: StableDiffusionPipeline) -> None:
-    scheduler = PNDMScheduler.from_config(
-        pipe.scheduler.config,
+def _load_plms_scheduler(model_id: str, revision: str) -> PNDMScheduler:
+    scheduler = PNDMScheduler.from_pretrained(
+        model_id,
+        subfolder="scheduler",
+        revision=revision,
         skip_prk_steps=True,
         timestep_spacing="leading",
         steps_offset=1,
     )
     if isinstance(scheduler, tuple):
-        raise TypeError("PNDMScheduler.from_config returned unused configuration.")
+        raise TypeError("PNDMScheduler.from_pretrained returned unused configuration.")
 
-    pipe.scheduler = scheduler
+    return scheduler
 
 
 def _capture_package_conditioning(
@@ -432,14 +434,19 @@ def test_cpu_image_matches_independent_vendor_path() -> None:
     torch.set_num_threads(int(os.getenv("SDG_CPU_THREADS", "2")))
     started = time.perf_counter()
     model_id = os.getenv("SDG_MODEL_ID", "CompVis/stable-diffusion-v1-4")
+    model_revision = os.getenv(
+        "SDG_MODEL_REVISION", "133a221b8aa7292a167afc5127cb63fb5005638b"
+    )
     package_load_started = time.perf_counter()
+    package_scheduler = _load_plms_scheduler(model_id, model_revision)
     package_pipe = StructureDiffusionPipeline.from_pretrained(
         model_id,
+        revision=model_revision,
+        scheduler=package_scheduler,
         torch_dtype=torch.float32,
         safety_checker=None,
         use_safetensors=True,
     )
-    _configure_plms_scheduler(package_pipe)
     package_pipe.to("cpu")
     package_model_load_seconds = time.perf_counter() - package_load_started
 
@@ -477,13 +484,15 @@ def test_cpu_image_matches_independent_vendor_path() -> None:
     gc.collect()
 
     reference_load_started = time.perf_counter()
+    reference_scheduler = _load_plms_scheduler(model_id, model_revision)
     reference_pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
+        revision=model_revision,
+        scheduler=reference_scheduler,
         torch_dtype=torch.float32,
         safety_checker=None,
         use_safetensors=True,
     )
-    _configure_plms_scheduler(reference_pipe)
     reference_pipe.to("cpu")
     reference_model_load_seconds = time.perf_counter() - reference_load_started
 
