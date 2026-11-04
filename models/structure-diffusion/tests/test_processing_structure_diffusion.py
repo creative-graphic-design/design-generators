@@ -6,7 +6,7 @@ from types import ModuleType
 
 import pytest
 import torch
-from structurediffusion.processing_structurediffusion import (
+from structure_diffusion.processing_structure_diffusion import (
     NounPhrase,
     align_phrase_context,
     constituency_noun_phrases,
@@ -71,7 +71,7 @@ def test_constituency_parser_extracts_phrase_spans(
         ]
     )
     monkeypatch.setattr(
-        "structurediffusion.processing_structurediffusion._constituency_pipeline",
+        "structure_diffusion.processing_structure_diffusion._constituency_pipeline",
         lambda: FakeStanzaPipeline(document),
     )
 
@@ -85,7 +85,7 @@ def test_constituency_parser_returns_empty_for_no_sentences(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "structurediffusion.processing_structurediffusion._constituency_pipeline",
+        "structure_diffusion.processing_structure_diffusion._constituency_pipeline",
         lambda: FakeStanzaPipeline(FakeDocument(sentences=[])),
     )
     assert constituency_noun_phrases(" ") == []
@@ -103,7 +103,7 @@ def test_constituency_parser_rejects_mismatched_tree_offsets(
         ]
     )
     monkeypatch.setattr(
-        "structurediffusion.processing_structurediffusion._constituency_pipeline",
+        "structure_diffusion.processing_structure_diffusion._constituency_pipeline",
         lambda: FakeStanzaPipeline(document),
     )
     with pytest.raises(ValueError, match="different lengths"):

@@ -8,13 +8,15 @@ import pytest
 import torch
 from jaxtyping import Float
 
-from structurediffusion.modeling_structurediffusion import StructuredAttentionProcessor
-from structurediffusion.pipeline_structurediffusion import (
+from structure_diffusion.modeling_structure_diffusion import (
+    StructuredAttentionProcessor,
+)
+from structure_diffusion.pipeline_structure_diffusion import (
     ParserType,
     StructureDiffusionPipeline,
     normalize_parser_type,
 )
-from structurediffusion.processing_structurediffusion import NounPhrase
+from structure_diffusion.processing_structure_diffusion import NounPhrase
 
 
 class WordTokenizer:
@@ -103,7 +105,7 @@ def test_parse_prompt_selects_requested_parser(
     monkeypatch: pytest.MonkeyPatch,
     parser_type: ParserType,
 ) -> None:
-    import structurediffusion.pipeline_structurediffusion as module
+    import structure_diffusion.pipeline_structure_diffusion as module
 
     phrase = NounPhrase("red car", 2, 9)
     monkeypatch.setattr(module, "constituency_noun_phrases", lambda prompt: [phrase])
@@ -130,7 +132,7 @@ def test_call_installs_conditioning_and_restores_processors(
 ) -> None:
     from diffusers import StableDiffusionPipeline
 
-    import structurediffusion.pipeline_structurediffusion as module
+    import structure_diffusion.pipeline_structure_diffusion as module
 
     monkeypatch.setattr(StableDiffusionPipeline, "encode_prompt", _encode_prompt)
     parsed_prompts: list[str] = []
@@ -181,7 +183,7 @@ def test_conjunction_uses_phrase_keys_and_one_combined_value(
 ) -> None:
     from diffusers import StableDiffusionPipeline
 
-    import structurediffusion.pipeline_structurediffusion as module
+    import structure_diffusion.pipeline_structure_diffusion as module
 
     monkeypatch.setattr(StableDiffusionPipeline, "encode_prompt", _encode_prompt)
     monkeypatch.setattr(
@@ -250,7 +252,7 @@ def test_install_conditioning_rejects_encoded_batch_mismatch(
 ) -> None:
     pipe = _pipeline()
     pipe._processors_for_call = []
-    from structurediffusion.pipeline_structurediffusion import _StructuredCall
+    from structure_diffusion.pipeline_structure_diffusion import _StructuredCall
 
     with pytest.raises(ValueError, match="does not match"):
         pipe._install_conditioning(

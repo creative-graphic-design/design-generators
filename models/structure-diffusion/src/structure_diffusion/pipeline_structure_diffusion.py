@@ -18,11 +18,11 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import (
 from jaxtyping import Float
 from PIL import Image
 
-from .modeling_structurediffusion import (
+from .modeling_structure_diffusion import (
     StructuredAttentionProcessor,
     StructuredConditioning,
 )
-from .processing_structurediffusion import (
+from .processing_structure_diffusion import (
     NounPhrase,
     align_phrase_context,
     constituency_noun_phrases,
@@ -91,7 +91,7 @@ class StructureDiffusionPipeline(StableDiffusionPipeline):
         requires_safety_checker: Whether the safety checker is required.
 
     Examples:
-        >>> from structurediffusion import StructureDiffusionPipeline
+        >>> from structure_diffusion import StructureDiffusionPipeline
         >>> pipe = StructureDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
         >>> pipe("A red car and a white sheep", num_inference_steps=10).images[0]
     """

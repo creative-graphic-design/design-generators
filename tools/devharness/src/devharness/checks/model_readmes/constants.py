@@ -323,10 +323,10 @@ EXPECTED_FRONTMATTER = {
     },
     "smarttext": {"license": "other", "datasets": ["SmartText demo"]},
     "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
-    "structurediffusion": {"license": "apache-2.0", "datasets": []},
+    "structure-diffusion": {"license": "apache-2.0", "datasets": []},
 }
 
-EXPECTED_PIPELINE_TAGS = {"structurediffusion": "text-to-image"}
+EXPECTED_PIPELINE_TAGS = {"structure-diffusion": "text-to-image"}
 
 
 EXPECTED_MODEL_NAMES = {
@@ -358,7 +358,7 @@ EXPECTED_MODEL_NAMES = {
     "ralf": "RALF",
     "smarttext": "SmartText",
     "basnet": "BASNet",
-    "structurediffusion": "StructureDiffusion",
+    "structure-diffusion": "StructureDiffusion",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -381,7 +381,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "basnet": "https://github.com/xuebinqin/BASNet",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
-    "structurediffusion": "https://github.com/weixi-feng/Structured-Diffusion-Guidance",
+    "structure-diffusion": "https://github.com/weixi-feng/Structured-Diffusion-Guidance",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}

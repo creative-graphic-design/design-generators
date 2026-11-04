@@ -5,7 +5,7 @@ import torch
 from diffusers.models.attention_processor import Attention
 from jaxtyping import Float
 
-from structurediffusion.modeling_structurediffusion import (
+from structure_diffusion.modeling_structure_diffusion import (
     StructuredAttentionProcessor,
     StructuredConditioning,
 )

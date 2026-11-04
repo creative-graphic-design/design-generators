@@ -1,11 +1,11 @@
 """Training-free structured diffusion guidance for Diffusers."""
 
-from .pipeline_structurediffusion import (
+from .pipeline_structure_diffusion import (
     ParserType,
     StructureDiffusionPipeline,
     normalize_parser_type,
 )
-from .processing_structurediffusion import (
+from .processing_structure_diffusion import (
     NounPhrase,
     align_phrase_context,
     constituency_noun_phrases,

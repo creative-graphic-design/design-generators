@@ -5,10 +5,10 @@ tags:
   - Text-to-Image
 ---
 
---8<-- "models/structurediffusion/README.md:card"
+--8<-- "models/structure-diffusion/README.md:card"
 
 ## API Reference
 
-::: structurediffusion
+::: structure_diffusion
 options:
 show_submodules: true

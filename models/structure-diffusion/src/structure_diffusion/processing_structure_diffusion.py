@@ -102,7 +102,7 @@ def scene_graph_noun_phrases(prompt: str) -> list[NounPhrase]:
         import sng_parser
     except ImportError as exc:
         raise ImportError(
-            "Install structurediffusion[scene-graph] to use parser_type='scene_graph'."
+            "Install structure-diffusion[scene-graph] to use parser_type='scene_graph'."
         ) from exc
 
     word_offsets = [

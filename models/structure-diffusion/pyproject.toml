@@ -1,5 +1,5 @@
 [project]
-name = "structurediffusion"
+name = "structure-diffusion"
 version = "0.1.0"
 description = "Diffusers pipeline for training-free structured diffusion guidance."
 readme = "README.md"
@@ -36,9 +36,9 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["structurediffusion"]
+source = ["structure_diffusion"]
 omit = [
-    "models/structurediffusion/tests/vendor_parity/*",
+    "models/structure-diffusion/tests/vendor_parity/*",
     "*/tests/vendor_parity/*",
 ]
 

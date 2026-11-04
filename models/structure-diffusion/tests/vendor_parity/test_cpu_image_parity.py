@@ -24,16 +24,16 @@ from jaxtyping import Bool, Float
 from nltk.tree import Tree
 from PIL import Image
 
-from structurediffusion.modeling_structurediffusion import (
+from structure_diffusion.modeling_structure_diffusion import (
     StructuredAttentionProcessor,
     StructuredConditioning,
 )
-from structurediffusion.pipeline_structurediffusion import (
+from structure_diffusion.pipeline_structure_diffusion import (
     ParserType,
     StructureDiffusionPipeline,
     _StructuredCall,
 )
-from structurediffusion.processing_structurediffusion import (
+from structure_diffusion.processing_structure_diffusion import (
     NounPhrase,
     _constituency_pipeline,
     normalize_prompt,
@@ -555,8 +555,8 @@ def test_cpu_image_matches_independent_vendor_path() -> None:
     }
     output_dir = Path(
         os.getenv(
-            "STRUCTUREDIFFUSION_PARITY_OUTPUT",
-            str(repo_root / ".cache/structurediffusion/parity"),
+            "STRUCTURE_DIFFUSION_PARITY_OUTPUT",
+            str(repo_root / ".cache/structure_diffusion/parity"),
         )
     )
     output_dir.mkdir(parents=True, exist_ok=True)

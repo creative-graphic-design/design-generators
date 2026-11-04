@@ -62,10 +62,10 @@ This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), 
 
 ## Supported Checkpoints
 
-| Checkpoint                          | Hub ID                                                             | Status                                                                        |
-| ----------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| Stable Diffusion v1.4               | `CompVis/stable-diffusion-v1-4`                                    | Public base checkpoint; load directly with `from_pretrained`.                 |
-| StructureDiffusion package artifact | `creative-graphic-design/structurediffusion-stable-diffusion-v1-4` | Planned; publication is separate and no weights are uploaded by this package. |
+| Checkpoint                           | Hub ID                                        | Status                                                                        |
+| ------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------------- |
+| Stable Diffusion v1.4                | `CompVis/stable-diffusion-v1-4`               | Public base checkpoint; load directly with `from_pretrained`.                 |
+| Structure Diffusion package artifact | `creative-graphic-design/structure-diffusion` | Planned; publication is separate and no weights are uploaded by this package. |
 
 ## Uses
 
@@ -86,13 +86,13 @@ Do not treat generated images as verified depictions of real people or events, o
 Install the package from this repository and download the parser models before the first inference:
 
 ```bash
-pip install "structurediffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/structurediffusion"
+pip install "structure-diffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/structure-diffusion"
 python -c "import stanza; stanza.download('en', processors='tokenize,pos,constituency')"
 ```
 
 ```python
 import torch
-from structurediffusion import StructureDiffusionPipeline
+from structure_diffusion import StructureDiffusionPipeline
 
 pipe = StructureDiffusionPipeline.from_pretrained(
     "CompVis/stable-diffusion-v1-4",
@@ -108,17 +108,21 @@ result = pipe(
 image = result.images[0]
 ```
 
-The optional scene-graph parser can be installed with the `scene-graph` extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
+The optional scene-graph parser can be installed with the `scene-graph` extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
 
 ## Examples
 
-The following example generates both images with the same Stable Diffusion v1.4 checkpoint, prompt, seed, scheduler, and sampling settings. It uses the regular `🧨diffusers` pipeline for the baseline and `StructureDiffusionPipeline` for structured guidance. Set `HF_TOKEN_FILE` to a private file containing a Hugging Face token after accepting the checkpoint's access terms. Install the package and download the English Stanza parser models as shown above before running this code.
+These fixed-seed pairs compare regular Stable Diffusion v1.4 with `StructureDiffusionPipeline`. We generated four prompts from Figure 1 and Figure 13 of the [paper](https://openreview.net/pdf?id=PUIqjT4rzq7); none showed a clear, consistent improvement from structured guidance. The red-car pair omits the sheep in both images. The backpack pair includes the elephant in the baseline but omits it in the structured output. Both fruit images show one apple with mixed red and green coloring, and the bench pair looks similar. The examples are shown transparently and do not claim better compositional accuracy.
 
-| Stable Diffusion v1.4                                                                                                                                                                                                                                     | StructureDiffusion                                                                                                                                                                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![Stable Diffusion v1.4 output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/stable-diffusion-v1-4-red-teddy-bear-glass.png) | ![StructureDiffusion output: a red teddy bear in a Christmas hat sitting next to a glass](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structurediffusion/structurediffusion-red-teddy-bear-glass.png) |
+| Prompt and paper source                                                                                                | Stable Diffusion v1.4                                                                                                                                                                                                                                 | StructureDiffusion                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `A red car and a white sheep`<br>[Figure 1: attribute leakage](https://openreview.net/pdf?id=PUIqjT4rzq7)              | ![Stable Diffusion v1.4 result for A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed42.png)                   | ![StructureDiffusion result for A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/structure-diffusion-red-car-white-sheep-seed42.png)                   |
+| `A blue backpack and a brown elephant`<br>[Figure 1: missing objects](https://openreview.net/pdf?id=PUIqjT4rzq7)       | ![Stable Diffusion v1.4 result for A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed42.png) | ![StructureDiffusion result for A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/structure-diffusion-blue-backpack-brown-elephant-seed42.png) |
+| `A green apple and a red banana`<br>[Figure 13: CC-500 qualitative results](https://openreview.net/pdf?id=PUIqjT4rzq7) | ![Stable Diffusion v1.4 result for A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed42.png)             | ![StructureDiffusion result for A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure_diffusion/structure-diffusion-green-apple-red-banana-seed42.png)             |
 
-Both images use the prompt `A red teddy bear in a Christmas hat sitting next to a glass`, base model revision `133a221b8aa7292a167afc5127cb63fb5005638b`, seed `42`, 30 inference steps, 512×512 resolution, guidance scale `7.5`, and the checkpoint's PNDM scheduler (`skip_prk_steps=True`). The pinned checkpoint already provides this scheduler configuration, so the example uses it directly. The base checkpoint is licensed under CreativeML OpenRAIL-M.
+Every image uses `CompVis/stable-diffusion-v1-4` at revision `133a221b8aa7292a167afc5127cb63fb5005638b`, the checkpoint's PNDM scheduler configuration (`skip_prk_steps=True`), 30 inference steps, 512×512 resolution, guidance scale `7.5`, seed `42`, and CPU float32. The structured pipeline uses the constituency parser with `conjunction=True`; the baseline uses `diffusers.StableDiffusionPipeline`. The base checkpoint weights are licensed under CreativeML OpenRAIL-M. The image files are hosted in the public documentation-images dataset and are not committed to this repository.
+
+This code recreates the displayed pairs with the same settings. Set `HF_TOKEN_FILE` to a private file containing a Hugging Face token after accepting the checkpoint's access terms. Install the package and download the English Stanza parser models as shown above before running it.
 
 ```python
 import gc
@@ -127,14 +131,18 @@ from pathlib import Path
 
 import torch
 from diffusers import StableDiffusionPipeline
-from structurediffusion import StructureDiffusionPipeline
+from structure_diffusion import StructureDiffusionPipeline
 
 MODEL_ID = "CompVis/stable-diffusion-v1-4"
 MODEL_REVISION = "133a221b8aa7292a167afc5127cb63fb5005638b"
-PROMPT = "A red teddy bear in a Christmas hat sitting next to a glass"
-SEED = 42
-OUTPUT_DIR = Path("structurediffusion-examples")
+OUTPUT_DIR = Path("structure-diffusion-examples")
 OUTPUT_DIR.mkdir(exist_ok=True)
+EXAMPLES = (
+    ("red-car-white-sheep", "A red car and a white sheep"),
+    ("blue-backpack-brown-elephant", "A blue backpack and a brown elephant"),
+    ("green-apple-red-banana", "A green apple and a red banana"),
+)
+SEED = 42
 
 torch.set_num_threads(2)
 token = Path(os.environ["HF_TOKEN_FILE"]).read_text().strip()
@@ -151,18 +159,19 @@ baseline = StableDiffusionPipeline.from_pretrained(
     token=token,
 )
 baseline.to("cpu")
-baseline_image = baseline(
-    PROMPT,
-    height=512,
-    width=512,
-    num_inference_steps=30,
-    guidance_scale=7.5,
-    generator=make_generator(),
-).images[0]
-baseline_image.save(OUTPUT_DIR / "stable-diffusion-v1-4-red-teddy-bear-glass.png")
-del baseline, baseline_image
-gc.collect()
+for slug, prompt in EXAMPLES:
+    image = baseline(
+        prompt,
+        height=512,
+        width=512,
+        num_inference_steps=30,
+        guidance_scale=7.5,
+        generator=make_generator(),
+    ).images[0]
+    image.save(OUTPUT_DIR / f"stable-diffusion-v1-4-{slug}-seed42.png")
+del baseline
 
+gc.collect()
 structured = StructureDiffusionPipeline.from_pretrained(
     MODEL_ID,
     revision=MODEL_REVISION,
@@ -170,18 +179,18 @@ structured = StructureDiffusionPipeline.from_pretrained(
     token=token,
 )
 structured.to("cpu")
-structured_image = structured(
-    PROMPT,
-    parser_type="constituency",
-    height=512,
-    width=512,
-    num_inference_steps=30,
-    guidance_scale=7.5,
-    generator=make_generator(),
-).images[0]
-structured_image.save(OUTPUT_DIR / "structurediffusion-red-teddy-bear-glass.png")
-del structured, structured_image
-gc.collect()
+for slug, prompt in EXAMPLES:
+    image = structured(
+        prompt,
+        parser_type="constituency",
+        conjunction=True,
+        height=512,
+        width=512,
+        num_inference_steps=30,
+        guidance_scale=7.5,
+        generator=make_generator(),
+    ).images[0]
+    image.save(OUTPUT_DIR / f"structure-diffusion-{slug}-seed42.png")
 ```
 
 ## Bias, Risks, and Limitations
@@ -221,7 +230,7 @@ The independent comparison ran on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structurediffusion/REPRODUCING.md) to compare noun phrases, token spans, and K/V conditioning directly, then compare final generated images using the same scheduler, seed, and initial latent. A separate base `🧨diffusers` pipeline runs the pinned reference attention processors to generate the reference image; the test does not compare per-layer attention outputs. `🧨diffusers` supplies model loading and sampling in both paths, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched phrase and span outputs exactly, had zero measured K/V differences, and produced bit-exact 64×64 and 512×512 images with identical SHA-256 values.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) to compare noun phrases, token spans, and K/V conditioning directly, then compare final generated images using the same scheduler, seed, and initial latent. A separate base `🧨diffusers` pipeline runs the pinned reference attention processors to generate the reference image; the test does not compare per-layer attention outputs. `🧨diffusers` supplies model loading and sampling in both paths, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched phrase and span outputs exactly, had zero measured K/V differences, and produced bit-exact 64×64 and 512×512 images with identical SHA-256 values.
 
 ## Environmental Impact
 
@@ -239,7 +248,7 @@ The package supports `🧨diffusers` CPU and accelerator execution. The recorded
 
 #### Software
 
-Runtime dependencies are declared in `models/structurediffusion/pyproject.toml`. The default parser requires Stanza models; scene-graph parsing also requires the optional `scene-graph` extra and its spaCy model.
+Runtime dependencies are declared in `models/structure-diffusion/pyproject.toml`. The default parser requires Stanza models; scene-graph parsing also requires the optional `scene-graph` extra and its spaCy model.
 
 ## Citation
 
