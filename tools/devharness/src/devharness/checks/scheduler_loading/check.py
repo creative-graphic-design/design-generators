@@ -73,6 +73,7 @@ def _python_code_fences(text: str) -> list[_PythonCodeFence]:
             indent = len(opening.group("indent"))
             if indent and line.startswith(" " * indent):
                 line = line[indent:]
+
             body.append(line)
             cursor += 1
 
@@ -154,6 +155,7 @@ def _assignment_violations(
 
         if not _is_scheduler_factory_call(value):
             continue
+
         if not any(_target_has_scheduler_attribute(target) for target in targets):
             continue
 
