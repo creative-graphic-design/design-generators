@@ -48,12 +48,25 @@ Estimate runtime and CU before starting the comparison. Begin on ordinary Colab 
 
 ## Smoke-Test Base Checkpoint Loading
 
-This command downloads the pinned mirror into the Colab session and confirms that the standard `🧨diffusers` loader instantiates the package pipeline. It does not publish model weights.
+This command downloads the pinned mirror into the Colab session and confirms that the standard `🧨diffusers` loader instantiates the package pipeline. Cross-attention guidance uses scheduler sigma values, so load Euler Ancestral from the same checkpoint and pass it during pipeline loading. It does not publish model weights.
 
 The synthetic-component test also exercises `🧨diffusers` standard `save_pretrained` and `from_pretrained` methods without downloading a base checkpoint.
 
 ```bash
-uv run --package collage-diffusion python -c 'from collage_diffusion import CollageDiffusionPipeline; pipe = CollageDiffusionPipeline.from_pretrained("sd2-community/stable-diffusion-2-1-base", revision="4e63672c03103b6c636b8fb4119ba982469b2955"); print(type(pipe).__name__)'
+uv run --package collage-diffusion python -c '
+from diffusers import EulerAncestralDiscreteScheduler
+from collage_diffusion import CollageDiffusionPipeline
+
+base = "sd2-community/stable-diffusion-2-1-base"
+revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
+scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
+    base, subfolder="scheduler", revision=revision
+)
+pipe = CollageDiffusionPipeline.from_pretrained(
+    base, revision=revision, scheduler=scheduler
+)
+print(type(pipe).__name__)
+'
 ```
 
 The comparison images, latents, metrics, and private Hub location are not committed to the repository or written into this guide.

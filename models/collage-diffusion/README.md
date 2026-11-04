@@ -275,11 +275,17 @@ uv run --package collage-diffusion python
 ```
 
 ```python
+from diffusers import EulerAncestralDiscreteScheduler
 from collage_diffusion import CollageDiffusionPipeline
 
+base = "sd2-community/stable-diffusion-2-1-base"
+revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
+# Cross-attention guidance uses the scheduler's sigma values.
+scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
+    base, subfolder="scheduler", revision=revision
+)
 pipe = CollageDiffusionPipeline.from_pretrained(
-    "sd2-community/stable-diffusion-2-1-base",
-    revision="4e63672c03103b6c636b8fb4119ba982469b2955",
+    base, revision=revision, scheduler=scheduler
 )
 print(type(pipe).__name__)
 ```
