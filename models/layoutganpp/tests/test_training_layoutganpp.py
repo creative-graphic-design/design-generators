@@ -388,6 +388,13 @@ def test_vendor_schedule_matches_iteration_and_validation_cadence():
     assert trainer.check_val_every_n_epoch == 5_001
 
 
+def test_vendor_schedule_rejects_nonpositive_iterations_before_fit():
+    callback = LayoutGANPPVendorSchedule(iterations=0)
+
+    with pytest.raises(ValueError, match="iterations must be positive"):
+        callback.on_fit_start(cast(Trainer, None), cast(LightningModule, None))
+
+
 def test_vendor_schedule_preserves_bounded_diagnostic_step_limit():
     datamodule = LayoutGANPPDataModule(
         dataset_name="magazine",

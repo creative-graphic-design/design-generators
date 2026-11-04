@@ -17,9 +17,6 @@ class LayoutGANPPVendorSchedule(Callback):
     def __init__(self, *, iterations: int) -> None:
         """Initialize the original iteration target."""
         super().__init__()
-        if iterations < 1:
-            raise ValueError("iterations must be positive")
-
         self.iterations = iterations
         self._batches_per_epoch: int | None = None
         self._max_epochs: int | None = None
@@ -27,6 +24,9 @@ class LayoutGANPPVendorSchedule(Callback):
     def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Use the original sample-count formula to finish at an epoch boundary."""
         del pl_module
+        if self.iterations < 1:
+            raise ValueError("iterations must be positive")
+
         datamodule_value = getattr(trainer, "datamodule", None)
         if datamodule_value is None:
             raise ValueError("training schedule requires a data module")
