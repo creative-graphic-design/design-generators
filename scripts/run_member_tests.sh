@@ -176,4 +176,4 @@ PY
   fi
 fi
 
-uv run "${uv_run_args[@]}" pytest "${pytest_args[@]}"
+uv run --frozen "${uv_run_args[@]}" pytest "${pytest_args[@]}"
