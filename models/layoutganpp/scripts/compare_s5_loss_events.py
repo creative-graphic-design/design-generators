@@ -244,7 +244,7 @@ def main() -> None:
     output = args.output if args.output.is_absolute() else ROOT / args.output
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-    print(output.relative_to(ROOT).as_posix())
+    print(args.output)
     print(_sha256(output))
 
 

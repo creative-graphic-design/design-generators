@@ -6,12 +6,12 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 from typing import Callable, ParamSpec, TypeVar, cast
 
 import torch
 from jaxtyping import Float
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -24,6 +24,7 @@ _R = TypeVar("_R")
 def seeded_training_loader(
     loader_factory: Callable[_P, _R], data_seed: int
 ) -> Callable[_P, _R]:
+    @wraps(loader_factory)
     def data_loader(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         if bool(kwargs.get("shuffle", False)):
             kwargs = cast(
@@ -81,7 +82,11 @@ def main() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    setattr(module, "DataLoader", seeded_training_loader(DataLoader, args.data_seed))
+    setattr(
+        module,
+        "DataLoader",
+        seeded_training_loader(module.DataLoader, args.data_seed),
+    )
 
     class ProgressWriter(SummaryWriter):
         def add_scalar(

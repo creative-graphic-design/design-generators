@@ -6,12 +6,7 @@ SEED="$2"
 GPU="$3"
 RUN_ID="$DATASET/package-seed-$SEED"
 RUN_DIR="$ROOT/.cache/layoutganpp/package-rerun-295e2c6-20261026/$DATASET/package-seed-$SEED"
-OUT_ROOT="${4:-.cache/layoutganpp/package-rerun-295e2c6-20261026/evaluation}"
-if [[ "$OUT_ROOT" = /* || "/$OUT_ROOT/" == *"/../"* ]]; then
-  echo "evaluation root must be repository-relative and cannot contain .."
-  exit 2
-fi
-OUT_DIR="$ROOT/$OUT_ROOT/$DATASET/package-seed-$SEED"
+OUT_DIR="$ROOT/.cache/layoutganpp/package-rerun-295e2c6-20261026/evaluation/$DATASET/package-seed-$SEED"
 PYTHON="$ROOT/.cache/layoutganpp/runtime/audit-venv/bin/python"
 case "$DATASET" in
   magazine) VENDOR_DATASET=magazine ;;
@@ -50,7 +45,7 @@ export CUDA_VISIBLE_DEVICES="$GPU"
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 cd "$ROOT/.cache/layoutganpp/vendor-work" || exit 125
-  "$PYTHON" "$ROOT/models/layoutganpp/scripts/generate_package_predictions.py" --dataset "$DATASET" --run-dir "$RUN_DIR" --output "$OUT_DIR/predictions.pkl" --device cuda:0 > "$OUT_DIR/generate.log" 2>&1
+"$PYTHON" "$ROOT/models/layoutganpp/scripts/generate_package_predictions.py" --dataset "$DATASET" --run-dir "$RUN_DIR" --output "$OUT_DIR/predictions.pkl" --device cuda:0 > "$OUT_DIR/generate.log" 2>&1
 RESULT=$?
 if [[ "$RESULT" -eq 0 ]]; then
   "$PYTHON" "$ROOT/vendor/const-layout/eval.py" "$VENDOR_DATASET" "$OUT_DIR/predictions.pkl" --batch_size 64 > "$OUT_DIR/eval.log" 2>&1

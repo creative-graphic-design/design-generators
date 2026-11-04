@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
 from pathlib import Path
 import sys
 
 import pytest
 import torch
+from torch_geometric.data import Data, DataLoader as PyGDataLoader
 
 SCRIPTS = Path(__file__).parents[1] / "scripts"
-SCRIPT = SCRIPTS / "run_package_eval.sh"
 VENDOR_SPEC = importlib.util.spec_from_file_location(
     "layoutganpp_run_vendor_full", SCRIPTS / "run_vendor_full.py"
 )
@@ -19,42 +18,21 @@ VENDOR_RUN = importlib.util.module_from_spec(VENDOR_SPEC)
 VENDOR_SPEC.loader.exec_module(VENDOR_RUN)
 
 
-@pytest.mark.parametrize("absolute", (False, True))
-def test_package_eval_harness_rejects_output_outside_repository(
-    absolute: bool,
-) -> None:
-    output_root = (
-        str(Path.cwd().parent / "layoutganpp-eval") if absolute else "../outside"
-    )
-    result = subprocess.run(
-        ["bash", str(SCRIPT), "magazine", "42004", "0", output_root],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
+def test_seeded_vendor_loader_uses_pyg_factory_and_batches_pyg_data() -> None:
+    examples = [Data(x=torch.tensor([[1.0]])), Data(x=torch.tensor([[2.0]]))]
+    loader = VENDOR_RUN.seeded_training_loader(PyGDataLoader, 42003)
 
-    assert result.returncode == 2
-    assert "repository-relative" in result.stdout
+    assert loader.__wrapped__ is PyGDataLoader
+    shuffled = loader(examples, batch_size=2, shuffle=True)
+    assert shuffled.generator is not None
+    assert shuffled.generator.initial_seed() == 42003
 
+    batch = next(iter(shuffled))
+    assert isinstance(batch, Data)
+    assert batch.x.shape == (2, 1)
 
-def test_seeded_vendor_loader_adds_data_seed_only_for_shuffled_data() -> None:
-    calls: list[tuple[bool, int | None]] = []
-
-    def loader_factory(
-        _dataset: list[int], *, shuffle: bool, generator: torch.Generator | None = None
-    ) -> None:
-        calls.append(
-            (
-                shuffle,
-                None if generator is None else generator.initial_seed(),
-            )
-        )
-
-    loader = VENDOR_RUN.seeded_training_loader(loader_factory, 42003)
-    loader([1], shuffle=True)
-    loader([1], shuffle=False)
-
-    assert calls == [(True, 42003), (False, None)]
+    unshuffled = loader(examples, batch_size=2, shuffle=False)
+    assert unshuffled.generator is None
 
 
 def test_vendor_progress_record_replaces_existing_file(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import math
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -42,3 +43,20 @@ def test_float_comparison_uses_float32_bits() -> None:
 def test_duplicate_event_steps_are_rejected() -> None:
     with pytest.raises(ValueError, match="steps must be unique"):
         COMPARISON.compare_series([(0, 1.0), (0, 2.0)], [(0, 1.0)])
+
+
+def test_main_prints_output_path_outside_repository(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = tmp_path / "comparison.json"
+    monkeypatch.setattr(
+        COMPARISON,
+        "build_report",
+        lambda: {"conclusion": "test", "runs": [], "aggregate": {}},
+    )
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), "--output", str(output)])
+
+    COMPARISON.main()
+
+    assert capsys.readouterr().out.splitlines()[0] == str(output)
+    assert output.is_file()
