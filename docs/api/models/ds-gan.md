@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: ds_gan
-    options:
-        show_submodules: true

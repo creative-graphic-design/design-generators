@@ -44,7 +44,7 @@ flags:
     carryforward: true
   ltnet:
     carryforward: true
-  layoutdiffusion:
+  layout-diffusion:
     carryforward: true
   layoutformerpp:
     carryforward: true
@@ -68,7 +68,7 @@ flags:
     carryforward: true
   layout-fid:
     carryforward: true
-  layoutvae:
+  layout-vae:
     carryforward: true
   posterllama:
     carryforward: true
