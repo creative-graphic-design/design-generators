@@ -238,7 +238,7 @@ This pipeline does not guarantee semantic accuracy, rights clearance for caller-
 
 ## Bias, Risks, and Limitations
 
-Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The notebook-linked example images and embeddings do not state their origin or license. Copies are available in the public documentation image archive with source URLs and integrity records. The paper's ControlNet extension and textual-inversion training are not implemented here.
+Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The original authors and rights holders of the notebook-linked example images and embeddings, and the license for each file, are unknown. The public documentation image archive records the URLs from which the files were retrieved, along with integrity records. The paper's ControlNet extension and textual-inversion training are not implemented here.
 
 ### Recommendations
 
@@ -342,7 +342,7 @@ Use Python 3.11 or newer, `🧨diffusers`, `🤗transformers`, PyTorch, Pillow, 
 
 ## License
 
-Package code follows the repository's Apache-2.0 license. The upstream notebook and UI source repositories do not declare a repository license; their implementations are referenced but not copied or distributed. Stable Diffusion 2.1 base is subject to its upstream CreativeML Open RAIL++-M terms. The notebook-linked example images and embeddings have no stated source or license; public archive copies are provided with source links and SHA-256 records, and their terms remain unclear.
+Package code follows the repository's Apache-2.0 license. The upstream notebook and UI source repositories do not declare a repository license; their implementations are referenced but not copied or distributed. Stable Diffusion 2.1 base is subject to its upstream CreativeML Open RAIL++-M terms. The original authors and rights holders of the notebook-linked example images and embeddings, and the license applicable to each file, are unknown. The archive records the URL from which each file was retrieved and its SHA-256; these records identify retrieval locations, not rights holders or license grants.
 
 ## Citation
 
