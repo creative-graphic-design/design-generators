@@ -40,6 +40,8 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
+- Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
+
 - Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
 
 - Each model package README has exactly one structured classification line in the form `- **Model type:** <content>; task: <task>; conditioning: <comma-separated canonical values in conventions order>.`, with lowercase content values `content-agnostic` or `content-aware`, task values `task-agnostic`, `task-aware`, or `single-task` for generators, and `evaluation` or `saliency` for non-generation roles; `single-task` is used iff exactly one conditioning value is accepted, while `task-agnostic` and `task-aware` require two or more conditioning values; the conditioning values `evaluation`, `saliency`, and `none` appear alone.

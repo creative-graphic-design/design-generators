@@ -6,7 +6,8 @@ import sys
 
 
 USAGE = (
-    "usage: devharness check {model-readmes,jaxtyping-annotations} [--write-baseline]"
+    "usage: devharness check "
+    "{model-readmes,jaxtyping-annotations,scheduler-loading} [check-specific options]"
 )
 
 
@@ -30,6 +31,11 @@ def main() -> int:
         from .checks.jaxtyping_annotations import check as jaxtyping_annotations
 
         return jaxtyping_annotations.main(args[2:])
+
+    if args[1] == "scheduler-loading":
+        from .checks.scheduler_loading import check as scheduler_loading
+
+        return scheduler_loading.main(args[2:])
 
     print(USAGE, file=sys.stderr)
     return 2

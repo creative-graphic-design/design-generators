@@ -115,6 +115,7 @@
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
 - `scripts/check_readme_badges.py` enforces README badge contracts.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.

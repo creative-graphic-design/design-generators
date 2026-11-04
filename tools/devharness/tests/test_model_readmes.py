@@ -86,8 +86,9 @@ def test_model_readme_dispatch_rejects_unsupported_command(
 
     assert cli.main() == 2
     assert capsys.readouterr().err == (
-        "usage: devharness check {model-readmes,jaxtyping-annotations} "
-        "[--write-baseline]\n"
+        "usage: devharness check "
+        "{model-readmes,jaxtyping-annotations,scheduler-loading} "
+        "[check-specific options]\n"
     )
 
 
@@ -99,8 +100,9 @@ def test_dispatch_reports_supported_commands_when_command_is_missing(
 
     assert cli.main() == 2
     assert capsys.readouterr().err == (
-        "usage: devharness check {model-readmes,jaxtyping-annotations} "
-        "[--write-baseline]\n"
+        "usage: devharness check "
+        "{model-readmes,jaxtyping-annotations,scheduler-loading} "
+        "[check-specific options]\n"
     )
 
 
@@ -237,6 +239,24 @@ def test_model_readme_cli_forwards_options(
 
     assert cli.main() == 17
     assert seen == ["--write-baseline"]
+
+
+def test_scheduler_loading_cli_dispatches_to_checker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from devharness.checks.scheduler_loading import check as scheduler_loading
+
+    seen: list[str] = []
+
+    def fake_main(argv: list[str]) -> int:
+        seen.extend(argv)
+        return 17
+
+    monkeypatch.setattr(sys, "argv", ["devharness", "check", "scheduler-loading"])
+    monkeypatch.setattr(scheduler_loading, "main", fake_main)
+
+    assert cli.main() == 17
+    assert seen == []
 
 
 def test_jaxtyping_cli_forwards_options(monkeypatch: pytest.MonkeyPatch) -> None:
