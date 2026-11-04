@@ -17,7 +17,29 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Models
 
-The model name opens the on-site API page, and Docs links to the package README. `Task` is `task-agnostic` when one trained checkpoint or configuration serves every accepted generation condition, `task-aware` when each condition has its own checkpoint or training run, or `single-task` when one condition is accepted; `Content` is `content-agnostic` when inference uses no canvas/background image or saliency input and `content-aware` when it does; see [the conventions' model catalog classification](conventions.md#model-catalog-classification). Weights are converted original weights you can load. The Training link opens each package's reproduction record, which states whether full training was in scope and verified.
+### Layout-generation badges
+
+- Layout-generation Task badges show `task-agnostic`, `task-aware`, `single-task`, `evaluation`, or `saliency`.
+- 🎯 marks layout-generation Task badges.
+- Layout-generation Content badges show `content-agnostic` or `content-aware`.
+
+### Image-generation badges
+
+- Image-generation Task badges show `text-to-image` or `image-to-image`.
+- 🎨 marks image-generation Task badges.
+- Image-generation Content badges list conditioning values, such as `text` or `layers + text`.
+- 📝 marks text conditioning.
+- 🧩 marks layers plus text.
+
+### Links and metadata
+
+- The model name opens the on-site API page.
+- The Docs link opens the package README.
+- The Weights column identifies converted original weights that you can load.
+- The Training link opens each package's reproduction record.
+- The reproduction record states whether full training was in scope and verified.
+- The Hugging Face `pipeline_tag` matches the image-generation Task value.
+- See [the model catalog classification conventions](conventions.md#model-catalog-classification) for task, conditioning, and metadata rules.
 
 | Model                                              | Task                                                                                                           | Content                                                                                                                          | Venue                                                                                                           | Weights                                                                                                                                                                                                              | Training                                                                                                                                                                                                                   | Paper                                                                                                                                                                         | Docs                                                                                                               |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |

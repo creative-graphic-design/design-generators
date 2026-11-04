@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
@@ -15,9 +17,12 @@ from .constants import (
     EXPECTED_MODEL_NAMES,
     EXPECTED_PIPELINE_TAGS,
     EXPECTED_REPOSITORY_LINKS,
-    MODEL_CONTENT_VALUES,
+    IMAGE_GENERATION_CATEGORY,
+    IMAGE_GENERATION_CONDITIONING_ORDER,
+    IMAGE_GENERATION_TASK_VALUES,
+    LAYOUT_TASK_VALUES,
     MODEL_CONDITIONING_ORDER,
-    MODEL_TASK_VALUES,
+    MODEL_TYPE_VALUES,
     MODEL_MEMBER_DIRS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
@@ -247,7 +252,7 @@ def model_member_slugs() -> set[str]:
 ModelType: TypeAlias = tuple[str, str, tuple[str, ...]]
 
 _MODEL_TYPE_LINE_RE = re.compile(
-    r"^- \*\*Model type:\*\* (?P<content>[^;\n]+); task: (?P<task>[^;\n]+); conditioning: "
+    r"^- \*\*Model type:\*\* (?P<category>[^;\n]+); task: (?P<task>[^;\n]+); conditioning: "
     r"(?P<conditioning>[^.\n]+)\.$"
 )
 
@@ -264,38 +269,58 @@ def parse_model_type(path: Path, text: str) -> ModelType:
     if match is None:
         raise AssertionError(
             f"{path}: Model type line must match "
-            "'- **Model type:** <content>; task: <task>; conditioning: <values>.'"
+            "'- **Model type:** <category>; task: <task>; conditioning: <values>.'"
         )
 
-    content = match.group("content")
-    if content not in MODEL_CONTENT_VALUES:
+    category = match.group("category")
+    if category not in MODEL_TYPE_VALUES:
         raise AssertionError(
-            f"{path}: Model type content value {content!r} is invalid; "
-            f"expected one of {MODEL_CONTENT_VALUES}"
+            f"{path}: Model type category value {category!r} is invalid; "
+            f"expected one of {MODEL_TYPE_VALUES}"
         )
 
     task = match.group("task")
-    if task not in MODEL_TASK_VALUES:
-        raise AssertionError(
-            f"{path}: Model type task value {task!r} is invalid; "
-            f"expected one of {MODEL_TASK_VALUES}"
-        )
-
     conditioning = tuple(
         value.strip() for value in match.group("conditioning").split(",")
     )
     if any(not value for value in conditioning):
         raise AssertionError(f"{path}: Model type conditioning values cannot be empty")
 
-    for value in conditioning:
-        if value not in MODEL_CONDITIONING_ORDER:
-            raise AssertionError(
-                f"{path}: Model type conditioning value {value!r} is invalid; "
-                f"expected one of {MODEL_CONDITIONING_ORDER}"
-            )
-
     if len(set(conditioning)) != len(conditioning):
         raise AssertionError(f"{path}: Model type conditioning values must be unique")
+
+    if category == IMAGE_GENERATION_CATEGORY:
+        if task not in IMAGE_GENERATION_TASK_VALUES:
+            raise AssertionError(
+                f"{path}: image generation task value {task!r} is invalid; "
+                f"expected one of {IMAGE_GENERATION_TASK_VALUES}"
+            )
+
+        conditioning_order = IMAGE_GENERATION_CONDITIONING_ORDER
+    else:
+        if task not in LAYOUT_TASK_VALUES:
+            raise AssertionError(
+                f"{path}: Model type task value {task!r} is invalid; "
+                f"expected one of {LAYOUT_TASK_VALUES}"
+            )
+
+        conditioning_order = MODEL_CONDITIONING_ORDER
+
+    for value in conditioning:
+        if value not in conditioning_order:
+            raise AssertionError(
+                f"{path}: Model type conditioning value {value!r} is invalid; "
+                f"expected one of {conditioning_order}"
+            )
+
+    if category == IMAGE_GENERATION_CATEGORY:
+        positions = [conditioning_order.index(value) for value in conditioning]
+        if positions != sorted(positions):
+            raise AssertionError(
+                f"{path}: Model type conditioning values must use the canonical order"
+            )
+
+        return category, task, conditioning
 
     special_values = {"evaluation", "saliency", "none"}
     if len(conditioning) > 1 and special_values.intersection(conditioning):
@@ -321,13 +346,13 @@ def parse_model_type(path: Path, text: str) -> ModelType:
             f"{path}: task-agnostic or task-aware is required for multiple conditioning values"
         )
 
-    positions = [MODEL_CONDITIONING_ORDER.index(value) for value in conditioning]
+    positions = [conditioning_order.index(value) for value in conditioning]
     if positions != sorted(positions):
         raise AssertionError(
             f"{path}: Model type conditioning values must use the canonical order"
         )
 
-    return content, task, conditioning
+    return category, task, conditioning
 
 
 def library_member_slugs() -> set[str]:
@@ -349,26 +374,514 @@ def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
-def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
+@dataclass(frozen=True)
+class _ModelIndexScalar:
+    value: str
+    canonical: str
+    kind: Literal["string", "number"]
+
+
+@dataclass(frozen=True)
+class _ModelIndexMapping:
+    entries: tuple[tuple[str, _ModelIndexNode], ...]
+
+
+@dataclass(frozen=True)
+class _ModelIndexSequence:
+    items: tuple[_ModelIndexNode, ...]
+
+
+_ModelIndexNode: TypeAlias = (
+    _ModelIndexScalar | _ModelIndexMapping | _ModelIndexSequence
+)
+
+
+@dataclass(frozen=True)
+class _ModelIndexLine:
+    indentation: int
+    content: str
+
+
+_MODEL_INDEX_FIELD_ORDER = {
+    ("model-index", "[]"): ("name", "results"),
+    ("model-index", "[]", "results", "[]"): ("task", "dataset", "metrics"),
+    ("model-index", "[]", "results", "[]", "task"): ("type", "name"),
+    ("model-index", "[]", "results", "[]", "dataset"): (
+        "type",
+        "name",
+        "config",
+        "split",
+        "args",
+    ),
+    ("model-index", "[]", "results", "[]", "metrics", "[]"): (
+        "type",
+        "value",
+        "name",
+    ),
+}
+
+_MODEL_INDEX_PLAIN_STRING = re.compile(r"[A-Za-z][A-Za-z0-9./ -]*")
+_MODEL_INDEX_DECIMAL = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?")
+_MODEL_INDEX_YAML_WORDS = {"false", "n", "no", "null", "off", "on", "true", "y", "yes"}
+
+
+def _unsupported_model_index_format(path: Path) -> AssertionError:
+    """Return an explicit error for model-index syntax the checker cannot read."""
+    return AssertionError(
+        f"{path}: cannot read this model-index format; use block-style YAML "
+        "with two-space indentation, canonical field order, and supported scalars"
+    )
+
+
+def _parse_model_index_scalar(path: Path, raw: str) -> _ModelIndexScalar:
+    """Parse only scalar forms that can be written back unambiguously."""
+    if raw.startswith('"'):
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise _unsupported_model_index_format(path) from error
+
+        if not isinstance(value, str):
+            raise _unsupported_model_index_format(path)
+
+        canonical = json.dumps(value, ensure_ascii=False)
+        kind: Literal["string", "number"] = "string"
+    elif _MODEL_INDEX_DECIMAL.fullmatch(raw) and raw != "-0":
+        value = raw
+        canonical = raw
+        kind = "number"
+    elif (
+        _MODEL_INDEX_PLAIN_STRING.fullmatch(raw)
+        and raw.casefold() not in _MODEL_INDEX_YAML_WORDS
+    ):
+        value = raw
+        canonical = raw
+        kind = "string"
+    else:
+        raise _unsupported_model_index_format(path)
+
+    if any(not 0x20 <= ord(character) <= 0x7E for character in value):
+        raise _unsupported_model_index_format(path)
+
+    return _ModelIndexScalar(value, canonical, kind)
+
+
+def _strip_yaml_comment(line: str) -> str:
+    """Remove a YAML comment while preserving quoted hash characters."""
+    quote: str | None = None
+    position = 0
+    while position < len(line):
+        character = line[position]
+        if quote == "'":
+            if character == "'":
+                if line[position + 1 : position + 2] == "'":
+                    position += 2
+
+                    continue
+
+                quote = None
+        elif quote == '"':
+            if character == "\\":
+                position += 2
+
+                continue
+
+            if character == '"':
+                quote = None
+        elif character in {"'", '"'}:
+            quote = character
+        elif character == "#" and (position == 0 or line[position - 1].isspace()):
+            return line[:position]
+
+        position += 1
+
+    return line
+
+
+def _starts_flow_collection(content: str) -> bool:
+    """Return whether a YAML line starts a flow-style mapping or sequence."""
+    value = content.strip()
+    if value.startswith("-"):
+        value = value[1:].lstrip()
+
+    if value.startswith(("{", "[")):
+        return True
+
+    key_separator = re.match(r"[^:]+:\s*", value)
+    if key_separator is None:
+        return False
+
+    return value[key_separator.end() :].startswith(("{", "["))
+
+
+def _model_index_block(frontmatter: str) -> str | None:
+    """Extract a model-index block through the next top-level key."""
+    lines = frontmatter.splitlines(keepends=True)
+    for start, line in enumerate(lines):
+        content = _strip_yaml_comment(line.rstrip("\r\n")).strip()
+        if not re.match(r"[\"']?model-index[\"']?\s*:", content):
+            continue
+
+        end = next(
+            (
+                index
+                for index in range(start + 1, len(lines))
+                if lines[index].strip() and not lines[index][0].isspace()
+            ),
+            len(lines),
+        )
+
+        return "".join(lines[start:end])
+
+    return None
+
+
+def _model_index_lines(path: Path, block: str) -> tuple[_ModelIndexLine, ...]:
+    """Tokenize the supported block subset while rejecting flow collections."""
+    lines: list[_ModelIndexLine] = []
+    for line in block.splitlines():
+        uncommented = _strip_yaml_comment(line)
+        if not uncommented.strip():
+            continue
+
+        leading = re.match(r"[ \t]*", uncommented)
+        assert leading is not None
+        indentation_text = leading.group()
+        if "\t" in indentation_text:
+            raise _unsupported_model_index_format(path)
+
+        content = uncommented[len(indentation_text) :].strip()
+        if _starts_flow_collection(content):
+            raise _unsupported_model_index_format(path)
+
+        lines.append(_ModelIndexLine(len(indentation_text), content))
+
+    return tuple(lines)
+
+
+def _mapping_entry(content: str) -> tuple[str, str | None] | None:
+    match = re.fullmatch(r"(?P<key>[A-Za-z0-9_-]+):(?:\s+(?P<value>.+))?", content)
+    if match is None:
+        return None
+
+    value = match.group("value")
+    return match.group("key"), value.strip() if value is not None else None
+
+
+def _ordered_model_index_entries(
+    entries: tuple[tuple[str, _ModelIndexNode], ...], path: tuple[str, ...]
+) -> tuple[tuple[str, _ModelIndexNode], ...]:
+    order = _MODEL_INDEX_FIELD_ORDER.get(path)
+    if order is None:
+        return tuple(sorted(entries, key=lambda entry: entry[0]))
+
+    rank = {key: index for index, key in enumerate(order)}
+    return tuple(
+        sorted(entries, key=lambda entry: (rank.get(entry[0], len(rank)), entry[0]))
+    )
+
+
+def _parse_model_index_block(
+    path: Path,
+    lines: tuple[_ModelIndexLine, ...],
+    index: int = 0,
+    canonical_indentation: int = 0,
+    node_path: tuple[str, ...] = (),
+) -> tuple[_ModelIndexNode, int]:
+    """Parse the small block-YAML subset used by model-card model-index data."""
+    if index >= len(lines):
+        raise _unsupported_model_index_format(path)
+
+    line = lines[index]
+    if line.content == "-" or line.content.startswith("- "):
+        sequence_indentation = line.indentation
+        items: list[_ModelIndexNode] = []
+        sibling_order = _MODEL_INDEX_FIELD_ORDER.get(node_path + ("[]",), ())
+
+        while (
+            index < len(lines)
+            and lines[index].indentation == sequence_indentation
+            and (lines[index].content == "-" or lines[index].content.startswith("- "))
+        ):
+            rest = lines[index].content[1:].strip()
+            index += 1
+            first_entry = _mapping_entry(rest)
+            if first_entry is None:
+                items.append(_parse_model_index_scalar(path, rest))
+
+                continue
+
+            first_key, first_value = first_entry
+            item_path = node_path + ("[]",)
+            entries: list[tuple[str, _ModelIndexNode]] = []
+            seen_keys = {first_key}
+
+            if first_value is None:
+                next_entry = (
+                    _mapping_entry(lines[index].content) if index < len(lines) else None
+                )
+                is_sibling = next_entry is not None and next_entry[0] in sibling_order
+                if (
+                    index < len(lines)
+                    and lines[index].indentation > sequence_indentation
+                    and not is_sibling
+                ):
+                    value, index = _parse_model_index_block(
+                        path,
+                        lines,
+                        index,
+                        canonical_indentation + 4,
+                        item_path + (first_key,),
+                    )
+                else:
+                    raise _unsupported_model_index_format(path)
+            else:
+                value = _parse_model_index_scalar(path, first_value)
+
+            entries.append((first_key, value))
+
+            while index < len(lines):
+                entry = _mapping_entry(lines[index].content)
+                if (
+                    entry is None
+                    or entry[0] not in sibling_order
+                    or entry[0] in seen_keys
+                ):
+                    break
+
+                key, raw_value = entry
+                seen_keys.add(key)
+                index += 1
+                if raw_value is None:
+                    if (
+                        index < len(lines)
+                        and lines[index].indentation > lines[index - 1].indentation
+                    ):
+                        child, index = _parse_model_index_block(
+                            path,
+                            lines,
+                            index,
+                            canonical_indentation + 4,
+                            item_path + (key,),
+                        )
+                    else:
+                        raise _unsupported_model_index_format(path)
+                else:
+                    child = _parse_model_index_scalar(path, raw_value)
+
+                entries.append((key, child))
+
+            items.append(
+                _ModelIndexMapping(
+                    _ordered_model_index_entries(tuple(entries), item_path)
+                )
+            )
+
+        return _ModelIndexSequence(tuple(items)), index
+
+    indentation = line.indentation
+    entries = []
+    seen_keys: set[str] = set()
+    while (
+        index < len(lines)
+        and lines[index].indentation == indentation
+        and not lines[index].content.startswith("-")
+    ):
+        entry = _mapping_entry(lines[index].content)
+        if entry is None:
+            raise _unsupported_model_index_format(path)
+
+        key, raw_value = entry
+        if key in seen_keys:
+            raise _unsupported_model_index_format(path)
+
+        seen_keys.add(key)
+        index += 1
+        if raw_value is None:
+            if index < len(lines) and lines[index].indentation > indentation:
+                value, index = _parse_model_index_block(
+                    path,
+                    lines,
+                    index,
+                    canonical_indentation + 2,
+                    node_path + (key,),
+                )
+            else:
+                raise _unsupported_model_index_format(path)
+        else:
+            value = _parse_model_index_scalar(path, raw_value)
+
+        entries.append((key, value))
+
+    return _ModelIndexMapping(
+        _ordered_model_index_entries(tuple(entries), node_path)
+    ), index
+
+
+def _serialize_model_index_node(
+    node: _ModelIndexNode, indentation: int, node_path: tuple[str, ...] = ()
+) -> list[str]:
+    """Write a parsed model-index node in canonical block style."""
+    prefix = " " * indentation
+    if isinstance(node, _ModelIndexScalar):
+        return [prefix + node.canonical]
+
+    if isinstance(node, _ModelIndexMapping):
+        output: list[str] = []
+        for key, value in _ordered_model_index_entries(node.entries, node_path):
+            entry_prefix = prefix + f"{key}:"
+            if isinstance(value, _ModelIndexScalar):
+                output.append(entry_prefix + f" {value.canonical}")
+            else:
+                output.append(entry_prefix)
+                output.extend(
+                    _serialize_model_index_node(
+                        value, indentation + 2, node_path + (key,)
+                    )
+                )
+
+        return output
+
+    output = []
+    item_path = node_path + ("[]",)
+    for item in node.items:
+        if not isinstance(item, _ModelIndexMapping):
+            scalar = item.canonical if isinstance(item, _ModelIndexScalar) else ""
+            output.append(prefix + (f"- {scalar}" if scalar else "-"))
+
+            continue
+
+        entries = _ordered_model_index_entries(item.entries, item_path)
+        if not entries:
+            raise ValueError("model-index sequence mappings must not be empty")
+
+        first_key, first_value = entries[0]
+        item_prefix = prefix + f"- {first_key}:"
+        if isinstance(first_value, _ModelIndexScalar):
+            output.append(item_prefix + f" {first_value.canonical}")
+        else:
+            output.append(item_prefix)
+            output.extend(
+                _serialize_model_index_node(
+                    first_value, indentation + 4, item_path + (first_key,)
+                )
+            )
+
+        for key, value in entries[1:]:
+            entry_prefix = " " * (indentation + 2) + f"{key}:"
+            if isinstance(value, _ModelIndexScalar):
+                output.append(entry_prefix + f" {value.canonical}")
+            else:
+                output.append(entry_prefix)
+                output.extend(
+                    _serialize_model_index_node(
+                        value, indentation + 4, item_path + (key,)
+                    )
+                )
+
+    return output
+
+
+def _node_mapping_value(node: _ModelIndexNode, key: str) -> _ModelIndexNode | None:
+    if not isinstance(node, _ModelIndexMapping):
+        return None
+
+    return next((value for entry_key, value in node.entries if entry_key == key), None)
+
+
+def _model_index_tasks(path: Path, node: _ModelIndexNode) -> tuple[str, ...]:
+    model_index = _node_mapping_value(node, "model-index")
+    if not isinstance(model_index, _ModelIndexSequence):
+        raise _unsupported_model_index_format(path)
+
+    task_types: list[str] = []
+    for model in model_index.items:
+        name = _node_mapping_value(model, "name")
+        if (
+            not isinstance(name, _ModelIndexScalar)
+            or name.kind != "string"
+            or not name.value
+        ):
+            raise _unsupported_model_index_format(path)
+
+        results = _node_mapping_value(model, "results")
+        if not isinstance(results, _ModelIndexSequence):
+            raise _unsupported_model_index_format(path)
+
+        for result in results.items:
+            task = _node_mapping_value(result, "task")
+            task_type = _node_mapping_value(task, "type") if task is not None else None
+            if (
+                not isinstance(task_type, _ModelIndexScalar)
+                or task_type.kind != "string"
+                or not task_type.value
+            ):
+                raise _unsupported_model_index_format(path)
+
+            value = task_type.value
+            task_types.append(value)
+
+    return tuple(task_types)
+
+
+def _model_index_task_types(path: Path, frontmatter: str) -> tuple[str, ...]:
+    """Read model-index tasks and reject any noncanonical block serialization."""
+    block = _model_index_block(frontmatter)
+    if block is None:
+        return ()
+
+    lines = _model_index_lines(path, block)
+    node, consumed = _parse_model_index_block(path, lines)
+    if consumed != len(lines):
+        raise _unsupported_model_index_format(path)
+
+    canonical_lines = _serialize_model_index_node(node, 0)
+    canonical_block = "\n".join(canonical_lines)
+    if block.endswith("\n"):
+        canonical_block += "\n"
+
+    if canonical_block != block:
+        raise _unsupported_model_index_format(path)
+
+    return _model_index_tasks(path, node)
+
+
+def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> None:
     """Require the model-card task metadata declared for this package."""
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
-    expected_pipeline_tag = EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
+    category, task, _ = model_type
+    expected_pipeline_tag = (
+        task
+        if category == IMAGE_GENERATION_CATEGORY
+        else EXPECTED_PIPELINE_TAGS.get(path.parent.name, "other")
+    )
     if pipeline_tag != expected_pipeline_tag:
         raise AssertionError(
             f"{path}: pipeline_tag must be {expected_pipeline_tag!r}, got {pipeline_tag!r}"
         )
 
-    bad_task = re.search(
-        r'^\s+type:\s*["\']?text-to-image["\']?\s*$', frontmatter, re.MULTILINE
-    )
-    if bad_task:
-        raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
+    task_types = _model_index_task_types(path, frontmatter)
+    has_model_index = "model-index:" in frontmatter
+    if has_model_index and category == IMAGE_GENERATION_CATEGORY:
+        if not task_types or any(task_type != task for task_type in task_types):
+            raise AssertionError(
+                f"{path}: model-index task.type values must match image generation "
+                f"task {task!r}, got {task_types}"
+            )
 
-    task_types = re.findall(
-        r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
+    if has_model_index and category != IMAGE_GENERATION_CATEGORY:
+        if any(task_type in IMAGE_GENERATION_TASK_VALUES for task_type in task_types):
+            raise AssertionError(
+                f"{path}: model-index task.type must not be an image generation task, "
+                f"got {task_types}"
+            )
+
+    expected_task = (
+        task
+        if category == IMAGE_GENERATION_CATEGORY
+        else EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
     )
-    expected_task = EXPECTED_MODEL_INDEX_TASKS.get(path.parent.name, "other")
-    if expected_task not in task_types and "model-index:" in frontmatter:
+    if expected_task not in task_types and has_model_index:
         raise AssertionError(f"{path}: model-index task.type must be {expected_task!r}")
 
 
@@ -431,7 +944,8 @@ def assert_expected_frontmatter(path: Path, text: str) -> None:
 
     frontmatter = _frontmatter(text)
     assert_frontmatter_list_unique(path, frontmatter)
-    assert_pipeline_tag(path, frontmatter)
+    model_type = parse_model_type(path, text)
+    assert_pipeline_tag(path, frontmatter, model_type)
     assert_model_index_policy(path, frontmatter)
     actual_license = _frontmatter_scalar(frontmatter, "license")
     expected_license = expected["license"]

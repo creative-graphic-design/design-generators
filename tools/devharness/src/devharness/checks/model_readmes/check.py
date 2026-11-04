@@ -89,7 +89,6 @@ def check() -> None:
         card.assert_frontmatter(path, text)
         card.assert_expected_frontmatter(path, text)
         card.assert_runtime_contract(path, text)
-        card.parse_model_type(path, text)
         card.assert_heading_order(path, text)
         install.assert_model_pip_install_snippet(path, text)
         card.assert_model_summary_subject(path, text)
