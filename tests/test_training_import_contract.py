@@ -104,8 +104,8 @@ CONTRACTS = (
         ),
     ),
     TrainingImportContract(
-        package_name="layoutdiffusion",
-        training_module="layoutdiffusion.training",
+        package_name="layout_diffusion",
+        training_module="layout_diffusion.training",
         eager_exports=(
             "LayoutDiffusionDataset",
             "LayoutDiffusionProcessedDataset",
@@ -124,8 +124,8 @@ CONTRACTS = (
         ),
         optional_roots=("lightning", "datasets"),
         training_leaf_modules=(
-            "layoutdiffusion.training.datamodule",
-            "layoutdiffusion.training.lightning_module",
+            "layout_diffusion.training.datamodule",
+            "layout_diffusion.training.lightning_module",
         ),
     ),
 )

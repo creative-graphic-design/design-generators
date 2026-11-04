@@ -47,6 +47,10 @@
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
+- Join a target word to a common method type with a hyphen, such as `layout-dm`, `layout-diffusion`, and `layout-vae`.
+- Keep established model names together, such as `layoutformerpp`, `posterllama`, `layoutganpp`, and `housegan`.
+- Use hyphens in model directory and distribution names and underscores in Python import names, such as `models/layout-dm` → `layout-dm` → `layout_dm`.
+- Serialize the current package name in `model_type`; do not retain aliases for prior package names after a rename.
 
 ### Class Design And Code Style
 

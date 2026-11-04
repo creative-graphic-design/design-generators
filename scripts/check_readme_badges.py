@@ -200,7 +200,7 @@ HUB_LINKS = {
     "layout-corrector": "https://huggingface.co/creative-graphic-design/layout-corrector-rico25",
     "layout-dm": "https://huggingface.co/creative-graphic-design/layoutdm-rico25",
     "layout-flow": "https://huggingface.co/creative-graphic-design/layout-flow-rico25",
-    "layoutdiffusion": "https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25",
+    "layout-diffusion": "https://huggingface.co/creative-graphic-design/layout-diffusion-rico25",
     "layoutformerpp": "https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label",
     "layoutganpp": "https://huggingface.co/creative-graphic-design/layoutganpp-rico",
     "parse-then-place": "https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune",

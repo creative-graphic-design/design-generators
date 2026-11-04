@@ -81,11 +81,11 @@ nav:
           - layout-fid: api/models/layout-fid.md
           - layout-flow: api/models/layout-flow.md
           - layout-gpt: api/models/layout-gpt.md
-          - layoutdiffusion: api/models/layoutdiffusion.md
+          - layout-diffusion: api/models/layout-diffusion.md
           - layoutformerpp: api/models/layoutformerpp.md
           - layoutganpp: api/models/layoutganpp.md
           - layoutprompter: api/models/layoutprompter.md
-          - layoutvae: api/models/layoutvae.md
+          - layout-vae: api/models/layout-vae.md
           - ltnet: api/models/ltnet.md
           - parse-then-place: api/models/parse-then-place.md
           - posterllama: api/models/posterllama.md

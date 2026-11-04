@@ -204,7 +204,31 @@ def test_check_changed_urls_accepts_repo_main_blob_for_added_file(
     def checker(url: str) -> object:
         raise AssertionError(f"checker should not be called for {url}")
 
-    assert check_changed_urls.local_main_blob_path(url, root=tmp_path) == readme
+    assert check_changed_urls.local_main_repo_path(url, root=tmp_path) == readme
+    results = check_changed_urls.check_changed_urls(
+        [check_changed_urls.ChangedUrl(url, "README.md:1")],
+        ignore_patterns=[],
+        checker=checker,
+        root=tmp_path,
+    )
+
+    assert results == [
+        check_changed_urls.UrlCheckResult(url=url, outcome="ok", status=200)
+    ]
+    assert check_changed_urls.report_results(results) == 0
+
+
+def test_check_changed_urls_accepts_repo_main_tree_for_added_directory(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "models" / "layout-diffusion" / "configs" / "training"
+    directory.mkdir(parents=True)
+    url = f"{DESIGN_GENERATORS_URL}/tree/main/models/layout-diffusion/configs/training"
+
+    def checker(url: str) -> object:
+        raise AssertionError(f"checker should not be called for {url}")
+
+    assert check_changed_urls.local_main_repo_path(url, root=tmp_path) == directory
     results = check_changed_urls.check_changed_urls(
         [check_changed_urls.ChangedUrl(url, "README.md:1")],
         ignore_patterns=[],

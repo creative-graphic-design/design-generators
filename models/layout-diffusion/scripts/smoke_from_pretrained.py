@@ -1,0 +1,38 @@
+"""Smoke-test LayoutDiffusion local ``from_pretrained`` directories."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import cast
+
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from layout_diffusion import LayoutDiffusionPipeline
+from layout_diffusion.sampling import LayoutDiffusionSamplingConfig
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", action="append", required=True, type=Path)
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Load each converted checkpoint and run one denoising step."""
+    args = parse_args()
+    for path in args.path:
+        pipe = LayoutDiffusionPipeline.from_pretrained(path)
+        out = cast(
+            LayoutGenerationOutput,
+            pipe(
+                batch_size=1,
+                seed=101,
+                sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+            ),
+        )
+        print(path.name, out.bbox.shape, out.labels.shape, out.mask.shape)
+
+
+if __name__ == "__main__":
+    main()

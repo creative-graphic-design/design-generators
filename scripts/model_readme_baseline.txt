@@ -16,10 +16,10 @@ models/layout-dm/README.md
 models/layout-fid/README.md
 models/layout-flow/README.md
 models/layout-gpt/README.md
-models/layoutdiffusion/README.md
+models/layout-diffusion/README.md
 models/layoutformerpp/README.md
 models/layoutganpp/README.md
-models/layoutvae/README.md
+models/layout-vae/README.md
 models/ltnet/README.md
 models/posterllama/README.md
 models/posterllava/README.md

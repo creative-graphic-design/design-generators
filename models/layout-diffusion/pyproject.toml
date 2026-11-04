@@ -1,0 +1,66 @@
+[project]
+name = "layout-diffusion"
+version = "0.1.0"
+description = "Diffusers pipeline for converted LayoutDiffusion checkpoints."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "traingen",
+    "traingen-parity",
+]
+download = [
+    "gdown>=6.1.0",
+    "huggingface-hub>=0.24",
+]
+vendor = [
+    "blobfile",
+    "mpi4py",
+    "pycocotools",
+    "pytorch-fid",
+    "scipy",
+    "seaborn",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
+
+[tool.design-generators]
+framework = "diffusers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional", "label", "refinement"]
+datasets = ["rico25", "publaynet"]
+
+[tool.pytest.ini_options]
+markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
+    "vendor_parity: requires original LayoutDiffusion weights and vendor dependencies",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["layout_diffusion"]
+omit = [
+    "models/layout-diffusion/src/layout_diffusion/training/*",
+    "src/layout_diffusion/training/*",
+    "*/src/layout_diffusion/training/*",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
