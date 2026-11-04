@@ -928,20 +928,24 @@ Package training reproduction is achieved with training-seed n=3.
 
 
 @pytest.mark.parametrize(
-    "override",
+    "extra_argument",
     [
-        "--trainer.enable_checkpointing false",
-        "--trainer.callbacks=[]",
-        "--trainer.limit_val_batches 0",
-        "--trainer.check_val_every_n_epoch 99",
+        "-c models/layout-dm/configs/training/smoke.yaml",
+        "--trainer '{\"enable_checkpointing\": false}'",
+        '--trainer={"callbacks":[]}',
+        "--ckpt_path .cache/pkg/resume.ckpt",
+        "--model.batch_size=1",
+        "--data.batch_size=1",
+        "--print_config",
+        "--trainer.max_epochs 1",
     ],
 )
-def test_checkpoint_smoke_rejects_unbounded_trainer_overrides(
-    tmp_path: Path, override: str
+def test_checkpoint_smoke_rejects_arguments_outside_the_allowlist(
+    tmp_path: Path, extra_argument: str
 ) -> None:
     table = complete_stage_evidence_table().replace(
         "--trainer.limit_val_batches=2` |",
-        f"--trainer.limit_val_batches=2 {override}` |",
+        f"--trainer.limit_val_batches=2 {extra_argument}` |",
     )
     path = write_training_md(tmp_path, "layout-dm", table)
     evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
@@ -1014,6 +1018,7 @@ def test_checkpoint_smoke_rejects_multiple_config_arguments(tmp_path: Path) -> N
     [
         ".cache/pkg/s3/checkpoints/last.ckpt",
         ".cache/pkg/s3/checkpoints/last-v1.ckpt",
+        ".cache/pkg/s3/checkpoints/last-best.ckpt",
     ],
 )
 def test_checkpoint_smoke_rejects_last_checkpoint(
@@ -1049,13 +1054,53 @@ def test_checkpoint_smoke_rejects_path_outside_callback_filename_pattern(
     )
 
 
-def test_checkpoint_smoke_requires_a_monitored_top_k_callback(tmp_path: Path) -> None:
+def test_checkpoint_smoke_accepts_an_unmonitored_top_k_callback(
+    tmp_path: Path,
+) -> None:
     table = complete_stage_evidence_table()
     path = write_training_md(tmp_path, "layout-dm", table)
     config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
             "monitor: val_loss", "monitor: null"
+        ),
+        encoding="utf-8",
+    )
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_accepts_the_implicit_default_top_k_callback(
+    tmp_path: Path,
+) -> None:
+    table = complete_stage_evidence_table().replace(
+        ".cache/pkg/s3/checkpoints/best.ckpt",
+        ".cache/pkg/s3/checkpoints/epoch=0-step=2.ckpt",
+    )
+    path = write_training_md(tmp_path, "layout-dm", table)
+    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path.write_text("trainer:\n  enable_checkpointing: true\n", encoding="utf-8")
+    evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
+        path.read_text(encoding="utf-8")
+    )
+
+    assert check_training_stage_evidence.is_bounded_production_checkpoint_smoke(
+        evidence["S3"], evidence["S5"], "layout-dm", tmp_path
+    )
+
+
+def test_checkpoint_smoke_rejects_disabled_checkpointing(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table()
+    path = write_training_md(tmp_path, "layout-dm", table)
+    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "trainer:\n", "trainer:\n  enable_checkpointing: false\n"
         ),
         encoding="utf-8",
     )

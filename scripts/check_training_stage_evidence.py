@@ -573,33 +573,38 @@ def is_bounded_production_checkpoint_smoke(
     except ValueError:
         return False
 
-    has_production_entry_point = is_production_fit_command(tokens)
+    argument_start = production_fit_arguments_start(tokens)
+    if argument_start is None:
+        return False
+
+    arguments = tokens[argument_start:]
     config_values: list[str] = []
-    trainer_overrides: dict[str, list[str]] = {}
+    trainer_overrides: dict[str, str] = {}
     index = 0
-    while index < len(tokens):
-        token = tokens[index]
-        if token == "--config" or token.startswith("--config="):
-            if "=" in token:
-                config_values.append(token.split("=", 1)[1])
-            elif index + 1 < len(tokens) and not tokens[index + 1].startswith("--"):
-                config_values.append(tokens[index + 1])
-                index += 1
-            else:
-                return False
-        elif token.startswith("--trainer."):
-            option = token.removeprefix("--trainer.")
-            if "=" in option:
-                name, value = option.split("=", 1)
-            elif index + 1 < len(tokens) and not tokens[index + 1].startswith("--"):
-                name, value = option, tokens[index + 1]
-                index += 1
-            else:
+    while index < len(arguments):
+        token = arguments[index]
+        if token == "--config":
+            if (
+                len(config_values) == 1
+                or index + 1 >= len(arguments)
+                or arguments[index + 1].startswith("-")
+            ):
                 return False
 
-            trainer_overrides.setdefault(name, []).append(value)
+            config_values.append(arguments[index + 1])
+            index += 2
+            continue
 
-        index += 1
+        if token.startswith("--trainer.") and "=" in token:
+            name, value = token.removeprefix("--trainer.").split("=", 1)
+            if name in trainer_overrides:
+                return False
+
+            trainer_overrides[name] = value
+            index += 1
+            continue
+
+        return False
 
     required = {
         "max_epochs": "1",
@@ -608,13 +613,10 @@ def is_bounded_production_checkpoint_smoke(
     }
     allowed = {*required, "check_val_every_n_epoch"}
     if (
-        not has_production_entry_point
-        or len(config_values) != 1
+        len(config_values) != 1
         or set(trainer_overrides) - allowed
-        or any(
-            trainer_overrides.get(name) != [value] for name, value in required.items()
-        )
-        or trainer_overrides.get("check_val_every_n_epoch", ["1"]) != ["1"]
+        or any(trainer_overrides.get(name) != value for name, value in required.items())
+        or trainer_overrides.get("check_val_every_n_epoch", "1") != "1"
     ):
         return False
 
@@ -638,10 +640,10 @@ def is_bounded_production_checkpoint_smoke(
     )
 
 
-def is_production_fit_command(tokens: list[str]) -> bool:
-    """Recognize a direct training entry point or one launched through uv."""
+def production_fit_arguments_start(tokens: list[str]) -> int | None:
+    """Return the first argument after the production training command."""
     if any(token in {"&&", "||", ";", "|", ">", "<", "&"} for token in tokens):
-        return False
+        return None
 
     index = 0
     while index < len(tokens) and re.fullmatch(
@@ -650,13 +652,13 @@ def is_production_fit_command(tokens: list[str]) -> bool:
         index += 1
 
     if tokens[index : index + 2] == ["traingen", "fit"]:
-        return True
+        return index + 2
 
     if tokens[index : index + 4] == ["python", "-m", "traingen.lightning.cli", "fit"]:
-        return True
+        return index + 4
 
     if tokens[index : index + 2] != ["uv", "run"]:
-        return False
+        return None
 
     index += 2
     options_with_values = {
@@ -685,9 +687,13 @@ def is_production_fit_command(tokens: list[str]) -> bool:
 
         break
 
-    return tokens[index : index + 2] == ["traingen", "fit"] or tokens[
-        index : index + 4
-    ] == ["python", "-m", "traingen.lightning.cli", "fit"]
+    if tokens[index : index + 2] == ["traingen", "fit"]:
+        return index + 2
+
+    if tokens[index : index + 4] == ["python", "-m", "traingen.lightning.cli", "fit"]:
+        return index + 4
+
+    return None
 
 
 def is_tracked_file(root: Path, path: Path) -> bool:
@@ -726,8 +732,8 @@ def manifest_config_matches(
 def callback_checkpoint_filename_matches(
     config_path: Path, checkpoint_filename: str
 ) -> bool:
-    """Reject last-only files and honor explicit monitored callback filename patterns."""
-    if re.fullmatch(r"last(?:-v\d+)?\.ckpt", checkpoint_filename, re.IGNORECASE):
+    """Match a top-k callback save and reject last-only checkpoint files."""
+    if re.fullmatch(r"last.*\.ckpt", checkpoint_filename, re.IGNORECASE):
         return False
 
     try:
@@ -739,17 +745,22 @@ def callback_checkpoint_filename_matches(
         return False
 
     trainer = config.get("trainer", {})
-    callbacks = trainer.get("callbacks", []) if isinstance(trainer, dict) else []
+    if not isinstance(trainer, dict) or trainer.get("enable_checkpointing") is False:
+        return False
+
+    callbacks = trainer.get("callbacks") or []
     if not isinstance(callbacks, list):
         return False
 
     patterns = []
+    has_model_checkpoint = False
     for callback in callbacks:
         if not isinstance(callback, dict) or not str(
             callback.get("class_path", "")
         ).endswith("ModelCheckpoint"):
             continue
 
+        has_model_checkpoint = True
         init_args = callback.get("init_args", {})
         if not isinstance(init_args, dict):
             return False
@@ -759,7 +770,7 @@ def callback_checkpoint_filename_matches(
         except (TypeError, ValueError):
             return False
 
-        if save_top_k == 0 or not init_args.get("monitor"):
+        if save_top_k == 0:
             continue
 
         filename = init_args.get("filename")
@@ -771,8 +782,8 @@ def callback_checkpoint_filename_matches(
             )
         )
 
-    if not patterns:
-        return False
+    if not has_model_checkpoint:
+        patterns.append(("{epoch}-{step}", True))
 
     return any(
         checkpoint_filename_matches_pattern(pattern, checkpoint_filename, auto_insert)
