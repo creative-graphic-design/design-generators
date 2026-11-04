@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layout_vae
-options:
-show_submodules: true

@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: layout_diffusion
-options:
-show_submodules: true
