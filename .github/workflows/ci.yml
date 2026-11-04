@@ -142,20 +142,20 @@ jobs:
           # intentionally omitted; test suites are expected to run without them.
           # The docs group is included because generated documentation helpers
           # are typechecked with the rest of the repository.
-          uv sync --all-packages --group docs
+          uv sync --all-packages --group docs --locked
 
       - name: Check lockfile
         run: uv lock --check
 
       - name: Run pre-commit
         env:
-          # uv-lock is a writer hook, and CI must not modify files.
+          # The lock check already ran as a separate step above.
           #
           # pytest-models duplicates the coverage-enforcing member matrix, and
           # vulture runs as the dedicated Dead Code job below on merge queue,
           # main pushes, manual dispatches, and scheduled runs.
-          SKIP: uv-lock,pytest-models,vulture
-        run: uv run pre-commit run --all-files
+          SKIP: uv-lock,pytest-models,vulture,ty
+        run: uv run --locked pre-commit run --all-files
 
   dead-code:
     name: Dead Code
@@ -178,10 +178,10 @@ jobs:
           enable-cache: true
 
       - name: Install workspace dependencies
-        run: uv sync --all-packages
+        run: uv sync --all-packages --locked
 
       - name: Run vulture
-        run: uv run --package design-generators vulture
+        run: uv run --locked --package design-generators vulture
 
   typecheck:
     name: Typecheck
@@ -210,10 +210,10 @@ jobs:
           # intentionally omitted; test suites are expected to run without them.
           # The docs group is included because generated documentation helpers
           # are typechecked with the rest of the repository.
-          uv sync --all-packages --group docs
+          uv sync --all-packages --group docs --locked
 
       - name: Run ty
-        run: uv run ty check lib models tools
+        run: uv run --locked --all-packages --group docs ty check .
 
   discover-test-members:
     name: Discover Test Members
@@ -271,7 +271,7 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install root-tooling dependencies
-        run: uv sync --package design-generators --group dev
+        run: uv sync --package design-generators --group dev --locked
 
       - name: Assert root environment excludes workspace members
         run: uv pip list --editable --format json | jq -e 'map(.name) | sort == ["devharness"]'
@@ -280,20 +280,20 @@ jobs:
         run: |
           mkdir -p coverage-root
           COVERAGE_FILE=coverage-root/.coverage \
-            uv run --no-sync --package design-generators coverage run \
+            uv run --locked --no-sync --package design-generators coverage run \
             --rcfile=/dev/null --include='scripts/*.py' \
             -m pytest tests -m "not integration" --import-mode=importlib
           COVERAGE_FILE=coverage-root/.coverage \
-            uv run --no-sync --package design-generators coverage report --rcfile=/dev/null
+            uv run --locked --no-sync --package design-generators coverage report --rcfile=/dev/null
           COVERAGE_FILE=coverage-root/.coverage \
-            uv run --no-sync --package design-generators coverage xml \
+            uv run --locked --no-sync --package design-generators coverage xml \
             --rcfile=/dev/null -o coverage-root/root.xml
 
       - name: Check full-workspace compatibility
         run: |
           # Keep an explicit compatibility check for the all-packages
           # environment after the root-tooling test has run in isolation.
-          uv sync --all-packages
+          uv sync --all-packages --locked
 
       - name: Upload root coverage to Codecov
         if: github.event_name != 'merge_group'
@@ -327,13 +327,13 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install evaluation extra
-        run: uv sync --package design-generators --extra evaluation
+        run: uv sync --package design-generators --extra evaluation --locked
 
       - name: Run evaluation verifier help
-        run: uv run --no-sync --package design-generators scripts/verify_evaluate_layout_metrics.py --help
+        run: uv run --locked --no-sync --package design-generators scripts/verify_evaluate_layout_metrics.py --help
 
       - name: Smoke test evaluation imports
-        run: uv run --no-sync --package design-generators python -c "import cv2, prdc, pytorch_fid.fid_score"
+        run: uv run --locked --no-sync --package design-generators python -c "import cv2, prdc, pytorch_fid.fid_score"
 
   test-member:
     name: Test (member)
@@ -366,7 +366,7 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install workspace member dependencies
-        run: uv sync --package "${{ matrix.member.package }}"
+        run: uv sync --package "${{ matrix.member.package }}" --locked
 
       - name: Run workspace member tests
         env:
@@ -491,10 +491,10 @@ jobs:
           enable-cache: true
 
       - name: Install documentation dependencies
-        run: uv sync --all-packages --group docs
+        run: uv sync --all-packages --group docs --locked
 
       - name: Build documentation
-        run: uv run --group docs zensical build --strict -f mkdocs.yml
+        run: uv run --locked --group docs zensical build --strict -f mkdocs.yml
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
