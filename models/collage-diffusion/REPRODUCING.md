@@ -13,7 +13,7 @@ These details explain behavior that must remain aligned when comparing the packa
 - Layer compositing passes each RGBA image as its own Pillow paste mask. For partially transparent pixels, Pillow applies alpha both as source opacity and as mask opacity, so the effective alpha is squared. The visible-mask and noise-map paths preserve that behavior.
 - The reference inserts a textual-inversion token before its layer description. When textual inversion is enabled for any layer, it widens every matched token span one position to the left and leaves the end unchanged. A layer without its own embedding can therefore include the preceding word, such as `a`; this edge case is retained for comparison.
 - Attention masks are converted to float64 and resized to each query grid with bilinear interpolation, `align_corners=False`, and `antialias=False`. This matches the reference environment's torchvision 0.15.1 tensor-resize behavior: all four Toy Box masks matched exactly at 64×64, while antialiasing introduced a maximum mask difference of 0.5504.
-- The source-strength map is quantized to uint8 before nearest-neighbor resizing to the latent grid. Attention guidance scales with scheduler sigma, with normalized timestep as the fallback when sigma values are unavailable; preservation uses the timestep-dependent threshold and neighborhood dilation.
+- The source-strength map is quantized to uint8 before nearest-neighbor resizing to the latent grid. Attention guidance requires scheduler `sigmas`; preservation uses the timestep-dependent threshold and neighborhood dilation.
 
 ## CPU Workspace Setup
 

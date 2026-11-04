@@ -87,6 +87,9 @@ class FakeScheduler:
     config = {"steps_offset": 0}
     order = 1
 
+    def __init__(self) -> None:
+        self.sigmas = torch.empty(0)
+
     def set_timesteps(self, steps: int, *, device: torch.device) -> None:
         self.timesteps = torch.linspace(900, 100, steps, device=device).round()
         self.sigmas = torch.linspace(2.0, 0.1, steps + 1, device=device)
@@ -196,11 +199,6 @@ class FakePipeline(CollageDiffusionPipeline):
     def progress_bar(self, *, total: int) -> FakeProgress:
         del total
         return FakeProgress()
-
-    def prepare_extra_step_kwargs(
-        self, generator: torch.Generator | None, eta: float
-    ) -> dict[str, object]:
-        return {"generator": generator, "eta": eta}
 
     def run_safety_checker(
         self,
@@ -645,6 +643,42 @@ def test_pipeline_generates_batch_and_restores_attention_processors() -> None:
     assert pipeline.unet.attention_processor_sigmas == [2.0]
     assert pipeline.num_timesteps == 1
     assert pipeline.unet.attn_processors == original_processors
+
+
+def test_pipeline_requires_scheduler_sigmas() -> None:
+    from diffusers import PNDMScheduler
+
+    pipeline = make_pipeline()
+    pipeline.scheduler = PNDMScheduler(num_train_timesteps=20)
+
+    with pytest.raises(
+        ValueError,
+        match="scheduler must expose `sigmas` for cross-attention guidance",
+    ):
+        pipeline("a red cat", [make_layer()], height=64, width=64)
+
+
+def test_pipeline_runs_with_euler_ancestral_scheduler() -> None:
+    from diffusers import EulerAncestralDiscreteScheduler
+
+    pipeline = make_pipeline()
+    pipeline.scheduler = EulerAncestralDiscreteScheduler(num_train_timesteps=20)
+
+    output = pipeline(
+        "a red cat",
+        [make_layer(positive_attention_weight=0.5)],
+        strength=1.0,
+        num_inference_steps=1,
+        height=64,
+        width=64,
+        seed=0,
+    )
+
+    assert isinstance(output, StableDiffusionPipelineOutput)
+    assert len(output.images) == 1
+    assert pipeline.unet.attention_processor_sigmas == pytest.approx(
+        [float(pipeline.scheduler.sigmas[0].item())]
+    )
 
 
 def test_pipeline_loads_textual_inversion_and_returns_numpy_tuple() -> None:

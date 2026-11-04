@@ -85,6 +85,8 @@ Both sides of the notebook comparison use this same pinned snapshot and the file
 | --------------------------- | ------------------------------------------ | ----------------------------------------- |
 | `🧨diffusers` pipeline code | `creative-graphic-design/collagediffusion` | planned, code only; no learned checkpoint |
 
+When publishing this pipeline to the Hub, its `model_index.json` and `scheduler/scheduler_config.json` must specify `EulerAncestralDiscreteScheduler`.
+
 ## Uses
 
 ### Direct Use
@@ -96,11 +98,15 @@ from PIL import Image
 from diffusers import EulerAncestralDiscreteScheduler
 from collagediffusion import CollageDiffusionPipeline, CollageLayer
 
-pipe = CollageDiffusionPipeline.from_pretrained(
-    "sd2-community/stable-diffusion-2-1-base",
-    revision="4e63672c03103b6c636b8fb4119ba982469b2955",
+base = "sd2-community/stable-diffusion-2-1-base"
+revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
+# Cross-attention guidance uses the scheduler's sigma values.
+scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
+    base, subfolder="scheduler", revision=revision
 )
-pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+pipe = CollageDiffusionPipeline.from_pretrained(
+    base, revision=revision, scheduler=scheduler
+)
 layers = [
     CollageLayer(
         image=Image.open("toy.png").convert("RGBA"),
@@ -204,11 +210,15 @@ layers = [
 ]
 
 input_collage, _ = compose_collage_layers(layers, width=512, height=512)
-pipe = CollageDiffusionPipeline.from_pretrained(
-    "sd2-community/stable-diffusion-2-1-base",
-    revision="4e63672c03103b6c636b8fb4119ba982469b2955",
+base = "sd2-community/stable-diffusion-2-1-base"
+revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
+# Cross-attention guidance uses the scheduler's sigma values.
+scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
+    base, subfolder="scheduler", revision=revision
 )
-pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+pipe = CollageDiffusionPipeline.from_pretrained(
+    base, revision=revision, scheduler=scheduler
+)
 result = pipe(
     prompt="a teddy bear, a wood train, and an american football, in front of a tan background",
     layers=layers,

@@ -549,10 +549,16 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
 
         Raises:
             TypeError: If a layer sequence contains an unsupported value.
-            ValueError: If prompts, layer controls, or generation settings are invalid.
+            ValueError: If the scheduler does not expose sigmas or generation inputs are invalid.
         """
         # Add layer-aware attention guidance and restore source regions during denoising.
-        # 1. Validate prompts, layers, and generation settings.
+        # 1. Validate scheduler, prompts, layers, and generation settings.
+        if getattr(self.scheduler, "sigmas", None) is None:
+            raise ValueError(
+                "scheduler must expose `sigmas` for cross-attention guidance; "
+                "use EulerAncestralDiscreteScheduler"
+            )
+
         if not prompt.strip():
             raise ValueError("prompt must be non-empty")
 
@@ -711,12 +717,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
             with self.progress_bar(total=effective_steps) as progress_bar:
                 for step_index, timestep in enumerate(timesteps):
                     if attention_control_enabled:
-                        # Scheduler sigma controls attention strength; use normalized t if unavailable.
-                        sigma = (
-                            float(self.scheduler.sigmas[step_index].item())
-                            if hasattr(self.scheduler, "sigmas")
-                            else float(timestep.item()) / 1000.0
-                        )
+                        sigma = float(self.scheduler.sigmas[step_index].item())
                         for processor in controlled_attention_processors:
                             processor.sigma = sigma
 
