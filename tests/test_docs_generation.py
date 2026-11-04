@@ -34,9 +34,7 @@ def _src_import_name(member: Path) -> str:
     source = member / "src"
     assert source.is_dir(), f"{source}: missing source directory"
     import_names = {
-        entry.name
-        if entry.is_dir()
-        else entry.stem
+        entry.name if entry.is_dir() else entry.stem
         for entry in source.iterdir()
         if (entry.is_dir() and (entry / "__init__.py").is_file())
         or (entry.is_file() and entry.suffix == ".py" and entry.name != "__init__.py")
@@ -110,9 +108,7 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
         assert frontmatter is not None, f"{slug}: missing YAML frontmatter"
         readme = f"{'lib' if group == 'libraries' else 'models'}/{slug}/README.md"
         readme_reference = (
-            f'--8<-- "{readme}:card"'
-            if group == "models"
-            else f'--8<-- "{readme}"'
+            f'--8<-- "{readme}:card"' if group == "models" else f'--8<-- "{readme}"'
         )
         canonical_body = (
             f"\n{readme_reference}\n\n## API Reference\n\n::: {import_name}\n"
