@@ -133,17 +133,44 @@ Set HF_TOKEN_FILE to a private file containing a Hugging Face token after accept
 
 ## Examples
 
-These fixed-seed pairs compare regular Stable Diffusion v1.4 with `StructureDiffusionPipeline`. We generated four prompts from Figure 1 and Figure 13 of the [paper](https://openreview.net/pdf?id=PUIqjT4rzq7); none showed a clear, consistent improvement from structured guidance. The red-car pair omits the sheep in both images. The backpack pair includes the elephant in the baseline but omits it in the structured output. Both fruit images show one apple with mixed red and green coloring, and the bench pair looks similar. The examples are shown transparently and do not claim better compositional accuracy.
+The gallery compares `diffusers.StableDiffusionPipeline` with `StructureDiffusionPipeline` using the same prompt and seed. It includes every output for seeds `42`, `0`, `1`, and `2` for each prompt. The results vary by seed and do not show a consistent compositional improvement from structured guidance. For the car and sheep prompt, the sheep is absent from both seed-42 images; at seed 0 the structured result shows only part of a sheep, at seed 1 the baseline shows a sheep while the structured result does not, and both show a sheep at seed 2. For the backpack and elephant prompt, the baseline shows both objects while the structured result omits the elephant at seed 42; both omit the backpack at seed 0 and the elephant at seed 1; at seed 2 both show the objects, with the elephant more fully visible in the structured result. For the fruit prompt, neither pipeline clearly shows a banana at seeds 42, 0, or 1; at seed 2 both show several apples and banana-like shapes. The prompts are taken from Figure 1 (car and sheep; backpack and elephant) and Figure 13 (fruit examples) of the [paper](https://openreview.net/pdf?id=PUIqjT4rzq7). All outputs are shown without selecting among seeds.
 
-| Prompt and paper source                                                                                                | Stable Diffusion v1.4                                                                                                                                                                                                                                 | StructureDiffusion                                                                                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `A red car and a white sheep`<br>[Figure 1: attribute leakage](https://openreview.net/pdf?id=PUIqjT4rzq7)              | ![Stable Diffusion v1.4 result for A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed42.png)                   | ![StructureDiffusion result for A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-red-car-white-sheep-seed42.png)                   |
-| `A blue backpack and a brown elephant`<br>[Figure 1: missing objects](https://openreview.net/pdf?id=PUIqjT4rzq7)       | ![Stable Diffusion v1.4 result for A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed42.png) | ![StructureDiffusion result for A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-blue-backpack-brown-elephant-seed42.png) |
-| `A green apple and a red banana`<br>[Figure 13: CC-500 qualitative results](https://openreview.net/pdf?id=PUIqjT4rzq7) | ![Stable Diffusion v1.4 result for A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed42.png)             | ![StructureDiffusion result for A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-green-apple-red-banana-seed42.png)             |
+### A red car and a white sheep
 
-Every image uses `CompVis/stable-diffusion-v1-4` at revision `133a221b8aa7292a167afc5127cb63fb5005638b`, the checkpoint's PNDM scheduler configuration (`skip_prk_steps=True`), 30 inference steps, 512×512 resolution, guidance scale `7.5`, seed `42`, and CPU float32. The structured pipeline uses the constituency parser with `conjunction=True`; the baseline uses `diffusers.StableDiffusionPipeline`. The base checkpoint weights are licensed under CreativeML OpenRAIL-M. The image files are hosted in the public documentation-images dataset and are not committed to this repository.
+Source: [Figure 1, attribute leakage](https://openreview.net/pdf?id=PUIqjT4rzq7).
 
-This code recreates the displayed pairs with the same settings. Set `HF_TOKEN_FILE` to a private file containing a Hugging Face token after accepting the checkpoint's access terms. Install the package and download the English Stanza parser models as shown above before running it.
+| Seed | Stable Diffusion v1.4                                                                                                                                                                                                              | StructureDiffusion                                                                                                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 42   | ![Stable Diffusion v1.4, seed 42, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed42.png) | ![StructureDiffusion, seed 42, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-red-car-white-sheep-seed42.png) |
+| 0    | ![Stable Diffusion v1.4, seed 0, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed0.png)   | ![StructureDiffusion, seed 0, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-red-car-white-sheep-seed0.png)   |
+| 1    | ![Stable Diffusion v1.4, seed 1, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed1.png)   | ![StructureDiffusion, seed 1, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-red-car-white-sheep-seed1.png)   |
+| 2    | ![Stable Diffusion v1.4, seed 2, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-red-car-white-sheep-seed2.png)   | ![StructureDiffusion, seed 2, A red car and a white sheep](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-red-car-white-sheep-seed2.png)   |
+
+### A blue backpack and a brown elephant
+
+Source: [Figure 1, missing objects](https://openreview.net/pdf?id=PUIqjT4rzq7).
+
+| Seed | Stable Diffusion v1.4                                                                                                                                                                                                                                | StructureDiffusion                                                                                                                                                                                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 42   | ![Stable Diffusion v1.4, seed 42, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed42.png) | ![StructureDiffusion, seed 42, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-blue-backpack-brown-elephant-seed42.png) |
+| 0    | ![Stable Diffusion v1.4, seed 0, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed0.png)   | ![StructureDiffusion, seed 0, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-blue-backpack-brown-elephant-seed0.png)   |
+| 1    | ![Stable Diffusion v1.4, seed 1, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed1.png)   | ![StructureDiffusion, seed 1, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-blue-backpack-brown-elephant-seed1.png)   |
+| 2    | ![Stable Diffusion v1.4, seed 2, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-blue-backpack-brown-elephant-seed2.png)   | ![StructureDiffusion, seed 2, A blue backpack and a brown elephant](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-blue-backpack-brown-elephant-seed2.png)   |
+
+### A green apple and a red banana
+
+Source: [Figure 13, CC-500 qualitative results](https://openreview.net/pdf?id=PUIqjT4rzq7).
+
+| Seed | Stable Diffusion v1.4                                                                                                                                                                                                                    | StructureDiffusion                                                                                                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 42   | ![Stable Diffusion v1.4, seed 42, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed42.png) | ![StructureDiffusion, seed 42, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-green-apple-red-banana-seed42.png) |
+| 0    | ![Stable Diffusion v1.4, seed 0, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed0.png)   | ![StructureDiffusion, seed 0, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-green-apple-red-banana-seed0.png)   |
+| 1    | ![Stable Diffusion v1.4, seed 1, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed1.png)   | ![StructureDiffusion, seed 1, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-green-apple-red-banana-seed1.png)   |
+| 2    | ![Stable Diffusion v1.4, seed 2, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/stable-diffusion-v1-4-green-apple-red-banana-seed2.png)   | ![StructureDiffusion, seed 2, A green apple and a red banana](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/structure-diffusion/structure-diffusion-green-apple-red-banana-seed2.png)   |
+
+Every image uses `CompVis/stable-diffusion-v1-4` at revision `133a221b8aa7292a167afc5127cb63fb5005638b`, the checkpoint's PNDM scheduler configuration (`skip_prk_steps=True`), 30 inference steps, 512×512 resolution, guidance scale `7.5`, and CPU float32. The structured pipeline uses the constituency parser with `conjunction=True`; the baseline uses `diffusers.StableDiffusionPipeline`. The base checkpoint weights are licensed under CreativeML OpenRAIL-M. The image files are hosted in the public documentation-images dataset and are not committed to this repository.
+
+This code recreates all displayed pairs with the same prompts and seeds. Set `HF_TOKEN_FILE` to a private file containing a Hugging Face token after accepting the checkpoint's access terms. Install the package and download the English Stanza parser models as shown above before running it.
 
 ```python
 import gc
@@ -163,14 +190,14 @@ EXAMPLES = (
     ("blue-backpack-brown-elephant", "A blue backpack and a brown elephant"),
     ("green-apple-red-banana", "A green apple and a red banana"),
 )
-SEED = 42
+SEEDS = (42, 0, 1, 2)
 
 torch.set_num_threads(2)
 token = Path(os.environ["HF_TOKEN_FILE"]).read_text().strip()
 
 
-def make_generator():
-    return torch.Generator(device="cpu").manual_seed(SEED)
+def make_generator(seed):
+    return torch.Generator(device="cpu").manual_seed(seed)
 
 
 baseline = StableDiffusionPipeline.from_pretrained(
@@ -181,15 +208,16 @@ baseline = StableDiffusionPipeline.from_pretrained(
 )
 baseline.to("cpu")
 for slug, prompt in EXAMPLES:
-    image = baseline(
-        prompt,
-        height=512,
-        width=512,
-        num_inference_steps=30,
-        guidance_scale=7.5,
-        generator=make_generator(),
-    ).images[0]
-    image.save(OUTPUT_DIR / f"stable-diffusion-v1-4-{slug}-seed42.png")
+    for seed in SEEDS:
+        image = baseline(
+            prompt,
+            height=512,
+            width=512,
+            num_inference_steps=30,
+            guidance_scale=7.5,
+            generator=make_generator(seed),
+        ).images[0]
+        image.save(OUTPUT_DIR / f"stable-diffusion-v1-4-{slug}-seed{seed}.png")
 del baseline
 
 gc.collect()
@@ -201,17 +229,18 @@ structured = StructureDiffusionPipeline.from_pretrained(
 )
 structured.to("cpu")
 for slug, prompt in EXAMPLES:
-    image = structured(
-        prompt,
-        parser_type="constituency",
-        conjunction=True,
-        height=512,
-        width=512,
-        num_inference_steps=30,
-        guidance_scale=7.5,
-        generator=make_generator(),
-    ).images[0]
-    image.save(OUTPUT_DIR / f"structure-diffusion-{slug}-seed42.png")
+    for seed in SEEDS:
+        image = structured(
+            prompt,
+            parser_type="constituency",
+            conjunction=True,
+            height=512,
+            width=512,
+            num_inference_steps=30,
+            guidance_scale=7.5,
+            generator=make_generator(seed),
+        ).images[0]
+        image.save(OUTPUT_DIR / f"structure-diffusion-{slug}-seed{seed}.png")
 ```
 
 ## Training Details
