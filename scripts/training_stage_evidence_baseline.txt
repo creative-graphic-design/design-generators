@@ -6,4 +6,4 @@ models/dlt/TRAINING.md	S5	S5 artifact must include an evaluation-path parity art
 models/layout-dm/TRAINING.md	S3	S5 result claim requires a complete evidence row for this stage
 models/layout-dm/TRAINING.md	S5	S5 artifact must include an evaluation-path parity artifact reference
 models/layout-flow/TRAINING.md	S5	S5 artifact must include an evaluation-path parity artifact reference
-models/layoutdiffusion/TRAINING.md	S5	S5 artifact must include an evaluation-path parity artifact reference
+models/layout-diffusion/TRAINING.md	S5	S5 artifact must include an evaluation-path parity artifact reference
