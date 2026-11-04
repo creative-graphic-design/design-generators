@@ -27,8 +27,9 @@ DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_RETRIES = 2
 USER_AGENT = "design-generators-changed-url-check/1.0"
 EXCLUDED_DIFF_FILES = {".lycheeignore"}
-REPO_MAIN_BLOB_URL = (
-    "https://github.com/creative-graphic-design/design-generators/blob/main/"
+REPO_MAIN_PATH_PREFIXES = (
+    "https://github.com/creative-graphic-design/design-generators/blob/main/",
+    "https://github.com/creative-graphic-design/design-generators/tree/main/",
 )
 
 
@@ -143,11 +144,15 @@ def is_ignored(url: str, patterns: Iterable[re.Pattern[str]]) -> bool:
     return any(pattern.search(url) for pattern in patterns)
 
 
-def local_main_blob_path(url: str, root: Path = ROOT) -> Path | None:
-    """Return the local path for a repo ``blob/main`` URL when it exists."""
-    if not url.startswith(REPO_MAIN_BLOB_URL):
+def local_main_repo_path(url: str, root: Path = ROOT) -> Path | None:
+    """Return the local path for a repo ``blob/main`` or ``tree/main`` URL."""
+    prefix = next(
+        (prefix for prefix in REPO_MAIN_PATH_PREFIXES if url.startswith(prefix)),
+        None,
+    )
+    if prefix is None:
         return None
-    relative = url.removeprefix(REPO_MAIN_BLOB_URL)
+    relative = url.removeprefix(prefix)
     if not relative or relative.startswith(("../", "/")):
         return None
     path = root / relative
@@ -226,7 +231,7 @@ def check_changed_urls(
             results.append(UrlCheckResult(url=changed_url.url, outcome="ignored"))
             continue
         url_to_probe = probe_url(changed_url.url)
-        if local_main_blob_path(url_to_probe, root=root) is not None:
+        if local_main_repo_path(url_to_probe, root=root) is not None:
             results.append(
                 UrlCheckResult(url=changed_url.url, outcome="ok", status=200)
             )

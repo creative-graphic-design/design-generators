@@ -47,6 +47,10 @@
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
+- Join a target word to a common method type with a hyphen, such as `layout-dm`, `layout-diffusion`, and `layout-vae`.
+- Keep established model names together, such as `layoutformerpp`, `posterllama`, `layoutganpp`, and `housegan`.
+- Use hyphens in model directory and distribution names and underscores in Python import names, such as `models/layout-dm` → `layout-dm` → `layout_dm`.
+- Serialize the current package name in `model_type`; do not retain aliases for prior package names after a rename.
 
 ### Class Design And Code Style
 
@@ -116,6 +120,7 @@
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
 - `scripts/check_readme_badges.py` enforces README badge contracts.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.

@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
     EXPECTED_MODEL_NAMES,
+    IMAGE_GENERATION_CATEGORY,
     LINK_REQUIRED_DATASET_IDS,
     REPO_ROOT,
     ROOT_LIBRARY_BADGE_COLORS,
@@ -22,6 +23,7 @@ from .card import (
     markdown_link_spans,
     model_member_slugs,
     parse_model_type,
+    ModelType,
     semantic_badge_label,
     without_frontmatter_and_code,
     without_badges,
@@ -31,6 +33,16 @@ from .card import (
 def normalize_root_repo_link(link: str) -> str:
     """Normalize a root README repository link to a repository-relative path."""
     return link.removeprefix(ROOT_REPO_BLOB_URL)
+
+
+def _model_catalog_badge_values(model_type: ModelType) -> tuple[str, str]:
+    """Return the Task and Content badge messages for a model classification."""
+    category, task, conditioning = model_type
+    content = (
+        " + ".join(conditioning) if category == IMAGE_GENERATION_CATEGORY else category
+    )
+
+    return task, content
 
 
 def _assert_root_model_type_cells(
@@ -46,9 +58,11 @@ def _assert_root_model_type_cells(
             f"{path}: Models table package {slug} has no models/{slug}/README.md"
         )
 
-    expected_content, expected_task, _ = parse_model_type(
+    model_type = parse_model_type(
         model_readme, model_readme.read_text(encoding="utf-8")
     )
+    category, _, _ = model_type
+    expected_task, expected_content = _model_catalog_badge_values(model_type)
 
     task_badges = _static_badge_messages(task_cell, "task")
     if len(task_badges) != 1:
@@ -69,9 +83,12 @@ def _assert_root_model_type_cells(
         )
 
     if content_badges[0] != expected_content:
+        content_label = (
+            "conditioning" if category == IMAGE_GENERATION_CATEGORY else "content"
+        )
         raise AssertionError(
             f"{path}: Models table package {slug} Content cell {content_badges[0]!r} "
-            f"!= Model type content {expected_content!r}"
+            f"!= Model type {content_label} {expected_content!r}"
         )
 
 

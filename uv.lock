@@ -667,11 +667,11 @@ members = [
     "layout-fid",
     "layout-flow",
     "layout-gpt",
-    "layoutdiffusion",
+    "layout-diffusion",
     "layoutformerpp",
     "layoutganpp",
     "layoutprompter",
-    "layoutvae",
+    "layout-vae",
     "ltnet",
     "parse-then-place",
     "pixel-vae",
@@ -5612,9 +5612,9 @@ requires-dist = [
 provides-extras = ["vendor"]
 
 [[package]]
-name = "layoutdiffusion"
+name = "layout-diffusion"
 version = "0.1.0"
-source = { editable = "models/layoutdiffusion" }
+source = { editable = "models/layout-diffusion" }
 dependencies = [
     { name = "diffusers", extra = ["torch"] },
     { name = "einops" },
@@ -5829,9 +5829,9 @@ requires-dist = [
 provides-extras = ["vendor"]
 
 [[package]]
-name = "layoutvae"
+name = "layout-vae"
 version = "0.1.0"
-source = { editable = "models/layoutvae" }
+source = { editable = "models/layout-vae" }
 dependencies = [
     { name = "jaxtyping" },
     { name = "laygen" },
