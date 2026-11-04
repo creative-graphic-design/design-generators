@@ -45,6 +45,8 @@ docs = [
 ]
 
 [tool.uv]
+exclude-newer = false
+required-version = ">=0.12.10"
 constraint-dependencies = [
     "transformers>=5.0.0",
     "diffusers>=0.36.0",

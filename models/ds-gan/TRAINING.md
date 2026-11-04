@@ -140,7 +140,7 @@ Run member tests and repository-local checks in the frozen lockfile environment:
 
 ```bash
 CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package ds-gan --extra training --extra vendor pytest models/ds-gan/tests -q
-UV_FROZEN=1 uv run --package design-generators ty check lib models tools/devharness/src
+uv run --locked --all-packages --group docs ty check .
 UV_FROZEN=1 uv run --package devharness devharness check jaxtyping-annotations
 ```
 

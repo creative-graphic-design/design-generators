@@ -111,7 +111,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 Run the checks for the changed scope once, then rerun affected checks if a fix changes their inputs. Record commands, results, and unavailable checks in the PR. Use the repository's [dependency environments](architecture.md#dependency-environments) for package, root-tooling, full-workspace, and documentation command selection.
 
 - Run affected member tests with `uv run --package <member> pytest`.
-- Run the full hook set with `uv run pre-commit run --all-files`.
+- Run the full hook set with `uv run --locked pre-commit run --all-files`.
 - Build the documentation site strictly with `uv run --group docs zensical build --strict -f mkdocs.yml`.
 
 Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. A coordinator reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.

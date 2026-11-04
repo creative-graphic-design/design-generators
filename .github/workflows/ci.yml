@@ -1,8 +1,5 @@
 name: CI
 
-env:
-  UV_EXCLUDE_NEWER: "false"
-
 on:
   workflow_dispatch:
   schedule:
@@ -157,7 +154,7 @@ jobs:
           # pytest-models duplicates the coverage-enforcing member matrix, and
           # vulture runs as the dedicated Dead Code job below on merge queue,
           # main pushes, manual dispatches, and scheduled runs.
-          SKIP: uv-lock,pytest-models,vulture
+          SKIP: uv-lock,pytest-models,vulture,ty
         run: uv run --locked pre-commit run --all-files
 
   dead-code:
@@ -216,7 +213,7 @@ jobs:
           uv sync --all-packages --group docs --locked
 
       - name: Run ty
-        run: uv run --locked ty check lib models tools
+        run: uv run --locked ty check .
 
   discover-test-members:
     name: Discover Test Members
