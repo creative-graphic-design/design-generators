@@ -14,7 +14,7 @@ Install workspace members from the repository root with `uv`. The root project c
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
-uv sync --all-packages
+uv sync --all-packages --locked
 ```
 
 This full-checkout command installs every workspace member explicitly. `make setup` additionally installs the docs group and pre-commit hooks.

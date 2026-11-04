@@ -136,12 +136,12 @@ The current `sha256sum` of `.cache/ds-gan/bridge/pku_posterlayout_manifest.json`
 
 ## Training Commands
 
-Run member tests and repository-local checks in the frozen lockfile environment:
+Run member tests and repository-local checks with the committed lockfile:
 
 ```bash
-CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package ds-gan --extra training --extra vendor pytest models/ds-gan/tests -q
+CUDA_VISIBLE_DEVICES="" uv run --locked --package ds-gan --extra training --extra vendor pytest models/ds-gan/tests -q
 uv run --locked --all-packages --group docs ty check .
-UV_FROZEN=1 uv run --package devharness devharness check jaxtyping-annotations
+uv run --locked --package devharness devharness check jaxtyping-annotations
 ```
 
 Run the production configuration through its consumer:

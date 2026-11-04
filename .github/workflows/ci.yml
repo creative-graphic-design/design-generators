@@ -213,7 +213,7 @@ jobs:
           uv sync --all-packages --group docs --locked
 
       - name: Run ty
-        run: uv run --locked ty check .
+        run: uv run --locked --all-packages --group docs ty check .
 
   discover-test-members:
     name: Discover Test Members
