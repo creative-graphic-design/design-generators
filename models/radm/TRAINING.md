@@ -14,7 +14,7 @@ This document records the package-local checks that contributors can rerun befor
 
 The CGL full-run comparison is classified as `s5-practical-reproduction` for `training-seed n=3` on each system, with three 250,000-step terminal checkpoints per system. The seed ranges overlap for `R_ove`, `R_ali`, `R_und`, and `R_com`. `R_occ` ranges are `0.9961–1.0000` for original and `0.9816–0.9913` for package. CGL-v2 remains outside the S5 claim.
 
-The final S0-S4 gates, the S3 production loss-envelope gate, and the current-head evaluation-path parity prerequisite pass for the recorded evidence. The result below reports the training-seed comparison and the `R_occ` caveat separately.
+The final S0-S4 gates and the S3 production loss-envelope gate pass for the recorded evidence. Evaluation-path parity is reported separately from the full-run metric ranges.
 
 ## Install
 
@@ -65,9 +65,9 @@ The pre-S5 lockstep gate requires equal initial state, aligned RNG and batches, 
 
 ### S5 launch record
 
-The nested S4 stream passes over `3,784` batches and `60,544` images. The mapper oracle matches post-transform XYXY clipping to resized bounds while preserving vendor resize-coordinate truncation. Current-head evaluation-path parity passes, the natural and synchronized 300-step checks pass, and the source-commit gate stopped a deliberate mismatch before training. Both CGL arms ran at full scale on A100-SXM4-80GB with training seeds 1, 2, and 3.
+The nested S4 stream passes over `3,784` batches and `60,544` images. The mapper oracle matches post-transform XYXY clipping to resized bounds while preserving vendor resize-coordinate truncation. The natural and synchronized 300-step checks pass, and the source-commit gate stopped a deliberate mismatch before training. Both CGL arms ran at full scale on A100-SXM4-80GB with training seeds 1, 2, and 3.
 
-The repository owner approved separate GPU-bound waivers for the original and package CGL arms in the [original-arm amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6355442878) and [package-arm amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6385262311). The original measured 1.535 seconds per step; the package measured 3.375 seconds per step, about 2.2 times slower. No cause has been identified.
+In a 300-step GPU-bound preflight, the original measured 1.535 seconds per step and the package measured 3.375 seconds per step, about 2.2 times slower. The repository owner approved separate waivers for the original and package CGL arms in the [original-arm amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6355442878) and [package-arm amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6385262311). No cause has been identified.
 
 ## Seed policy
 
@@ -132,35 +132,30 @@ Values are rounded to four decimal places and show the minimum and maximum of th
 
 ### Comparison Scope
 
-| Dataset | System   | Evaluator                                                                     | Test split                         | Checkpoint-selection rule                                                          | Sample count                                                                                 |
-| ------- | -------- | ----------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| CGL     | original | `vendor/radm/metrics.py` on training-end predictions | CGL test split | Matching terminal `model_final.pth` from each original training seed | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
-| CGL     | package  | Fixed equivalent evaluator with `vendor/radm/metrics.py`                      | CGL test split                     | Retained terminal `terminal-step-250000.ckpt` with launch-manifest identity checks | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
-| CGL-v2  | both     | Not run; outside approved S5 scope                                            | Not run; outside approved S5 scope | Not run; outside approved S5 scope                                                 | Not run; outside approved S5 scope                                                           |
+| Dataset | System   | Evaluator                                                                     | Test split                         | Checkpoint-selection rule                                                          | Sample count |
+| ------- | -------- | ----------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------- | ------------ |
+| CGL     | original | `vendor/radm/metrics.py` on training-end predictions | CGL test split | Matching terminal `model_final.pth` from each original training seed | `R_occ`: `1,035` images per seed; other metrics: `1,031/1,035/1,033` prediction-bearing images for seeds 1/2/3; one inference step; class threshold `0.25`; NMS `0.15`. |
+| CGL     | package  | Fixed equivalent evaluator with `vendor/radm/metrics.py` | CGL test split | Terminal `checkpoints/epoch=0-step=250000.ckpt` under the selected seed's launch-manifest `output_root` | `R_occ`: `1,035` images per seed; other metrics: `1,026/1,016/1,022` prediction-bearing images for seeds 1/2/3; one inference step; class threshold `0.25`; NMS `0.15`. |
+| CGL-v2  | both     | Not run; outside approved S5 scope | Not run; outside approved S5 scope | Not run; outside approved S5 scope | Not run; outside approved S5 scope |
 
 The original and package evaluation paths use no test-time flip, fixed `800/1333` resizing, original-input-frame boxes, one inference step, class threshold `0.25`, and NMS `0.15`. Evaluation-path parity uses evaluation seed `1`.
 
-The vendor scorer uses only images with at least one prediction as the denominator for `R_ove`, `R_ali`, `R_und`, and `R_com`; those per-seed denominators were:
-
-| Training seed | Original prediction-bearing images | Package prediction-bearing images | `R_occ` denominator |
-| ------------- | ---------------------------------: | --------------------------------: | ---------------------------: |
-| 1             |                              1,031 |                             1,026 |                        1,035 |
-| 2             |                              1,035 |                             1,016 |                        1,035 |
-| 3             |                              1,033 |                             1,022 |                        1,035 |
-
-The vendor defines `R_occ` as the fraction of all 1,035 test images with at least one predicted element. At the evaluation threshold of 0.25, original runs had 4, 0, and 2 images without predictions for seeds 1, 2, and 3; package runs had 9, 19, and 13. Recounting the saved threshold-zero predictions at a threshold of 0.10 left 0, 0, and 0 original images empty and 3, 9, and 6 package images empty. The remaining difference lies in the low-score tail of roughly 1–2% of test images. The [evaluation-path parity check](#evaluation-path-parity) passes, and the non-overlapping `R_occ` ranges and threshold recount do not point to seed spread or the 0.25 threshold as explanations. The evidence points to a training-side difference, but its cause is unknown.
+The vendor scorer defines `R_occ` as the fraction of all 1,035 test images with at least one predicted element; it computes the other four metrics over prediction-bearing images only. At threshold `0.25`, original runs had 4/0/2 empty images and package runs had 9/19/13 for seeds 1/2/3. The package rates were 0.87%, 1.84%, and 1.26% of the test split. At threshold `0.10`, the counts were 0/0/0 for original and 3/9/6 for package; the latter rates were 0.29%, 0.87%, and 0.58%. The difference lies in the package's low-score tail. Neither the threshold change nor the observed three-seed spread explains the non-overlapping `R_occ` ranges. The evidence points to a training-side difference, but its cause is unknown.
 
 ### S5 evidence notes
 
-- The shipped training code did not write `radm_s5_identity` into terminal checkpoints. The run identity was verified from each launch manifest and the checkpoint `global_step=250000`. The permanent evaluator validation change is in [PR #502](https://github.com/creative-graphic-design/design-generators/pull/502), which remains open.
-- Each package manifest's `evaluator_command` names `terminal-step-250000.ckpt`, which does not exist. The evaluation used `checkpoints/epoch=0-step=250000.ckpt`; the evaluation metadata records the actual path and the verified step.
-- The package manifests record `code_commit=cae368265913f4eb742e2f4a2569579fb8f05919` but omit the protocol-required `source_commit`.
+- The shipped training code did not write `radm_s5_identity` into terminal checkpoints. The original run identity was checked against each selected top-level launch manifest; each has `launch_attempt=3`. The terminal checkpoint step was verified as `global_step=250000`. The permanent evaluator validation change is in [PR #502](https://github.com/creative-graphic-design/design-generators/pull/502), which remains open.
+- Each package manifest's `evaluator_command` names `terminal-step-250000.ckpt`, which does not exist. Evaluation used `checkpoints/epoch=0-step=250000.ckpt`; the evaluation metadata records the actual path and the verified step.
+- The original manifests record `code_commit=97fecfcc6fe1abf9c83b1bc89433734abfd91c15` and the package manifests record `code_commit=cae368265913f4eb742e2f4a2569579fb8f05919`; neither records the protocol-required `source_commit`.
 - Vendor scoring loaded `opencv-python-headless 4.11.0.86` through `PYTHONPATH` because `vendor/radm/metrics.py` imports `cv2`. The scorer did not call `cv2`.
 - The original predictions were produced at the end of training in the same process. The threshold diagnostic reran evaluation with different RNG state, so its prediction rows form a different sample. The empty-image sets matched for each training seed.
+- The selected launch manifests omit a reference to the evaluation-path-parity artifact. Its applicability to S5 is explained below.
 
 ### Evaluation-path parity
 
-The shared-weight current-head check passes on evaluation seed 1. Both paths produced 4,635 predictions; image and category ids and scores matched exactly, boxes matched at absolute tolerance 0.0001, vendor metrics matched at absolute tolerance 2e-9, and each path had one out-of-bounds box under the 1e-6 rule. The artifact is `.cache/radm/full-run/cgl/evaluation-path-parity.json`, SHA-256 `1cc7b4c2f2d5a5371c3469f27596710096ba364f6df6320ce9f35b35f05fd191`. This comparison is the evaluation-path prerequisite and is separate from the full-run metric ranges above.
+The shared-weight comparison in `.cache/radm/full-run/cgl/evaluation-path-parity.json` (SHA-256 `1cc7b4c2f2d5a5371c3469f27596710096ba364f6df6320ce9f35b35f05fd191`) passed on evaluation seed 1. Both paths produced 4,635 predictions; image and category ids and scores matched exactly, boxes matched at absolute tolerance 0.0001, vendor metrics matched at absolute tolerance 2e-9, and each path had one out-of-bounds box under the 1e-6 rule. The artifact compares the package evaluator at commit `c8297a6ba56a4dc59c2f1fbdce2f106acefccf66` with vendor commit `413f87a45760ceac5635b6a08c8047f86478acf5`, the same vendor submodule commit used at S5 commit `cae368265913f4eb742e2f4a2569579fb8f05919`.
+
+The V100 worktree produced this comparison, which applies to S5 because the evaluation path is unchanged between package commits `c8297a6` and `cae3682`. Only `training/lightning_module.py`, `training/optim.py`, `training/pretrained.py`, and `training/r50_weights_manifest.json` changed under `models/radm/src`; `evaluation.py`, modeling, datamodule, postprocessing, and `evaluate_radm_checkpoint.py` did not change. The LightningModule change adds optional pretrained R50 initialization. Evaluation uses `load_from_checkpoint`, which restores the checkpoint state dict, so the initialization option does not change evaluation outputs.
 
 ## Regeneration metadata
 
@@ -169,7 +164,7 @@ The six terminal metric records and the range comparison are under `.cache/radm/
 | Evidence | Cache-relative location |
 | -------- | ------------------------ |
 | Per-seed terminal metrics and reports | `.cache/radm/s5/cgl/meta-radm-eval-20261104/{original,package}-seed-{1,2,3}/attempt-*/{metrics,report}.json` |
-| Original launch manifests | `.cache/radm/s5/cgl/original-a100-seed-{1,2,3}/launch-attempt-1/launch-manifest.json` |
+| Original launch manifests | `.cache/radm/s5/cgl/original-a100-seed-{1,2,3}/launch-manifest.json` |
 | Package launch manifests | `.cache/radm/s5/cgl/package-a100-seed-{1,2,3}/manifest.json` |
 | Threshold diagnostics | `.cache/radm/s5/cgl/meta-radm-eval-20261104/diag-threshold0/{analysis.json,thr025-check-analysis.json}` |
 | Evaluation-path parity | `.cache/radm/full-run/cgl/evaluation-path-parity.json` |
