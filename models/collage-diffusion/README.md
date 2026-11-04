@@ -42,7 +42,7 @@ Collage Diffusion combines a scene prompt with ordered RGBA image layers. Visibl
 
 ### Model Sources
 
-- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here. Notebook-linked image layers and textual-inversion embeddings are archived, with source links and integrity records, in the [public documentation image dataset](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collage-diffusion/drive-archive).
+- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here. Notebook-linked image layers and textual-inversion embeddings are archived, with source links and integrity records, in the [model repository's source-assets directory](https://huggingface.co/creative-graphic-design/collage-diffusion/tree/main/source-assets).
 - **Paper:** [Collage Diffusion](https://arxiv.org/abs/2303.00262).
 - **Related implementation:** [Collage Diffusion UI](https://github.com/linden-li/collage-diffusion-ui) was inspected as a secondary reference. Its repository also has no declared license; its code is not included here.
 - **Released weights:** The package does not contain its own weights. It loads the [Stable Diffusion 2.1 base mirror](https://huggingface.co/sd2-community/stable-diffusion-2-1-base) at a pinned revision.
@@ -138,7 +138,7 @@ Textual-inversion embeddings are caller-supplied with a token-to-file mapping, a
 
 #### Toy Box collage
 
-This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [public Hub archive](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collage-diffusion/drive-archive). The archive contains author-provided files with no clear per-file license; the dataset-level Apache-2.0 metadata does not apply to them, so their use and redistribution terms remain unclear.
+This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [model repository's source-assets directory](https://huggingface.co/creative-graphic-design/collage-diffusion/tree/main/source-assets). The archive contains author-provided files with no clear per-file license; the Apache-2.0 metadata on the separate documentation-images dataset does not apply to them, so their use and redistribution terms remain unclear.
 
 The left panel shows the source collage and the right panel shows the generated image. Generation uses `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, seed `0`, 50 requested inference steps (40 active at strength `0.8`), and 512 × 512 resolution. The base checkpoint is licensed under the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base).
 
@@ -151,9 +151,10 @@ from huggingface_hub import hf_hub_download
 from collage_diffusion import CollageDiffusionPipeline, CollageLayer, compose_collage_layers
 
 
-dataset_id = "creative-graphic-design/documentation-images"
-archive_path = "collage-diffusion/drive-archive"
-image_base_url = f"https://huggingface.co/datasets/{dataset_id}/resolve/main/{archive_path}"
+asset_repo_id = "creative-graphic-design/collage-diffusion"
+asset_path = "source-assets"
+hub_endpoint = "https://huggingface.co"
+image_base_url = f"{hub_endpoint}/{asset_repo_id}/resolve/main/{asset_path}"
 
 
 def load_layer(filename: str):
@@ -165,14 +166,14 @@ def load_layer(filename: str):
 
 textual_inversion_embeddings = {
     "<fda>": hf_hub_download(
-        repo_id=dataset_id,
-        repo_type="dataset",
-        filename=f"{archive_path}/asset_library/toyBox2-teddy_bear/lora_weight_e999_s1000.ti.pt",
+        repo_id=asset_repo_id,
+        repo_type="model",
+        filename=f"{asset_path}/asset_library/toyBox2-teddy_bear/lora_weight_e999_s1000.ti.pt",
     ),
     "<xtc>": hf_hub_download(
-        repo_id=dataset_id,
-        repo_type="dataset",
-        filename=f"{archive_path}/asset_library/toyBox2-wood_train/lora_weight_e999_s1000.ti.pt",
+        repo_id=asset_repo_id,
+        repo_type="model",
+        filename=f"{asset_path}/asset_library/toyBox2-wood_train/lora_weight_e999_s1000.ti.pt",
     ),
 }
 
@@ -248,7 +249,7 @@ This pipeline does not guarantee semantic accuracy, rights clearance for caller-
 
 ## Bias, Risks, and Limitations
 
-Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The original authors and rights holders of the notebook-linked example images and embeddings, and the license for each file, are unknown. The public documentation image archive records the URLs from which the files were retrieved, along with integrity records. The paper's ControlNet extension and textual-inversion training are not implemented here.
+Results inherit the capabilities and biases of Stable Diffusion 2.1 and the caller's prompts, layers, masks, and textual-inversion embeddings. The original authors and rights holders of the notebook-linked example images and embeddings, and the license for each file, are unknown. The [source-assets inventory](https://huggingface.co/creative-graphic-design/collage-diffusion/blob/main/source-assets/README.md) records the retrieval URLs and integrity data. The paper's ControlNet extension and textual-inversion training are not implemented here.
 
 ### Recommendations
 
