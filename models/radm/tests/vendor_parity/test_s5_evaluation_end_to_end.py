@@ -10,11 +10,15 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+import torch
 
 from laygen.common.testing import skip_or_fail_vendor_parity
 
 from evaluate_radm_checkpoint import (
+    DEFAULT_CONFIG,
+    EXPECTED_STEPS,
     evaluate_package_checkpoint,
+    sha256,
     validate_terminal_checkpoint,
 )
 
@@ -124,3 +128,86 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
         row["image_id"] for row in vendor_predictions
     }
     assert len(package_predictions) == len(vendor_predictions)
+
+
+@pytest.mark.parametrize(
+    ("manifest_seed", "checkpoint_location", "global_step", "error"),
+    [
+        (
+            2,
+            "inside",
+            EXPECTED_STEPS,
+            "manifest must identify exactly one job for training seed 1",
+        ),
+        (
+            1,
+            "outside",
+            EXPECTED_STEPS,
+            "checkpoint is outside the manifest job output_root",
+        ),
+        (
+            1,
+            "inside",
+            EXPECTED_STEPS - 1,
+            f"checkpoint global_step={EXPECTED_STEPS - 1}, expected {EXPECTED_STEPS}",
+        ),
+    ],
+)
+def test_terminal_checkpoint_rejects_manifest_or_checkpoint_mismatches(
+    tmp_path: Path,
+    manifest_seed: int,
+    checkpoint_location: str,
+    global_step: int,
+    error: str,
+) -> None:
+    run_dir = tmp_path / "run"
+    checkpoint_dir = (
+        run_dir if checkpoint_location == "inside" else tmp_path / "outside"
+    )
+    checkpoint_path = checkpoint_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+    checkpoint_path.parent.mkdir(parents=True)
+    torch.save({"global_step": global_step}, checkpoint_path)
+    manifest_path = run_dir / "manifest.json"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "training_seed": manifest_seed,
+                "source_config": DEFAULT_CONFIG.as_posix(),
+                "source_config_sha256": sha256(DEFAULT_CONFIG),
+                "max_steps": EXPECTED_STEPS,
+                "output_root": str(run_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=error):
+        validate_terminal_checkpoint(checkpoint_path, manifest_path, seed=1)
+
+
+def test_terminal_checkpoint_accepts_checkpoint_without_identity_metadata(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    checkpoint_path = run_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+    checkpoint_path.parent.mkdir(parents=True)
+    torch.save({"global_step": EXPECTED_STEPS}, checkpoint_path)
+    manifest_path = run_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "training_seed": 1,
+                "source_config": DEFAULT_CONFIG.as_posix(),
+                "source_config_sha256": sha256(DEFAULT_CONFIG),
+                "max_steps": EXPECTED_STEPS,
+                "output_root": str(run_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    validation = validate_terminal_checkpoint(checkpoint_path, manifest_path, seed=1)
+
+    assert validation["global_step"] == EXPECTED_STEPS
+    assert validation["training_seed"] == 1
