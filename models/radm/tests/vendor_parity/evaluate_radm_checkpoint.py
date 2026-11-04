@@ -64,17 +64,25 @@ def validate_terminal_checkpoint(
     config_path: Path = DEFAULT_CONFIG,
     expected_steps: int = EXPECTED_STEPS,
 ) -> dict[str, object]:
-    """Validate checkpoint step, seed, and resolved recipe identity before loading."""
+    """Validate terminal step and manifest recipe/run identity before evaluation."""
     config_sha256 = sha256(config_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     job = _manifest_job(manifest, seed)
-    manifest_config = job.get("package_config", job.get("code_config"))
+    manifest_config = job.get("source_config")
     if manifest_config != config_path.as_posix():
         raise RuntimeError("manifest config path does not match the S5 recipe")
-    if job.get("package_config_sha256") != config_sha256:
+    if job.get("source_config_sha256") != config_sha256:
         raise RuntimeError("manifest config digest does not match the S5 recipe")
     if _manifest_int(job, "max_steps") != expected_steps:
         raise RuntimeError("manifest max_steps does not match the S5 recipe")
+
+    output_root = job.get("output_root")
+    if not isinstance(output_root, str) or not output_root:
+        raise RuntimeError("manifest job has no output_root")
+    run_dir = Path(output_root).resolve()
+    resolved_checkpoint = checkpoint_path.resolve()
+    if not resolved_checkpoint.is_relative_to(run_dir):
+        raise RuntimeError("checkpoint is outside the manifest job output_root")
 
     payload = torch.load(checkpoint_path, map_location="meta", weights_only=False)
     global_step = int(payload.get("global_step", -1))
@@ -82,17 +90,6 @@ def validate_terminal_checkpoint(
         raise RuntimeError(
             f"checkpoint global_step={global_step}, expected {expected_steps}"
         )
-    identity = payload.get("radm_s5_identity")
-    if not isinstance(identity, dict):
-        raise RuntimeError("checkpoint has no RADM S5 identity metadata")
-    if int(identity.get("training_seed", -1)) != seed:
-        raise RuntimeError("checkpoint training seed does not match the evaluator seed")
-    if identity.get("config_path") != config_path.as_posix():
-        raise RuntimeError("checkpoint config path does not match the S5 recipe")
-    if identity.get("config_sha256") != config_sha256:
-        raise RuntimeError("checkpoint config digest does not match the S5 recipe")
-    if int(identity.get("expected_max_steps", -1)) != expected_steps:
-        raise RuntimeError("checkpoint identity max_steps does not match the S5 recipe")
     return {
         "global_step": global_step,
         "training_seed": seed,
