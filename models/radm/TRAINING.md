@@ -144,7 +144,7 @@ The vendor scorer defines `R_occ` as the fraction of all 1,035 test images with 
 
 ### S5 evidence notes
 
-- The shipped training code did not write `radm_s5_identity` into terminal checkpoints. The original run identity was checked against each selected top-level launch manifest; each has `launch_attempt=3`. The terminal checkpoint step was verified as `global_step=250000`. The permanent evaluator validation change is in [PR #502](https://github.com/creative-graphic-design/design-generators/pull/502), which remains open.
+- The shipped training code did not write `radm_s5_identity` into terminal checkpoints. The original run identity was checked against each selected top-level launch manifest; each has `launch_attempt=3`. The original Detectron2 checkpoint records zero-indexed `iteration=249999` (the 250,000th iteration); the package checkpoint records `global_step=250000`. The permanent evaluator validation change is in [PR #502](https://github.com/creative-graphic-design/design-generators/pull/502), which remains open.
 - Each package manifest's `evaluator_command` names `terminal-step-250000.ckpt`, which does not exist. Evaluation used `checkpoints/epoch=0-step=250000.ckpt`; the evaluation metadata records the actual path and the verified step.
 - The original manifests record `code_commit=97fecfcc6fe1abf9c83b1bc89433734abfd91c15` and the package manifests record `code_commit=cae368265913f4eb742e2f4a2569579fb8f05919`; neither records the protocol-required `source_commit`.
 - Vendor scoring loaded `opencv-python-headless 4.11.0.86` through `PYTHONPATH` because `vendor/radm/metrics.py` imports `cv2`. The scorer did not call `cv2`.
