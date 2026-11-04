@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: canvas_vae
-    options:
-        show_submodules: true

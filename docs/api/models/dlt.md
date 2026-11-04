@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: dlt
-    options:
-        show_submodules: true
