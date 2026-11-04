@@ -56,7 +56,7 @@ Use the README template for required metadata and headings. Keep its overview, p
 
 Public API docstrings feed the API reference. Use Google-style `Args`, `Returns`, `Raises`, and `Examples` as applicable. Examples should be runnable doctests when they need no heavyweight downloads or credentials.
 
-Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs with the package README included through `pymdownx.snippets`, an `## API Reference` heading, `::: <import_name>`, and `show_submodules: true`, plus navigation in `mkdocs.yml`. Do not commit locally generated alternative API trees.
+Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
 
 - Model READMEs wrap everything after the YAML front matter in `<!-- --8<-- [start:card] -->` and `<!-- --8<-- [end:card] -->` so the front matter stays off the docs page.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.

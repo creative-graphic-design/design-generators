@@ -1,6 +1,6 @@
 ---
 name: design-generators-training-reproduction
-description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages and S5 gate defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks unsupported S5 claims or S5-scale GPU runs, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
+description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages and S5 gate defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks unsupported S5 claims, S5-scale training or evaluation launches, parity-verified label changes, and S5 claims in README files or model cards, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
 ---
 
 # Training Reproduction
@@ -30,30 +30,17 @@ Use this order for every training-first package:
 
 ## S5 Gate
 
-Apply the [protocol's Stage Overview](docs/training-reproduction.md#stage-overview) before launching S5-scale GPU jobs, marking an issue with the `parity-verified` status label, or writing a README/model-card/PR claim that S5 reproduction is complete.
+Before an S5-scale training or evaluation launch, a `parity-verified` label change, or an S5 claim in a README or model card, follow the [checkpoint smoke rule](docs/training-reproduction.md#checkpoint-smoke-before-full-runs).
 
 Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording): use at least 1,500 updates and three matched training seeds, independent production initialization and optimizer stepping, and the S4 stream; gate the median of package per-seed medians against the widened envelope from original production runs and cite the artifact in the S3 Stage Evidence row. A failure calls for diagnosis or more original production seeds; it does not by itself prove a defect.
 
-Before launching S5, write one launch manifest: a JSON file with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
+Before launching S5, write one launch manifest with `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The [protocol](docs/training-reproduction.md#checkpoint-smoke-before-full-runs) defines the required checked-in configuration. In the S5 Comparison Scope table in `TRAINING.md`, the `Evaluator` cell must equal the manifest's `evaluator_command`, and the `Checkpoint-selection rule` cell must equal `checkpoint_rule`.
 
 Before S5, satisfy the protocol's [evaluation-path parity prerequisite](docs/training-reproduction.md#evaluation-path-parity-prerequisite) and cite its artifact beside the launch manifest in the S5 Stage Evidence row.
 
 Finish every commit the campaign intends to make, including documentation commits, before launching the seed queue (the supervisor that trains and evaluates the per-seed runs in sequence) because the queue pins the source commit once at startup. Before launch, run a deliberate mismatch dry run for the source gate (each run's check that the worktree commit equals the commit pinned at queue start) and verify that the queue stops on the gate failure; a nonzero gate exit swallowed by an `&&` chain or a function body does not stop the queue.
 
-The durable package document must include a machine-readable `Stage Evidence` table in `models/<package>/TRAINING.md`:
-
-```markdown
-## Stage Evidence
-
-| Stage | Command     | Artifact                                             | Result     |
-| ----- | ----------- | ---------------------------------------------------- | ---------- |
-| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json`  | `<result>` |
-```
+The package's `TRAINING.md` lists each reproduction check's command, output artifact, and result so another person can rerun it; use the current table format in [the training template](docs/templates/TRAINING.template.md).
 
 Run `uv run --package design-generators scripts/check_training_stage_evidence.py` before opening or updating a PR that touches training reproduction docs.
 

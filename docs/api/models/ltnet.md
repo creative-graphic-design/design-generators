@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: ltnet
-    options:
-        show_submodules: true

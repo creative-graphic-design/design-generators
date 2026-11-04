@@ -129,3 +129,4 @@ plugins:
             members_order: source
             separate_signature: true
             show_signature_annotations: true
+            show_submodules: true
