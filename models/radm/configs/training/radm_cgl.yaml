@@ -39,6 +39,7 @@ model:
         snr_scale: 2.0
         sample_step: 1
         backbone_depth: 50
+    pretrained_backbone_weights: .cache/radm/weights/R-50.pkl
     effective: {}
 data:
   class_path: radm.training.datamodule.RADMDataModule
@@ -51,4 +52,5 @@ data:
     val_text_feature_root: .cache/radm/data/cgl/text_features/test
     batch_size: 16
     num_workers: 0
+    allow_missing_text_features: true
     effective: {}
