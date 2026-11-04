@@ -384,12 +384,16 @@ Each threshold uses `T = 2·Bmax − Bmedian` over the six ordinary Stable Diffu
 
 Each RMSE is compared with zero using `rtol=0`; the RGB criterion uses `atol=1.03955e-4` and the latent criterion uses `atol=1.59046e-4`.
 
-| Implementation-run check                  | Cases                    | Observed result                                                                                             |
-| ----------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Final normalized RGB                      | 6 pairs                  | Threshold `1.03955e-4`; worst RMSE `3.00032e-5`, PSNR `90.457`–`105.834 dB`, max abs `4.99487e-4`; 6/6 pass |
-| Post-scheduler, post-preservation latents | 6 runs, 7–8 active steps | Threshold `1.59046e-4`; worst maximum per-step RMSE `6.88359e-5`; 6/6 pass                                  |
-| First U-Net noise prediction              | 6 pairs                  | Worst max abs `9.88245e-5`, worst RMSE `1.79971e-6`                                                         |
-| Inputs and schedule                       | 6 pairs                  | Input RGB, visible masks, noise maps, timesteps, and sigmas matched exactly                                 |
+The implementation-run measurements below are recorded in this [issue #484 comment](https://github.com/creative-graphic-design/design-generators/issues/484#issuecomment-6636816601). Each row reports the final normalized RGB RMSE, PSNR (peak 1.0), maximum absolute RGB difference, maximum per-step post-scheduler/post-preservation latent RMSE, and first U-Net output difference (maximum absolute difference and RMSE).
+
+| Scene      | Seed | Active steps |           RGB RMSE |       PSNR (dB) |        RGB max abs | Max per-step latent RMSE | First U-Net max abs |   First U-Net RMSE |
+| ---------- | ---: | -----------: | -----------------: | --------------: | -----------------: | -----------------------: | ------------------: | -----------------: |
+| Bento Box  |    0 |            8 | `3.00031813940e-5` | `90.4566538465` | `4.99486923218e-4` |       `6.88358887783e-5` |  `2.07424163818e-5` | `6.67105892839e-7` |
+| Bento Box  |    1 |            8 | `5.48811255684e-6` | `105.211539803` | `8.64267349243e-5` |       `5.32430305242e-6` |  `1.99079513550e-5` | `6.69578823937e-7` |
+| Cake Table |    0 |            7 | `1.26997889517e-5` | `97.9240699240` | `3.05831432343e-4` |       `1.02028460064e-5` |  `9.88245010376e-5` | `1.79971479210e-6` |
+| Cake Table |    1 |            7 | `5.10831144860e-6` | `105.834452642` | `6.95586204529e-5` |       `7.19363812652e-6` |  `9.45329666138e-5` | `1.75942494680e-6` |
+| Toy Box    |    0 |            8 | `1.04906613643e-5` | `99.5839426331` | `1.33097171783e-4` |       `7.98777295022e-6` |  `3.38554382324e-5` | `9.17125873657e-7` |
+| Toy Box    |    1 |            8 | `1.17187871964e-5` | `98.6223466421` | `4.33802604675e-4` |       `1.76268145823e-5` |  `3.25739383698e-5` | `9.24976044259e-7` |
 
 The independent reviewer measured these per-condition results. Values are reported as RGB RMSE / maximum per-step latent RMSE; each is below the fixed RGB and latent thresholds above.
 
