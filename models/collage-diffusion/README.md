@@ -22,7 +22,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![framework](https://img.shields.io/static/v1?label=framework&message=diffusers&color=red&style=flat-square&logo=huggingface&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=image-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package exposes Collage Diffusion as a `🧨diffusers` pipeline that harmonizes text-described RGBA layers into a single image.
@@ -136,107 +136,161 @@ Textual-inversion embeddings are caller-supplied with a token-to-file mapping, a
 
 ### Examples
 
-#### Toy Box collage
+#### Shared setup
 
-This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [model repository's source-assets directory](https://huggingface.co/creative-graphic-design/collage-diffusion/tree/main/source-assets). The archive contains author-provided files with no clear per-file license; the Apache-2.0 metadata on the separate documentation-images dataset does not apply to them, so their use and redistribution terms remain unclear.
+These examples follow the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb) and its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). Because the Drive files may disappear, copies and their source URLs, retrieval dates, sizes, and SHA-256 values are recorded in the [model repository's source-assets directory](https://huggingface.co/creative-graphic-design/collage-diffusion/tree/main/source-assets). The original author, rights holder, and per-file license are unknown; the documentation-images dataset's Apache-2.0 license does not apply to those files.
 
-The left panel shows the source collage and the right panel shows the generated image. Generation uses `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, seed `0`, 50 requested inference steps (40 active at strength `0.8`), and 512 × 512 resolution. The base checkpoint is licensed under the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base).
+Each image places the input collage on the left and the generated result on the right. All scenes use `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, `EulerAncestralDiscreteScheduler`, seed `0`, 512 × 512 resolution, guidance scale `7.5`, and 50 requested inference steps. The active step count is 40 at strength `0.8` and 37 at `0.75`. The base checkpoint uses the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base). The code uses every CPU thread available to its runtime; the generated examples used **2 threads**.
 
-![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collage-diffusion/toy-box-diffusers-comparison-de56004.png)
+#### Toy Box
+
+Prompt: `a teddy bear, a wood train, and an american football, in front of a tan background`. Negative prompt: `collage`. Strength: `0.8`; `noise_blur=20`; 50 requested (40 active) steps.
+
+![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collage-diffusion/toy-box-diffusers-comparison-99b4a70.png)
+
+#### Bento Box
+
+Prompt: `a bento box with rice, edamame, ginger, and sushi`. Negative prompt: `collage`. Strength: `0.8`; `noise_blur=20`; 50 requested (40 active) steps.
+
+![Bento Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collage-diffusion/bento-box-diffusers-comparison-99b4a70.png)
+
+#### Cake Table
+
+Prompt: `a wood table with two white chairs behind, two pink cakes on top, maroon bookshelves behind, and winter window`. Negative prompt: `collage, warped, cupcake`. Strength: `0.75`; `noise_blur=10`; 50 requested (37 active) steps.
+
+![Cake Table input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collage-diffusion/cake-table-diffusers-comparison-99b4a70.png)
+
+The following script builds each scene from its archived image layers and textual-inversion embeddings, then saves the side-by-side examples above. It generates all three by default; set `COLLAGE_SCENES` to a comma-separated subset of scene names to run only selected examples.
 
 ```python
+import gc
+import os
+import time
+
+import torch
 from diffusers import EulerAncestralDiscreteScheduler
 from diffusers.utils import load_image, make_image_grid
 from huggingface_hub import hf_hub_download
+
 from collage_diffusion import CollageDiffusionPipeline, CollageLayer, compose_collage_layers
 
 
+torch.set_num_threads(os.cpu_count() or 1)
+print(f"CPU threads: {torch.get_num_threads()}")
+
+base = "sd2-community/stable-diffusion-2-1-base"
+base_revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
 asset_repo_id = "creative-graphic-design/collage-diffusion"
-asset_path = "source-assets"
-hub_endpoint = "https://huggingface.co"
-image_base_url = f"{hub_endpoint}/{asset_repo_id}/resolve/main/{asset_path}"
+asset_revision = "3d958ad645d9d4641126c8d8a3e74116f4a99421"
+asset_root = "source-assets"
+asset_url = "https://huggingface.co/creative-graphic-design/collage-diffusion/resolve/3d958ad645d9d4641126c8d8a3e74116f4a99421/source-assets"
 
-
-def load_layer(filename: str):
-    return load_image(
-        f"{image_base_url}/image_layers/toyBox2/layers/{filename}",
-        convert_method=lambda image: image.convert("RGBA"),
-    )
-
-
-textual_inversion_embeddings = {
-    "<fda>": hf_hub_download(
-        repo_id=asset_repo_id,
-        repo_type="model",
-        filename=f"{asset_path}/asset_library/toyBox2-teddy_bear/lora_weight_e999_s1000.ti.pt",
-    ),
-    "<xtc>": hf_hub_download(
-        repo_id=asset_repo_id,
-        repo_type="model",
-        filename=f"{asset_path}/asset_library/toyBox2-wood_train/lora_weight_e999_s1000.ti.pt",
-    ),
-}
-
-layers = [
-    CollageLayer(
-        image=load_layer("_0004_background.png"),
-        prompt="background",
-        noise_level=0.8,
-        positive_attention_weight=0.0,
-        negative_attention_weight=0.5,
-    ),
-    CollageLayer(
-        image=load_layer("_0003_football.png"),
-        prompt="american football",
-        noise_level=0.2,
-        positive_attention_weight=0.5,
-        negative_attention_weight=0.5,
-    ),
-    CollageLayer(
-        image=load_layer("_0002_teddy_bear.png"),
-        prompt="teddy bear",
-        noise_level=0.8,
-        positive_attention_weight=0.2,
-        negative_attention_weight=0.5,
-        textual_inversion_token="<fda>",
-    ),
-    CollageLayer(
-        image=load_layer("_0000_wood_train.png"),
-        prompt="wood train",
-        noise_level=0.5,
-        positive_attention_weight=0.2,
-        negative_attention_weight=0.5,
-        textual_inversion_token="<xtc>",
-    ),
+scenes = [
+    {
+        "name": "Toy Box",
+        "folder": "toyBox2",
+        "output": "toy-box-diffusers-comparison-99b4a70.png",
+        "prompt": "a teddy bear, a wood train, and an american football, in front of a tan background",
+        "negative_prompt": "collage",
+        "strength": 0.8,
+        "noise_blur": 20,
+        "layers": [
+            ("_0004_background.png", "background", 0.8, 0.0, 0.5, None, None),
+            ("_0003_football.png", "american football", 0.2, 0.5, 0.5, None, None),
+            ("_0002_teddy_bear.png", "teddy bear", 0.8, 0.2, 0.5, "<fda>", "asset_library/toyBox2-teddy_bear/lora_weight_e999_s1000.ti.pt"),
+            ("_0000_wood_train.png", "wood train", 0.5, 0.2, 0.5, "<xtc>", "asset_library/toyBox2-wood_train/lora_weight_e999_s1000.ti.pt"),
+        ],
+    },
+    {
+        "name": "Bento Box",
+        "folder": "bentoBox",
+        "output": "bento-box-diffusers-comparison-99b4a70.png",
+        "prompt": "a bento box with rice, edamame, ginger, and sushi",
+        "negative_prompt": "collage",
+        "strength": 0.8,
+        "noise_blur": 20,
+        "layers": [
+            ("_0004_bento_box.png", "bento box", 0.5, 0.0, 0.5, "<krk>", "asset_library/bentoBox-bento_box/lora_weight_e999_s1000.ti.pt"),
+            ("_0003_rice.png", "rice", 0.5, 0.4, 0.5, "<lol>", "asset_library/bentoBox-rice/lora_weight_e499_s500.ti.pt"),
+            ("_0002_edamame.png", "edamame", 0.6, 0.0, 0.5, "<fda>", "asset_library/bentoBox-edamame/lora_weight_e999_s1000.ti.pt"),
+            ("_0001_ginger.png", "ginger", 0.8, 0.6, 0.5, "<xtc>", "asset_library/bentoBox-ginger/lora_weight_e999_s1000.ti.pt"),
+            ("_0000_sushi.png", "sushi", 0.8, 0.2, 0.5, "<kyt>", "asset_library/bentoBox-sushi/lora_weight_e999_s1000.ti.pt"),
+        ],
+    },
+    {
+        "name": "Cake Table",
+        "folder": "cakeTable2",
+        "output": "cake-table-diffusers-comparison-99b4a70.png",
+        "prompt": "a wood table with two white chairs behind, two pink cakes on top, maroon bookshelves behind, and winter window",
+        "negative_prompt": "collage, warped, cupcake",
+        "strength": 0.75,
+        "noise_blur": 10,
+        "layers": [
+            ("_0006_winter_window.png", "winter window", 0.8, 0.45, 1.0, "<krk>", "asset_library/cakeTable2-winter_window/lora_weight_e499_s500.ti.pt"),
+            ("_0005_maroon_bookshelves.png", "maroon bookshelves", 0.8, 0.35, 1.0, "<lol>", "asset_library/cakeTable2-maroon_bookshelves/lora_weight_e999_s1000.ti.pt"),
+            ("_0004_white_chairs.png", "white chairs", 0.8, 0.5, 1.0, "<fda>", "asset_library/cakeTable2-white_chairs/lora_weight_e999_s1000.ti.pt"),
+            ("_0003_wood_table.png", "wood table", 0.6, 0.1, 1.0, "<xtc>", "asset_library/cakeTable2-wood_table/lora_weight_e999_s1000.ti.pt"),
+            ("_0002_decorated_cakes.png", "pink cakes", 0.6, 0.3, 2.0, "<kyt>", "asset_library/cakeTable2-decorated_cakes/lora_weight_e99_s100.ti.pt"),
+        ],
+    },
 ]
 
-input_collage, _ = compose_collage_layers(layers, width=512, height=512)
-base = "sd2-community/stable-diffusion-2-1-base"
-revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
-# Cross-attention guidance uses the scheduler's sigma values.
-scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
-    base, subfolder="scheduler", revision=revision
-)
-pipe = CollageDiffusionPipeline.from_pretrained(
-    base, revision=revision, scheduler=scheduler
-)
-result = pipe(
-    prompt="a teddy bear, a wood train, and an american football, in front of a tan background",
-    layers=layers,
-    textual_inversion_embeddings=textual_inversion_embeddings,
-    negative_prompt="collage",
-    strength=0.8,
-    num_inference_steps=50,
-    guidance_scale=7.5,
-    noise_blur=20,
-    seed=0,
-).images[0]
-make_image_grid([input_collage, result], rows=1, cols=2).save("toy-box-diffusers-comparison.png")
-print("Saved toy-box-diffusers-comparison.png")
-```
+selected_names = os.environ.get("COLLAGE_SCENES")
+if selected_names:
+    selected_names = {name.strip() for name in selected_names.split(",")}
+    scenes = [scene for scene in scenes if scene["name"] in selected_names]
+    if not scenes:
+        raise ValueError("COLLAGE_SCENES must name at least one configured scene")
 
-```text
-Saved toy-box-diffusers-comparison.png
+for scene in scenes:
+    scene_started = time.perf_counter()
+    layers = []
+    textual_inversion_embeddings = {}
+    for filename, prompt, noise, positive, negative, token, embedding in scene["layers"]:
+        layers.append(
+            CollageLayer(
+                image=load_image(
+                    f"{asset_url}/image_layers/{scene['folder']}/layers/{filename}",
+                    convert_method=lambda image: image.convert("RGBA"),
+                ),
+                prompt=prompt,
+                noise_level=noise,
+                positive_attention_weight=positive,
+                negative_attention_weight=negative,
+                textual_inversion_token=token,
+            )
+        )
+        if token is not None and embedding is not None:
+            textual_inversion_embeddings[token] = hf_hub_download(
+                repo_id=asset_repo_id,
+                repo_type="model",
+                revision=asset_revision,
+                filename=f"{asset_root}/{embedding}",
+            )
+
+    input_collage, _ = compose_collage_layers(layers, width=512, height=512)
+    scheduler = EulerAncestralDiscreteScheduler.from_pretrained(
+        base, subfolder="scheduler", revision=base_revision
+    )
+    pipe = CollageDiffusionPipeline.from_pretrained(
+        base, revision=base_revision, scheduler=scheduler
+    )
+    result = pipe(
+        prompt=scene["prompt"],
+        layers=layers,
+        textual_inversion_embeddings=textual_inversion_embeddings,
+        negative_prompt=scene["negative_prompt"],
+        strength=scene["strength"],
+        num_inference_steps=50,
+        guidance_scale=7.5,
+        noise_blur=scene["noise_blur"],
+        seed=0,
+    ).images[0]
+    make_image_grid([input_collage, result], rows=1, cols=2).save(scene["output"])
+    elapsed_minutes = (time.perf_counter() - scene_started) / 60
+    print(f"Saved {scene['output']} in {elapsed_minutes:.1f} minutes")
+    del pipe, scheduler, result, input_collage, layers, textual_inversion_embeddings
+    gc.collect()
 ```
 
 ### Downstream Use
@@ -324,16 +378,31 @@ The notebook example omits `num_inference_steps`, so it uses the pipeline defaul
 
 ### Parity Results
 
-The six worker-run comparisons pass the tolerance thresholds fixed before the Collage runs from six ordinary Stable Diffusion Img2Img version-drift controls. The reference uses `🧨diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and `🤗transformers` `4.28.1`; the package uses `🧨diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `🤗transformers` `5.13.0`. Both run on CPU with one thread. The coordinator's independent acceptance rerun is pending; vendor parity is not verified until that rerun is complete. The baseline and comparison plan are tracked in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
+An independent acceptance rerun passed all six scene-and-seed conditions against the authors' notebook. This is tolerance-verified agreement, not bitwise equality. The reference uses `🧨diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and `🤗transformers` `4.28.1`; the package uses `🧨diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `🤗transformers` `5.13.0`. Both comparison environments used CPU with one thread. The ordinary Stable Diffusion Img2Img controls and comparison plan are recorded in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
 
 Each threshold uses `T = 2·Bmax − Bmedian` over the six ordinary Stable Diffusion controls: RGB RMSE has `Bmax=6.00713e-5`, `Bmedian=1.61880e-5`, and `T=1.03955e-4`; maximum per-step latent RMSE has `Bmax=1.01644e-4`, `Bmedian=4.42415e-5`, and `T=1.59046e-4`.
 
-| Check                                       | Cases                    | Criterion and observed result                                                                            |
-| ------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Final normalized RGB                        | 6 pairs                  | RMSE ≤ `1.03955e-4`; worst RMSE `3.00032e-5`, PSNR `90.457`–`105.834 dB`, max abs `4.99487e-4`; 6/6 pass |
-| Post-scheduler, post-preservation latents   | 6 runs, 7–8 active steps | Maximum per-step RMSE ≤ `1.59046e-4`; worst `6.88359e-5`; 6/6 pass                                       |
-| First U-Net noise prediction                | 6 pairs                  | Reported for diagnosis; worst max abs `9.88245e-5`, worst RMSE `1.79971e-6`                              |
-| Inputs, visible masks, noise maps, schedule | 6 pairs                  | Input RGB, masks, noise maps, timesteps, and sigmas matched exactly                                      |
+Each RMSE is compared with zero using `rtol=0`; the RGB criterion uses `atol=1.03955e-4` and the latent criterion uses `atol=1.59046e-4`.
+
+| Implementation-run check                  | Cases                    | Observed result                                                                                             |
+| ----------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Final normalized RGB                      | 6 pairs                  | Threshold `1.03955e-4`; worst RMSE `3.00032e-5`, PSNR `90.457`–`105.834 dB`, max abs `4.99487e-4`; 6/6 pass |
+| Post-scheduler, post-preservation latents | 6 runs, 7–8 active steps | Threshold `1.59046e-4`; worst maximum per-step RMSE `6.88359e-5`; 6/6 pass                                  |
+| First U-Net noise prediction              | 6 pairs                  | Worst max abs `9.88245e-5`, worst RMSE `1.79971e-6`                                                         |
+| Inputs and schedule                       | 6 pairs                  | Input RGB, visible masks, noise maps, timesteps, and sigmas matched exactly                                 |
+
+The independent reviewer measured these per-condition results. Values are reported as RGB RMSE / maximum per-step latent RMSE; each is below the fixed RGB and latent thresholds above.
+
+| Scene      | Seed |           RGB RMSE | Maximum per-step latent RMSE |
+| ---------- | ---: | -----------------: | ---------------------------: |
+| Bento Box  |    0 | `9.85132492492e-6` |           `9.11307774482e-6` |
+| Bento Box  |    1 | `1.78408690247e-5` |           `5.76063468136e-6` |
+| Cake Table |    0 | `1.43160028885e-5` |           `7.43683456343e-6` |
+| Cake Table |    1 | `1.20999262219e-5` |            `7.7582077503e-6` |
+| Toy Box    |    0 | `2.03771846015e-5` |           `1.37336492006e-5` |
+| Toy Box    |    1 | `1.27287351725e-5` |           `1.90641440735e-5` |
+
+The Cake Table checkpoint-step control kept the notebook's per-layer inversion steps `[500, 1000, 1000, 1000, 100]` in layer order. Setting all five to `1000` changed the seed-0 RGB RMSE to `0.120`, showing that the selected checkpoint step for each layer affects the result.
 
 ## Reproducibility
 
