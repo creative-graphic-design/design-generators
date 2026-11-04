@@ -10,5 +10,3 @@ tags:
 ## API Reference
 
 ::: structure_diffusion
-options:
-show_submodules: true
