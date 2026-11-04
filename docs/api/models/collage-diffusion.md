@@ -9,5 +9,3 @@ tags:
 ## API Reference
 
 ::: collage_diffusion
-options:
-show_submodules: true
