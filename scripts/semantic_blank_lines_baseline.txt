@@ -55,7 +55,7 @@ models/dlt/src/dlt/training/seed.py	block-end	1
 models/ds-gan/src/ds_gan/conversion.py	block-end	4
 models/ds-gan/src/ds_gan/modeling_ds_gan.py	block-end	3
 models/ds-gan/src/ds_gan/pipeline_ds_gan.py	block-end	8
-models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	32
+models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	29
 models/flex-dm/src/flex_dm/configuration_flex_dm.py	block-end	5
 models/flex-dm/src/flex_dm/conversion.py	block-end	11
 models/flex-dm/src/flex_dm/data_specs.py	block-end	17
@@ -79,7 +79,6 @@ models/lace/src/lace/model_card.py	block-end	2
 models/lace/src/lace/modeling_lace.py	block-end	2
 models/lace/src/lace/pipeline_lace.py	block-end	11
 models/lace/src/lace/processing_lace.py	block-end	3
-models/lace/src/lace/scheduling_lace.py	block-end	1
 models/layousyn/src/layousyn/configuration_layousyn.py	block-end	5
 models/layousyn/src/layousyn/modeling_layousyn.py	block-end	5
 models/layousyn/src/layousyn/pipeline_layousyn.py	block-end	6
@@ -97,7 +96,7 @@ models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	b
 models/layout-corrector/src/layout_corrector/conversion.py	block-end	3
 models/layout-corrector/src/layout_corrector/model_card.py	block-end	1
 models/layout-corrector/src/layout_corrector/modeling_layout_corrector.py	block-end	5
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	block-end	11
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	block-end	9
 models/layout-corrector/src/layout_corrector/sampling.py	block-end	6
 models/layout-detr/src/layout_detr/datasets.py	block-end	1
 models/layout-detr/src/layout_detr/image_processing_layout_detr.py	block-end	11
@@ -110,7 +109,7 @@ models/layout-dm/src/layout_dm/conditioning.py	block-end	5
 models/layout-dm/src/layout_dm/configuration_layout_dm.py	block-end	1
 models/layout-dm/src/layout_dm/conversion.py	block-end	5
 models/layout-dm/src/layout_dm/pipeline_layout_dm.py	block-end	3
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	block-end	5
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	block-end	4
 models/layout-dm/src/layout_dm/tokenization_layout_dm.py	block-end	33
 models/layout-dm/src/layout_dm/training/datamodule.py	block-end	6
 models/layout-dm/src/layout_dm/training/dataset.py	block-end	20
@@ -156,7 +155,7 @@ models/layoutformerpp/src/layoutformerpp/configuration_layoutformerpp.py	block-e
 models/layoutformerpp/src/layoutformerpp/geometry.py	block-end	2
 models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	block-end	12
 models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	block-end	2
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	block-end	18
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	block-end	17
 models/layoutformerpp/src/layoutformerpp/serialization.py	block-end	14
 models/layoutformerpp/src/layoutformerpp/tasks.py	block-end	2
 models/layoutformerpp/src/layoutformerpp/tokenization_layoutformerpp.py	block-end	10
@@ -226,7 +225,6 @@ scripts/check_committed_paths.py	block-end	6
 scripts/check_config_defaults.py	block-end	8
 scripts/check_draft_prs.py	block-end	40
 scripts/check_duplicate_code.py	block-end	10
-scripts/check_jaxtyping_annotations.py	block-end	75
 scripts/check_module_naming.py	block-end	11
 scripts/check_pr_issue_reference.py	block-end	13
 scripts/check_reader_facing_references.py	block-end	22

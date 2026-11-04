@@ -22,16 +22,74 @@ def test_read_entry_baseline_requires_a_file(tmp_path: Path) -> None:
         baselines.read_entry_baseline(tmp_path / "missing.txt")
 
 
-def test_write_entry_baseline_is_sorted_and_empty_bytes_are_stable(
+def test_write_entry_baseline_preserves_one_line_header(tmp_path: Path) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(b"# Header\nz\n")
+
+    baselines.write_entry_baseline(path, {"z", "a"})
+
+    assert path.read_bytes() == b"# Header\na\nz\n"
+
+
+def test_write_entry_baseline_preserves_multiline_header_bytes(tmp_path: Path) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(b"# First\r\n# Second\nz\n")
+
+    baselines.write_entry_baseline(path, {"a"})
+
+    assert path.read_bytes() == b"# First\r\n# Second\na\n"
+
+
+def test_write_entry_baseline_terminates_unterminated_header_before_entries(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(b"# H")
+
+    baselines.write_entry_baseline(path, {"a"})
+
+    assert path.read_bytes() == b"# H\na\n"
+
+
+@pytest.mark.parametrize("header", [b"# Header\n", b"# Header"])
+def test_write_entry_baseline_preserves_header_only_final_newline(
+    tmp_path: Path, header: bytes
+) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(header)
+
+    baselines.write_entry_baseline(path, [])
+
+    assert path.read_bytes() == header
+
+
+def test_write_entry_baseline_writes_headerless_entries_sorted_with_newline(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "baseline.txt"
+
+    baselines.write_entry_baseline(path, {"z", "a"})
+
+    assert path.read_bytes() == b"a\nz\n"
+
+
+def test_write_entry_baseline_writes_headerless_empty_as_empty_bytes(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "baseline.txt"
 
     baselines.write_entry_baseline(path, [])
+
     assert path.read_bytes() == b""
 
-    baselines.write_entry_baseline(path, {"z", "a"})
-    assert path.read_bytes() == b"a\nz\n"
+
+def test_write_entry_baseline_drops_comments_after_entry_data(tmp_path: Path) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(b"entry\n# trailing comment\n")
+
+    baselines.write_entry_baseline(path, baselines.read_entry_baseline(path))
+
+    assert path.read_bytes() == b"entry\n"
 
 
 def test_diff_entry_baseline_returns_sorted_unexpected_and_stale_entries() -> None:

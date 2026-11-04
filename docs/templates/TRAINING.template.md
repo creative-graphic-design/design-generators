@@ -45,10 +45,7 @@ Training configs live under `models/<package>/configs/training`.
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size,
-accumulation, initialization, and recipe differences that affect reproduction.
-State observed environment constraints as verified setup, not as inherent
-package requirements.
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. State observed environment constraints as verified setup, not as inherent package requirements. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
 
 ## Seed Policy
 
@@ -69,14 +66,14 @@ describe evaluation-seed evidence as training-seed reproduction.
 
 ## Stage Evidence
 
-| Stage | Command     | Artifact                                             | Result     |
-| ----- | ----------- | ---------------------------------------------------- | ---------- |
-| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| Stage | Command     | Artifact                                                                                                                        | Result     |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json; evaluation-path-parity: <repo/cache-relative path or project issue/PR URL>` | `<result>` |
 
 ## Reproduction Results
 
@@ -105,6 +102,8 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 ## Regeneration Metadata
 

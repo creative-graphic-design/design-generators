@@ -230,6 +230,8 @@ Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutpu
 - `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, model-card, and generator-resolution helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - `diffusers`-backed helpers stay behind the `diffusion` extra unless they specifically target `diffusers` pipeline outputs.
 
+`laygen` does not impose the [model framework](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#choosing-a-model-framework) or [module-name](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-package-module-names) conventions on downstream projects; projects that consume this library may opt in.
+
 ## Pointers
 
 - [Documentation site](https://creative-graphic-design.github.io/design-generators/)

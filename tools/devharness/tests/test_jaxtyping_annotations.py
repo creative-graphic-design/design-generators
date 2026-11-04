@@ -1,34 +1,85 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-from importlib.machinery import SourceFileLoader
+import io
+import os
 from pathlib import Path
-from types import ModuleType
+import subprocess
+import sys
+import tarfile
 
 import pytest
 
 from devharness import baselines
+from devharness.checks.jaxtyping_annotations import (
+    baseline as baseline_checks,
+    check as jaxtyping_check,
+    object_annotations,
+    raw_annotations,
+    shaped_aliases,
+    weak_cast_types,
+)
+from devharness.checks.jaxtyping_annotations.constants import baseline_paths
 
 
-def load_check_jaxtyping_annotations() -> ModuleType:
-    module_path = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "check_jaxtyping_annotations.py"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _run_jaxtyping_cli(cwd: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    environment["PATH"] = (
+        f"{Path(sys.executable).parent}{os.pathsep}{environment['PATH']}"
     )
-    spec = importlib.util.spec_from_file_location(
-        "check_jaxtyping_annotations", module_path
+    return subprocess.run(
+        ["devharness", "check", "jaxtyping-annotations", *arguments],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
     )
-    assert spec is not None
-    assert isinstance(spec.loader, SourceFileLoader)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
-check_jaxtyping_annotations = load_check_jaxtyping_annotations()
+def _archive_fixture(tmp_path: Path) -> Path:
+    archive = subprocess.run(
+        ["git", "archive", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    fixture = tmp_path / "repository"
+    fixture.mkdir()
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
+        tar.extractall(fixture)
+    return fixture
+
+
+def _initialize_git_fixture(fixture: Path) -> None:
+    subprocess.run(
+        ["git", "init", "--quiet", "--initial-branch", "main"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "devharness test"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "devharness@example.invalid"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(["git", "add", "."], cwd=fixture, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "--message", "fixture"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", "HEAD"],
+        cwd=fixture,
+        check=True,
+    )
 
 
 def test_baseline_reference_entries_reads_merge_base_and_show_outputs(
@@ -46,22 +97,19 @@ def test_baseline_reference_entries_reads_merge_base_and_show_outputs(
             return "merge-base-sha\n"
         return "# comment\nreference-entry\n\n"
 
-    monkeypatch.setattr(check_jaxtyping_annotations, "git_output", fake_git_output)
+    monkeypatch.setattr(baseline_checks, "git_output", fake_git_output)
 
-    assert check_jaxtyping_annotations.baseline_reference_entries(
-        tmp_path, baseline
-    ) == {"reference-entry"}
+    assert baseline_checks.baseline_reference_entries(tmp_path, baseline) == {
+        "reference-entry"
+    }
     assert calls == [
         ["git", "merge-base", "origin/main", "HEAD"],
         ["git", "show", "merge-base-sha:scripts/baseline.txt"],
     ]
 
-    monkeypatch.setattr(check_jaxtyping_annotations, "git_output", lambda *_: None)
+    monkeypatch.setattr(baseline_checks, "git_output", lambda *_: None)
 
-    assert (
-        check_jaxtyping_annotations.baseline_reference_entries(tmp_path, baseline)
-        is None
-    )
+    assert baseline_checks.baseline_reference_entries(tmp_path, baseline) is None
 
 
 def write_source(root: Path, text: str) -> Path:
@@ -109,7 +157,7 @@ def bad(
 """,
     )
 
-    entries = check_jaxtyping_annotations.current_entries(tmp_path)
+    entries = raw_annotations.current_entries(tmp_path)
 
     assert entries == {
         "models/layout-dm/src/layout_dm/example.py\tOptional[np.ndarray]\tz: Optional[np.ndarray],",
@@ -155,7 +203,7 @@ def make_alias() -> None:
 """,
     )
 
-    entries = check_jaxtyping_annotations.current_alias_entries(tmp_path)
+    entries = shaped_aliases.current_entries(tmp_path)
 
     assert entries == {
         "models/layout-dm/src/layout_dm/example.py\tPublicBbox\tFloat[torch.Tensor, 'batch 4']\tPublicBbox = Float[torch.Tensor, \"batch 4\"]",
@@ -194,7 +242,7 @@ def bad(
 """,
     )
 
-    entries = check_jaxtyping_annotations.current_object_entries(tmp_path)
+    entries = object_annotations.current_entries(tmp_path)
 
     assert entries == {
         "models/layout-dm/src/layout_dm/example.py\tbuiltin_object\talias: builtin_object,",
@@ -230,7 +278,7 @@ lowercase_value = object
 """,
     )
 
-    entries = check_jaxtyping_annotations.current_object_entries(tmp_path)
+    entries = object_annotations.current_entries(tmp_path)
 
     assert entries == {
         "models/layout-dm/src/layout_dm/example.py\tobject\tPublicBbox = object",
@@ -258,7 +306,7 @@ def example(value: object) -> None:
 """,
     )
 
-    entries = check_jaxtyping_annotations.current_weak_cast_entries(tmp_path)
+    entries = weak_cast_types.current_entries(tmp_path)
 
     assert entries == {
         "models/layout-dm/src/layout_dm/example.py\tMapping[str, Any] | None\tcast(Mapping[str, Any] | None, value)",
@@ -272,9 +320,7 @@ def test_check_fails_on_new_raw_annotation(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: None)
     write_source(
         tmp_path,
         """
@@ -287,9 +333,7 @@ def bad(x: torch.Tensor) -> None:
     baseline = tmp_path / "baseline.txt"
     baseline.write_text("", encoding="utf-8")
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
-    )
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New raw tensor/ndarray annotations" in stderr
@@ -301,9 +345,7 @@ def test_check_rejects_baseline_growth_for_new_annotation(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: set())
     write_source(
         tmp_path,
         """
@@ -319,9 +361,7 @@ def bad(x: torch.Tensor) -> None:
         encoding="utf-8",
     )
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
-    )
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New jaxtyping baseline entries" in stderr
@@ -344,11 +384,11 @@ def old(x: torch.Tensor) -> None:
     baseline = tmp_path / "baseline.txt"
     baselines.write_entry_baseline(
         baseline,
-        check_jaxtyping_annotations.current_entries(tmp_path),
+        raw_annotations.current_entries(tmp_path),
     )
     base_entries = baselines.read_entry_baseline(baseline)
     monkeypatch.setattr(
-        check_jaxtyping_annotations,
+        baseline_checks,
         "baseline_reference_entries",
         lambda *_: base_entries,
     )
@@ -363,9 +403,7 @@ def new_unrelated_api(y: torch.Tensor) -> None:
 """,
     )
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
-    )
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New raw tensor/ndarray annotations" in stderr
@@ -389,15 +427,11 @@ def added_in_pr(x: torch.Tensor) -> None:
     baseline = tmp_path / "baseline.txt"
     baselines.write_entry_baseline(
         baseline,
-        check_jaxtyping_annotations.current_entries(tmp_path),
+        raw_annotations.current_entries(tmp_path),
     )
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: set())
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
-    )
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New jaxtyping baseline entries" in stderr
@@ -408,9 +442,7 @@ def test_check_fails_on_new_jaxtyping_alias(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: None)
     write_source(
         tmp_path,
         """
@@ -425,7 +457,7 @@ PublicBbox: TypeAlias = Float[torch.Tensor, "batch 4"]
     baseline = tmp_path / "baseline.txt"
     baseline.write_text("", encoding="utf-8")
 
-    assert check_jaxtyping_annotations.check_jaxtyping_aliases(tmp_path, baseline) == 1
+    assert baseline_checks.check_jaxtyping_aliases(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New jaxtyping shaped-type aliases" in stderr
@@ -437,9 +469,7 @@ def test_check_fails_on_new_object_annotation(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: None)
     write_source(
         tmp_path,
         """
@@ -450,7 +480,7 @@ def bad(value: list[object]) -> None:
     baseline = tmp_path / "baseline.txt"
     baseline.write_text("", encoding="utf-8")
 
-    assert check_jaxtyping_annotations.check_object_annotations(tmp_path, baseline) == 1
+    assert baseline_checks.check_object_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New object annotations in function signatures" in stderr
@@ -462,9 +492,7 @@ def test_check_fails_on_new_weak_cast_type(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: None)
     write_source(
         tmp_path,
         """
@@ -478,7 +506,7 @@ def bad(value: object) -> None:
     baseline = tmp_path / "baseline.txt"
     baseline.write_text("", encoding="utf-8")
 
-    assert check_jaxtyping_annotations.check_weak_cast_types(tmp_path, baseline) == 1
+    assert baseline_checks.check_weak_cast_types(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New bare object/Any references in cast target types" in stderr
@@ -490,9 +518,7 @@ def test_check_rejects_baseline_growth_for_new_jaxtyping_alias(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: set())
     write_source(
         tmp_path,
         """
@@ -505,10 +531,10 @@ PublicBbox = Float[torch.Tensor, "batch 4"]
     baseline = tmp_path / "baseline.txt"
     baselines.write_entry_baseline(
         baseline,
-        check_jaxtyping_annotations.current_alias_entries(tmp_path),
+        shaped_aliases.current_entries(tmp_path),
     )
 
-    assert check_jaxtyping_annotations.check_jaxtyping_aliases(tmp_path, baseline) == 1
+    assert baseline_checks.check_jaxtyping_aliases(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New jaxtyping alias baseline entries" in stderr
@@ -519,9 +545,7 @@ def test_check_rejects_baseline_growth_for_new_object_annotation(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
-    )
+    monkeypatch.setattr(baseline_checks, "baseline_reference_entries", lambda *_: set())
     write_source(
         tmp_path,
         """
@@ -532,10 +556,10 @@ def bad(value: object) -> None:
     baseline = tmp_path / "baseline.txt"
     baselines.write_entry_baseline(
         baseline,
-        check_jaxtyping_annotations.current_object_entries(tmp_path),
+        object_annotations.current_entries(tmp_path),
     )
 
-    assert check_jaxtyping_annotations.check_object_annotations(tmp_path, baseline) == 1
+    assert baseline_checks.check_object_annotations(tmp_path, baseline) == 1
 
     stderr = capsys.readouterr().err
     assert "New object annotation baseline entries" in stderr
@@ -556,18 +580,16 @@ def bad(x: torch.Tensor) -> None:
     baseline = tmp_path / "baseline.txt"
     baselines.write_entry_baseline(
         baseline,
-        check_jaxtyping_annotations.current_entries(tmp_path),
+        raw_annotations.current_entries(tmp_path),
     )
     base_entries = baselines.read_entry_baseline(baseline)
     monkeypatch.setattr(
-        check_jaxtyping_annotations,
+        baseline_checks,
         "baseline_reference_entries",
         lambda *_: base_entries,
     )
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 0
-    )
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 0
 
     write_source(
         tmp_path,
@@ -581,6 +603,91 @@ def fixed(x: Float[torch.Tensor, "batch"]) -> None:
     )
     baseline.write_text("", encoding="utf-8")
 
-    assert (
-        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 0
+    assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 0
+
+
+def test_jaxtyping_cli_rewrites_baselines_and_accepts_shrink(
+    tmp_path: Path,
+) -> None:
+    fixture = _archive_fixture(tmp_path)
+    raw_path = baseline_paths(fixture)[0]
+    raw_path.write_text(
+        "models/layout-dm/src/layout_dm/removed.py\ttorch.Tensor\t"
+        "def removed(value: torch.Tensor) -> None:\n",
+        encoding="utf-8",
     )
+    _initialize_git_fixture(fixture)
+
+    expected_baselines = [path.read_bytes() for path in baseline_paths(REPO_ROOT)]
+
+    write_result = _run_jaxtyping_cli(fixture, "--write-baseline")
+
+    assert write_result.returncode == 0
+    assert write_result.stdout == ""
+    assert write_result.stderr == ""
+    assert [path.read_bytes() for path in baseline_paths(fixture)] == expected_baselines
+
+    check_result = _run_jaxtyping_cli(fixture)
+
+    assert check_result.returncode == 0
+    assert check_result.stdout == ""
+    assert check_result.stderr == ""
+
+
+def test_jaxtyping_cli_reports_new_annotation_with_exact_diagnostic(
+    tmp_path: Path,
+) -> None:
+    fixture = _archive_fixture(tmp_path)
+    violation = write_source(
+        fixture,
+        """
+import torch
+
+def bad(value: torch.Tensor) -> None:
+    pass
+""",
+    )
+
+    result = _run_jaxtyping_cli(fixture)
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "New raw tensor/ndarray annotations in package source:\n"
+        f"  + {violation.relative_to(fixture).as_posix()}\t"
+        "torch.Tensor\tdef bad(value: torch.Tensor) -> None:\n"
+    )
+
+
+def test_jaxtyping_cli_passes_without_git_reference(tmp_path: Path) -> None:
+    fixture = _archive_fixture(tmp_path)
+
+    result = _run_jaxtyping_cli(fixture)
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_jaxtyping_cli_reports_missing_workspace_root() -> None:
+    result = _run_jaxtyping_cli(Path("/proc"))
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "Unable to find repository root with [tool.uv.workspace] in pyproject.toml\n"
+    )
+
+
+def test_jaxtyping_main_runs_from_a_repository_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for path in baseline_paths(tmp_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(jaxtyping_check, "find_repo_root", lambda _: tmp_path)
+
+    assert jaxtyping_check.main([]) == 0
+    assert jaxtyping_check.main(["--write-baseline"]) == 0

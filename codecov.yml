@@ -14,6 +14,10 @@ flags:
     carryforward: true
   posgen:
     carryforward: true
+  canvas-vae:
+    carryforward: true
+  pixel-vae:
+    carryforward: true
   coarse-to-fine:
     carryforward: true
   ds-gan:
@@ -53,6 +57,30 @@ flags:
   ralf:
     carryforward: true
   smarttext:
+    carryforward: true
+  basnet:
+    carryforward: true
+  cgb-dm:
+    carryforward: true
+  devharness:
+    carryforward: true
+  dlt:
+    carryforward: true
+  layout-fid:
+    carryforward: true
+  layoutvae:
+    carryforward: true
+  posterllama:
+    carryforward: true
+  posterllava:
+    carryforward: true
+  postero:
+    carryforward: true
+  radm:
+    carryforward: true
+  traingen:
+    carryforward: true
+  traingen-parity:
     carryforward: true
 
 ignore:

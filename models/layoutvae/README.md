@@ -26,6 +26,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutVAE
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=1907.10719&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/1907.10719)
@@ -46,7 +47,7 @@ LayoutVAE is a `🤗transformers`-style implementation for label-conditioned Pub
 
 - **Developed by:** Akash Abdu Jyothi, Thibaut Durand, Jiawei He, Leonid Sigal, and Greg Mori.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: label.
 - **Language(s) (NLP):** not applicable.
 - **License:** mit.
 
@@ -57,9 +58,9 @@ LayoutVAE is a `🤗transformers`-style implementation for label-conditioned Pub
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| PubLayNet | [`creative-graphic-design/layoutvae-publaynet`](https://huggingface.co/creative-graphic-design/layoutvae-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                              | Status        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------- |
+| PubLayNet  | [`creative-graphic-design/layoutvae-publaynet`](https://huggingface.co/creative-graphic-design/layoutvae-publaynet) | not-published |
 
 ## Uses
 
@@ -127,8 +128,8 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
+| Dataset   | Dataset ID                                                                                               | Notes                                 |
+| --------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | PubMed Central document layout labels |
 
 ### Training Procedure
@@ -165,11 +166,11 @@ Metrics are exact tensor equality for state-dict conversion, fixed-latent forwar
 
 ### Parity Results
 
-| Dataset | Compared artifact | Cases | Match criterion | Result |
-| --- | --- | ---: | --- | --- |
-| PubLayNet | original count and box state dicts vs. converted `LayoutVAEModel` | 74 tensors | `torch.testing.assert_close` defaults | passed |
-| PubLayNet | fixed-latent count and box forward outputs vs. original modules | 2 label-set fixtures | max abs diff <= `1e-6`; observed `5.364418e-7` on boxes and `0.0` on counts | passed |
-| PubLayNet | seeded stochastic end-to-end generation | 2 label-set fixtures | labels match; raw boxes are not claimed bit-exact because random draws are consumed through different PyTorch distribution paths | documented |
+| Dataset   | Compared artifact                                                 |                Cases | Match criterion                                                                                                                  | Result     |
+| --------- | ----------------------------------------------------------------- | -------------------: | -------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| PubLayNet | original count and box state dicts vs. converted `LayoutVAEModel` |           74 tensors | `torch.testing.assert_close` defaults                                                                                            | passed     |
+| PubLayNet | fixed-latent count and box forward outputs vs. original modules   | 2 label-set fixtures | max abs diff <= `1e-6`; observed `5.364418e-7` on boxes and `0.0` on counts                                                      | passed     |
+| PubLayNet | seeded stochastic end-to-end generation                           | 2 label-set fixtures | labels match; raw boxes are not claimed bit-exact because random draws are consumed through different PyTorch distribution paths | documented |
 
 ## Reproducibility
 

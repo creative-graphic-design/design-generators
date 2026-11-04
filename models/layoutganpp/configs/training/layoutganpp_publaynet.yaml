@@ -1,0 +1,33 @@
+seed_everything: 42975
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  max_epochs: 1
+  limit_train_batches: 2
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+  default_root_dir: .cache/layoutganpp/training-runs/publaynet
+model:
+  class_path: layoutganpp.training.LayoutGANPPTrainingModule
+  init_args:
+    dataset_name: publaynet
+    latent_size: 4
+    generator_d_model: 256
+    generator_nhead: 4
+    generator_num_layers: 8
+    discriminator_d_model: 256
+    discriminator_nhead: 4
+    discriminator_num_layers: 8
+    discriminator_max_elements: 50
+    learning_rate: 1.0e-5
+data:
+  class_path: layoutganpp.training.LayoutGANPPDataModule
+  init_args:
+    dataset_name: publaynet
+    data_root: .cache/layoutganpp/data/publaynet
+    batch_size: 64
+    num_workers: 4
+    seed: 42975
+    shuffle_train: true

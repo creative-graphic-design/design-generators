@@ -19,7 +19,7 @@ These conventions apply to generated outputs and public pipeline arguments.
 
 Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
 
-Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults.
+Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults. Tests validate each output with `laygen.common.testing.assert_layout_output_schema`.
 
 Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`. The shared base handles root [`PretrainedConfig`](https://huggingface.co/docs/transformers/main_classes/configuration) loading, declared subfolder components, [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model), `to(device, dtype)`, and generator-over-seed precedence; each model package implements its own `__call__` orchestration and returns the canonical Transformers-style layout output.
 
@@ -62,6 +62,57 @@ Canonical `condition_type` names are:
 
 Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 
+#### Model catalog classification
+
+Each model README has one classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <values>.` For layout-generation models, `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input. It is `content-aware` when package inference uses a canvas/background image or saliency input. Element-level image or text feature fields, such as Flex-DM's feature infilling, do not affect this classification.
+
+For layout-generation models, `Task` is classified as follows:
+
+- `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference; this value requires two or more accepted generation conditions.
+- `task-aware`: a separate checkpoint or training run exists for each accepted generation condition; this value requires two or more accepted generation conditions.
+- `single-task`: the package accepts exactly one condition; packages whose `conditioning:` value of the model card's `Model type:` line is `none` count as single-task because their only accepted condition is `content_image`.
+- `evaluation`: the package evaluates layouts rather than generating them.
+- `saliency`: the package predicts saliency rather than generating layouts.
+
+Image-generation models use `image generation` as the `Model type` category. Their task is `text-to-image` or `image-to-image`. Their conditioning values are `layers` and `text`. List `layers` before `text` when both are accepted. In the model catalog, join the conditioning values with a plus sign in the `Content` column. In model cards, `pipeline_tag` matches the task value. Every `model-index` result's `task.type` also matches the task value. `layers` describes layer-based image input. It is not a layout `condition_type`.
+
+Use block-style YAML in model-card `model-index` frontmatter. Indent nested fields by two spaces. Use the canonical field order. Scalar values, including JSON-style double-quoted strings, contain only printable ASCII (`0x20`–`0x7E`). The `devharness check model-readmes` command uses only the standard library to validate this frontmatter. It reserializes the parsed block in canonical form. It rejects any byte-level difference with an explicit format error.
+
+The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
+
+The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
+
+- `evaluation`: evaluate layouts rather than generate them.
+- `layers`: describe layer-based image input to an image-generation model.
+- `saliency`: predict saliency as the package's primary public operation.
+- `none`: the package's only accepted condition is `content_image`.
+
+The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
+
+### Pipeline arguments
+
+Layout pipelines expose the following keyword-only arguments. The initial layout interface is called v1; v2 adds the multimodal inputs below. Use precise shaped annotations and explicit model-specific keywords in implementations, rather than a catch-all `**kwargs` signature.
+
+| Arguments                                                  | Requirement                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `batch_size=1`, `num_elements=None`                        | Requested batch size and optional scalar or per-example element count.                      |
+| `seed=None`, `generator=None`                              | An explicit generator takes precedence over a seed.                                         |
+| `condition_type="unconditional"`                           | Normalize to the canonical condition enum and reject unsupported modes.                     |
+| `labels=None`, `bbox=None`, `mask=None`                    | Optional condition inputs using dataset labels and valid-element masks.                     |
+| `box_format="xywh"`, `normalized=True`, `canvas_size=None` | Describe input boxes; return normalized center `xywh` regardless of input representation.   |
+| `num_inference_steps=None`                                 | Optional generation-step override where supported.                                          |
+| `output_type="dataclass"`, `return_intermediates=False`    | Return the canonical output or its dictionary form; keep auxiliary data in `intermediates`. |
+
+Expose the agreed v1 arguments even when some combinations are unsupported; reject those combinations explicitly. For v2, add only the relevant inputs: `prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`. Each package's pipeline API documentation must state the accepted shape and meaning of every v2 input it exposes. Open-vocabulary labels use request-local ids; batched outputs use one batch-local union with per-example maps in `intermediates["id2label_per_example"]`.
+
+### Model and serialization rules
+
+Every `PreTrainedModel` implements `forward`. Keep multi-model or decoded-text orchestration in the pipeline, and expose only standard model `forward` and token-level `generate` entrypoints. Layout-level methods such as `generate_layout` belong on the pipeline's `__call__`. Stateful constrained decoding may remain an internal model helper called by the pipeline.
+
+Keep standard `save_pretrained` and `from_pretrained` machinery; justify any unavoidable override in the model plan and PR. Require an explicit config or derive it from a loaded artifact such as `model.config`, rather than synthesizing a fallback config. Use framework suffixes such as `ForConditionalGeneration` only when the class satisfies the corresponding forward/generate behavior.
+
+Discrete layout tokenizers inherit `transformers.PreTrainedTokenizer` unless the model plan documents a concrete conflict. Use synthetic token strings, standard padding/mask tokens, and `encode_layout()`/`decode_layout()` for layout conversion. Serialize auxiliary data such as cluster centers with tokenizer files, and preserve float64 decode paths where numerical agreement requires them. Processors use `transformers.ProcessorMixin` where applicable.
+
 ### Seeded Sampling
 
 Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. The shared `laygen.common.randomness` wrappers (`randn`, `rand`, `randint`, `randperm`, `multinomial`, `bernoulli`, `normal`, and `poisson`) draw on an explicit generator's device, or on the requested output device when no generator is supplied, and then move the result to the requested device and dtype. Explicit generators keep their identity and device, so a CUDA generator remains a CUDA-local stream while a CPU generator gives the same stream for CPU and GPU targets. When a CPU generator samples GPU-resident tensor arguments, `multinomial`, `bernoulli`, `normal`, and `poisson` copy those arguments device-to-host for the CPU draw, synchronizing the stream, and copy the result host-to-device on every draw; this cost is paid on every step of discrete-diffusion and autoregressive decode loops.
@@ -70,24 +121,42 @@ Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. Th
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.
 
-### Framework Selection
-
-- Diffusion and flow-matching models use Diffusers.
-- A Diffusers denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration).
-- A Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview).
-- Diffusers generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline).
-- Add a repository scheduler when no built-in scheduler expresses the required process.
-- Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model).
-- LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
-- Methods that call an external language model in context use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
-
 ## Contributor Conventions
 
 These conventions apply when adding or maintaining workspace packages.
 
+The framework-selection and module-name rules below are mandatory for packages added to or maintained inside `design-generators`. A downstream project is not required to follow them merely because it consumes `laygen` or `traingen`; downstream projects may opt in.
+
+### Choosing a model framework
+
+Choose the framework from the model's generation process and checkpoint contract, not from the nearest example package.
+
+- Diffusion and flow-matching models use Diffusers. A denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration), a Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview), and diffusion generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline). Add a repository scheduler when no built-in scheduler expresses the required process.
+- Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model). Use the same base for other non-diffusion models when they own a checkpoint and the standard `save_pretrained` / `from_pretrained` contract fits. Package-owned model configs use `PretrainedConfig` with a non-empty `model_type`; internal neural-network blocks remain `torch.nn.Module`.
+- A package that only composes an existing Transformers model loads it through the appropriate Transformers `AutoModel` class in its package pipeline (for example, `AutoModelForCausalLM`) and keeps package-specific inference in that pipeline.
+- LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
+- Methods that call an external language model for in-context inference use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
+- Use a public `torch.nn.Module` runtime adapter only when the checkpoint contract does not fit `PreTrainedModel`; record the reason in the model issue plan.
+
 ### Workspace Packages
 
 Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+
+### Model package module names
+
+Under `src/<python_package>/`, add only the modules the package uses:
+
+- `configuration_<python_package>.py` for a package-owned config.
+- `modeling_<python_package>.py` for a package-owned model.
+- `pipeline_<python_package>.py` for package-specific inference.
+- `processing_<python_package>.py`, `image_processing_<python_package>.py`, `scheduling_<python_package>.py`, and `tokenization_<python_package>.py` when the package owns those components.
+- `generation_<python_package>.py` when the package owns generation methods.
+- Use the Python import package name in the suffix (for example, `layout_flow`), not a hyphenated repository slug.
+- Use `conversion.py` for package-specific checkpoint conversion.
+- Name other direct modules for their responsibility and use names covered by the repository-wide `ALLOWLIST_CATEGORIES`, prompt-agent `PROMPT_AGENT_MODULES`, or package-specific `PACKAGE_SPECIFIC_ALLOWED_MODULES` in the [module-naming check](../scripts/check_module_naming.py); see that check for the current names.
+- Name pytest files `test_<subject>.py`; a package-name suffix is optional.
+
+Record the reason in the model issue plan when a public runtime or package layout needs an exception, and keep direct module names within the naming check's accepted names.
 
 Run member-specific commands with the package selected:
 
@@ -96,6 +165,10 @@ uv run --package <name> pytest
 ```
 
 Original implementations stay under `vendor/` and are treated as read-only references. Here, vendor means the upstream research repository used to verify conversion behavior. Dependencies needed only for vendor parity belong behind a model package's `vendor` optional extra.
+
+### Code style
+
+Apply the repository's [Class Design And Code Style](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#class-design-and-code-style) rules and the [code and review safeguards](implementation-checklist.md#code-and-review-safeguards) checklist.
 
 ### Data And Parity
 
@@ -107,6 +180,6 @@ Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags` so the do
 
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 
-Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) smoke tests.
+Each model README includes a `Reproducibility` section that states how to rerun agreement checks and links to its package `REPRODUCING.md`. That file owns the copy-pasteable download, reference-generation, comparison, conversion or prompt-serialization, and local-loading commands. Package `TRAINING.md` files follow the separate [training reproduction protocol](training-reproduction.md).
 
 Public API docstrings are the source for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections. Examples should be runnable doctest-style snippets when the API can run without heavyweight assets.

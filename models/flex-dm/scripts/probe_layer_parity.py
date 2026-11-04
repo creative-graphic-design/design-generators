@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections.abc import Sequence
 from pathlib import Path
 import sys
-from types import ModuleType
 
 import numpy as np
 from jaxtyping import Shaped
@@ -22,7 +20,6 @@ FlexDmProbeValue = (
     | list["FlexDmProbeValue"]
     | dict[str, "FlexDmProbeValue"]
 )
-FlexDmLookupKwarg = str | int | float | bool | None | Sequence[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,47 +45,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def install_tf_compat_shim() -> None:
-    """Install TF 2.15 compatibility shims for TF 2.8 vendor imports."""
-    import tensorflow as tf
-
-    experimental = ModuleType("tensorflow.keras.layers.experimental")
-    preprocessing = ModuleType("tensorflow.keras.layers.experimental.preprocessing")
-
-    def normalize_lookup_kwargs(
-        kwargs: dict[str, FlexDmLookupKwarg],
-    ) -> dict[str, FlexDmLookupKwarg]:
-        normalized = dict(kwargs)
-        if "mask_value" in normalized:
-            normalized["mask_token"] = normalized.pop("mask_value")
-        return normalized
-
-    class StringLookup(tf.keras.layers.StringLookup):  # type: ignore[misc]
-        def __init__(
-            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
-        ) -> None:
-            super().__init__(*args, **normalize_lookup_kwargs(kwargs))
-
-        def vocab_size(self) -> int:
-            return int(self.vocabulary_size())
-
-    class IntegerLookup(tf.keras.layers.IntegerLookup):  # type: ignore[misc]
-        def __init__(
-            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
-        ) -> None:
-            super().__init__(*args, **normalize_lookup_kwargs(kwargs))
-
-        def vocab_size(self) -> int:
-            return int(self.vocabulary_size())
-
-    preprocessing.StringLookup = StringLookup
-    preprocessing.IntegerLookup = IntegerLookup
-    preprocessing.Discretization = tf.keras.layers.Discretization
-    experimental.preprocessing = preprocessing
-    sys.modules["tensorflow.keras.layers.experimental"] = experimental
-    sys.modules["tensorflow.keras.layers.experimental.preprocessing"] = preprocessing
-
-
 def _variant_root(asset_dir: Path, dataset: str, variant: str) -> Path:
     direct = asset_dir / "weights" / dataset / variant
     nested = asset_dir / "weights" / dataset / dataset / variant
@@ -103,7 +59,9 @@ def _data_root(asset_dir: Path, dataset: str) -> Path:
 
 def export_vendor(args: argparse.Namespace) -> None:
     """Export TensorFlow vendor internals for one dataset/task."""
-    install_tf_compat_shim()
+    from traingen_parity.tensorflow_compat import install_keras_preprocessing_compat
+
+    install_keras_preprocessing_compat()
     repo_root = Path(__file__).resolve().parents[3]
     vendor_root = repo_root / "vendor" / "flex-dm"
     sys.path.insert(0, str(vendor_root))

@@ -39,7 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Dependency environments
 
-A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings.
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. For pull requests and merge queue entries, the matrix selects test-bearing members from changed paths and transitive declared dependencies; any non-Markdown change outside a member directory selects all test-bearing members, while Markdown-only changes skip member tests. Non-Markdown main pushes, manual dispatches, and the daily scheduled run select the full member matrix. Selection follows declared `dependencies`, `optional-dependencies`, and dependency groups, always adds `devharness` for non-Markdown changes, and does not infer undeclared imports or shared test data.
 
 A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the root `evaluation` extra when they run `scripts/verify_evaluate_layout_metrics.py`. The root project installs no runtime dependencies by default; it owns the workspace-wide `transformers` and `diffusers` version floors and the `dev` and `docs` tooling groups, while workspace members own their runtime dependencies.
 
@@ -52,27 +52,29 @@ A root-tooling environment installs the root package and its tooling group with 
 
 A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
 
-Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, and CLI behavior; migrated checker policies live under `devharness.checks` and use the `devharness check <name>` command surface. The migrated checks include `model-readmes`, and later migrations extend this list. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers, while one-consumer mechanics stay in the checker. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
+Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, CLI behavior, and git or network access; migrated checker policies live under `devharness.checks` and use the `devharness check <name>` command surface. The migrated checks include `model-readmes` and `jaxtyping-annotations`. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers and is stdlib-only (`tools/devharness/pyproject.toml` declares `dependencies = []`), while one-consumer mechanics stay in the checker that uses them. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
 
 ## Training ownership
 
 Training infrastructure follows the current package boundaries below. Model packages retain dataset, numerical, scheduling, configuration, and model-specific parity behavior.
 
-| Concern                                                | Current owner              | Notes                                                                                                                             |
-| ------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| LightningCLI/bootstrap                                 | `traingen`                 | Model-agnostic repository training entrypoint used by package-scoped training environments.                                       |
-| Generic Lightning logging/reduction helpers            | `traingen.lightning.steps` | Model-agnostic logging, loss reduction, and training-trace helpers used by package-scoped training environments.                  |
-| RNG capture/restore and deterministic runtime controls | `traingen-parity`          | Parity-only primitives are used by LayoutDM, LayoutFlow, and LayoutDiffusion adapters; model-specific seed wrappers remain local. |
-| Trace construction/comparison/report helpers           | `traingen-parity`          | Generic parity primitives; model packages provide trace schemas and adapter functions.                                            |
-| Model-specific trace point names                       | Model package              | Each package owns its trace tuple; trace names are not shared merely for reuse.                                                   |
-| Dataset/data transforms                                | Model package              | Dataset formats, preprocessing, ordering, and loader behavior remain package-specific.                                            |
-| Loss definitions                                       | Model package              | Loss formulas and reduction semantics remain package-specific.                                                                    |
-| Scheduler/sampler policy                               | Model package              | Optimizer cadence, timestep sampling, EMA, and scheduler behavior remain package-specific.                                        |
-| Training YAML/config values                            | Model package              | Dataset and model configuration values live with each package's training entrypoints.                                             |
-| Model-specific callbacks                               | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                            |
-| Checkpoint conversion                                  | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                            |
+| Concern                                                   | Current owner              | Notes                                                                                                                                 |
+| --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| LightningCLI/bootstrap                                    | `traingen`                 | Model-agnostic repository training entrypoint used by package-scoped training environments.                                           |
+| Generic Lightning logging/reduction helpers               | `traingen.lightning.steps` | Model-agnostic logging, loss reduction, and training-trace helpers used by package-scoped training environments.                      |
+| Keras 2 Adam update semantics                             | `traingen.optim`           | Shared by CanvasVAE and PixelVAE when comparing optimizer updates with their TensorFlow references.                                   |
+| RNG capture/restore and deterministic runtime controls    | `traingen-parity`          | Parity-only primitives are used by LayoutDM, LayoutFlow, and LayoutDiffusion adapters; model-specific seed wrappers remain local.     |
+| Trace construction/comparison/report helpers              | `traingen-parity`          | Generic parity primitives; model packages provide trace schemas and adapter functions.                                                |
+| TensorFlow 2.15 Keras compatibility for reference scripts | `traingen-parity`          | `traingen_parity.tensorflow_compat` is used by Flex-DM reference scripts; it imports neither TensorFlow nor PyTorch at module import. |
+| Model-specific trace point names                          | Model package              | Each package owns its trace tuple; trace names are not shared merely for reuse.                                                       |
+| Dataset/data transforms                                   | Model package              | Dataset formats, preprocessing, ordering, and loader behavior remain package-specific.                                                |
+| Loss definitions                                          | Model package              | Loss formulas and reduction semantics remain package-specific.                                                                        |
+| Scheduler/sampler policy                                  | Model package              | Optimizer cadence, timestep sampling, EMA, and scheduler behavior remain package-specific.                                            |
+| Training YAML/config values                               | Model package              | Dataset and model configuration values live with each package's training entrypoints.                                                 |
+| Model-specific callbacks                                  | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                                |
+| Checkpoint conversion                                     | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                                |
 
-The generated API exposes these helpers under `traingen.lightning.steps`.
+The generated API exposes Lightning helpers under `traingen.lightning.steps` and the shared Keras-compatible optimizer under `traingen.optim`.
 
 ## Runtime ownership
 
@@ -134,7 +136,7 @@ Move a helper into a shared package when at least two packages need the same beh
 
 ## Dependency direction
 
-All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
+All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed. `posgen` declares `laygen` in its `test` dependency group because its tests import `laygen.common`. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
 
@@ -145,7 +147,7 @@ The Transformers-side shared layout output in `laygen.modeling_outputs` is based
 ```mermaid
 graph LR
     laygen["laygen"] --> model_packages["model packages"]
-    laygen -. "optional; currently unused" .-> posgen["posgen"]
+    laygen -. "test dependency" .-> posgen["posgen"]
     posgen --> poster_models["poster or content-aware model packages"]
 ```
 

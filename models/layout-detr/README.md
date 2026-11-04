@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDETR
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2212.09877&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2212.09877)
@@ -48,7 +49,7 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 
 - **Developed by:** Ning Yu, Chia-Chih Chen, Zeyuan Chen, Rui Meng, Gang Wu, Paul Josel, Juan Carlos Niebles, Caiming Xiong, and Ran Xu.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-image layout generation.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** English ad-banner text strings.
 - **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the components acknowledged by that repository, including [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama).
 
@@ -59,8 +60,8 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint                          | Hub ID                                          | Status        |
+| ----------------------------------- | ----------------------------------------------- | ------------- |
 | LayoutDETR Ad Banner `G_ema` pickle | `creative-graphic-design/layout-detr-ad-banner` | not-published |
 
 ## Uses
@@ -146,13 +147,13 @@ Training follows the original LayoutDETR GAN/DETR objective and environment. Thi
 
 ### Parity Results
 
-| Compared target | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
-| Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys |
+| Compared target                                   |                           Cases | Criterion                                                                                                 | Result                                                                                                                                                                                                                                                         |
+| ------------------------------------------------- | ------------------------------: | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Released Ad Banner pickle unpickle                |                    1 checkpoint | extract `G_ema` and record conversion report                                                              | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported                                                                                                                                                            |
+| Strict converted state load                       |                    1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration`                                | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys                                                                                                                                                               |
 | Original-implementation `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated original-implementation tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
-| Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
-| Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
+| Converted `from_pretrained` smoke                 |                1 synthetic case | schema and local load                                                                                     | passes in ordinary tests                                                                                                                                                                                                                                       |
+| Custom-op boundary                                |                               0 | converted runtime imports no `torch_utils.ops`                                                            | documented by parity test hook                                                                                                                                                                                                                                 |
 
 ## Reproducibility
 

@@ -26,6 +26,11 @@ def _draw(
     return result.to(device=device, dtype=dtype)
 
 
+def random_seed(generator: torch.Generator) -> int:
+    """Draw the non-negative int64 seed used by PyTorch's random sampler."""
+    return int(torch.empty((), dtype=torch.int64).random_(generator=generator).item())
+
+
 def randn(
     *size: int | tuple[int, ...] | torch.Size,
     generator: torch.Generator | None = None,

@@ -16,10 +16,33 @@ def read_entry_baseline(path: Path) -> set[str]:
     }
 
 
+def _leading_comment_header(path: Path) -> bytes:
+    """Return the existing contiguous leading comment lines unchanged."""
+    if not path.exists():
+        return b""
+
+    header = bytearray()
+    for line in path.read_bytes().splitlines(keepends=True):
+        if not line.startswith(b"#"):
+            break
+
+        header.extend(line)
+
+    return bytes(header)
+
+
 def write_entry_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted entries with one trailing newline when non-empty."""
+    """Preserve a leading comment header and write sorted entries."""
+    header = _leading_comment_header(path)
     content = "\n".join(sorted(entries))
-    path.write_text(f"{content}\n" if content else "", encoding="utf-8")
+    if not content:
+        path.write_bytes(header)
+        return
+
+    if header and not header.endswith((b"\r", b"\n")):
+        header += b"\n"
+
+    path.write_bytes(header + f"{content}\n".encode())
 
 
 def diff_entry_baseline(

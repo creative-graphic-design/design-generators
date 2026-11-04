@@ -32,7 +32,9 @@ def assert_vendor_parity_badge(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
 
     expected = (
-        "not-run"
+        "not-verified"
+        if "vendor parity is not verified" in parity_section
+        else "not-run"
         if "not run" in parity_section
         else "practical-reproduction"
         if "practical training reproduction" in parity_section

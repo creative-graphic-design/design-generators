@@ -95,6 +95,51 @@ conflicts = [
         { package = "postero" },
         { package = "flex-dm", extra = "convert" },
     ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai members require protobuf>=5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layout-gpt" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layoutprompter" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # canvas-vae[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "postero" },
+        { package = "canvas-vae", extra = "convert" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai members require protobuf>=5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layout-gpt" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "layoutprompter" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] -> tensorflow-cpu 2.15.1 -> protobuf<5; pydantic-ai requires protobuf>=5.
+    [
+        { package = "postero" },
+        { package = "pixel-vae", extra = "vendor" },
+    ],
+    # The convert and vendor extras install different TensorFlow distributions; keep the environments separate.
+    [
+        { package = "canvas-vae", extra = "convert" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
     # housegan[vendor] pins networkx==2.4; smarttext[vendor] -> scikit-image>=0.21 -> networkx>=2.8.
     [
         { package = "housegan", extra = "vendor" },
@@ -105,6 +150,41 @@ conflicts = [
         { package = "housegan", extra = "vendor" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # laygen[agents] -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # layout-gpt -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "layout-gpt" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # layoutprompter -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "layoutprompter" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # postero -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "postero" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # housegan[vendor] pins networkx==2.4; canvas-vae[vendor] -> tensorflow[and-cuda]==2.15.1 forces torch>=2.9 -> networkx>=2.5.1.
+    [
+        { package = "housegan", extra = "vendor" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] uses TensorFlow CPU; canvas-vae[vendor] uses TensorFlow with CUDA.
+    [
+        { package = "pixel-vae", extra = "vendor" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # pixel-vae[vendor] uses TensorFlow CPU; flex-dm[vendor-tf] uses TensorFlow with CUDA.
+    [
+        { package = "pixel-vae", extra = "vendor" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
 ]
 
 [tool.uv.workspace]
@@ -113,6 +193,7 @@ members = ["lib/*", "models/*", "tools/*"]
 [tool.uv.sources]
 devharness = { workspace = true }
 basnet = { workspace = true }
+canvas-vae = { workspace = true }
 coarse-to-fine = { workspace = true }
 cgb-dm = { workspace = true }
 dlt = { workspace = true }
@@ -144,6 +225,7 @@ ralf = { workspace = true }
 smarttext = { workspace = true }
 traingen = { workspace = true }
 traingen-parity = { workspace = true }
+pixel-vae = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
@@ -215,6 +297,7 @@ omit = [
     "models/layout-dm/src/layout_dm/training/*",
     "models/layout-flow/src/layout_flow/training/*",
     "models/layoutdiffusion/src/layoutdiffusion/training/*",
+    "models/layoutformerpp/src/layoutformerpp/training/*",
     "scripts/*",
     "scripts/**/*",
     "vendor/*",

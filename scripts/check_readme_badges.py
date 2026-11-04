@@ -16,6 +16,7 @@ BADGE_RE = re.compile(
 )
 BADGE_DOCS = [
     REPO_ROOT / "README.md",
+    REPO_ROOT / "docs" / "index.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md")),
@@ -79,20 +80,51 @@ ROOT_VENUE_BADGE_COLORS = {
     "CVPR 2023": "0076a8",
     "CVPR 2024": "0076a8",
     "CVPR 2025": "0076a8",
+    "CIKM 2023": "6b7280",
     "ECCV 2020": "009688",
     "ECCV 2024": "009688",
     "ICCV 2019": "0066cc",
+    "ICCV 2021": "0066cc",
     "ICCV 2023": "0066cc",
     "ICCV 2025": "0066cc",
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
 }
-ROOT_TASK_LEGEND_BADGE_COLORS = {
+MODEL_VENUE_BADGE_COLORS = {
+    "CIKM 2023": "6b7280",
+}
+ROOT_TASK_BADGE_COLORS = {
+    "task-agnostic": "2f80ed",
+    "task-aware": "9b51e0",
+    "single-task": "6b7280",
+    "evaluation": "6b7280",
+    "saliency": "f39c12",
+    "text-to-image": "6b7280",
+    "image-to-image": "6b7280",
+}
+ROOT_CONTENT_BADGE_COLORS = {
     "content-agnostic": "2f80ed",
     "content-aware": "eb5757",
-    "layout-evaluation": "6b7280",
-    "mixed": "9b51e0",
+    "text": "2f80ed",
+    "layers": "eb5757",
+    "layers + text": "eb5757",
+}
+ROOT_TASK_BADGE_ICONS = {
+    "task-agnostic": "🎯",
+    "task-aware": "🎯",
+    "single-task": "🎯",
+    "evaluation": "🎯",
+    "saliency": "🎯",
+    "text-to-image": "🎨",
+    "image-to-image": "🎨",
+}
+ROOT_CONTENT_BADGE_ICONS = {
+    "content-agnostic": "🖼️",
+    "content-aware": "🖼️",
+    "text": "📝",
+    "layers": "🧩",
+    "layers + text": "🧩",
 }
 ROOT_LIBRARY_BADGE_COLORS = {
     "laygen": "2f80ed",
@@ -139,12 +171,14 @@ PAPER_LINKS = {
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2108.00871"): "https://arxiv.org/abs/2108.00871",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
+    ("arXiv", "2108.01249"): "https://arxiv.org/abs/2108.01249",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
     ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
     ("arXiv", "2305.15393"): "https://arxiv.org/abs/2305.15393",
+    ("arXiv", "2306.09086"): "https://arxiv.org/abs/2306.09086",
     ("arXiv", "2308.12700"): "https://arxiv.org/abs/2308.12700",
     ("arXiv", "2311.06495"): "https://arxiv.org/abs/2311.06495",
     ("arXiv", "2311.13602"): "https://arxiv.org/abs/2311.13602",
@@ -188,7 +222,7 @@ class Badge:
 
 
 def _is_root_readme(path: Path) -> bool:
-    return path == REPO_ROOT / "README.md"
+    return path in {REPO_ROOT / "README.md", REPO_ROOT / "docs" / "index.md"}
 
 
 def _semantic_label(alt: str, query_label: str) -> str:
@@ -198,18 +232,6 @@ def _semantic_label(alt: str, query_label: str) -> str:
             f"badge with label=> must use '<semantic label>: ...' alt text: {alt!r}"
         )
 
-    semantic_alt_prefixes = {
-        "checkpoint",
-        "dataset",
-        "framework",
-        "library",
-        "model",
-        "task",
-        "training",
-        "venue",
-    }
-    if separator and alt_prefix in semantic_alt_prefixes:
-        return alt_prefix
     return alt_prefix
 
 
@@ -256,6 +278,9 @@ def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | Non
         return {None}
 
     if label == "task":
+        return {None}
+
+    if label == "content":
         return {None}
 
     if label == "framework":
@@ -319,8 +344,13 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
         return "blue"
 
     if label == "task":
-        if _is_root_readme(path) and message in ROOT_TASK_LEGEND_BADGE_COLORS:
-            return ROOT_TASK_LEGEND_BADGE_COLORS[message]
+        if _is_root_readme(path) and message in ROOT_TASK_BADGE_COLORS:
+            return ROOT_TASK_BADGE_COLORS[message]
+        return "purple"
+
+    if label == "content":
+        if _is_root_readme(path) and message in ROOT_CONTENT_BADGE_COLORS:
+            return ROOT_CONTENT_BADGE_COLORS[message]
         return "purple"
 
     if label == "framework" and message:
@@ -349,12 +379,15 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     if label == "venue":
         if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
             return ROOT_VENUE_BADGE_COLORS[message]
+        if message in MODEL_VENUE_BADGE_COLORS:
+            return MODEL_VENUE_BADGE_COLORS[message]
+
         return "purple"
 
     if label == "models":
         return "purple"
 
-    if label == "vendor-parity" and message == "not-run":
+    if label == "vendor-parity" and message in {"not-run", "not-verified"}:
         return "lightgrey"
 
     if label == "core" or label == "vendor-parity":
@@ -373,6 +406,19 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     if label == "hub":
         return "lightgrey" if message == "n/a" else "orange"
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
+
+
+def _expected_icon(path: Path, label: str, message: str | None) -> str | None:
+    if not _is_root_readme(path) or message is None:
+        return None
+
+    if label == "task":
+        return ROOT_TASK_BADGE_ICONS.get(message)
+
+    if label == "content":
+        return ROOT_CONTENT_BADGE_ICONS.get(message)
+
+    return None
 
 
 def _iter_badges(path: Path) -> list[Badge]:
@@ -440,6 +486,13 @@ def _iter_badges(path: Path) -> list[Badge]:
 
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
+        expected_icon = _expected_icon(path, label, message)
+        if expected_icon is not None and query["label"][0] != expected_icon:
+            raise AssertionError(
+                f"{path}:{line}: badge {label!r} icon {query['label'][0]!r} "
+                f"!= {expected_icon!r}: {url}"
+            )
+
         allowed_logos = _allowed_logos(path, label, message)
         if logo not in allowed_logos:
             raise AssertionError(
@@ -499,7 +552,11 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        return f"lib/{badge.message}/README.md"
+        return (
+            f"api/libraries/{badge.message}/"
+            if badge.path == REPO_ROOT / "docs" / "index.md"
+            else f"lib/{badge.message}/README.md"
+        )
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]
     return None

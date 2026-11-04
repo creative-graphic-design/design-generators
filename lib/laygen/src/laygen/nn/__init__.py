@@ -6,6 +6,7 @@ from .activations import (
     get_activation,
     normalize_activation,
 )
+from .attention import MultiHeadSelfAttention
 from .embeddings import (
     ElementPositionalEmbedding,
     SinusoidalPosEmb,
@@ -28,6 +29,7 @@ __all__ = [
     "AdaLayerNorm",
     "Block",
     "ElementPositionalEmbedding",
+    "MultiHeadSelfAttention",
     "SinusoidalPosEmb",
     "TimestepEmbeddingType",
     "TimestepTransformerEncoder",

@@ -593,6 +593,42 @@ def test_allowed_status_enum_values_pass(tmp_path: Path, status: str) -> None:
     assert check_training_doc_template.current_entries(tmp_path) == set()
 
 
+def test_protocol_example_results_table_has_no_status_violation(
+    tmp_path: Path,
+) -> None:
+    protocol_text = (
+        Path(__file__).resolve().parents[1] / "docs" / "training-reproduction.md"
+    ).read_text(encoding="utf-8")
+    table_start = protocol_text.index(
+        "| Dataset", protocol_text.index("Use this table shape")
+    )
+    table_end = protocol_text.index("\n\n### Comparison Scope", table_start)
+    protocol_table = protocol_text[table_start:table_end]
+    training_text = valid_training_doc()
+    table_start = training_text.index("| Dataset | System | Status")
+    table_end = training_text.index("\n\n### Comparison Scope", table_start)
+    training_text = (
+        training_text[:table_start] + protocol_table + training_text[table_end:]
+    )
+    training_path = write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    violations = check_training_doc_template.violations_for_training_doc(
+        training_path, tmp_path
+    )
+
+    assert [
+        violation
+        for violation in violations
+        if violation.reason
+        == "Reproduction Results status is not an allowed enum value"
+    ] == []
+
+
 def test_copied_training_template_placeholders_fail(tmp_path: Path) -> None:
     template_text = (
         Path(__file__).resolve().parents[1]

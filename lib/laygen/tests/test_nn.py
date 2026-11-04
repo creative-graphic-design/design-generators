@@ -10,6 +10,7 @@ from laygen.nn import (
     AdaInsNorm,
     AdaLayerNorm,
     ElementPositionalEmbedding,
+    MultiHeadSelfAttention,
     SinusoidalPosEmb,
     TimestepEmbeddingType,
     TimestepTransformerEncoder,
@@ -118,3 +119,47 @@ def test_transformer_encoder_layer_and_clone_helper_preserve_shapes() -> None:
     assert len(clones) == 2
     assert clones[0] is not layer
     assert clones[0] is not clones[1]
+
+
+def test_multi_head_self_attention_keeps_projection_keys() -> None:
+    attention = MultiHeadSelfAttention(hidden_size=8, num_heads=2)
+
+    assert list(attention.state_dict()) == [
+        f"{name}.{param}"
+        for name in ("q_proj", "k_proj", "v_proj", "out_proj")
+        for param in ("weight", "bias")
+    ]
+
+    try:
+        MultiHeadSelfAttention(hidden_size=8, num_heads=3)
+    except ValueError as exc:
+        assert "divisible" in str(exc)
+    else:
+        raise AssertionError("indivisible hidden size should fail")
+
+
+def test_multi_head_self_attention_matches_reference_and_ignores_padding() -> None:
+    torch.manual_seed(0)
+    attention = MultiHeadSelfAttention(hidden_size=8, num_heads=2)
+    hidden_states = torch.randn(2, 4, 8)
+    mask = torch.tensor([[True, True, True, False], [True, False, True, True]])
+
+    def heads(x: torch.Tensor) -> torch.Tensor:
+        return x.view(2, 4, 2, 4).transpose(1, 2)
+
+    query = heads(attention.q_proj(hidden_states))
+    key = heads(attention.k_proj(hidden_states))
+    value = heads(attention.v_proj(hidden_states))
+    scores = query @ key.transpose(-2, -1) / 2.0
+    scores = scores.masked_fill(~mask[:, None, None, :], -1e9)
+    context = (scores.softmax(-1) @ value).transpose(1, 2).reshape(2, 4, 8)
+    expected = attention.out_proj(context)
+
+    output = attention(hidden_states, mask)
+    perturbed = hidden_states.clone()
+    perturbed[0, 3] += 10.0
+    perturbed[1, 1] -= 10.0
+    perturbed_output = attention(perturbed, mask)
+
+    torch.testing.assert_close(output, expected)
+    torch.testing.assert_close(perturbed_output[mask], output[mask])

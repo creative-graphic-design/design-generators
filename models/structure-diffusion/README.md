@@ -7,7 +7,7 @@ pipeline_tag: text-to-image
 tags:
   - structured-diffusion-guidance
   - text-to-image
-  - layout-generation
+  - image-generation
 datasets: []
 base_model: CompVis/stable-diffusion-v1-4
 model-index:
@@ -22,7 +22,7 @@ model-index:
           split: "one prompt at 64x64 and 512x512"
         metrics:
           - type: "vendor-parity"
-            value: 0.0
+            value: 0
             name: "Bit-exact CPU image comparison against reference images"
 ---
 
@@ -48,7 +48,7 @@ This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), 
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** Diffusion text-to-image generation with structured cross-attention.
+- **Model type:** image generation; task: text-to-image; conditioning: text.
 - **Language(s):** English prompts.
 - **Code license:** Apache-2.0.
 - **Reference implementation license:** MIT.
@@ -81,6 +81,14 @@ Use generated images as draft visual material for creative-design workflows afte
 
 Do not treat generated images as verified depictions of real people or events, or use them as evidence that prompt attributes were rendered correctly. The pipeline does not provide an image safety guarantee.
 
+## Bias, Risks, and Limitations
+
+Generation behavior inherits the training data, biases, and restrictions of the selected Stable Diffusion checkpoint. The default constituency parser is English-only and requires the [Stanza](https://stanfordnlp.github.io/stanza/) English tokenizer, POS, and constituency models to be installed separately. Scene-graph parsing is an optional extra with its own [spaCy](https://spacy.io/) English model prerequisite. Outputs vary with the checkpoint, parser, scheduler, device, precision, and library versions.
+
+### Recommendations
+
+Inspect generated images before downstream use, and record the checkpoint revision, parser, scheduler, dimensions, seed, and inference steps when comparing results.
+
 ## How to Get Started with the Model
 
 Install the package from this repository and download the parser models before the first inference:
@@ -91,24 +99,37 @@ python -c "import stanza; stanza.download('en', processors='tokenize,pos,constit
 ```
 
 ```python
+import os
+from pathlib import Path
+
 import torch
 from structure_diffusion import StructureDiffusionPipeline
 
+token = Path(os.environ["HF_TOKEN_FILE"]).read_text().strip()
 pipe = StructureDiffusionPipeline.from_pretrained(
     "CompVis/stable-diffusion-v1-4",
+    revision="133a221b8aa7292a167afc5127cb63fb5005638b",
     torch_dtype=torch.float32,
+    token=token,
 )
 pipe.to("cpu")
 result = pipe(
     "A red car and a white sheep",
     parser_type="constituency",
+    height=512,
+    width=512,
     num_inference_steps=10,
     generator=torch.Generator(device="cpu").manual_seed(42),
 )
 image = result.images[0]
+print("image size: {}x{}".format(image.size[0], image.size[1]))
 ```
 
-The optional scene-graph parser can be installed with the `scene-graph` extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
+```text
+image size: 512x512
+```
+
+Set HF_TOKEN_FILE to a private file containing a Hugging Face token after accepting the checkpoint's access terms. The optional scene-graph parser is available through the scene-graph extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
 
 ## Examples
 
@@ -192,14 +213,6 @@ for slug, prompt in EXAMPLES:
     ).images[0]
     image.save(OUTPUT_DIR / f"structure-diffusion-{slug}-seed42.png")
 ```
-
-## Bias, Risks, and Limitations
-
-Generation behavior inherits the training data, biases, and restrictions of the selected Stable Diffusion checkpoint. The default constituency parser is English-only and requires the [Stanza](https://stanfordnlp.github.io/stanza/) English tokenizer, POS, and constituency models to be installed separately. Scene-graph parsing is an optional extra with its own [spaCy](https://spacy.io/) English model prerequisite. Outputs vary with the checkpoint, parser, scheduler, device, precision, and library versions.
-
-### Recommendations
-
-Inspect generated images before downstream use, and record the checkpoint revision, parser, scheduler, dimensions, seed, and inference steps when comparing results.
 
 ## Training Details
 

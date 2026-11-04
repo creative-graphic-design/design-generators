@@ -500,12 +500,13 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                         .long()
                     )
             elif self.config.bbox_quantization in {"kmeans", "percentile"}:
-                centers = self._centers(key, values.device)
-                ids = (
-                    torch.cdist(values.reshape(-1, 1), centers.reshape(-1, 1))
-                    .argmin(dim=-1)
-                    .reshape(values.shape)
+                centers = self._centers(key, values.device).to(dtype=torch.float32)
+                values_float = values.to(dtype=torch.float32).reshape(-1, 1)
+                center_products = values_float @ centers.reshape(1, -1)
+                squared_distances = (
+                    centers.square().reshape(1, -1) - 2.0 * center_products
                 )
+                ids = squared_distances.argmin(dim=-1).reshape(values.shape)
             else:
                 raise ValueError(
                     f"Unsupported bbox_quantization: {self.config.bbox_quantization}"

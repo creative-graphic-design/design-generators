@@ -73,15 +73,80 @@ def test_readme_badge_policy_derives_model_label_from_alt_prefix(
     ] == [("model", "LayoutGAN++", "blue", None)]
 
 
-def test_root_readme_models_table_omits_generated_metadata_badges() -> None:
+def test_root_readme_model_classification_badges_follow_policy() -> None:
     check_readme_badges = _load_check_readme_badges()
-    metadata_badges = [
+    badges = [
         badge
         for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
-        if badge.label in {"dataset", "framework", "task"}
+        if badge.label in {"task", "content"}
     ]
 
-    assert metadata_badges == []
+    assert len(badges) == 62
+    assert {badge.label for badge in badges} == {"task", "content"}
+
+
+def test_cikm_model_venue_badge_uses_neutral_catalog_color() -> None:
+    check_readme_badges = _load_check_readme_badges()
+
+    assert (
+        check_readme_badges._expected_color(
+            REPO_ROOT / "models" / "radm" / "README.md", "venue", "CIKM 2023"
+        )
+        == "6b7280"
+    )
+
+
+def test_docs_index_classification_badges_follow_root_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    monkeypatch.setattr(check_readme_badges, "REPO_ROOT", tmp_path)
+    docs_index = tmp_path / "docs" / "index.md"
+    docs_index.parent.mkdir()
+    docs_index.write_text(
+        "![task: task-agnostic](https://img.shields.io/static/v1?label=%F0%9F%8E%AF&"
+        "message=task-agnostic&color=purple)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="task.*color"):
+        check_readme_badges._iter_badges(docs_index)
+
+
+def test_docs_index_image_generation_badges_use_distinct_icons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    monkeypatch.setattr(check_readme_badges, "REPO_ROOT", tmp_path)
+    docs_index = tmp_path / "docs" / "index.md"
+    docs_index.parent.mkdir()
+    docs_index.write_text(
+        "![task: text-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%A8&message=text-to-image&color=6b7280)\n"
+        "![content: text](https://img.shields.io/static/v1?"
+        "label=%F0%9F%93%9D&message=text&color=2f80ed)\n"
+        "![task: image-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%A8&message=image-to-image&color=6b7280)\n"
+        "![content: layers + text](https://img.shields.io/static/v1?"
+        "label=%F0%9F%A7%A9&message=layers%20%2B%20text&color=eb5757)\n",
+        encoding="utf-8",
+    )
+
+    badges = check_readme_badges._iter_badges(docs_index)
+    assert [(badge.label, badge.message) for badge in badges] == [
+        ("task", "text-to-image"),
+        ("content", "text"),
+        ("task", "image-to-image"),
+        ("content", "layers + text"),
+    ]
+
+    docs_index.write_text(
+        "![task: text-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%AF&message=text-to-image&color=6b7280)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="task.*icon"):
+        check_readme_badges._iter_badges(docs_index)
 
 
 def test_root_readme_badge_policy_enforces_library_badges() -> None:

@@ -1,0 +1,28 @@
+seed_everything: 0
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  max_epochs: 1
+  limit_train_batches: 2
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  logger: false
+  default_root_dir: .cache/canvas-vae/training-runs/smoke
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: 1
+        save_last: true
+model:
+  class_path: canvas_vae.training.CanvasVAETrainingModule
+  init_args:
+    data_dir: models/canvas-vae/tests/fixtures/rico
+    latent_dim: 16
+    num_heads: 2
+    learning_rate: 0.001
+data:
+  class_path: canvas_vae.training.CanvasVAEDataModule
+  init_args:
+    data_dir: models/canvas-vae/tests/fixtures/rico
+    batch_size: 2

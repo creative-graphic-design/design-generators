@@ -2,40 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-import tomllib
 from typing import TypeAlias
 
-
-def find_repo_root(start: Path | None = None) -> Path:
-    """Find the nearest directory containing the workspace declaration."""
-    current = (start or Path.cwd()).resolve()
-    for candidate in (current, *current.parents):
-        pyproject = candidate / "pyproject.toml"
-        if not pyproject.is_file():
-            continue
-
-        try:
-            document = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        except tomllib.TOMLDecodeError:
-            continue
-
-        tool = document.get("tool")
-        if not isinstance(tool, dict):
-            continue
-
-        uv = tool.get("uv")
-        if not isinstance(uv, dict):
-            continue
-
-        workspace = uv.get("workspace")
-        if isinstance(workspace, dict):
-            return candidate
-
-    raise ValueError(
-        "Unable to find repository root with [tool.uv.workspace] in pyproject.toml"
-    )
-
+from devharness.repo import find_repo_root
 
 REPO_ROOT = find_repo_root()
 GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git"
@@ -50,14 +19,51 @@ ROOT_LIBRARY_BADGE_COLORS = {
 }
 ROOT_MODEL_TABLE_HEADER = [
     "Model",
+    "Task",
+    "Content",
     "Venue",
     "Ckpt",
     "Train",
 ]
+DOCS_MODEL_TABLE_HEADER = [
+    *ROOT_MODEL_TABLE_HEADER[:4],
+    "Weights",
+    "Training",
+    "Paper",
+    "Docs",
+]
+MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
+IMAGE_GENERATION_CATEGORY = "image generation"
+MODEL_TYPE_VALUES = (*MODEL_CONTENT_VALUES, IMAGE_GENERATION_CATEGORY)
+LAYOUT_TASK_VALUES = (
+    "task-agnostic",
+    "task-aware",
+    "single-task",
+    "evaluation",
+    "saliency",
+)
+IMAGE_GENERATION_TASK_VALUES = ("text-to-image", "image-to-image")
+MODEL_CONDITIONING_ORDER = (
+    "unconditional",
+    "label",
+    "label_size",
+    "completion",
+    "refinement",
+    "content_image",
+    "text",
+    "relation",
+    "hierarchical",
+    "retrieval",
+    "evaluation",
+    "saliency",
+    "none",
+)
+IMAGE_GENERATION_CONDITIONING_ORDER = ("layers", "text")
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )
 MODEL_READMES = [member_dir / "README.md" for member_dir in MODEL_MEMBER_DIRS]
+MODEL_README_BASELINE_PATH = REPO_ROOT / "scripts" / "model_readme_baseline.txt"
 MODEL_REPRODUCING = [member_dir / "REPRODUCING.md" for member_dir in MODEL_MEMBER_DIRS]
 LIB_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "lib").glob("*/pyproject.toml")
@@ -102,27 +108,6 @@ REQUIRED_HEADINGS = [
     "## Bias, Risks, and Limitations",
     "### Recommendations",
     "## How to Get Started with the Model",
-    "## Training Details",
-    "### Training Data",
-    "### Training Procedure",
-    "## Evaluation",
-    "### Parity Results",
-    "## Reproducibility",
-]
-
-USAGE_FIRST_REQUIRED_HEADINGS = [
-    "# Model Card for ",
-    "## Model Details",
-    "### Model Description",
-    "### Model Sources",
-    "## Supported Checkpoints",
-    "## Uses",
-    "### Direct Use",
-    "### Downstream Use",
-    "### Out-of-Scope Use",
-    "## How to Get Started with the Model",
-    "## Bias, Risks, and Limitations",
-    "### Recommendations",
     "## Training Details",
     "### Training Data",
     "### Training Procedure",
@@ -186,6 +171,14 @@ EXPECTED_FRONTMATTER = {
     "ds-gan": {
         "license": "other",
         "datasets": ["creative-graphic-design/PKU-PosterLayout"],
+    },
+    "canvas-vae": {
+        "license": "apache-2.0",
+        "datasets": ["creative-graphic-design/Rico"],
+    },
+    "pixel-vae": {
+        "license": "apache-2.0",
+        "datasets": ["cyberagent/crello"],
     },
     "dlt": {
         "license": "apache-2.0",
@@ -314,6 +307,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/CGL-Dataset",
         ],
     },
+    "radm": {
+        "license": "other",
+        "datasets": ["creative-graphic-design/CGL-Dataset"],
+    },
     "ralf": {
         "license": "apache-2.0",
         "datasets": [
@@ -326,13 +323,15 @@ EXPECTED_FRONTMATTER = {
     "structure-diffusion": {"license": "apache-2.0", "datasets": []},
 }
 
-EXPECTED_PIPELINE_TAGS = {"structure-diffusion": "text-to-image"}
+EXPECTED_PIPELINE_TAGS = {"pixel-vae": "image-feature-extraction"}
+EXPECTED_MODEL_INDEX_TASKS = {"pixel-vae": "image-feature-extraction"}
 
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
+    "canvas-vae": "CanvasVAE",
     "dlt": "DLT",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
@@ -352,9 +351,11 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "pixel-vae": "PixelVAE",
     "posterllama": "PosterLlama",
     "posterllava": "PosterLLaVA",
     "postero": "PosterO",
+    "radm": "RADM",
     "ralf": "RALF",
     "smarttext": "SmartText",
     "basnet": "BASNet",
@@ -374,8 +375,11 @@ EXPECTED_REPOSITORY_LINKS = {
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
+    "radm": "https://github.com/JD-GenX/RADM",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
+    "canvas-vae": "https://github.com/CyberAgentAILab/canvas-vae",
+    "pixel-vae": "https://github.com/CyberAgentAILab/canvas-vae",
     "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",

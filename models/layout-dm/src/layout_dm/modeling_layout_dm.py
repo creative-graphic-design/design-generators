@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal, cast
 
@@ -38,6 +40,20 @@ __all__ = [
     "_gelu2",
     "_get_clones",
 ]
+
+_SKIP_LAYOUTDM_INITIALIZATION: ContextVar[bool] = ContextVar(
+    "skip_layoutdm_initialization", default=False
+)
+
+
+@contextmanager
+def skip_layoutdm_initialization() -> Iterator[None]:
+    """Temporarily defer denoiser initialization until after device placement."""
+    token = _SKIP_LAYOUTDM_INITIALIZATION.set(True)
+    try:
+        yield
+    finally:
+        _SKIP_LAYOUTDM_INITIALIZATION.reset(token)
 
 
 def _init_layoutdm_weights(module: nn.Module) -> None:
@@ -172,6 +188,11 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
             dropout=dropout,
             timestep_type=timestep_type,
         )
+        if not _SKIP_LAYOUTDM_INITIALIZATION.get():
+            self.initialize_weights()
+
+    def initialize_weights(self) -> None:
+        """Apply the released denoiser initialization to the active device."""
         self.apply(_init_layoutdm_weights)
 
     def forward(

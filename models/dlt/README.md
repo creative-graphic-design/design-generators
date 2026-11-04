@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for DLT
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.03755&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.03755)
@@ -50,7 +51,7 @@ DLT denoises bounding boxes and category tokens with coupled continuous and disc
 
 - **Developed by:** Elad Levi, Eli Brosh, Mykola Mykhailych, and Meir Perez.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 
@@ -61,11 +62,11 @@ DLT denoises bounding boxes and category tokens with coupled continuous and disc
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| PubLayNet | `creative-graphic-design/dlt-publaynet` | not-published |
-| RICO13 | `creative-graphic-design/dlt-rico13` | not-published |
-| Magazine | `creative-graphic-design/dlt-magazine` | not yet available: polygon and train-only handling pending |
+| Checkpoint | Hub ID                                  | Status                                                     |
+| ---------- | --------------------------------------- | ---------------------------------------------------------- |
+| PubLayNet  | `creative-graphic-design/dlt-publaynet` | not-published                                              |
+| RICO13     | `creative-graphic-design/dlt-rico13`    | not-published                                              |
+| Magazine   | `creative-graphic-design/dlt-magazine`  | not yet available: polygon and train-only handling pending |
 
 ## Uses
 
@@ -133,12 +134,12 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 
 ### Parity Results
 
-| Check | Cases | Match criterion | Result |
-| --- | ---: | --- | --- |
-| Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
-| Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
-| PubLayNet full checkpoint evaluation (S5, the full-run statistical stage described in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md)) | 3 evaluation seeds plus seed-variance controls | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and seed-variance residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000`; all cross residuals fall inside within-implementation seed variation |
-| RICO13 S5 full checkpoint evaluation | 3 evaluation seeds | seed-42 checkpoint trained from scratch by the original implementation vs independently trained package seed-42 `final-epoch799.ckpt`; validation loss, sampling path, and PubLayNet seed-variance reference diagnostics disclosed | practical training reproduction: loss delta `-0.0049`, FID delta `-0.0103`, overlap delta `-0.0167`, alignment delta `-0.0001`, IoU delta `-0.0225`; residuals are small, sign-reversing across seeds, and inside PubLayNet seed-variance reference ranges |
+| Check                                                                                                                                                                                               |                                          Cases | Match criterion                                                                                                                                                                                                                    | Result                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scheduler mapping and transition matrices                                                                                                                                                           |                             1 synthetic config | exact tensor equality                                                                                                                                                                                                              | local unit test passed                                                                                                                                                                                                                                     |
+| Fixed training step                                                                                                                                                                                 |                              1 synthetic batch | finite scalar loss and trace fields                                                                                                                                                                                                | local training test passed                                                                                                                                                                                                                                 |
+| PubLayNet full checkpoint evaluation (S5, the full-run statistical stage described in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md)) | 3 evaluation seeds plus seed-variance controls | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and seed-variance residual diagnostics disclosed                | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000`; all cross residuals fall inside within-implementation seed variation                                  |
+| RICO13 S5 full checkpoint evaluation                                                                                                                                                                |                             3 evaluation seeds | seed-42 checkpoint trained from scratch by the original implementation vs independently trained package seed-42 `final-epoch799.ckpt`; validation loss, sampling path, and PubLayNet seed-variance reference diagnostics disclosed | practical training reproduction: loss delta `-0.0049`, FID delta `-0.0103`, overlap delta `-0.0167`, alignment delta `-0.0001`, IoU delta `-0.0225`; residuals are small, sign-reversing across seeds, and inside PubLayNet seed-variance reference ranges |
 
 PubLayNet and RICO13 S5 are not metric-identical and should not be read as bit-level training parity. PubLayNet's validation loss definition matches exactly, the final checkpoint is the correct scheduler-aligned comparison target, no EMA state is present, and the original-implementation reference weights routed through the package sampling path produce zero S5 deltas on all three seeds. PubLayNet's remaining generation offsets are consistent across seeds (`overlap_pred` `+10.1%` relative, `alignment_pred` `+2.6%`, and FID `+4.4%`) and fall inside same-implementation seed variation. RICO13's residuals are smaller (`overlap_pred` `-3.95%` relative, `alignment_pred` `-1.91%`, and FID `-0.29%`) and reverse sign across seeds for FID, alignment, and loss. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md) for the seed tables, stage evidence, train-loss diagnostics, valid-box filter alignment, and regeneration metadata.
 

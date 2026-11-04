@@ -21,11 +21,12 @@ from devharness.checks.model_readmes import (
     reproducing,
     root_readme,
 )
+from devharness.checks.jaxtyping_annotations import check as jaxtyping_annotations
 from devharness.checks.model_readmes.constants import (
-    REQUIRED_HEADINGS,
-    USAGE_FIRST_REQUIRED_HEADINGS,
-    find_repo_root,
+    DOCS_MODEL_TABLE_HEADER,
+    ROOT_MODEL_TABLE_HEADER,
 )
+from devharness.repo import find_repo_root
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -59,24 +60,6 @@ def test_model_readme_cli_resolves_root_from_subdirectory() -> None:
     assert result.stderr == ""
 
 
-@pytest.mark.parametrize(
-    "required_headings",
-    [REQUIRED_HEADINGS, USAGE_FIRST_REQUIRED_HEADINGS],
-    ids=["existing", "usage-first"],
-)
-def test_card_heading_order_accepts_supported_orders(
-    tmp_path: Path,
-    required_headings: list[str],
-) -> None:
-    path = tmp_path / "README.md"
-    text = "\n".join(
-        f"{heading}Example" if heading.endswith(" ") else heading
-        for heading in required_headings
-    )
-
-    card.assert_heading_order(path, text)
-
-
 def test_model_readme_cli_reports_missing_workspace_root() -> None:
     result = _run_model_readmes_cli(Path("/proc"))
     assert result.returncode == 1
@@ -102,7 +85,23 @@ def test_model_readme_dispatch_rejects_unsupported_command(
     monkeypatch.setattr(sys, "argv", ["devharness", "check", "other"])
 
     assert cli.main() == 2
-    assert capsys.readouterr().err == "usage: devharness check model-readmes\n"
+    assert capsys.readouterr().err == (
+        "usage: devharness check {model-readmes,jaxtyping-annotations} "
+        "[--write-baseline]\n"
+    )
+
+
+def test_dispatch_reports_supported_commands_when_command_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["devharness"])
+
+    assert cli.main() == 2
+    assert capsys.readouterr().err == (
+        "usage: devharness check {model-readmes,jaxtyping-annotations} "
+        "[--write-baseline]\n"
+    )
 
 
 def test_model_readme_main_reports_success(
@@ -125,6 +124,139 @@ def test_model_readme_main_reports_policy_failure(
     assert capsys.readouterr().err == "bad README\n"
 
 
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        (
+            "```python\nprint('output')\n```\n",
+            "must be followed by a text fence",
+        ),
+        (
+            "```python\nprint('output')\n```\nThe example prints:\n\n```text\noutput\n```\n",
+            "must be followed by a text fence",
+        ),
+        (
+            "```python\nprint('output')\n```\n```bash\noutput\n```\n",
+            "must be followed by a text fence",
+        ),
+        ("No usage example.", "must contain a python fence"),
+        (
+            "```python\nprint('output')\n```\n```text\noutput\n```\n",
+            None,
+        ),
+    ],
+)
+def test_model_readme_usage_output_contract(text: str, message: str | None) -> None:
+    path = Path("models/layout-gpt/README.md")
+    violation = card.usage_output_violation(path, text)
+    if message is None:
+        assert violation is None
+        return
+
+    assert violation is not None
+    assert message in violation
+
+
+def test_model_readme_baseline_reports_new_and_stale_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    new_readme = tmp_path / "models" / "new" / "README.md"
+    fixed_readme = tmp_path / "models" / "fixed" / "README.md"
+    new_readme.parent.mkdir(parents=True)
+    fixed_readme.parent.mkdir(parents=True)
+    new_readme.write_text("```python\nprint('output')\n```\n", encoding="utf-8")
+    fixed_readme.write_text(
+        "```python\nprint('output')\n```\n```text\noutput\n```\n",
+        encoding="utf-8",
+    )
+
+    baseline = tmp_path / "model_readme_baseline.txt"
+    baseline.write_text("models/fixed/README.md\n", encoding="utf-8")
+    monkeypatch.setattr(check, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(check, "MODEL_READMES", [new_readme, fixed_readme])
+    monkeypatch.setattr(check, "MODEL_README_BASELINE_PATH", baseline)
+    monkeypatch.setattr(check, "check", check.assert_model_readme_usage_baseline)
+
+    assert check.main([]) == 1
+    assert capsys.readouterr().err == (
+        "New model README usage-output violations:\n"
+        "  + models/new/README.md: first python fence must be followed by a text fence\n"
+        "Stale model README usage-output baseline entries:\n"
+        "  - models/fixed/README.md\n"
+    )
+
+
+def test_model_readme_baseline_flag_preserves_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    violating_readme = tmp_path / "models" / "violating" / "README.md"
+    passing_readme = tmp_path / "models" / "passing" / "README.md"
+    violating_readme.parent.mkdir(parents=True)
+    passing_readme.parent.mkdir(parents=True)
+    violating_readme.write_text("```python\nprint('output')\n```\n", encoding="utf-8")
+    passing_readme.write_text(
+        "```python\nprint('output')\n```\n```text\noutput\n```\n",
+        encoding="utf-8",
+    )
+
+    baseline = tmp_path / "model_readme_baseline.txt"
+    header = b"# Policy\r\n# Keep this header\n"
+    baseline.write_bytes(header + b"models/stale/README.md\n")
+    monkeypatch.setattr(check, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(check, "MODEL_READMES", [violating_readme, passing_readme])
+    monkeypatch.setattr(check, "MODEL_README_BASELINE_PATH", baseline)
+
+    assert check.main(["--write-baseline"]) == 0
+
+    entries = {
+        line
+        for line in baseline.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    }
+    assert baseline.read_bytes().startswith(header)
+    assert entries == {"models/violating/README.md"}
+
+
+def test_model_readme_cli_forwards_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def fake_main(argv: list[str]) -> int:
+        seen.extend(argv)
+        return 17
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["devharness", "check", "model-readmes", "--write-baseline"],
+    )
+    monkeypatch.setattr(check, "main", fake_main)
+
+    assert cli.main() == 17
+    assert seen == ["--write-baseline"]
+
+
+def test_jaxtyping_cli_forwards_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def fake_main(argv: list[str]) -> int:
+        seen.extend(argv)
+        return 17
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["devharness", "check", "jaxtyping-annotations", "--write-baseline"],
+    )
+    monkeypatch.setattr(jaxtyping_annotations, "main", fake_main)
+
+    assert cli.main() == 17
+    assert seen == ["--write-baseline"]
+
+
 def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     fixture = tmp_path / "repository"
     archive = subprocess.run(
@@ -137,19 +269,15 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
         tar.extractall(fixture)
     readme = fixture / "README.md"
-    lines = readme.read_text(encoding="utf-8").splitlines()
-    models_heading_index = lines.index("## Models")
-    table_header_index = next(
-        index
-        for index in range(models_heading_index + 1, len(lines))
-        if lines[index].lstrip().startswith("|")
+    lines = readme.read_text(encoding="utf-8").splitlines(keepends=True)
+    header_index = next(
+        index for index, line in enumerate(lines) if line.startswith("| Model ")
     )
-    assert [
-        cell.strip() for cell in lines[table_header_index].strip().strip("|").split("|")
-    ] == ["Model", "Venue", "Ckpt", "Train"]
-    lines[table_header_index] = "| Model | Venue | Runtime | Datasets | Ckpt | Train |"
+    lines[header_index] = (
+        "| Model | Content | Conditioning | Venue | Runtime | Datasets | Ckpt | Train |\n"
+    )
     readme.write_text(
-        "\n".join(lines) + "\n",
+        "".join(lines),
         encoding="utf-8",
     )
 
@@ -158,7 +286,8 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert result.stdout == ""
     assert result.stderr == (
-        f"{fixture / 'README.md'}: Models table must use Model, Venue, Ckpt, Train\n"
+        f"{fixture / 'README.md'}: Models table must use "
+        "Model, Task, Content, Venue, Ckpt, Train\n"
     )
 
 
@@ -359,6 +488,16 @@ def test_vendor_parity_badge_contract_rejects_invalid_badges(
         parity.assert_vendor_parity_badge(tmp_path / "README.md", text)
 
 
+def test_vendor_parity_badge_contract_accepts_not_verified() -> None:
+    text = (
+        "### Parity Results\n"
+        "vendor parity is not verified.\n"
+        "![vendor-parity](https://img.shields.io/static/v1?message=not-verified)\n"
+    )
+
+    parity.assert_vendor_parity_badge(Path("models/example/README.md"), text)
+
+
 def test_reproducibility_contract_rejects_missing_link_and_walkthrough(
     tmp_path: Path,
 ) -> None:
@@ -415,6 +554,16 @@ def test_card_parsing_helpers_cover_empty_and_inline_cases() -> None:
     assert card._frontmatter_scalar("license: mit", "missing") is None
     assert card._frontmatter_list("license: mit", "datasets") == []
     assert card._dataset_display_name("custom") == "custom"
+    assert (
+        card._dataset_display_name("creative-graphic-design/Rico", "layoutganpp")
+        == "RICO13"
+    )
+    assert card._dataset_display_name("rico13", "layoutganpp") == "RICO13"
+    assert (
+        card._dataset_display_name("creative-graphic-design/Rico", "layout-dm")
+        == "RICO25"
+    )
+    assert card._dataset_display_name("rico25", "layout-dm") == "RICO25"
     assert card.semantic_badge_label("plain", "library") == "library"
     assert card.without_badges("A ![badge](url) B") == "A   B"
     assert card.markdown_link_spans("[link](url)")
@@ -449,19 +598,38 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
         card.assert_frontmatter_list_unique(path, "tags:\n  - one\n  - one\n")
 
     with pytest.raises(AssertionError, match="pipeline_tag"):
-        card.assert_pipeline_tag(path, "pipeline_tag: text")
-
-    with pytest.raises(AssertionError, match="must not be text-to-image"):
         card.assert_pipeline_tag(
             path,
-            'pipeline_tag: other\nmodel-index:\n  - name: example\n    results:\n      type: "text-to-image"',
+            "pipeline_tag: text",
+            ("content-agnostic", "single-task", ("label",)),
+        )
+
+    with pytest.raises(AssertionError, match="must not be an image generation task"):
+        card.assert_pipeline_tag(
+            path,
+            "pipeline_tag: other\nmodel-index:\n  - name: example\n"
+            '    results:\n      - task:\n          type: "text-to-image"',
+            ("content-agnostic", "single-task", ("label",)),
         )
 
     with pytest.raises(AssertionError, match="task.type must be 'other'"):
         card.assert_pipeline_tag(
             path,
-            "pipeline_tag: other\nmodel-index:\n  - task:\n      type: text-classification",
+            "pipeline_tag: other\nmodel-index:\n  - name: example\n"
+            "    results:\n      - task:\n          type: text-classification",
+            ("content-agnostic", "single-task", ("label",)),
         )
+
+
+def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
+    path = Path("models/pixel-vae/README.md")
+    card.assert_pipeline_tag(
+        path,
+        "pipeline_tag: image-feature-extraction\nmodel-index:\n"
+        "  - name: example\n    results:\n      - task:\n"
+        "          type: image-feature-extraction",
+        ("content-agnostic", "single-task", ("label",)),
+    )
 
 
 def test_model_index_policy_rejects_wrong_weight_mode() -> None:
@@ -512,25 +680,426 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
         card.assert_code_fences_tagged(path, "<<'PY'\ncode\nPY\n")
 
 
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        (
+            "- **Model type:** architecture-and-task\n",
+            "Model type line must match",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label\n",
+            "Model type line must match",
+        ),
+        (
+            "- **Model type:** image-aware; task: single-task; conditioning: none.\n",
+            "category value",
+        ),
+        (
+            "- **Model type:** Content-agnostic; task: single-task; conditioning: none.\n",
+            "category value",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label-size.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: content-image.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label_size, label.\n",
+            "canonical order",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label, label.\n",
+            "must be unique",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: evaluation, label.\n",
+            "must appear alone",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: unknown; conditioning: label.\n",
+            "task value",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label.\n",
+            "single-task is required",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label, label_size.\n",
+            "task-agnostic or task-aware",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: evaluation; conditioning: none.\n",
+            "evaluation task requires",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: evaluation.\n",
+            "evaluation and saliency conditioning require matching task",
+        ),
+    ],
+)
+def test_model_type_contract_rejects_invalid_values(line: str, message: str) -> None:
+    with pytest.raises(AssertionError, match=message):
+        card.parse_model_type(Path("models/example/README.md"), line)
+
+
+def test_model_type_contract_accepts_content_image_conditioning() -> None:
+    line = (
+        "- **Model type:** content-aware; task: single-task; "
+        "conditioning: content_image.\n"
+    )
+
+    assert card.parse_model_type(Path("models/example/README.md"), line) == (
+        "content-aware",
+        "single-task",
+        ("content_image",),
+    )
+
+
+def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
+    path = Path("models/example/README.md")
+    with pytest.raises(AssertionError, match="exactly once"):
+        card.parse_model_type(path, "plain")
+
+    duplicate = (
+        "- **Model type:** content-agnostic; task: single-task; conditioning: label.\n"
+        * 2
+    )
+    with pytest.raises(AssertionError, match="exactly once"):
+        card.parse_model_type(path, duplicate)
+
+
+def test_model_type_contract_accepts_structured_line() -> None:
+    assert card.parse_model_type(
+        Path("models/example/README.md"),
+        "- **Model type:** content-aware; task: task-aware; conditioning: label, label_size.\n",
+    ) == ("content-aware", "task-aware", ("label", "label_size"))
+
+
+def test_model_type_contract_rejects_empty_conditioning_value() -> None:
+    with pytest.raises(AssertionError, match="conditioning values cannot be empty"):
+        card.parse_model_type(
+            Path("models/example/README.md"),
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label_size, .\n",
+        )
+
+
+def _catalog_badge(kind: str, message: str) -> str:
+    emojis = {
+        ("task", "text-to-image"): "%F0%9F%8E%A8",
+        ("task", "image-to-image"): "%F0%9F%8E%A8",
+        ("content", "text"): "%F0%9F%93%9D",
+        ("content", "layers + text"): "%F0%9F%A7%A9",
+    }
+    emoji = emojis.get(
+        (kind, message),
+        "%F0%9F%8E%AF" if kind == "task" else "%F0%9F%96%BC%EF%B8%8F",
+    )
+    colors = {
+        "task-agnostic": "2f80ed",
+        "task-aware": "9b51e0",
+        "single-task": "6b7280",
+        "text-to-image": "6b7280",
+        "image-to-image": "6b7280",
+        "content-agnostic": "2f80ed",
+        "content-aware": "eb5757",
+        "text": "2f80ed",
+        "layers + text": "eb5757",
+    }
+    encoded_message = message.replace(" ", "%20").replace("+", "%2B")
+
+    return (
+        f"![{kind}: {message}](https://img.shields.io/static/v1?label={emoji}"
+        f"&message={encoded_message}&color={colors[message]})"
+    )
+
+
+def _root_model_row(
+    model: str,
+    slug: str,
+    task: str,
+    content: str,
+    training: str = "n/a",
+) -> str:
+    train = (
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/"
+        f"{slug}/TRAINING.md)"
+        if training == "train"
+        else "![training: n/a](https://img.shields.io/static/v1?label=training&"
+        "message=n%2Fa&color=lightgrey)"
+    )
+    return (
+        f"| [`{model}`](models/{slug}/README.md) | {_catalog_badge('task', task)} | "
+        f"{_catalog_badge('content', content)} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        f"message=ckpt&color=success)](models/{slug}/REPRODUCING.md) | {train} |"
+    )
+
+
+def _docs_model_row(task: str, content: str = "content-agnostic") -> str:
+    return (
+        f"| [`LayoutDM`](api/models/layout-dm/) | {_catalog_badge('task', task)} | "
+        f"{_catalog_badge('content', content)} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) | "
+        "[Paper](https://arxiv.org/abs/2303.03755) | "
+        "[README](models/layout-dm/README.md) |"
+    )
+
+
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layoutformerpp",
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
+        "label_size, completion, refinement, relation.\n",
+    )
     readme = tmp_path / "README.md"
     readme.write_text(
-        """# Example
+        f"""# Example
 
 ## Models
 
-| Model | Venue | Ckpt | Train |
-| :--- | :---: | --- | --- |
-| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+| Model | Task | Content | Venue | Ckpt | Train |
+| :--- | :--- | :--- | :---: | --- | --- |
+{_root_model_row("LayoutFormer++", "layoutformerpp", "task-aware", "content-agnostic", "train")}
 
 ## Libraries
 """,
         encoding="utf-8",
     )
 
-    assert root_readme.root_model_slugs(readme) == {"layoutformerpp"}
+    assert root_readme.root_model_slugs(
+        readme,
+        ROOT_MODEL_TABLE_HEADER,
+        "models/<slug>/README.md",
+        tmp_path,
+    ) == {"layoutformerpp"}
+
+
+def test_root_models_table_escapes_link_pattern_punctuation(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| [`LayoutDM`](models/layout-dm/READMExmd) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-agnostic')} | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        "label=venue&message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "![training: n/a](https://img.shields.io/static/v1?label=training&"
+        "message=n%2Fa&color=lightgrey) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="must link models/<slug>/README.md"):
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
+
+
+def test_root_models_table_rejects_unknown_model_link_with_diagnostic(
+    tmp_path: Path,
+) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"{_root_model_row('DLTX', 'dltx', 'task-agnostic', 'content-agnostic')}\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as exc_info:
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
+
+    assert str(exc_info.value) == (
+        f"{readme}: Models table package dltx has no models/dltx/README.md"
+    )
+
+
+def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:
+    model_readme = root / "models" / slug / "README.md"
+    model_readme.parent.mkdir(parents=True)
+    model_readme.write_text(line, encoding="utf-8")
+
+
+def test_root_model_table_rejects_content_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| [`LayoutDM`](models/layout-dm/README.md) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-aware')} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="package layout-dm Content cell"):
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
+
+
+def test_root_model_table_rejects_task_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| [`LayoutDM`](models/layout-dm/README.md) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-agnostic')} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="package layout-dm Task cell"):
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
+
+
+def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('task-agnostic')}\n",
+        encoding="utf-8",
+    )
+
+    assert root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    ) == {"layout-dm"}
+
+
+def test_docs_index_model_table_rejects_task_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('task-agnostic')}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="docs/index.md: Models table package layout-dm Task cell",
+    ):
+        root_readme.root_model_slugs(
+            index,
+            DOCS_MODEL_TABLE_HEADER,
+            "api/models/<slug>/",
+            tmp_path,
+        )
+
+
+def test_docs_index_model_table_reports_missing_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('task-agnostic')}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        root_readme, "model_member_slugs", lambda: {"layout-dm", "layout-flow"}
+    )
+
+    slugs = root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    )
+    with pytest.raises(AssertionError, match="docs/index.md: Models table mismatch"):
+        root_readme.assert_root_models_table_matches_members(slugs, index)
 
 
 def test_root_models_table_rejects_metadata_columns(
@@ -551,8 +1120,15 @@ def test_root_models_table_rejects_metadata_columns(
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="Model, Venue, Ckpt, Train"):
-        root_readme.root_model_slugs(readme)
+    with pytest.raises(
+        AssertionError, match="Model, Task, Content, Venue, Ckpt, Train"
+    ):
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
 
 
 def test_model_readme_reproducibility_rejects_repo_root_link(tmp_path: Path) -> None:
@@ -581,22 +1157,33 @@ See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for commands.
 def test_root_models_table_requires_training_link_when_file_exists(
     tmp_path: Path,
 ) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-flow",
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
     readme = tmp_path / "README.md"
     readme.write_text(
-        """# Example
+        f"""# Example
 
 ## Models
 
-| Model | Venue | Ckpt | Train |
-| --- | --- | --- | --- |
-| [`LayoutFlow`](models/layout-flow/README.md) | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
+| Model | Task | Content | Venue | Ckpt | Train |
+| --- | --- | --- | --- | --- | --- |
+{_root_model_row("LayoutFlow", "layout-flow", "task-agnostic", "content-agnostic", "train")}
 
 ## Libraries
 """,
         encoding="utf-8",
     )
 
-    assert root_readme.root_model_slugs(readme) == {"layout-flow"}
+    assert root_readme.root_model_slugs(
+        readme,
+        ROOT_MODEL_TABLE_HEADER,
+        "models/<slug>/README.md",
+        tmp_path,
+    ) == {"layout-flow"}
 
 
 def test_root_readme_table_helpers_reject_malformed_cells() -> None:
@@ -631,9 +1218,9 @@ def test_root_reproduction_cells_require_valid_badges(tmp_path: Path) -> None:
     with pytest.raises(AssertionError, match="must not link training badge"):
         root_readme._assert_root_reproduction_cells(
             path,
-            "layoutformerpp",
-            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md)",
-            "[![training: train](https://img.shields.io/static/v1?label=training&message=train&color=success)](models/layoutformerpp/TRAINING.md)",
+            "basnet",
+            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt&color=success)](models/basnet/REPRODUCING.md)",
+            "[![training: train](https://img.shields.io/static/v1?label=training&message=train&color=success)](models/basnet/TRAINING.md)",
         )
 
 
@@ -715,23 +1302,30 @@ pipeline_tag: other
 datasets:
   - creative-graphic-design/Rico
 model-index:
-  - task:
-      type: other
+  - name: Example
+    results:
+      - task:
+          type: other
 ---
 """
     path = Path("models/layout-dm/README.md")
+    model_readme = (
+        f"{frontmatter}\n"
+        "- **Model type:** content-agnostic; task: task-agnostic; "
+        "conditioning: unconditional, label, label_size, completion, refinement.\n"
+    )
     with pytest.raises(AssertionError, match="frontmatter license"):
-        card.assert_expected_frontmatter(path, frontmatter)
+        card.assert_expected_frontmatter(path, model_readme)
 
     with pytest.raises(AssertionError, match="datasets missing"):
         card.assert_expected_frontmatter(
-            path, frontmatter.replace("license: mit", "license: apache-2.0")
+            path, model_readme.replace("license: mit", "license: apache-2.0")
         )
 
     with pytest.raises(AssertionError, match="dataset badges"):
         card.assert_expected_frontmatter(
             path,
-            frontmatter.replace("license: mit", "license: apache-2.0").replace(
+            model_readme.replace("license: mit", "license: apache-2.0").replace(
                 "creative-graphic-design/Rico",
                 "creative-graphic-design/Rico\n  - creative-graphic-design/PubLayNet",
             ),
@@ -976,3 +1570,196 @@ pip install \\
             REPO_ROOT / "models" / "smarttext" / "README.md",
             text,
         )
+
+
+@pytest.mark.parametrize(
+    ("line", "task", "other_task", "conditioning", "expected"),
+    [
+        (
+            "- **Model type:** image generation; task: text-to-image; conditioning: text.\n",
+            "text-to-image",
+            "image-to-image",
+            "text",
+            ("image generation", "text-to-image", ("text",)),
+        ),
+        (
+            "- **Model type:** image generation; task: image-to-image; conditioning: layers, text.\n",
+            "image-to-image",
+            "text-to-image",
+            "layers + text",
+            ("image generation", "image-to-image", ("layers", "text")),
+        ),
+    ],
+)
+def test_image_generation_frontmatter_contract_follows_task(
+    monkeypatch: pytest.MonkeyPatch,
+    line: str,
+    task: str,
+    other_task: str,
+    conditioning: str,
+    expected: tuple[str, str, tuple[str, ...]],
+) -> None:
+    path = Path("models/example/README.md")
+    monkeypatch.setitem(
+        card.EXPECTED_FRONTMATTER,
+        "example",
+        {"license": "mit", "datasets": []},
+    )
+    model_type = card.parse_model_type(path, line)
+
+    assert model_type == expected
+
+    def model_readme(pipeline_tag: str, model_index_tasks: tuple[str, ...]) -> str:
+        results = "".join(
+            f"      - task:\n          type: {model_index_task}\n"
+            "        dataset:\n          type: example-dataset\n"
+            "          name: Example\n          args:\n"
+            "            metadata:\n              task:\n"
+            f"                type: {other_task}\n"
+            "            results:\n              - task:\n"
+            f"                  type: {other_task}\n"
+            "        metrics:\n          - type: example-metric\n"
+            "            value: 0.5\n"
+            for model_index_task in model_index_tasks
+        )
+        return (
+            f"---\nlicense: mit\npipeline_tag: {pipeline_tag}\ndatasets:\n"
+            f"model-index:\n  - name: Example\n    results:\n{results}---\n{line}"
+        )
+
+    card.assert_expected_frontmatter(path, model_readme(task, (task,)))
+    with pytest.raises(AssertionError, match="pipeline_tag"):
+        card.assert_expected_frontmatter(path, model_readme("other", (task,)))
+    with pytest.raises(AssertionError, match="model-index task.type values"):
+        card.assert_expected_frontmatter(path, model_readme(task, (task, other_task)))
+
+    assert root_readme._model_catalog_badge_values(model_type) == (
+        task,
+        conditioning,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_index",
+    [
+        "model-index: [{name: Example, results: [{task: {type: text-to-image}}]}]",
+        "model-index:\n    - name: Example\n      results:\n"
+        "        - task:\n            type: text-to-image",
+        "model-index:\n  - name: Example\n    results:\n"
+        "      - task:\n          type: text-to-image\n"
+        "        dataset:\n            type: example-dataset",
+        "model-index:\n  - name: Example\n    results:\n"
+        "      - dataset:\n          type: example-dataset\n"
+        "        name: Example\n        task:\n"
+        "          type: text-to-image",
+        "model-index:\n  - results:\n      - task:\n          type: text-to-image",
+        "model-index:\n  - name: &example Example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: !example Example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: *example\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        "model-index:\n  - name: 16\n    results:\n"
+        "      - task:\n          type: text-to-image",
+        'model-index:\n  - name: "Example\u00e9"\n    results:\n'
+        "      - task:\n          type: text-to-image",
+        'model-index:\n  - name: "Example\\u007f"\n    results:\n'
+        "      - task:\n          type: text-to-image",
+    ],
+)
+def test_image_generation_frontmatter_rejects_unsupported_model_index_format(
+    model_index: str,
+) -> None:
+    path = Path("models/example/README.md")
+    text = f"pipeline_tag: text-to-image\n{model_index}"
+
+    with pytest.raises(AssertionError, match="cannot read this model-index format"):
+        card.assert_pipeline_tag(
+            path,
+            text,
+            ("image generation", "text-to-image", ("text",)),
+        )
+
+
+def test_layout_frontmatter_rejects_image_generation_model_index_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = Path("models/example/README.md")
+    monkeypatch.setitem(
+        card.EXPECTED_FRONTMATTER,
+        "example",
+        {"license": "mit", "datasets": []},
+    )
+    text = (
+        "---\nlicense: mit\npipeline_tag: other\ndatasets:\nmodel-index:\n"
+        "  - name: Example\n    results:\n      - task:\n"
+        "          type: other\n      - task:\n"
+        "          type: image-to-image\n---\n"
+        "- **Model type:** content-agnostic; task: single-task; "
+        "conditioning: label.\n"
+    )
+
+    with pytest.raises(AssertionError, match="must not be an image generation task"):
+        card.assert_expected_frontmatter(path, text)
+
+
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        (
+            "- **Model type:** image generation; task: single-task; conditioning: text.\n",
+            "image generation task value",
+        ),
+        (
+            "- **Model type:** image generation; task: text-to-image; conditioning: label.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** image generation; task: image-to-image; conditioning: text, layers.\n",
+            "canonical order",
+        ),
+    ],
+)
+def test_image_generation_model_type_rejects_out_of_policy_values(
+    line: str, message: str
+) -> None:
+    with pytest.raises(AssertionError, match=message):
+        card.parse_model_type(Path("models/example/README.md"), line)
+
+
+@pytest.mark.parametrize(
+    ("task", "conditioning", "line"),
+    [
+        (
+            "text-to-image",
+            "text",
+            "- **Model type:** image generation; task: text-to-image; conditioning: text.\n",
+        ),
+        (
+            "image-to-image",
+            "layers + text",
+            "- **Model type:** image generation; task: image-to-image; conditioning: layers, text.\n",
+        ),
+    ],
+)
+def test_docs_index_model_table_accepts_image_generation_models(
+    tmp_path: Path, task: str, conditioning: str, line: str
+) -> None:
+    _write_model_type_fixture(tmp_path, "layout-dm", line)
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row(task, conditioning)}\n",
+        encoding="utf-8",
+    )
+
+    assert root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    ) == {"layout-dm"}
