@@ -3,7 +3,7 @@ language:
   - en
 license: "apache-2.0"
 library_name: "diffusers"
-pipeline_tag: "other"
+pipeline_tag: "image-to-image"
 tags:
   - "collage-diffusion"
   - "image-generation"
@@ -21,7 +21,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![framework](https://img.shields.io/static/v1?label=framework&message=diffusers&color=red&style=flat-square&logo=huggingface&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-![task](https://img.shields.io/static/v1?label=task&message=image-harmonization&color=purple&style=flat-square)
+![task](https://img.shields.io/static/v1?label=task&message=image-to-image&color=purple&style=flat-square)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
@@ -35,7 +35,7 @@ Collage Diffusion combines a scene prompt with ordered RGBA image layers. Visibl
 
 - **Developed by:** Vishnu Sarukkai, Linden Li, Arden Ma, Christopher Ré, and Kayvon Fatahalian.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware; task: single-task; conditioning: text.
+- **Model type:** image generation; task: image-to-image; conditioning: layers, text.
 - **Language(s) (NLP):** English scene and layer prompts.
 - **License:** Apache-2.0 for this package; the base checkpoint and input assets retain their own terms.
 - **Finetuned from:** No Collage Diffusion checkpoint; inference loads `sd2-community/stable-diffusion-2-1-base` at the pinned revision below under the CreativeML Open RAIL++-M terms declared by its model card.
