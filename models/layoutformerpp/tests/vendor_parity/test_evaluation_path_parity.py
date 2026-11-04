@@ -183,11 +183,16 @@ def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
         "runtime_freeze_sha256": "0" * 64,
         "dirty_tree": False,
         "runner": {
+            "commit": "a" * 40,
+            "dirty_tree": False,
             "path": (
                 "models/layoutformerpp/tests/vendor_parity/"
                 "run_evaluation_path_parity.py"
             ),
             "sha256": "0" * 64,
+            "split_sha256": {
+                name: "0" * 64 for name in ("train.pt", "val.pt", "test.pt")
+            },
         },
         "weights": {"path": ".cache/example.pth", "sha256": "0" * 64},
         "inputs": {
@@ -393,3 +398,65 @@ def test_reused_package_source_commit_preserves_evaluator_provenance(
 
     assert _package_evaluator_source_commit(tmp_path) == "current"
     assert _package_evaluator_source_commit(tmp_path, "recorded") == "recorded"
+
+
+@pytest.mark.parametrize("side", ("package", "original"))
+def test_reuse_rejects_legacy_hardlinked_predictions_without_runner_commit(
+    side: str, tmp_path: Path
+) -> None:
+    source = (
+        tmp_path
+        / "postmerge-475-20261024T053224Z"
+        / "label"
+        / "package"
+        / "predictions.json"
+    )
+    target = (
+        tmp_path
+        / "postmerge-482-guarded-20261026T074639Z"
+        / "label"
+        / "package"
+        / "predictions.json"
+    )
+    source.parent.mkdir(parents=True)
+    target.parent.mkdir(parents=True)
+    source.write_text("[]\n", encoding="utf-8")
+    os.link(source, target)
+    split_sha256 = {name: "0" * 64 for name in ("train.pt", "val.pt", "test.pt")}
+    parity_path = target.parents[1] / "parity.json"
+    parity_path.write_text(
+        json.dumps(
+            {
+                "record_type": "evaluation_path_parity",
+                "family": "label",
+                "dirty_tree": False,
+                "runner": {
+                    "path": "models/layoutformerpp/tests/vendor_parity/run_evaluation_path_parity.py",
+                    "sha256": "0" * 64,
+                    "split_sha256": split_sha256,
+                },
+                "inputs": {"split_sha256": split_sha256},
+                "systems": {
+                    "package": {
+                        "predictions": {
+                            "path": str(target.relative_to(tmp_path)),
+                            "sha256": sha256(target),
+                        }
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert os.path.samefile(source, target)
+    with pytest.raises(RuntimeError, match="missing runner commit or hash"):
+        parity_runner._validate_reuse_record(
+            tmp_path,
+            parity_path,
+            "label",
+            split_sha256,
+            reuse_package=side == "package",
+            reuse_original=side == "original",
+        )
+    assert os.path.samefile(source, target)

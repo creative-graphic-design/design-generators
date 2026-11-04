@@ -190,6 +190,109 @@ def _git_worktree_dirty(path: Path) -> bool:
     return bool(status.strip())
 
 
+def _recorded_artifact(root: Path, artifact: Any) -> Path:
+    if not isinstance(artifact, Mapping):
+        raise RuntimeError("reused parity artifact metadata is missing")
+    relative_path = artifact.get("path")
+    recorded_sha256 = artifact.get("sha256")
+    if not isinstance(relative_path, str) or not isinstance(recorded_sha256, str):
+        raise RuntimeError("reused parity artifact path or SHA-256 is missing")
+    path = Path(relative_path)
+    if path.is_absolute() or ".." in path.parts:
+        raise RuntimeError("reused parity artifact path must be repository-relative")
+    resolved = (root / path).resolve()
+    if root.resolve() not in resolved.parents:
+        raise RuntimeError("reused parity artifact resolves outside the repository")
+    if not resolved.is_file() or sha256(resolved) != recorded_sha256:
+        raise RuntimeError("reused parity artifact SHA-256 differs from its record")
+    return resolved
+
+
+def _validate_runner_provenance(
+    root: Path, provenance: Any, expected_split_sha256: dict[str, str]
+) -> None:
+    if not isinstance(provenance, Mapping):
+        raise RuntimeError("reused parity record has no runner provenance")
+    commit = provenance.get("commit")
+    runner_path = provenance.get("path")
+    runner_sha256 = provenance.get("sha256")
+    if not all(
+        isinstance(value, str) and value
+        for value in (commit, runner_path, runner_sha256)
+    ):
+        raise RuntimeError("reused parity record is missing runner commit or hash")
+    if provenance.get("dirty_tree") is not False:
+        raise RuntimeError("reused parity record was produced from a dirty tree")
+    if provenance.get("split_sha256") != expected_split_sha256:
+        raise RuntimeError("reused parity record has different or missing split hashes")
+
+    runner_file = Path(runner_path)
+    if runner_file.is_absolute() or ".." in runner_file.parts:
+        raise RuntimeError("recorded runner path must be repository-relative")
+    try:
+        committed_runner = subprocess.check_output(
+            ["git", "-C", str(root), "show", f"{commit}:{runner_file.as_posix()}"]
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "recorded runner commit does not contain the runner"
+        ) from error
+    if hashlib.sha256(committed_runner).hexdigest() != runner_sha256:
+        raise RuntimeError(
+            "recorded runner commit does not contain the recorded runner"
+        )
+
+
+def _validate_reuse_record(
+    root: Path,
+    parity_path: Path,
+    family: str,
+    expected_split_sha256: dict[str, str],
+    *,
+    reuse_package: bool,
+    reuse_original: bool,
+) -> dict[str, Any]:
+    if not parity_path.is_file():
+        raise RuntimeError("reusing parity outputs requires their parity.json record")
+    record = json.loads(parity_path.read_text(encoding="utf-8"))
+    if (
+        record.get("record_type") != "evaluation_path_parity"
+        or record.get("family") != family
+    ):
+        raise RuntimeError("reused parity record has the wrong family or record type")
+    if record.get("dirty_tree") is not False:
+        raise RuntimeError("reused parity record has no clean-tree flag")
+    if record.get("inputs", {}).get("split_sha256") != expected_split_sha256:
+        raise RuntimeError("reused parity record has different or missing split hashes")
+    _validate_runner_provenance(root, record.get("runner"), expected_split_sha256)
+
+    if reuse_package:
+        package = record.get("systems", {}).get("package", {})
+        _validate_runner_provenance(
+            root, package.get("prediction_runner"), expected_split_sha256
+        )
+        prediction_path = _recorded_artifact(root, package.get("predictions"))
+        metrics_path = _recorded_artifact(root, package.get("metrics_artifact"))
+        expected_prediction_path = (
+            parity_path.parent / "package" / "predictions.json"
+        ).resolve()
+        expected_metrics_path = (
+            parity_path.parent / "package" / "metrics.json"
+        ).resolve()
+        if (
+            prediction_path != expected_prediction_path
+            or metrics_path != expected_metrics_path
+        ):
+            raise RuntimeError(
+                "reused package artifacts do not belong to this parity record"
+            )
+    if reuse_original:
+        original = record.get("systems", {}).get("original", {})
+        _recorded_artifact(root, original.get("raw_predictions"))
+        _recorded_artifact(root, original.get("raw_metrics"))
+    return record
+
+
 def _install_deepspeed_scheduler() -> None:
     """Expose the vendor scheduler without importing its obsolete package."""
     scheduler_path = None
@@ -786,6 +889,18 @@ def _orchestrate(args: argparse.Namespace) -> None:
     input_split_sha256 = _validate_rico25_inputs(args.data_root, input_sha256)
     output = root / args.output
     output.mkdir(parents=True, exist_ok=True)
+    parity_path = output / "parity.json"
+    reuse_record = None
+    if args.reuse_original or args.reuse_package:
+        if parity_path.is_file() or args.reuse_package:
+            reuse_record = _validate_reuse_record(
+                root,
+                parity_path,
+                args.family,
+                input_split_sha256,
+                reuse_package=args.reuse_package,
+                reuse_original=args.reuse_original,
+            )
     weights = root.joinpath(
         ".cache",
         "layoutformerpp",
@@ -827,12 +942,53 @@ def _orchestrate(args: argparse.Namespace) -> None:
         raise RuntimeError(
             f"vendor/package resolved evaluator settings differ for {args.family}: {differing}"
         )
+    if reuse_record is not None:
+        if int(reuse_record.get("training_seed", -1)) != args.seed:
+            raise RuntimeError("reused parity record has a different training seed")
+        if reuse_record.get("weights", {}).get("sha256") != sha256(weights):
+            raise RuntimeError("reused parity record has a different checkpoint")
+        expected_evaluation_environment = {
+            "original": source_record.get("evaluation_environment"),
+            "package": package_record.get("evaluation_environment"),
+        }
+        if reuse_record.get("settings", {}).get("resolved") != resolved_settings:
+            raise RuntimeError("reused parity record has different resolved settings")
+        if reuse_record.get("settings", {}).get("sampling_seed") != int(
+            source_record["eval_seed"]
+        ):
+            raise RuntimeError("reused parity record has a different evaluation seed")
+        if reuse_record.get("settings", {}).get("evaluation_environment") != (
+            expected_evaluation_environment
+        ):
+            raise RuntimeError(
+                "reused parity record has a different evaluation environment"
+            )
+        if args.reuse_package and reuse_record["systems"]["package"].get(
+            "evaluator_source_commit"
+        ) != _package_evaluator_source_commit(
+            root, args.package_evaluator_source_commit
+        ):
+            raise RuntimeError(
+                "reused package outputs use a different evaluator commit"
+            )
 
     package_output = output / "package"
     original_output = output / "original"
-    original_output.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(weights, original_output / "s5_checkpoint.pth.tar")
-    shutil.copy2(vocab, original_output / "vocab.json")
+    if args.reuse_original and reuse_record is not None:
+        original_record = reuse_record["systems"]["original"]
+        original_results_path = _recorded_artifact(
+            root, original_record["raw_predictions"]
+        )
+        original_metrics_path = _recorded_artifact(root, original_record["raw_metrics"])
+    elif args.reuse_original:
+        original_results_path = _recorded_artifact(root, source_record["predictions"])
+        original_metrics_path = _recorded_artifact(root, source_record["metrics"])
+    else:
+        original_output.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(weights, original_output / "s5_checkpoint.pth.tar")
+        shutil.copy2(vocab, original_output / "vocab.json")
+        original_results_path = None
+        original_metrics_path = None
     if not args.reuse_original:
         subprocess.run(
             [
@@ -857,6 +1013,9 @@ def _orchestrate(args: argparse.Namespace) -> None:
             ],
             check=True,
         )
+        original_dir = original_output / TASKS[args.family] / "s5"
+        original_results_path = original_dir / "results.pkl"
+        original_metrics_path = original_dir / "metrics.pkl"
     if not args.reuse_package:
         subprocess.run(
             [
@@ -885,9 +1044,9 @@ def _orchestrate(args: argparse.Namespace) -> None:
             ],
             check=True,
         )
-    task = TASKS[args.family]
-    original_dir = output / "original" / task / "s5"
-    original_raw = pickle.loads((original_dir / "results.pkl").read_bytes())
+    assert original_results_path is not None
+    assert original_metrics_path is not None
+    original_raw = pickle.loads(original_results_path.read_bytes())
     package_predictions = json.loads(
         (package_output / "predictions.json").read_text(encoding="utf-8")
     )
@@ -899,9 +1058,7 @@ def _orchestrate(args: argparse.Namespace) -> None:
     )
     original_metrics = {
         key: _json_value(value)
-        for key, value in pickle.loads(
-            (original_dir / "metrics.pkl").read_bytes()
-        ).items()
+        for key, value in pickle.loads(original_metrics_path.read_bytes()).items()
         if key
         in {
             "bbox_acc",
@@ -915,18 +1072,28 @@ def _orchestrate(args: argparse.Namespace) -> None:
         }
     }
     package_prediction_path = package_output / "predictions.json"
+    package_metrics_path = package_output / "metrics.json"
     predictions_bitwise_equal = package_predictions == original_predictions
     metrics_comparison = _compare_metrics(original_metrics, package_metrics)
+    runner_provenance = {
+        "commit": _git_revision(root),
+        "dirty_tree": _git_worktree_dirty(root),
+        "path": str(Path(__file__).resolve().relative_to(root)),
+        "sha256": sha256(Path(__file__).resolve()),
+        "split_sha256": input_split_sha256,
+    }
+    package_prediction_runner = (
+        reuse_record["systems"]["package"]["prediction_runner"]
+        if args.reuse_package and reuse_record is not None
+        else runner_provenance
+    )
     parity = {
         "record_type": "evaluation_path_parity",
         "family": args.family,
         "mode": "bitwise",
         "training_seed": int(source_record["seed"]),
         "dirty_tree": _git_worktree_dirty(root),
-        "runner": {
-            "path": str(Path(__file__).resolve().relative_to(root)),
-            "sha256": sha256(Path(__file__).resolve()),
-        },
+        "runner": runner_provenance,
         "same_weight_route": "converted original checkpoint loaded by the package model and original evaluator",
         "runtime_freeze_sha256": runtime_freeze_sha256,
         "source_records": [
@@ -956,9 +1123,14 @@ def _orchestrate(args: argparse.Namespace) -> None:
                 "evaluator_source_commit": _package_evaluator_source_commit(
                     root, args.package_evaluator_source_commit
                 ),
+                "prediction_runner": package_prediction_runner,
                 "predictions": {
                     "path": str(package_prediction_path.relative_to(root)),
                     "sha256": sha256(package_prediction_path),
+                },
+                "metrics_artifact": {
+                    "path": str(package_metrics_path.relative_to(root)),
+                    "sha256": sha256(package_metrics_path),
                 },
                 "metrics": package_metrics,
                 "prediction_count": len(package_predictions),
@@ -969,8 +1141,16 @@ def _orchestrate(args: argparse.Namespace) -> None:
                 "predictions": {
                     "path": str(original_canonical.relative_to(root)),
                     "sha256": sha256(original_canonical),
-                    "raw_path": str((original_dir / "results.pkl").relative_to(root)),
-                    "raw_sha256": sha256(original_dir / "results.pkl"),
+                    "raw_path": str(original_results_path.relative_to(root)),
+                    "raw_sha256": sha256(original_results_path),
+                },
+                "raw_predictions": {
+                    "path": str(original_results_path.relative_to(root)),
+                    "sha256": sha256(original_results_path),
+                },
+                "raw_metrics": {
+                    "path": str(original_metrics_path.relative_to(root)),
+                    "sha256": sha256(original_metrics_path),
                 },
                 "metrics": original_metrics,
                 "prediction_count": len(original_predictions),
@@ -983,7 +1163,6 @@ def _orchestrate(args: argparse.Namespace) -> None:
         },
         "artifact": {"path": str((output / "parity.json").relative_to(root))},
     }
-    parity_path = output / "parity.json"
     _write_json(parity_path, parity)
     if not _bitwise_parity_passes(predictions_bitwise_equal, metrics_comparison):
         raise SystemExit(
