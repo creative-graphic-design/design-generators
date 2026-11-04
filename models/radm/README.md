@@ -140,7 +140,7 @@ data. Data provenance and the CGL-v2 license remain unresolved; see
 
 ### Training Procedure
 
-The CGL LightningCLI recipe predicts four classes while preserving the five-entry source vocabulary in its captured class mapping. It initializes ResNet-50 from Detectron2’s torchvision ImageNet checkpoint, which the Model Zoo lists under [CC BY-SA 3.0](https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md#imagenet-pretrained-models). The three-seed, 1,500-step production runs verify the configured training path only. The 250,000-step CGL S5 retrain has not been rerun, so no trained-checkpoint reproduction is claimed; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
+The CGL LightningCLI recipe predicts four classes while preserving the five-entry source vocabulary in its captured class mapping. It initializes ResNet-50 from Detectron2’s torchvision ImageNet checkpoint, which the Model Zoo lists under [CC BY-SA 3.0](https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md#imagenet-pretrained-models). The three-seed, 250,000-step CGL run is documented as a practical reproduction with an `R_occ` caveat. CGL-v2 remains outside the S5 claim, and no trained checkpoint is published; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Evaluation
 
@@ -174,7 +174,7 @@ checkpoint and data assets, capturing the original Detectron2 reference state,
 running the gated parity tests, converting the checkpoint, and smoke-testing
 `from_pretrained` as described in
 [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/REPRODUCING.md).
-Training-stage status and the future member-scoped training commands are in
+The CGL S5 result and member-scoped training commands are in
 [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Environmental Impact
