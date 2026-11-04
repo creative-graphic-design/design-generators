@@ -17,7 +17,21 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Models
 
-The model name opens the on-site API page, and Docs links to the package README. For layout-generation models, `Task` is `task-agnostic` when one trained checkpoint or configuration serves every accepted generation condition, `task-aware` when each condition has its own checkpoint or training run, or `single-task` when one condition is accepted; `Content` is `content-agnostic` when inference uses no canvas/background image or saliency input and `content-aware` when it does. Image-generation models show `text-to-image` or `image-to-image` in Task and their conditioning values in Content, such as `text` or `layers + text`; 🎨 marks their task badges, 📝 marks text conditioning, and 🧩 marks layers plus text. Their Hugging Face `pipeline_tag` matches the Task value; see [the conventions' model catalog classification](conventions.md#model-catalog-classification). Weights are converted original weights you can load. The Training link opens each package's reproduction record, which states whether full training was in scope and verified.
+- The model name opens the on-site API page.
+- The Docs link opens the package README.
+- Layout-generation Task badges show `task-agnostic`, `task-aware`, or `single-task`.
+- Layout-generation Content badges show `content-agnostic` or `content-aware`.
+- 🎯 marks layout-generation Task badges.
+- For image-generation models, Task badges show `text-to-image` or `image-to-image`.
+- 🎨 marks image-generation Task badges.
+- Image-generation Content badges list conditioning values, such as `text` or `layers + text`.
+- 📝 marks text conditioning.
+- 🧩 marks layers plus text.
+- The Hugging Face `pipeline_tag` matches the image-generation Task value.
+- See [the model catalog classification conventions](conventions.md#model-catalog-classification) for the task, conditioning, and metadata rules.
+- The Weights column identifies converted original weights that you can load.
+- The Training link opens each package's reproduction record.
+- The reproduction record states whether full training was in scope and verified.
 
 | Model                                              | Task                                                                                                           | Content                                                                                                                          | Venue                                                                                                           | Weights                                                                                                                                                                                                              | Training                                                                                                                                                                                                                   | Paper                                                                                                                                                                         | Docs                                                                                                               |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
