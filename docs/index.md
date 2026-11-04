@@ -17,21 +17,29 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Models
 
-- The model name opens the on-site API page.
-- The Docs link opens the package README.
-- Layout-generation Task badges show `task-agnostic`, `task-aware`, or `single-task`.
-- Layout-generation Content badges show `content-agnostic` or `content-aware`.
+### Layout-generation badges
+
+- Layout-generation Task badges show `task-agnostic`, `task-aware`, `single-task`, `evaluation`, or `saliency`.
 - 🎯 marks layout-generation Task badges.
-- For image-generation models, Task badges show `text-to-image` or `image-to-image`.
+- Layout-generation Content badges show `content-agnostic` or `content-aware`.
+
+### Image-generation badges
+
+- Image-generation Task badges show `text-to-image` or `image-to-image`.
 - 🎨 marks image-generation Task badges.
 - Image-generation Content badges list conditioning values, such as `text` or `layers + text`.
 - 📝 marks text conditioning.
 - 🧩 marks layers plus text.
-- The Hugging Face `pipeline_tag` matches the image-generation Task value.
-- See [the model catalog classification conventions](conventions.md#model-catalog-classification) for the task, conditioning, and metadata rules.
+
+### Links and metadata
+
+- The model name opens the on-site API page.
+- The Docs link opens the package README.
 - The Weights column identifies converted original weights that you can load.
 - The Training link opens each package's reproduction record.
 - The reproduction record states whether full training was in scope and verified.
+- The Hugging Face `pipeline_tag` matches the image-generation Task value.
+- See [the model catalog classification conventions](conventions.md#model-catalog-classification) for task, conditioning, and metadata rules.
 
 | Model                                              | Task                                                                                                           | Content                                                                                                                          | Venue                                                                                                           | Weights                                                                                                                                                                                                              | Training                                                                                                                                                                                                                   | Paper                                                                                                                                                                         | Docs                                                                                                               |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
