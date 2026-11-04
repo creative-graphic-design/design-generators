@@ -9,7 +9,7 @@ from traingen_parity.determinism import DeterminismConfig, apply_determinism
 from .config import LayoutDiffusionSeedMode
 
 
-def apply_layoutdiffusion_seed_mode(
+def apply_layout_diffusion_seed_mode(
     seed_mode: LayoutDiffusionSeedMode | str,
     *,
     seed: int = 102,
@@ -27,7 +27,7 @@ def apply_layoutdiffusion_seed_mode(
         ValueError: If the seed mode is unsupported.
 
     Examples:
-        >>> apply_layoutdiffusion_seed_mode("default", seed=1)
+        >>> apply_layout_diffusion_seed_mode("default", seed=1)
     """
     mode = LayoutDiffusionSeedMode(seed_mode)
     if mode is LayoutDiffusionSeedMode.default:

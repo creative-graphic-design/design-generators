@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def write_layoutvae_model_card(output_dir: str | Path) -> Path:
+def write_layout_vae_model_card(output_dir: str | Path) -> Path:
     """Write a minimal Hub README for converted LayoutVAE artifacts.
 
     Args:
@@ -16,7 +16,7 @@ def write_layoutvae_model_card(output_dir: str | Path) -> Path:
 
     Examples:
         >>> import tempfile
-        >>> path = write_layoutvae_model_card(tempfile.mkdtemp())
+        >>> path = write_layout_vae_model_card(tempfile.mkdtemp())
         >>> path.name
         'README.md'
     """

@@ -70,7 +70,7 @@ class LayoutDiffusionTrainingModule(LightningModule):
         self.tokenizer = tokenizer or build_training_tokenizer(
             config, vocab_file=vocab_file
         )
-        self.layoutdiffusion_config = config
+        self.layout_diffusion_config = config
         self.model = model or LayoutDiffusionTransformer(
             vocab_size=config.vocab_size,
             num_channels=config.num_channels,
@@ -110,7 +110,7 @@ class LayoutDiffusionTrainingModule(LightningModule):
         datamodule = getattr(self.trainer, "datamodule", None)
         data_config = getattr(datamodule, "config", None)
         data_id2label = getattr(data_config, "id2label", None)
-        model_id2label = getattr(self.layoutdiffusion_config, "id2label", None)
+        model_id2label = getattr(self.layout_diffusion_config, "id2label", None)
         if data_id2label is None or model_id2label is None:
             return
         if dict(data_id2label) == dict(model_id2label):

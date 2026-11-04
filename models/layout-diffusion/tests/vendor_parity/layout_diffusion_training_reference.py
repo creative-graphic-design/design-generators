@@ -241,7 +241,7 @@ def generate_reference_fixture(
     }
     assert tuple(trace_tensors) == TRACE_POINTS
     trace = build_step_trace(
-        "layoutdiffusion_original_train_loop_step",
+        "layout_diffusion_original_train_loop_step",
         trace_tensors,
         metadata={
             "dataset_name": dataset_name,
@@ -537,7 +537,7 @@ def _patched_vendor_tree() -> Path:
         / "generate_reference_outputs.py"
     )
     spec = importlib.util.spec_from_file_location(
-        "layoutdiffusion_generate_reference_outputs", script_path
+        "layout_diffusion_generate_reference_outputs", script_path
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Could not import {script_path}")

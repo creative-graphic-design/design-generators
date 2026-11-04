@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from layout_vae.conversion import convert_state_dicts, load_original_state_dicts
-from layout_vae.model_card import write_layoutvae_model_card
+from layout_vae.model_card import write_layout_vae_model_card
 
 
 def main() -> None:
@@ -35,7 +35,7 @@ def main() -> None:
         bbox_state_dict=bbox_state_dict,
         output_dir=args.output_dir,
     )
-    write_layoutvae_model_card(output_dir)
+    write_layout_vae_model_card(output_dir)
     print(output_dir)
 
 

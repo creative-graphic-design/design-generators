@@ -6,7 +6,7 @@ from typing import Final
 
 from laygen.common.labels import DatasetName, normalize_dataset_name
 
-LAYOUTDIFFUSION_RICO25_LABELS: Final[tuple[str, ...]] = (
+LAYOUT_DIFFUSION_RICO25_LABELS: Final[tuple[str, ...]] = (
     "Text",
     "Image",
     "Icon",
@@ -33,7 +33,7 @@ LAYOUTDIFFUSION_RICO25_LABELS: Final[tuple[str, ...]] = (
     "Number_Stepper",
     "Date_Picker",
 )
-LAYOUTDIFFUSION_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
+LAYOUT_DIFFUSION_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
     "text",
     "title",
     "list",
@@ -42,7 +42,7 @@ LAYOUTDIFFUSION_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
 )
 
 
-def layoutdiffusion_labels_for_dataset(
+def layout_diffusion_labels_for_dataset(
     dataset_name: DatasetName | str,
 ) -> tuple[str, ...]:
     """Return LayoutDiffusion label strings in checkpoint order.
@@ -57,23 +57,23 @@ def layoutdiffusion_labels_for_dataset(
         ValueError: If the dataset is unsupported.
 
     Examples:
-        >>> layoutdiffusion_labels_for_dataset("publaynet")[0]
+        >>> layout_diffusion_labels_for_dataset("publaynet")[0]
         'text'
     """
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.rico25:
-        return LAYOUTDIFFUSION_RICO25_LABELS
+        return LAYOUT_DIFFUSION_RICO25_LABELS
     if dataset is DatasetName.publaynet:
-        return LAYOUTDIFFUSION_PUBLAYNET_LABELS
+        return LAYOUT_DIFFUSION_PUBLAYNET_LABELS
     raise ValueError(f"Unsupported LayoutDiffusion dataset_name: {dataset_name}")
 
 
 def default_id2label(dataset_name: DatasetName | str) -> dict[int, str]:
     """Return the public id-to-label mapping for LayoutDiffusion."""
-    return dict(enumerate(layoutdiffusion_labels_for_dataset(dataset_name)))
+    return dict(enumerate(layout_diffusion_labels_for_dataset(dataset_name)))
 
 
-def normalize_layoutdiffusion_label(label: str) -> str:
+def normalize_layout_diffusion_label(label: str) -> str:
     """Normalize public spelling to the internal vocabulary spelling.
 
     Args:
@@ -87,11 +87,11 @@ def normalize_layoutdiffusion_label(label: str) -> str:
 
 def label_to_public_id(dataset_name: DatasetName | str, label: str) -> int:
     """Map a checkpoint label string to a dataset-local public id."""
-    labels = layoutdiffusion_labels_for_dataset(dataset_name)
-    normalized = normalize_layoutdiffusion_label(label)
+    labels = layout_diffusion_labels_for_dataset(dataset_name)
+    normalized = normalize_layout_diffusion_label(label)
     return labels.index(normalized)
 
 
 def public_id_to_label(dataset_name: DatasetName | str, label_id: int) -> str:
     """Map a public dataset-local label id to a checkpoint label string."""
-    return layoutdiffusion_labels_for_dataset(dataset_name)[int(label_id)]
+    return layout_diffusion_labels_for_dataset(dataset_name)[int(label_id)]

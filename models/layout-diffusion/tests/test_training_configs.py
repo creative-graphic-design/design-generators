@@ -67,13 +67,13 @@ def test_training_namespace_exports_when_lightning_is_installed() -> None:
     assert "__all__" not in training_namespace.__dict__
 
 
-def test_s5_training_configs_pin_layoutdiffusion_settings() -> None:
+def test_s5_training_configs_pin_layout_diffusion_settings() -> None:
     expected = {
         "rico25": ("0.00004", "175000", "159", "RICO_ltrb_lex"),
         "publaynet": ("0.00005", "400000", "139", "PublayNet_ltrb_lex"),
     }
     for dataset, (lr, lr_anneal_steps, vocab_size, stream_name) in expected.items():
-        text = (CONFIG_DIR / f"layoutdiffusion_{dataset}.yaml").read_text(
+        text = (CONFIG_DIR / f"layout_diffusion_{dataset}.yaml").read_text(
             encoding="utf-8"
         )
         assert "        seq_length: 121" in text
@@ -104,7 +104,7 @@ def test_s5_training_configs_pin_layoutdiffusion_settings() -> None:
 
 
 def test_processed_s5_training_configs_pin_preconsume() -> None:
-    for path in CONFIG_DIR.glob("layoutdiffusion_*.yaml"):
+    for path in CONFIG_DIR.glob("layout_diffusion_*.yaml"):
         text = path.read_text(encoding="utf-8")
         assert "    dataset_source: processed" in text
         assert "    preconsume_train_batches: 1" in text
@@ -113,7 +113,7 @@ def test_processed_s5_training_configs_pin_preconsume() -> None:
 
 
 def test_s5_training_configs_duplicate_same_vocab_file_for_model_and_data() -> None:
-    for path in CONFIG_DIR.glob("layoutdiffusion_*.yaml"):
+    for path in CONFIG_DIR.glob("layout_diffusion_*.yaml"):
         text = path.read_text(encoding="utf-8")
         matches = re.findall(r"^    vocab_file: (.+)$", text, flags=re.MULTILINE)
         assert len(matches) == 2, path

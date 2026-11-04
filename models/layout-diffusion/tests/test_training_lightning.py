@@ -14,9 +14,9 @@ from layout_diffusion.training.datamodule import LayoutDiffusionDataModule
 from layout_diffusion.training.lightning_module import LayoutDiffusionTrainingModule
 from layout_diffusion.training.parity import (
     TRACE_POINTS,
-    compare_layoutdiffusion_optimizer_step,
-    compare_layoutdiffusion_step,
-    trace_layoutdiffusion_step,
+    compare_layout_diffusion_optimizer_step,
+    compare_layout_diffusion_step,
+    trace_layout_diffusion_step,
 )
 from traingen.lightning.cli import main
 from traingen_parity.trace import build_step_trace
@@ -232,15 +232,15 @@ def test_optimizer_scheduler_ema_and_parity_helpers() -> None:
     assert lr_scheduler["interval"] == "step"
     assert module.ema_state_dict()
     torch.manual_seed(3)
-    trace = trace_layoutdiffusion_step(module, tiny_batch())
+    trace = trace_layout_diffusion_step(module, tiny_batch())
     assert set(TRACE_POINTS) <= trace.tensors.keys()
-    assert compare_layoutdiffusion_step(trace, trace).passed
-    assert compare_layoutdiffusion_optimizer_step(
+    assert compare_layout_diffusion_step(trace, trace).passed
+    assert compare_layout_diffusion_optimizer_step(
         {"x": torch.ones(1)}, {"x": torch.ones(1)}
     ).passed
     mismatch_reference = build_step_trace("reference", {"x": torch.ones(1)})
     mismatch_target = build_step_trace("target", {"x": torch.zeros(1)})
-    assert not compare_layoutdiffusion_step(mismatch_reference, mismatch_target).passed
+    assert not compare_layout_diffusion_step(mismatch_reference, mismatch_target).passed
 
 
 def test_trainer_fit_rejects_model_data_id2label_mismatch(tmp_path: Path) -> None:

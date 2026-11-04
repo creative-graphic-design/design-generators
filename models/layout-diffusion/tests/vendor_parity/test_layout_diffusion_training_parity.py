@@ -21,8 +21,8 @@ from layout_diffusion.training.datamodule import LayoutDiffusionDataModule
 from layout_diffusion.training.lightning_module import LayoutDiffusionTrainingModule
 from layout_diffusion.training.parity import (
     TRACE_POINTS,
-    compare_layoutdiffusion_step,
-    trace_layoutdiffusion_step,
+    compare_layout_diffusion_step,
+    trace_layout_diffusion_step,
 )
 from layout_diffusion.training.vocab import build_training_tokenizer
 from layout_diffusion_training_reference import (
@@ -298,7 +298,7 @@ def test_package_training_trace_surface_has_s0_s2_points() -> None:
     config = tiny_training_config("publaynet")
     module = LayoutDiffusionTrainingModule(config=config, scheduler=None)
     torch.manual_seed(102)
-    trace = trace_layoutdiffusion_step(module, tiny_reference_batch("publaynet"))
+    trace = trace_layout_diffusion_step(module, tiny_reference_batch("publaynet"))
     assert set(TRACE_POINTS).issubset(trace.tensors)
 
 
@@ -352,7 +352,7 @@ def test_package_training_trace_matches_original_fixture(dataset_name: str) -> N
         assert cuda_rng_state is not None
         torch.cuda.set_rng_state(cuda_rng_state, device)
     torch.set_rng_state(reference["rng_state_before_step"])
-    target = _cpu_trace(trace_layoutdiffusion_step(module, batch))
+    target = _cpu_trace(trace_layout_diffusion_step(module, batch))
     reference_trace = _without_trace_points(
         reference["trace"], {"lt_history", "lt_count"}
     )
@@ -369,7 +369,7 @@ def test_package_training_trace_matches_original_fixture(dataset_name: str) -> N
         target.tensors["lt_count"].sum().item()
         == reference["batch"]["input_ids"].shape[0]
     )
-    report = compare_layoutdiffusion_step(
+    report = compare_layout_diffusion_step(
         reference_trace,
         target_trace,
         tolerance=TensorTolerance(atol=2e-5, rtol=2e-6),

@@ -18,7 +18,7 @@ from torch.utils.data import Dataset as TorchDataset
 from laygen.common.randomness import rand
 
 from ..configuration_layout_diffusion import LayoutDiffusionConfig
-from ..labels import default_id2label, normalize_layoutdiffusion_label
+from ..labels import default_id2label, normalize_layout_diffusion_label
 from ..tokenization_layout_diffusion import LayoutDiffusionTokenizer
 from .config import LayoutDiffusionTrainingDatasetName, LayoutDiffusionTrainingSplit
 
@@ -80,7 +80,7 @@ class LayoutDiffusionDataset(
         self.box_format = box_format
         self.normalized = normalized
         self.lexicographic_order = lexicographic_order
-        self.label2id = _layoutdiffusion_label2id(self.config)
+        self.label2id = _layout_diffusion_label2id(self.config)
         self.public_id2label = default_id2label(self.config.dataset_name)
 
         import datasets
@@ -229,7 +229,7 @@ def _extract_layout(
     label_strings = _label_strings(label_obj, public_id2label)
     labels = torch.tensor(
         [
-            label2id[normalize_layoutdiffusion_label(label).casefold()]
+            label2id[normalize_layout_diffusion_label(label).casefold()]
             for label in label_strings
         ],
         dtype=torch.long,
@@ -374,8 +374,8 @@ def _load_processed_tensor_rows(
     return rows[:, :max_token_length]
 
 
-def _layoutdiffusion_label2id(config: LayoutDiffusionConfig) -> dict[str, int]:
+def _layout_diffusion_label2id(config: LayoutDiffusionConfig) -> dict[str, int]:
     return {
-        normalize_layoutdiffusion_label(label).casefold(): int(label_id)
+        normalize_layout_diffusion_label(label).casefold(): int(label_id)
         for label_id, label in config.id2label.items()
     }

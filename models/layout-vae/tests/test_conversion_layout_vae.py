@@ -2,7 +2,7 @@ import pytest
 
 from layout_vae import LayoutVAEConfig, LayoutVAEModel
 from layout_vae.conversion import convert_state_dicts
-from layout_vae.model_card import write_layoutvae_model_card
+from layout_vae.model_card import write_layout_vae_model_card
 
 
 def test_convert_state_dicts_writes_hf_artifacts(tmp_path):
@@ -29,6 +29,6 @@ def test_convert_state_dicts_refuses_non_hf_names(tmp_path):
 
 
 def test_model_card_helper_writes_readme(tmp_path):
-    path = write_layoutvae_model_card(tmp_path)
+    path = write_layout_vae_model_card(tmp_path)
     assert path.name == "README.md"
     assert "LayoutVAE PubLayNet" in path.read_text(encoding="utf-8")

@@ -32,7 +32,7 @@ TRACE_POINTS: tuple[str, ...] = (
 )
 
 
-def trace_layoutdiffusion_step(
+def trace_layout_diffusion_step(
     module: TrainingStepModule[dict[str, Shaped[torch.Tensor, ...]]],
     batch: dict[str, Shaped[torch.Tensor, ...]],
     rng_state: RNGState | None = None,
@@ -41,7 +41,7 @@ def trace_layoutdiffusion_step(
     return trace_training_step(module, batch, rng_state, TRACE_POINTS)
 
 
-def compare_layoutdiffusion_step(
+def compare_layout_diffusion_step(
     reference: StepTrace,
     target: StepTrace,
     *,
@@ -52,7 +52,7 @@ def compare_layoutdiffusion_step(
     return compare_step_trace(reference, target, tolerances)
 
 
-def compare_layoutdiffusion_optimizer_step(
+def compare_layout_diffusion_optimizer_step(
     reference_state: dict[str, Shaped[torch.Tensor, ...]],
     target_state: dict[str, Shaped[torch.Tensor, ...]],
     *,

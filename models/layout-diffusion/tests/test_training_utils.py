@@ -13,7 +13,7 @@ from layout_diffusion.training.losses import (
     sample_time_uniform,
     sum_except_batch,
 )
-from layout_diffusion.training.seed import apply_layoutdiffusion_seed_mode
+from layout_diffusion.training.seed import apply_layout_diffusion_seed_mode
 
 
 def test_loss_helpers_match_categorical_identities() -> None:
@@ -61,8 +61,8 @@ def test_time_samplers_are_reproducible() -> None:
 
 def test_seed_modes_and_training_string_options_are_constrained() -> None:
     assert LayoutDiffusionSeedMode("default") is LayoutDiffusionSeedMode.default
-    apply_layoutdiffusion_seed_mode("default", seed=1)
-    apply_layoutdiffusion_seed_mode("deterministic", seed=1)
+    apply_layout_diffusion_seed_mode("default", seed=1)
+    apply_layout_diffusion_seed_mode("deterministic", seed=1)
     assert LayoutDiffusionTrainingDatasetName.__args__ == ("rico25", "publaynet")
     assert LayoutDiffusionTrainingScheduler.__args__ == ("linear_anneal",)
     assert LayoutDiffusionTimeSampler.__args__ == ("importance", "uniform")
