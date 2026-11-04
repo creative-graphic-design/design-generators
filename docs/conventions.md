@@ -64,7 +64,7 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 #### Model catalog classification
 
-Each model README has one classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <values>.` For layout-generation models, `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
+Each model README has one classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <values>.` For layout-generation models, `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input. It is `content-aware` when package inference uses a canvas/background image or saliency input. Element-level image or text feature fields, such as Flex-DM's feature infilling, do not affect this classification.
 
 For layout-generation models, `Task` is classified as follows:
 
@@ -74,9 +74,9 @@ For layout-generation models, `Task` is classified as follows:
 - `evaluation`: the package evaluates layouts rather than generating them.
 - `saliency`: the package predicts saliency rather than generating layouts.
 
-Image-generation models use `image generation` as the `Model type` category and `text-to-image` or `image-to-image` as the task. Their conditioning values are `layers` and `text`, listed in that order when both are accepted; the model catalog displays those values in the `Content` column joined by a plus sign. In model cards, `pipeline_tag` and every `model-index` result's `task.type` match the task value. `layers` describes layer-based image input and is not a layout `condition_type`.
+Image-generation models use `image generation` as the `Model type` category. Their task is `text-to-image` or `image-to-image`. Their conditioning values are `layers` and `text`. List `layers` before `text` when both are accepted. In the model catalog, join the conditioning values with a plus sign in the `Content` column. In model cards, `pipeline_tag` matches the task value. Every `model-index` result's `task.type` also matches the task value. `layers` describes layer-based image input. It is not a layout `condition_type`.
 
-Model-card `model-index` frontmatter uses block-style YAML with two-space indentation and canonical field order; scalar values, including JSON-style double-quoted strings, contain only printable ASCII (`0x20`–`0x7E`). The stdlib-only `devharness check model-readmes` reserializes the parsed block and rejects any byte-level difference with an explicit format error.
+Use block-style YAML in model-card `model-index` frontmatter. Indent nested fields by two spaces. Use the canonical field order. Scalar values, including JSON-style double-quoted strings, contain only printable ASCII (`0x20`–`0x7E`). The `devharness check model-readmes` command uses only the standard library to validate this frontmatter. It reserializes the parsed block in canonical form. It rejects any byte-level difference with an explicit format error.
 
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
