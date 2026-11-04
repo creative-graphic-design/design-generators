@@ -12,7 +12,6 @@ from typing import Callable, ParamSpec, TypeVar, cast
 
 import torch
 from jaxtyping import Float
-from torch.utils.tensorboard import SummaryWriter
 
 ROOT = Path(__file__).resolve().parents[3]
 VENDOR_ROOT = ROOT / "vendor" / "const-layout"
@@ -87,6 +86,8 @@ def main() -> None:
         "DataLoader",
         seeded_training_loader(module.DataLoader, args.data_seed),
     )
+
+    from torch.utils.tensorboard import SummaryWriter
 
     class ProgressWriter(SummaryWriter):
         def add_scalar(
