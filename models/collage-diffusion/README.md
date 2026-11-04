@@ -320,6 +320,8 @@ The reference comparison holds the input layers, preprocessing, textual-inversio
 
 Compare normalized final RGB arrays with RMSE, maximum absolute difference, and PSNR, and compare each post-scheduler, post-preservation latent with RMSE. The six comparisons use three 512 × 512 scenes and seeds 0 and 1, the same pinned checkpoint, each scene's layers and embeddings, Euler Ancestral, and 10 requested steps (7 or 8 active steps according to strength). Bento Box and Toy Box use strength `0.8` with `noise_blur=20`; Cake Table uses strength `0.75` with `noise_blur=10`.
 
+The notebook example omits `num_inference_steps`, so it uses the pipeline default of 50 steps (40 active at strength `0.8` and 37 at `0.75`). The parity run requests 10 steps to limit comparison cost (8 or 7 active); the notebook and package use identical settings within each comparison pair.
+
 ### Parity Results
 
 The six worker-run comparisons pass the tolerance thresholds fixed before the Collage runs from six ordinary Stable Diffusion Img2Img version-drift controls. The reference uses `🧨diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and `🤗transformers` `4.28.1`; the package uses `🧨diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `🤗transformers` `5.13.0`. Both run on CPU with one thread. The coordinator's independent acceptance rerun is pending; vendor parity is not verified until that rerun is complete. The baseline and comparison plan are tracked in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
