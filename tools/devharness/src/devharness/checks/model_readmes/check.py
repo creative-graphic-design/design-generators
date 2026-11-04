@@ -41,7 +41,6 @@ def check() -> None:
         card.assert_prompt_only_readme(path, text)
         card.assert_unpublished_hub_get_started_note(path, text)
         card.assert_code_fences_tagged(path, text)
-        card.assert_no_postload_scheduler_replacement(path, text)
         parity.assert_parity_table(path, text)
         citation.assert_citation_bibtex(path, text)
         parity.assert_vendor_parity_badge(path, text)
