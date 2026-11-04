@@ -486,7 +486,7 @@ class CollageDiffusionPipeline(StableDiffusionImg2ImgPipeline):
 
     Examples:
         >>> from PIL import Image
-        >>> from collagediffusion import CollageLayer
+        >>> from collage_diffusion import CollageLayer
         >>> layer = CollageLayer(Image.new("RGBA", (16, 16), (220, 80, 30, 255)), "orange toy")
         >>> layer.prompt
         'orange toy'

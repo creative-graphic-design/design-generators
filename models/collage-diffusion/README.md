@@ -42,7 +42,7 @@ Collage Diffusion combines a scene prompt with ordered RGBA image layers. Visibl
 
 ### Model Sources
 
-- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here. Notebook-linked image layers and textual-inversion embeddings are archived, with source links and integrity records, in the [public documentation image dataset](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collagediffusion/drive-archive).
+- **Repository:** [Collage Diffusion source repository](https://github.com/VSAnimator/collage-diffusion); it has no declared repository license. Its notebook is used as a behavioral reference; its code is not included here. Notebook-linked image layers and textual-inversion embeddings are archived, with source links and integrity records, in the [public documentation image dataset](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collage-diffusion/drive-archive).
 - **Paper:** [Collage Diffusion](https://arxiv.org/abs/2303.00262).
 - **Related implementation:** [Collage Diffusion UI](https://github.com/linden-li/collage-diffusion-ui) was inspected as a secondary reference. Its repository also has no declared license; its code is not included here.
 - **Released weights:** The package does not contain its own weights. It loads the [Stable Diffusion 2.1 base mirror](https://huggingface.co/sd2-community/stable-diffusion-2-1-base) at a pinned revision.
@@ -81,9 +81,9 @@ Both sides of the notebook comparison use this same pinned snapshot and the file
 
 ## Supported Checkpoints
 
-| Artifact                    | Hub ID                                     | Status                                    |
-| --------------------------- | ------------------------------------------ | ----------------------------------------- |
-| `🧨diffusers` pipeline code | `creative-graphic-design/collagediffusion` | planned, code only; no learned checkpoint |
+| Artifact                    | Hub ID                                      | Status                                    |
+| --------------------------- | ------------------------------------------- | ----------------------------------------- |
+| `🧨diffusers` pipeline code | `creative-graphic-design/collage-diffusion` | planned, code only; no learned checkpoint |
 
 When publishing this pipeline to the Hub, its `model_index.json` and `scheduler/scheduler_config.json` must specify `EulerAncestralDiscreteScheduler`.
 
@@ -96,7 +96,7 @@ Use the pipeline to harmonize a layered collage while guiding object placement t
 ```python
 from PIL import Image
 from diffusers import EulerAncestralDiscreteScheduler
-from collagediffusion import CollageDiffusionPipeline, CollageLayer
+from collage_diffusion import CollageDiffusionPipeline, CollageLayer
 
 base = "sd2-community/stable-diffusion-2-1-base"
 revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
@@ -138,21 +138,21 @@ Textual-inversion embeddings are caller-supplied with a token-to-file mapping, a
 
 #### Toy Box collage
 
-This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [public Hub archive](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collagediffusion/drive-archive). The archive contains author-provided files with no clear per-file license; the dataset-level Apache-2.0 metadata does not apply to them, so their use and redistribution terms remain unclear.
+This example follows the Toy Box setup in the [Collage Diffusion notebook](https://github.com/VSAnimator/collage-diffusion/blob/main/CollageDiffusionDemo.ipynb), using its [Google Drive image layers](https://drive.google.com/drive/folders/1EfoLfWbn5fl7c092uk96zHtJOVHRlIqI?usp=sharing) and [textual-inversion assets](https://drive.google.com/drive/folders/13Gg8y-0FxdPcuhrPOUw6Ze9wa0Ruu-cI?usp=sharing). The source Drive files may disappear; archived copies, source URLs, retrieval date, byte sizes, and SHA-256 values are listed in the [public Hub archive](https://huggingface.co/datasets/creative-graphic-design/documentation-images/tree/main/collage-diffusion/drive-archive). The archive contains author-provided files with no clear per-file license; the dataset-level Apache-2.0 metadata does not apply to them, so their use and redistribution terms remain unclear.
 
 The left panel shows the source collage and the right panel shows the generated image. Generation uses `sd2-community/stable-diffusion-2-1-base` at revision `4e63672c03103b6c636b8fb4119ba982469b2955`, seed `0`, 50 requested inference steps (40 active at strength `0.8`), and 512 × 512 resolution. The base checkpoint is licensed under the [CreativeML Open RAIL++-M License](https://huggingface.co/sd2-community/stable-diffusion-2-1-base).
 
-![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collagediffusion/toy-box-diffusers-comparison-de56004.png)
+![Toy Box input collage on the left and Collage Diffusion output on the right.](https://huggingface.co/datasets/creative-graphic-design/documentation-images/resolve/main/collage-diffusion/toy-box-diffusers-comparison-de56004.png)
 
 ```python
 from diffusers import EulerAncestralDiscreteScheduler
 from diffusers.utils import load_image, make_image_grid
 from huggingface_hub import hf_hub_download
-from collagediffusion import CollageDiffusionPipeline, CollageLayer, compose_collage_layers
+from collage_diffusion import CollageDiffusionPipeline, CollageLayer, compose_collage_layers
 
 
 dataset_id = "creative-graphic-design/documentation-images"
-archive_path = "collagediffusion/drive-archive"
+archive_path = "collage-diffusion/drive-archive"
 image_base_url = f"https://huggingface.co/datasets/{dataset_id}/resolve/main/{archive_path}"
 
 
@@ -261,7 +261,7 @@ Install the package with its workspace dependency from this repository:
 ```bash
 pip install \
   "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
-  "collagediffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/collage-diffusion"
+  "collage-diffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/collage-diffusion"
 ```
 
 This package has no learned checkpoints. The pipeline loads the upstream Stable Diffusion base model and accepts caller-provided layers and optional textual-inversion embeddings.
@@ -269,12 +269,12 @@ This package has no learned checkpoints. The pipeline loads the upstream Stable 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
-uv sync --package collagediffusion
-uv run --package collagediffusion python
+uv sync --package collage-diffusion
+uv run --package collage-diffusion python
 ```
 
 ```python
-from collagediffusion import CollageDiffusionPipeline
+from collage_diffusion import CollageDiffusionPipeline
 
 pipe = CollageDiffusionPipeline.from_pretrained(
     "sd2-community/stable-diffusion-2-1-base",
@@ -303,7 +303,7 @@ This package contains no training procedure and no Collage Diffusion checkpoint.
 
 #### Testing Data
 
-Ordinary tests use small synthetic RGBA layers. The parity comparison uses one example collage and its embeddings from the authors' notebook-linked assets; public archive copies are linked above.
+Ordinary tests use small synthetic RGBA layers. The comparison uses the Bento Box, Cake Table, and Toy Box scenes and their notebook-linked embeddings; public archive copies are linked above.
 
 #### Factors
 
@@ -311,18 +311,20 @@ The reference comparison holds the input layers, preprocessing, textual-inversio
 
 #### Metrics
 
-Compare generated RGB pixels with maximum absolute difference and PSNR; also compare per-step latents where available. One 512 × 512 CPU comparison used the same pinned checkpoint, layers, embedding, scheduler, seed, and 10 requested steps (8 active at strength 0.8). The measurements below cover that input and seed; they do not establish equivalence for other inputs.
+Compare normalized final RGB arrays with RMSE, maximum absolute difference, and PSNR, and compare each post-scheduler, post-preservation latent with RMSE. The six comparisons use three 512 × 512 scenes and seeds 0 and 1, the same pinned checkpoint, each scene's layers and embeddings, Euler Ancestral, and 10 requested steps (7 or 8 active steps according to strength). Bento Box and Toy Box use strength `0.8` with `noise_blur=20`; Cake Table uses strength `0.75` with `noise_blur=10`.
 
 ### Parity Results
 
-The package's vendor parity is not verified until the coordinator completes an independent acceptance rerun. The measurements below are descriptive results from one CPU comparison of the notebook reference with `🧨diffusers` `0.10.0` and this package with `🧨diffusers` `0.39.0`; they do not define an acceptance threshold. The first observed difference was in text embeddings (max absolute difference `7.62939e-6`); masks, noise maps, and scheduler noise inputs matched exactly.
+The six worker-run comparisons pass the tolerance thresholds fixed before the Collage runs from six ordinary Stable Diffusion Img2Img version-drift controls. The reference uses `🧨diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and `🤗transformers` `4.28.1`; the package uses `🧨diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `🤗transformers` `5.13.0`. Both run on CPU with one thread. The coordinator's independent acceptance rerun is pending; vendor parity is not verified until that rerun is complete. The baseline and comparison plan are tracked in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
 
-| Check                      | Cases            | Observed worker-run result                                                   |
-| -------------------------- | ---------------- | ---------------------------------------------------------------------------- |
-| Final RGB image            | 1 input and seed | max abs `0.00201568`; RMSE `0.00111883`; PSNR `59.02473 dB`                  |
-| Per-step latent            | 8 active steps   | max abs `0.00014627`; RMSE `0.00000699`                                      |
-| U-Net noise prediction     | 8 active steps   | max abs `0.00024784`; RMSE `0.00001056`                                      |
-| Inputs and text embeddings | 1 input and seed | masks/noise exact; first observed difference in text embeddings `7.62939e-6` |
+Each threshold uses `T = 2·Bmax − Bmedian` over the six ordinary Stable Diffusion controls: RGB RMSE has `Bmax=6.00713e-5`, `Bmedian=1.61880e-5`, and `T=1.03955e-4`; maximum per-step latent RMSE has `Bmax=1.01644e-4`, `Bmedian=4.42415e-5`, and `T=1.59046e-4`.
+
+| Check                                       | Cases                    | Criterion and observed result                                                                            |
+| ------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Final normalized RGB                        | 6 pairs                  | RMSE ≤ `1.03955e-4`; worst RMSE `3.00032e-5`, PSNR `90.457`–`105.834 dB`, max abs `4.99487e-4`; 6/6 pass |
+| Post-scheduler, post-preservation latents   | 6 runs, 7–8 active steps | Maximum per-step RMSE ≤ `1.59046e-4`; worst `6.88359e-5`; 6/6 pass                                       |
+| First U-Net noise prediction                | 6 pairs                  | Reported for diagnosis; worst max abs `9.88245e-5`, worst RMSE `1.79971e-6`                              |
+| Inputs, visible masks, noise maps, schedule | 6 pairs                  | Input RGB, masks, noise maps, timesteps, and sigmas matched exactly                                      |
 
 ## Reproducibility
 

@@ -651,7 +651,7 @@ members = [
     "canvas-vae",
     "cgb-dm",
     "coarse-to-fine",
-    "collagediffusion",
+    "collage-diffusion",
     "design-generators",
     "devharness",
     "dlt",
@@ -1658,7 +1658,7 @@ requires-dist = [
 provides-extras = ["download", "vendor"]
 
 [[package]]
-name = "collagediffusion"
+name = "collage-diffusion"
 version = "0.1.0"
 source = { editable = "models/collage-diffusion" }
 dependencies = [

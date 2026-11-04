@@ -8,6 +8,6 @@ tags:
 
 ## API Reference
 
-::: collagediffusion
+::: collage_diffusion
 options:
 show_submodules: true

@@ -20,7 +20,7 @@ These details explain behavior that must remain aligned when comparing the packa
 Run these commands in the named Colab CPU session. Use the repository's standard workspace dependency configuration.
 
 ```bash
-uv sync --package collagediffusion
+uv sync --package collage-diffusion
 ```
 
 ## Run Synthetic Tests
@@ -28,21 +28,21 @@ uv sync --package collagediffusion
 The tests use tiny generated images and fake pipeline components. They do not download the Stable Diffusion checkpoint or notebook assets.
 
 ```bash
-uv run --package collagediffusion pytest models/collage-diffusion/tests -m "not vendor_parity and not integration" --cov=collagediffusion --cov-report=term-missing
+uv run --package collage-diffusion pytest models/collage-diffusion/tests -m "not vendor_parity and not integration" --cov=collage_diffusion --cov-report=term-missing
 ```
 
 ## Run Repository Checks
 
 ```bash
 SKIP=uv-lock uv run --package design-generators --group dev pre-commit run --all-files
-uv run --package collagediffusion ty check models/collage-diffusion
+uv run --package collage-diffusion ty check models/collage-diffusion
 ```
 
 ## Compare Against the Notebook
 
-Download the notebook example layers and its selected textual-inversion embedding only into the Colab session. Use one temporary script to run the notebook's processing and this package sequentially with the same resized inputs, scheduler, seed `0`, and 10 steps. The notebook's `EulerAncestralDiscreteScheduler` is used for both paths. The default comparison is a single notebook example and one output pair.
+Download the Bento Box, Cake Table, and Toy Box layers and their selected textual-inversion embeddings only into the Colab session. Run the notebook cells directly as the reference and this package separately with the same resized input, prompt, scheduler, seed, and 10 requested steps for seeds `0` and `1`. Use the notebook's `EulerAncestralDiscreteScheduler` for both paths. The measured matrix contains six pairs: Bento Box and Toy Box use strength `0.8` and `noise_blur=20`; Cake Table uses strength `0.75` and `noise_blur=10`; active steps are 8, 8, and 7, respectively.
 
-Record the RGB output shapes, maximum absolute pixel difference, PSNR, input hashes, software versions, and any per-step latent differences available from the temporary reference run. If a comparison differs, record the first stage that diverges among compositing, prompt tokens, text embeddings, initial latents, attention scores, scheduler output, per-layer mask blending, and decoding. The comparison is behavioral evidence for this input and seed, not the paper's full multi-scene evaluation.
+Record the RGB output shapes, RMSE, maximum absolute pixel difference, PSNR, input hashes, software versions, and per-step latent differences from the temporary reference run. If a comparison differs, record the first stage that diverges among compositing, prompt tokens, text embeddings, initial latents, attention scores, scheduler output, per-layer mask blending, and decoding. The six measured conditions are worker-run evidence and do not replace the coordinator's independent acceptance rerun.
 
 Estimate runtime and CU before starting the comparison. Begin on ordinary Colab CPU at 0.08 CU/hour and use high-RAM CPU at 0.26 CU/hour only after measuring a memory shortage. Keep setup, rehearsal, comparison, upload, and teardown within the 1 CU worker limit. Stop and report measured evidence if this limit is at risk. Stop the named session after upload and verify that it is no longer running.
 
@@ -53,7 +53,7 @@ This command downloads the pinned mirror into the Colab session and confirms tha
 The synthetic-component test also exercises `🧨diffusers` standard `save_pretrained` and `from_pretrained` methods without downloading a base checkpoint.
 
 ```bash
-uv run --package collagediffusion python -c 'from collagediffusion import CollageDiffusionPipeline; pipe = CollageDiffusionPipeline.from_pretrained("sd2-community/stable-diffusion-2-1-base", revision="4e63672c03103b6c636b8fb4119ba982469b2955"); print(type(pipe).__name__)'
+uv run --package collage-diffusion python -c 'from collage_diffusion import CollageDiffusionPipeline; pipe = CollageDiffusionPipeline.from_pretrained("sd2-community/stable-diffusion-2-1-base", revision="4e63672c03103b6c636b8fb4119ba982469b2955"); print(type(pipe).__name__)'
 ```
 
 The comparison images, latents, metrics, and private Hub location are not committed to the repository or written into this guide.

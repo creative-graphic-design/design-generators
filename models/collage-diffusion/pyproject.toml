@@ -1,5 +1,5 @@
 [project]
-name = "collagediffusion"
+name = "collage-diffusion"
 version = "0.1.0"
 description = "Diffusers pipeline for layer-conditioned collage harmonization."
 readme = "README.md"
@@ -24,7 +24,7 @@ laygen = { workspace = true }
 
 [tool.coverage.run]
 branch = true
-source = ["collagediffusion"]
+source = ["collage_diffusion"]
 
 [tool.coverage.report]
 fail_under = 90

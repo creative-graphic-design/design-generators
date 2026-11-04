@@ -19,13 +19,13 @@ from transformers.models.clip.configuration_clip import CLIPTextConfig
 from transformers.models.clip.modeling_clip import CLIPTextModel
 from transformers.models.clip.tokenization_clip import CLIPTokenizer
 
-from collagediffusion import (
+from collage_diffusion import (
     CollageDiffusionPipeline,
     CollageLayer,
     compose_collage_layers,
     make_layer_noise_map,
 )
-from collagediffusion.pipeline_collagediffusion import (
+from collage_diffusion.pipeline_collage_diffusion import (
     _CollageCrossAttentionProcessor,
     _find_token_span,
     _inject_textual_inversion_tokens,

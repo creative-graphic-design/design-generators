@@ -1,6 +1,6 @@
 """Diffusers pipeline for collage harmonization."""
 
-from .pipeline_collagediffusion import (
+from .pipeline_collage_diffusion import (
     CollageDiffusionPipeline,
     CollageLayer,
     compose_collage_layers,
