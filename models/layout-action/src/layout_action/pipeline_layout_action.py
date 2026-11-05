@@ -166,7 +166,7 @@ class LayoutActionPipeline(LayoutGenerationPipeline):
             batch_size=batch_size,
             return_tensors="pt",
         )
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         prepared_generator = self.prepare_generator(
             generator=generator,
             seed=seed,

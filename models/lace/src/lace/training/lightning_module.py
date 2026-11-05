@@ -64,7 +64,7 @@ class LaceTrainingModule(LightningModule):
         self.ema_helper.register(self.model)
 
         schedule = LaceScheduler(num_train_timesteps=1000, ddim_num_steps=200)
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         alphas_cumprod = schedule.alphas_cumprod_for_device(model_device)
 
         self.register_buffer("alphas_bar_sqrt", alphas_cumprod.sqrt())
@@ -76,7 +76,7 @@ class LaceTrainingModule(LightningModule):
     def on_fit_start(self) -> None:
         """Apply the configured seed policy at the training boundary."""
         apply_lace_seed_mode(self.seed_mode, seed=self.seed)
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         self.ema_helper.shadow = {
             name: value.to(model_device)
             for name, value in self.ema_helper.shadow.items()

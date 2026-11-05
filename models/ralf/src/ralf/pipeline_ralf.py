@@ -258,7 +258,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             retrieval=retrieval,
             batch_size=batch_size,
         )
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,

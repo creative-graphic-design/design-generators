@@ -1,15 +1,19 @@
+import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 
 
 def _assert_probe_rejected(code: str, expected: str) -> None:
-    result = subprocess.run(
-        [sys.executable, "-c", textwrap.dedent(code)],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    with tempfile.TemporaryDirectory() as pycache_prefix:
+        result = subprocess.run(
+            [sys.executable, "-c", textwrap.dedent(code)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=os.environ | {"PYTHONPYCACHEPREFIX": pycache_prefix},
+        )
 
     assert result.returncode != 0
     assert expected in result.stderr

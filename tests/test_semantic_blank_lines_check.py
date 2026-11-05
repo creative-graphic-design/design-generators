@@ -418,8 +418,61 @@ def missing():
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
     assert (
-        "Baseline counts added or increased relative to HEAD" in capsys.readouterr().err
+        "Baseline counts added or increased relative to the committed baseline"
+        in capsys.readouterr().err
     )
+
+
+def test_checker_uses_merge_target_baseline_during_merge(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    write_source(tmp_path, "def stable():\n    pass\n")
+    write_baseline(baseline, {})
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "feature base"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    subprocess.run(["git", "checkout", "-b", "main-update"], cwd=tmp_path, check=True)
+    write_source(
+        tmp_path,
+        "def missing():\n    raise ValueError()\n    return 1\n",
+    )
+    write_baseline(
+        baseline,
+        {("models/example/src/example/module.py", "raise-block"): 1},
+    )
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "main baseline"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    subprocess.run(["git", "checkout", "-"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "merge", "--quiet", "--no-ff", "--no-commit", "main-update"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
+
+    write_source(
+        tmp_path,
+        "def first():\n    raise ValueError()\n    return 1\n"
+        "\ndef second():\n    raise ValueError()\n    return 1\n",
+    )
+    write_baseline(baseline, checker.current_counts(tmp_path))
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
+    error = capsys.readouterr().err
+    assert "\tcommitted_baseline=1\tcurrent=2" in error
+    assert "HEAD=" not in error
 
 
 def test_checker_accepts_initial_baseline_for_new_rule(tmp_path: Path) -> None:
@@ -475,7 +528,8 @@ def test_checker_rejects_growth_after_established_rule_reaches_zero(
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
     assert (
-        "Baseline counts added or increased relative to HEAD" in capsys.readouterr().err
+        "Baseline counts added or increased relative to the committed baseline"
+        in capsys.readouterr().err
     )
 
 
@@ -497,7 +551,8 @@ def test_checker_rejects_removing_established_rule_marker(
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
     assert (
-        "Established rule markers removed relative to HEAD" in capsys.readouterr().err
+        "Established rule markers removed relative to the committed baseline"
+        in capsys.readouterr().err
     )
 
 
