@@ -63,7 +63,7 @@ def test_model_readme_cli_resolves_root_from_subdirectory() -> None:
 
 
 def test_model_readme_cli_reports_missing_workspace_root() -> None:
-    result = _run_model_readmes_cli(Path("/proc"))
+    result = _run_model_readmes_cli(Path(os.sep) / "proc")
     assert result.returncode == 1
     assert result.stdout == ""
     assert result.stderr == (
@@ -73,7 +73,7 @@ def test_model_readme_cli_reports_missing_workspace_root() -> None:
 
 def test_find_repo_root_requires_workspace_declaration() -> None:
     with pytest.raises(ValueError, match=r"\[tool\.uv\.workspace\]"):
-        find_repo_root(Path("/proc"))
+        find_repo_root(Path(os.sep) / "proc")
 
 
 def test_model_readme_policy_runs_in_process() -> None:
@@ -156,7 +156,7 @@ def test_model_readme_main_reports_policy_failure(
     ],
 )
 def test_model_readme_usage_output_contract(text: str, message: str | None) -> None:
-    path = Path("models/layout-gpt/README.md")
+    path = Path("models") / "layout-gpt" / "README.md"
     violation = card.usage_output_violation(path, text)
     if message is None:
         assert violation is None
@@ -338,7 +338,7 @@ def test_citation_contract_accepts_matching_arxiv_metadata() -> None:
 ```
 """
 
-    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
@@ -362,7 +362,7 @@ def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
 """
 
     with pytest.raises(AssertionError, match="Citation arXiv ids"):
-        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
@@ -385,7 +385,7 @@ def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
 """
 
     with pytest.raises(AssertionError, match="missing required fields"):
-        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 def test_citation_contract_rejects_eprint_url_mismatch() -> None:
@@ -409,7 +409,7 @@ def test_citation_contract_rejects_eprint_url_mismatch() -> None:
 """
 
     with pytest.raises(AssertionError, match="does not match url"):
-        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
@@ -429,7 +429,7 @@ def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
 ```
 """
 
-    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 @pytest.mark.parametrize(
@@ -472,13 +472,15 @@ def test_arxiv_bibtex_fields_reject_invalid_metadata(
     fields: dict[str, str], message: str
 ) -> None:
     with pytest.raises(AssertionError, match=message):
-        citation._assert_arxiv_bibtex_fields(Path("models/example/README.md"), fields)
+        citation._assert_arxiv_bibtex_fields(
+            Path("models") / "example" / "README.md", fields
+        )
 
 
 def test_citation_contract_requires_bibtex_fence() -> None:
     with pytest.raises(AssertionError, match="must contain a bibtex code fence"):
         citation.assert_citation_bibtex(
-            Path("models/example/README.md"), "## Citation\nplain text\n"
+            Path("models") / "example" / "README.md", "## Citation\nplain text\n"
         )
 
 
@@ -495,7 +497,7 @@ def test_citation_contract_accepts_arxiv_bibtex_without_body_id() -> None:
 ```
 """
 
-    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models") / "example" / "README.md", text)
 
 
 @pytest.mark.parametrize(
@@ -522,7 +524,7 @@ def test_vendor_parity_badge_contract_accepts_not_verified() -> None:
         "![vendor-parity](https://img.shields.io/static/v1?message=not-verified)\n"
     )
 
-    parity.assert_vendor_parity_badge(Path("models/example/README.md"), text)
+    parity.assert_vendor_parity_badge(Path("models") / "example" / "README.md", text)
 
 
 def test_reproducibility_contract_rejects_missing_link_and_walkthrough(
@@ -571,7 +573,7 @@ def test_reproducing_command_contract_rejects_invalid_documents(
 def test_banned_content_contract_rejects_credentials() -> None:
     with pytest.raises(AssertionError, match="GEN_AI_PROXY_PAT"):
         card.assert_banned_patterns(
-            Path("models/example/README.md"), "GEN_AI_PROXY_PAT"
+            Path("models") / "example" / "README.md", "GEN_AI_PROXY_PAT"
         )
 
 
@@ -620,7 +622,7 @@ def test_frontmatter_contract_rejects_invalid_documents(
 
 
 def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     with pytest.raises(AssertionError, match="has duplicates"):
         card.assert_frontmatter_list_unique(path, "tags:\n  - one\n  - one\n")
 
@@ -649,7 +651,7 @@ def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
 
 
 def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
-    path = Path("models/pixel-vae/README.md")
+    path = Path("models") / "pixel-vae" / "README.md"
     card.assert_pipeline_tag(
         path,
         "pipeline_tag: image-feature-extraction\nmodel-index:\n"
@@ -660,8 +662,8 @@ def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
 
 
 def test_model_index_policy_rejects_wrong_weight_mode() -> None:
-    prompt_path = Path("models/layout-gpt/README.md")
-    weight_path = Path("models/layout-dm/README.md")
+    prompt_path = Path("models") / "layout-gpt" / "README.md"
+    weight_path = Path("models") / "layout-dm" / "README.md"
     with pytest.raises(AssertionError, match="prompt-only README"):
         card.assert_model_index_policy(prompt_path, "model-index:\n")
 
@@ -670,7 +672,7 @@ def test_model_index_policy_rejects_wrong_weight_mode() -> None:
 
 
 def test_card_and_parity_contracts_reject_missing_heading_and_bad_parity() -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     with pytest.raises(AssertionError, match="missing required heading"):
         card.assert_heading_order(path, "# Model Card for Example\n")
 
@@ -690,7 +692,7 @@ def test_card_and_parity_contracts_reject_missing_heading_and_bad_parity() -> No
 
 
 def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
-    path = Path("models/layout-dm/README.md")
+    path = Path("models") / "layout-dm" / "README.md"
     with pytest.raises(AssertionError, match="missing model-card H1"):
         card.assert_model_summary_subject(path, "plain")
 
@@ -770,7 +772,7 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
 )
 def test_model_type_contract_rejects_invalid_values(line: str, message: str) -> None:
     with pytest.raises(AssertionError, match=message):
-        card.parse_model_type(Path("models/example/README.md"), line)
+        card.parse_model_type(Path("models") / "example" / "README.md", line)
 
 
 def test_model_type_contract_accepts_content_image_conditioning() -> None:
@@ -779,7 +781,7 @@ def test_model_type_contract_accepts_content_image_conditioning() -> None:
         "conditioning: content_image.\n"
     )
 
-    assert card.parse_model_type(Path("models/example/README.md"), line) == (
+    assert card.parse_model_type(Path("models") / "example" / "README.md", line) == (
         "content-aware",
         "single-task",
         ("content_image",),
@@ -787,7 +789,7 @@ def test_model_type_contract_accepts_content_image_conditioning() -> None:
 
 
 def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     with pytest.raises(AssertionError, match="exactly once"):
         card.parse_model_type(path, "plain")
 
@@ -801,7 +803,7 @@ def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
 
 def test_model_type_contract_accepts_structured_line() -> None:
     assert card.parse_model_type(
-        Path("models/example/README.md"),
+        Path("models") / "example" / "README.md",
         "- **Model type:** content-aware; task: task-aware; conditioning: label, label_size.\n",
     ) == ("content-aware", "task-aware", ("label", "label_size"))
 
@@ -809,7 +811,7 @@ def test_model_type_contract_accepts_structured_line() -> None:
 def test_model_type_contract_rejects_empty_conditioning_value() -> None:
     with pytest.raises(AssertionError, match="conditioning values cannot be empty"):
         card.parse_model_type(
-            Path("models/example/README.md"),
+            Path("models") / "example" / "README.md",
             "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label_size, .\n",
         )
 
@@ -1430,7 +1432,9 @@ def test_install_helpers_cover_metadata_and_install_contract_errors(
 
 def test_expected_frontmatter_contract_reports_policy_errors() -> None:
     with pytest.raises(AssertionError, match="no expected frontmatter"):
-        card.assert_expected_frontmatter(Path("models/example/README.md"), "---\n---\n")
+        card.assert_expected_frontmatter(
+            Path("models") / "example" / "README.md", "---\n---\n"
+        )
 
     frontmatter = """---
 license: mit
@@ -1444,7 +1448,7 @@ model-index:
           type: other
 ---
 """
-    path = Path("models/layout-dm/README.md")
+    path = Path("models") / "layout-dm" / "README.md"
     model_readme = (
         f"{frontmatter}\n"
         "- **Model type:** content-agnostic; task: task-agnostic; "
@@ -1489,7 +1493,8 @@ def test_card_runtime_contract_rejects_incomplete_metadata(
 
     with pytest.raises(AssertionError, match=message):
         card.assert_runtime_contract(
-            Path("models/layout-dm/README.md"), "---\nlibrary_name: other\n---\n"
+            Path("models") / "layout-dm" / "README.md",
+            "---\nlibrary_name: other\n---\n",
         )
 
 
@@ -1508,11 +1513,11 @@ library_name: transformers
 """
 
     with pytest.raises(AssertionError, match="runtime mismatch"):
-        card.assert_runtime_contract(Path("models/layout-dm/README.md"), text)
+        card.assert_runtime_contract(Path("models") / "layout-dm" / "README.md", text)
 
 
 def test_card_contracts_cover_prompt_and_unpublished_notes() -> None:
-    path = Path("models/layout-gpt/README.md")
+    path = Path("models") / "layout-gpt" / "README.md"
     with pytest.raises(AssertionError, match="stale model-package phrase"):
         card.assert_prompt_only_readme(path, "converted checkpoint")
 
@@ -1526,14 +1531,14 @@ def test_card_contracts_cover_prompt_and_unpublished_notes() -> None:
 
     with pytest.raises(AssertionError, match="heredoc examples"):
         card.assert_unpublished_hub_get_started_note(
-            Path("models/layout-dm/README.md"),
+            Path("models") / "layout-dm" / "README.md",
             "## Supported Checkpoints\ncreative-graphic-design/x not-published\n"
             "## How to Get Started with the Model\n<<'PY'\n",
         )
 
 
 def test_install_contract_requires_both_install_forms() -> None:
-    path = Path("lib/laygen/README.md")
+    path = Path("lib") / "laygen" / "README.md"
     with pytest.raises(AssertionError, match="direct-reference"):
         install.assert_lib_readme_install_contract(path, "## Install\n")
 
@@ -1548,12 +1553,12 @@ def test_install_contract_requires_both_install_forms() -> None:
 def test_card_contracts_require_expected_source_and_summary_subject() -> None:
     with pytest.raises(AssertionError, match="must link expected repository"):
         card.assert_expected_repository_links(
-            Path("models/layout-gpt/README.md"), "### Model Sources\n"
+            Path("models") / "layout-gpt" / "README.md", "### Model Sources\n"
         )
 
     with pytest.raises(AssertionError, match="first prose line"):
         card.assert_model_summary_subject(
-            Path("models/layout-dm/README.md"),
+            Path("models") / "layout-dm" / "README.md",
             "# Model Card for LayoutDM\nLayoutDM ports layouts.\n",
         )
 
@@ -1697,7 +1702,7 @@ uv sync --package layout-dm
 
     with pytest.raises(AssertionError, match="Expected example") as exc_info:
         install.assert_pip_install_snippet(
-            Path("models/layout-dm/README.md"),
+            Path("models") / "layout-dm" / "README.md",
             section,
             [
                 ("laygen", "lib/laygen"),
@@ -1720,7 +1725,7 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
 """
 
     install.assert_pip_install_snippet(
-        Path("lib/laygen/README.md"),
+        Path("lib") / "laygen" / "README.md",
         section,
         [("laygen", "lib/laygen")],
         "Install",
@@ -1775,7 +1780,7 @@ def test_image_generation_frontmatter_contract_follows_task(
     conditioning: str,
     expected: tuple[str, str, tuple[str, ...]],
 ) -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     monkeypatch.setitem(
         card.EXPECTED_FRONTMATTER,
         "example",
@@ -1846,7 +1851,7 @@ def test_image_generation_frontmatter_contract_follows_task(
 def test_image_generation_frontmatter_rejects_unsupported_model_index_format(
     model_index: str,
 ) -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     text = f"pipeline_tag: text-to-image\n{model_index}"
 
     with pytest.raises(AssertionError, match="cannot read this model-index format"):
@@ -1860,7 +1865,7 @@ def test_image_generation_frontmatter_rejects_unsupported_model_index_format(
 def test_layout_frontmatter_rejects_image_generation_model_index_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    path = Path("models/example/README.md")
+    path = Path("models") / "example" / "README.md"
     monkeypatch.setitem(
         card.EXPECTED_FRONTMATTER,
         "example",
@@ -1900,7 +1905,7 @@ def test_image_generation_model_type_rejects_out_of_policy_values(
     line: str, message: str
 ) -> None:
     with pytest.raises(AssertionError, match=message):
-        card.parse_model_type(Path("models/example/README.md"), line)
+        card.parse_model_type(Path("models") / "example" / "README.md", line)
 
 
 @pytest.mark.parametrize(

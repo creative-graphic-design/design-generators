@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache-dir",
         type=Path,
-        default=Path(".cache/posterllama/original"),
+        default=Path(".cache") / "posterllama" / "original",
         help="Local cache directory. Default: %(default)s",
     )
     parser.add_argument(

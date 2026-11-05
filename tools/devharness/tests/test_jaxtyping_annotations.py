@@ -670,7 +670,7 @@ def test_jaxtyping_cli_passes_without_git_reference(tmp_path: Path) -> None:
 
 
 def test_jaxtyping_cli_reports_missing_workspace_root() -> None:
-    result = _run_jaxtyping_cli(Path("/proc"))
+    result = _run_jaxtyping_cli(Path(os.sep) / "proc")
 
     assert result.returncode == 1
     assert result.stdout == ""

@@ -1349,9 +1349,9 @@ def _run_time_mlp_linear_ab(
     assert torch.equal(source_input, package_input), "sidecar sinusoidal input mismatch"
     assert torch.equal(source_timesteps, package_timesteps), "sidecar timestep mismatch"
 
-    with _vendor_import_root(Path("vendor/radm")), _legacy_pillow_compat():
+    with _vendor_import_root(Path("vendor") / "radm"), _legacy_pillow_compat():
         state = RADMReferenceAdapter(
-            vendor_root=Path("vendor/radm"),
+            vendor_root=Path("vendor") / "radm",
             dataset_root=data_root,
             text_feature_root=data_root / "text_features",
             device=str(device),
@@ -4053,9 +4053,9 @@ def test_radm_300_step_cgl_lockstep() -> None:
     except RuntimeError as exc:
         pytest.fail(str(exc))
     try:
-        with _vendor_import_root(Path("vendor/radm")), _legacy_pillow_compat():
+        with _vendor_import_root(Path("vendor") / "radm"), _legacy_pillow_compat():
             state = RADMReferenceAdapter(
-                vendor_root=Path("vendor/radm"),
+                vendor_root=Path("vendor") / "radm",
                 dataset_root=data_root,
                 text_feature_root=data_root / "text_features",
                 device=str(reference_device),
@@ -4072,7 +4072,7 @@ def test_radm_300_step_cgl_lockstep() -> None:
                 state,
                 record_path,
                 output_path,
-                vendor_root=Path("vendor/radm"),
+                vendor_root=Path("vendor") / "radm",
                 data_root=data_root,
                 text_feature_root=data_root / "text_features",
                 weights_path=weights_path,

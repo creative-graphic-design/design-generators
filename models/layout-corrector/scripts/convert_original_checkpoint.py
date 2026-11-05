@@ -27,8 +27,12 @@ _SUPPORTED_DATASETS: Final[tuple[str, ...]] = tuple(
     "crello-bbox",
 )
 _CRELLO_DATASET_ALIASES: Final[frozenset[str]] = frozenset(("crello", "crello-bbox"))
-_DEFAULT_STARTER_DIR: Final[Path] = Path(
-    ".cache/layout-corrector/original/layout_corrector_starter_kit/download"
+_DEFAULT_STARTER_DIR: Final[Path] = (
+    Path(".cache")
+    / "layout-corrector"
+    / "original"
+    / "layout_corrector_starter_kit"
+    / "download"
 )
 
 

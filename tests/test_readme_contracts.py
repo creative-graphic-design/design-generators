@@ -15,7 +15,7 @@ from devharness.checks.model_readmes import root_readme
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CHECK_README_BADGES = REPO_ROOT / "scripts/check_readme_badges.py"
+CHECK_README_BADGES = REPO_ROOT / "scripts" / "check_readme_badges.py"
 
 
 def _load_check_readme_badges() -> ModuleType:

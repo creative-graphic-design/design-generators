@@ -41,13 +41,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".cache/pixel-vae/crello-v1-dimensions.json"),
+        default=Path(".cache") / "pixel-vae" / "crello-v1-dimensions.json",
         help="private JSON report path (default: .cache/pixel-vae/crello-v1-dimensions.json)",
     )
     parser.add_argument(
         "--extract-dir",
         type=Path,
-        default=Path(".cache/pixel-vae/crello-v1-tfrecords"),
+        default=Path(".cache") / "pixel-vae" / "crello-v1-tfrecords",
         help="temporary TFRecord extraction directory (default: .cache/pixel-vae/crello-v1-tfrecords)",
     )
     return parser.parse_args()

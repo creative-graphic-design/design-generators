@@ -2,8 +2,10 @@ from pathlib import Path
 
 
 def test_readme_has_required_model_card_sections():
-    text = Path("models/ds-gan/README.md").read_text(encoding="utf-8")
-    reproducing = Path("models/ds-gan/REPRODUCING.md").read_text(encoding="utf-8")
+    text = (Path("models") / "ds-gan" / "README.md").read_text(encoding="utf-8")
+    reproducing = (Path("models") / "ds-gan" / "REPRODUCING.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "### Parity Results" in text
     assert "## Reproducibility" in text

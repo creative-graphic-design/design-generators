@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/ralf/references"),
+        default=Path(".cache") / "ralf" / "references",
         help="Directory for generated reference metadata.",
     )
     parser.add_argument(
@@ -112,7 +112,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vendor-root",
         type=Path,
-        default=Path("vendor/ralf"),
+        default=Path("vendor") / "ralf",
         help="Path to the original RALF vendor repository.",
     )
     parser.add_argument(

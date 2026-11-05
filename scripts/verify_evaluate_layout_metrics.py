@@ -25,8 +25,10 @@ from PIL import Image
 VENDOR_ROOT_ENV = "DESIGN_GENERATORS_VENDOR_ROOT"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_VENDOR_ROOT = Path(os.environ.get(VENDOR_ROOT_ENV, REPO_ROOT / "vendor"))
-LAYOUT_DM_METRIC = Path("layout-dm/src/trainer/trainer/helpers/metric.py")
-POSTERLLAMA_EVAL = Path("posterllama/eval.py")
+LAYOUT_DM_METRIC = (
+    Path("layout-dm") / "src" / "trainer" / "trainer" / "helpers" / "metric.py"
+)
+POSTERLLAMA_EVAL = Path("posterllama") / "eval.py"
 TOLERANCE = 1e-12
 CANVAS_WIDTH = 513
 CANVAS_HEIGHT = 750
@@ -171,7 +173,7 @@ def _load_layout_dm_metric(vendor_root: Path) -> ModuleType:
         raise FileNotFoundError(f"layout-dm metric.py not found: {metric_path}")
 
     _install_layout_dm_import_stubs()
-    trainer_src = vendor_root / "layout-dm/src/trainer"
+    trainer_src = vendor_root / "layout-dm" / "src" / "trainer"
     sys.path.insert(0, str(trainer_src))
     try:
         spec = importlib.util.spec_from_file_location(
@@ -321,9 +323,9 @@ def _poster_pixel_boxes(
 
 
 def _write_media_fixture(root: Path, count: int) -> MediaFixture:
-    pfpn = root / "data/cgl_dataset/PFPN_salient_imgs_cgl"
-    basnet = root / "data/cgl_dataset/BasNet_salient_imgs_cgl"
-    canvases = root / "data/cgl_dataset/cgl_inpainting_all"
+    pfpn = root / "data" / "cgl_dataset" / "PFPN_salient_imgs_cgl"
+    basnet = root / "data" / "cgl_dataset" / "BasNet_salient_imgs_cgl"
+    canvases = root / "data" / "cgl_dataset" / "cgl_inpainting_all"
     for directory in [pfpn, basnet, canvases]:
         directory.mkdir(parents=True, exist_ok=True)
 

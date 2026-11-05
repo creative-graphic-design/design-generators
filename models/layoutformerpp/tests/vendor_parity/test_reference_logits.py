@@ -30,7 +30,9 @@ from laygen.common.vendor import vendor_root
 
 
 PUBLIC_TASKS = ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen")
-VENDOR_MARKER = Path("LayoutFormer++/src/model/layout_transformer/model.py")
+VENDOR_MARKER = (
+    Path("LayoutFormer++") / "src" / "model" / "layout_transformer" / "model.py"
+)
 
 
 @dataclass(frozen=True)
@@ -69,7 +71,7 @@ def _original_root(repo_root: Path) -> Path:
     return Path(
         os.environ.get(
             "LAYOUTFORMERPP_ORIGINAL_DIR",
-            str(repo_root / ".cache/layoutformerpp/original"),
+            str(repo_root / ".cache" / "layoutformerpp" / "original"),
         )
     )
 
@@ -94,8 +96,8 @@ def _vendor_src(repo_root: Path) -> Path:
             repo_root=repo_root,
         )
     except FileNotFoundError:
-        return repo_root / "vendor/ms-layout-generation/LayoutFormer++/src"
-    return root / "LayoutFormer++/src"
+        return repo_root / "vendor" / "ms-layout-generation" / "LayoutFormer++" / "src"
+    return root / "LayoutFormer++" / "src"
 
 
 def _vendor_modules(vendor_src: Path):
@@ -117,7 +119,11 @@ def _install_vendor_packages(vendor_src: Path) -> None:
     model_package = types.ModuleType("model")
     setattr(model_package, "__path__", [str(vendor_src / "model")])
     layout_package = types.ModuleType("model.layout_transformer")
-    setattr(layout_package, "__path__", [str(vendor_src / "model/layout_transformer")])
+    setattr(
+        layout_package,
+        "__path__",
+        [str(vendor_src / "model" / "layout_transformer")],
+    )
     data_package = types.ModuleType("data")
     setattr(data_package, "__path__", [str(vendor_src / "data")])
     sys.modules.setdefault("model", model_package)
