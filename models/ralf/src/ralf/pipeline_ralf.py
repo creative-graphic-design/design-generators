@@ -309,7 +309,10 @@ class RalfPipeline(LayoutGenerationPipeline):
         input_ids = encoded["input_ids"].to(model_device)
         token_mask = self.processor.layout_tokenizer.token_mask(model_device)
         if condition == ConditionType.relation:
-            from .relation_restriction import generate_relation_sequences
+            from .relation_restriction import (
+                RelationConditioner,
+                generate_relation_sequences,
+            )
 
             if relations is None:
                 raise ValueError("relation generation requires a relationship table")

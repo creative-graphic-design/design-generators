@@ -89,6 +89,53 @@ def test_relation_decoder_restriction_is_bitwise_for_fixed_case() -> None:
     assert back_index is None
 
 
+@pytest.mark.parametrize("global_task_embedding", [False, True])
+def test_relation_constraint_reads_types_after_configured_prefix(
+    global_task_embedding: bool,
+) -> None:
+    config = RalfConfig(
+        id2label={0: "logo", 1: "text"},
+        max_seq_length=2,
+        num_bin=8,
+        global_task_embedding=global_task_embedding,
+    )
+    tokenizer = RalfLayoutTokenizer(config)
+    conditioner = RelationConditioner(
+        tokenizer,
+        {"sample": []},
+        global_task_embedding=global_task_embedding,
+    )
+    prefix = (
+        []
+        if global_task_embedding
+        else [
+            conditioner.name_to_id("relationship"),
+            conditioner.name_to_id("end_of_task"),
+        ]
+    )
+    sequence = torch.tensor(
+        [
+            conditioner.name_to_id("bos"),
+            *prefix,
+            conditioner.name_to_id("logo"),
+            conditioner.name_to_id("sep"),
+            conditioner.name_to_id("text"),
+            conditioner.name_to_id("relation_sep"),
+            conditioner.name_to_id("eos"),
+        ]
+    )
+
+    constraint = RelationConstraint(conditioner, tokenizer.token_mask())
+    relations = constraint.prepare(sequence)
+
+    assert constraint.type_constraint_token_id is not None
+    assert constraint.type_constraint_token_id.tolist() == [
+        conditioner.name_to_id("logo"),
+        conditioner.name_to_id("text"),
+    ]
+    assert relations == [[], []]
+
+
 def test_relation_decoder_smaller_width_matches_vendor_interval() -> None:
     tokenizer, conditioner, _input_ids = relation_fixture()
     label_zero = conditioner.name_to_id("embellishment")

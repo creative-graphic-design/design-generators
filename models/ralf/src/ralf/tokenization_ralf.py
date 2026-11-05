@@ -301,7 +301,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
                 mask &= ~eos_seen
             else:
                 local = values - self.config.bbox_token_offset(key)
-                mask &= (local >= 0) & (local < self.config.num_bbox_tokens)
+                mask &= (local >= 0) & (local < self.config.num_bin)
                 bbox_parts[key] = self._dequantize(local)
         bbox = torch.stack(
             (

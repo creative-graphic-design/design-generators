@@ -76,6 +76,31 @@ def test_pipeline_generator_wins_over_seed() -> None:
     assert torch.equal(first_sequences, second_sequences)
 
 
+def test_pipeline_lazily_initializes_relation_conditioner(monkeypatch) -> None:
+    import ralf.relation_restriction as relation_module
+
+    class RelationGenerationReached(Exception):
+        pass
+
+    def stop_before_generation(*_args: object, **_kwargs: object) -> None:
+        raise RelationGenerationReached
+
+    monkeypatch.setattr(
+        relation_module, "generate_relation_sequences", stop_before_generation
+    )
+    pipe = _pipeline()
+
+    with pytest.raises(RelationGenerationReached):
+        pipe(
+            condition_type="relation",
+            labels=torch.tensor([[0, 1]]),
+            bbox=torch.full((1, 2, 4), 0.5),
+            mask=torch.tensor([[True, True]]),
+            relations={"sample": []},
+            query_ids=["sample"],
+        )
+
+
 def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:
     pipe = _pipeline()
 

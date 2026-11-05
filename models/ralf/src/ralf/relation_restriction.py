@@ -415,7 +415,10 @@ class RelationConstraint:
             ).item()
         )
         sequence = sequence[:eos_index]
-        types = sequence[3:relation_sep_index][::2]
+        prefix_length = (
+            1 if self.preprocessor.tokenizer.config.global_task_embedding else 3
+        )
+        types = sequence[prefix_length:relation_sep_index][::2]
         self.type_constraint_token_id = types
         relations = sequence[relation_sep_index + 1 :]
         relations = relations[relations != self.preprocessor.name_to_id("sep")].reshape(
