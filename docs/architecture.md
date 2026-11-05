@@ -37,6 +37,10 @@ members = ["lib/*", "models/*", "tools/*"]
 
 The `lib/`, `models/`, and `tools/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, model packages own model-specific processing, inference, conversion, training, and configuration, and tooling packages provide repository-development helpers.
 
+## Hub publication ownership
+
+The repository-owned `.github/workflows/hub-publish.yml` runs only after a push to `main`. The root-owned `scripts/select_hub_publishers.py` selects model packages changed by that push when they contain `scripts/publish_to_hub.py`. Each selected model package owns that script and decides which package artifacts to publish and how to verify them. The workflow supplies the required `HF_TOKEN` only to the publication step; pull requests and merge queue entries do not receive it. Merging a package to `main` is approval for its configured publication procedure.
+
 ## Dependency environments
 
 A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. For pull requests and merge queue entries, the matrix selects test-bearing members from changed paths and transitive declared dependencies; any non-Markdown change outside a member directory selects all test-bearing members, while Markdown-only changes skip member tests. Non-Markdown main pushes, manual dispatches, and the daily scheduled run select the full member matrix. Selection follows declared `dependencies`, `optional-dependencies`, and dependency groups, always adds `devharness` for non-Markdown changes, and does not infer undeclared imports or shared test data.

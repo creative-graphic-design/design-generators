@@ -1,0 +1,87 @@
+name: Publish model packages to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Find changed packages with publishers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      publisher_matrix: ${{ steps.select.outputs.publisher_matrix }}
+      has_publishers: ${{ steps.select.outputs.has_publishers }}
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Select changed model packages with publisher scripts
+        id: select
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            publisher_matrix="$(python scripts/select_hub_publishers.py)"
+          else
+            publisher_matrix="$(python scripts/select_hub_publishers.py --base "$BASE_SHA" --head "$HEAD_SHA")"
+          fi
+          has_publishers="$(python -c 'import json, sys; print("true" if json.loads(sys.argv[1])["include"] else "false")' "$publisher_matrix")"
+          printf 'publisher_matrix=%s\n' "$publisher_matrix" >> "$GITHUB_OUTPUT"
+          printf 'has_publishers=%s\n' "$has_publishers" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish ${{ matrix.package }}
+    needs: discover
+    if: needs.discover.outputs.has_publishers == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.publisher_matrix) }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install package environment
+        env:
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: uv sync --package "$PACKAGE_NAME" --frozen
+
+      - name: Publish package to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: |
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
+            exit 1
+          fi
+          uv run --package "$PACKAGE_NAME" python "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py"
