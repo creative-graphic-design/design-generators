@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("tests/vendor_parity/golden_metadata.json"),
+        default=Path("tests") / "vendor_parity" / "golden_metadata.json",
         help="Path to write JSON metadata, relative to models/postero if not absolute.",
     )
     parser.add_argument(
