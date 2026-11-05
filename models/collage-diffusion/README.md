@@ -25,7 +25,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package exposes Collage Diffusion as a `🧨diffusers` pipeline that harmonizes text-described RGBA layers into a single image.
+This package exposes Collage Diffusion as a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline that harmonizes text-described RGBA layers into a single image.
 
 ## Model Details
 
@@ -81,9 +81,9 @@ Both sides of the notebook comparison use this same pinned snapshot and the file
 
 ## Supported Checkpoints
 
-| Artifact                    | Hub ID                                      | Status                                    |
-| --------------------------- | ------------------------------------------- | ----------------------------------------- |
-| `🧨diffusers` pipeline code | `creative-graphic-design/collage-diffusion` | planned, code only; no learned checkpoint |
+| Artifact                  | Hub ID                                      | Status                                    |
+| ------------------------- | ------------------------------------------- | ----------------------------------------- |
+| `diffusers` pipeline code | `creative-graphic-design/collage-diffusion` | planned, code only; no learned checkpoint |
 
 When publishing this pipeline to the Hub, its `model_index.json` and `scheduler/scheduler_config.json` must specify `EulerAncestralDiscreteScheduler`.
 
@@ -378,7 +378,7 @@ The notebook example omits `num_inference_steps`, so it uses the pipeline defaul
 
 ### Parity Results
 
-An independent acceptance rerun passed all six scene-and-seed conditions against the authors' notebook. This is tolerance-verified agreement, not bitwise equality. The reference uses `🧨diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and `🤗transformers` `4.28.1`; the package uses `🧨diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `🤗transformers` `5.13.0`. Both comparison environments used CPU with one thread. The ordinary Stable Diffusion Img2Img controls and comparison plan are recorded in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
+An independent acceptance rerun passed all six scene-and-seed conditions against the authors' notebook. This is tolerance-verified agreement, not bitwise equality. The reference uses `diffusers` `0.10.0`, Torch `2.0.0+cpu`, torchvision `0.15.1+cpu`, and [`🤗transformers`](https://huggingface.co/docs/transformers/index) `4.28.1`; the package uses `diffusers` `0.39.0`, Torch `2.13.0+cpu`, torchvision `0.28.0+cpu`, and `transformers` `5.13.0`. Both comparison environments used CPU with one thread. The ordinary Stable Diffusion Img2Img controls and comparison plan are recorded in [issue #484](https://github.com/creative-graphic-design/design-generators/issues/484).
 
 Each threshold uses `T = 2·Bmax − Bmedian` over the six ordinary Stable Diffusion controls: RGB RMSE has `Bmax=6.00713e-5`, `Bmedian=1.61880e-5`, and `T=1.03955e-4`; maximum per-step latent RMSE has `Bmax=1.01644e-4`, `Bmedian=4.42415e-5`, and `T=1.59046e-4`.
 
@@ -420,7 +420,7 @@ No model training is performed. CPU validation cost depends on the selected Cola
 
 ### Model Architecture and Objective
 
-The pipeline uses Stable Diffusion image-to-image components with a `🧨diffusers` attention processor. It composites layers in back-to-front order, derives visible alpha masks, adjusts cross-attention logits for layer tokens, and blends the initial latent into each denoising step according to the inverted per-layer noise map.
+The pipeline uses Stable Diffusion image-to-image components with a `diffusers` attention processor. It composites layers in back-to-front order, derives visible alpha masks, adjusts cross-attention logits for layer tokens, and blends the initial latent into each denoising step according to the inverted per-layer noise map.
 
 ### Compute Infrastructure
 
@@ -432,7 +432,7 @@ The requested implementation checks and image comparison run on a named Colab CP
 
 #### Software
 
-Use Python 3.11 or newer, `🧨diffusers`, `🤗transformers`, PyTorch, Pillow, NumPy, and the repository's `laygen` workspace library. The pipeline uses the same workspace dependency configuration as other model packages.
+Use Python 3.11 or newer, `diffusers`, `transformers`, PyTorch, Pillow, NumPy, and the repository's `laygen` workspace library. The pipeline uses the same workspace dependency configuration as other model packages.
 
 ## License
 

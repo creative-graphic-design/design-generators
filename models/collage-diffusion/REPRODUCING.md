@@ -1,6 +1,6 @@
 # Reproducing Collage Diffusion Checks
 
-This guide runs the synthetic CPU contract tests and the private comparison between the authors' notebook behavior and this `🧨diffusers` pipeline.
+This guide runs the synthetic CPU contract tests and the private comparison between the authors' notebook behavior and this [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline.
 
 Workflow order: download the upstream example inputs from the model repository's [`source-assets/`](https://huggingface.co/creative-graphic-design/collage-diffusion/tree/main/source-assets) in Colab, run CPU contract tests, run the temporary notebook reference and package comparison, then smoke-test local pipeline loading.
 
@@ -50,9 +50,9 @@ Estimate runtime and CU before starting the comparison. Begin on ordinary Colab 
 
 ## Smoke-Test Base Checkpoint Loading
 
-This command downloads the pinned mirror into the Colab session and confirms that the standard `🧨diffusers` loader instantiates the package pipeline. Cross-attention guidance uses scheduler sigma values, so load Euler Ancestral from the same checkpoint and pass it during pipeline loading. It does not publish model weights.
+This command downloads the pinned mirror into the Colab session and confirms that the standard `diffusers` loader instantiates the package pipeline. Cross-attention guidance uses scheduler sigma values, so load Euler Ancestral from the same checkpoint and pass it during pipeline loading. It does not publish model weights.
 
-The synthetic-component test also exercises `🧨diffusers` standard `save_pretrained` and `from_pretrained` methods without downloading a base checkpoint.
+The synthetic-component test also exercises `diffusers` standard `save_pretrained` and `from_pretrained` methods without downloading a base checkpoint.
 
 ```bash
 uv run --package collage-diffusion python -c '
