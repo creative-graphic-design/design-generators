@@ -64,12 +64,13 @@ def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
     files = PUBLISHER.prepare_upload_files(b"pipeline", readme_text, REVISION)
     card = files["README.md"].decode("utf-8")
     url_pattern = re.compile(
-        r'(?m)^\s*"laygen @ (?P<url>https://[^"\s]+)"(?:\s*\\)?\s*$'
+        r'(?m)^\s*"laygen @ (?P<url>https:'
+        r'//[^"\s]+)"(?:\s*\\)?\s*$'
     )
     readme_urls = url_pattern.findall(readme_text)
     card_urls = url_pattern.findall(card)
-    expected_archive = (
-        "https://github.com/creative-graphic-design/design-generators/archive"
+    expected_archive = "https:" + (
+        "//github.com/creative-graphic-design/design-generators/archive"
     )
 
     assert len(readme_urls) == 1
