@@ -45,6 +45,7 @@ docs = [
 ]
 
 [tool.uv]
+exclude-newer = "7 days"
 constraint-dependencies = [
     "transformers>=5.0.0",
     "diffusers>=0.36.0",
