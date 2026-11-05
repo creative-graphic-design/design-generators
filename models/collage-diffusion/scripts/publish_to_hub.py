@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,25 @@ def extract_laygen_requirement(card_text: str) -> str:
     return requirement_text
 
 
+def _build_laygen_install_command(
+    requirement: str,
+    target_directory: Path,
+) -> list[str]:
+    uv_executable = shutil.which("uv")
+    if uv_executable is None:
+        raise RuntimeError("uv is required to install the documented laygen archive")
+
+    return [
+        uv_executable,
+        "pip",
+        "install",
+        "--no-deps",
+        "--target",
+        str(target_directory),
+        requirement,
+    ]
+
+
 def verify_laygen_install(card_text: str) -> None:
     """Install the card's laygen archive into a temp target and import its helper."""
     requirement = extract_laygen_requirement(card_text)
@@ -115,16 +135,7 @@ def verify_laygen_install(card_text: str) -> None:
     with tempfile.TemporaryDirectory(prefix="collage-laygen-smoke-") as temp_directory:
         target_directory = Path(temp_directory) / "target"
         subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--no-deps",
-                "--target",
-                str(target_directory),
-                requirement,
-            ],
+            _build_laygen_install_command(requirement, target_directory),
             check=True,
         )
 

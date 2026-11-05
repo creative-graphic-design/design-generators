@@ -81,6 +81,37 @@ def test_extracts_the_laygen_archive_install_from_the_published_card() -> None:
     )
 
 
+def test_laygen_verification_uses_uv_with_the_card_archive_without_python_pip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = PUBLISHER.prepare_upload_files(b"pipeline", README, REVISION)
+    card = files["README.md"].decode("utf-8")
+    requirement = PUBLISHER.extract_laygen_requirement(card)
+    commands: list[list[str]] = []
+
+    def record_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        commands.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(PUBLISHER.shutil, "which", lambda executable: "/opt/uv/bin/uv")
+    monkeypatch.setattr(PUBLISHER.sys, "executable", "/venv/bin/python-without-pip")
+    monkeypatch.setattr(PUBLISHER.subprocess, "run", record_run)
+
+    PUBLISHER.verify_laygen_install(card)
+
+    assert commands[0] == [
+        "/opt/uv/bin/uv",
+        "pip",
+        "install",
+        "--no-deps",
+        "--target",
+        commands[0][5],
+        requirement,
+    ]
+    assert commands[0][0] != "/venv/bin/python-without-pip"
+    assert commands[1][0] == "/venv/bin/python-without-pip"
+
+
 def test_staging_contains_only_the_explicit_upload_files(tmp_path: Path) -> None:
     files = {"README.md": b"card", "pipeline.py": b"pipeline"}
 
