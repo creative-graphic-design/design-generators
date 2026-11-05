@@ -12,8 +12,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-PUBLISHER_PATH = Path("scripts/publish_to_hub.py")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+PUBLISHER_PATH = Path("scripts") / "publish_to_hub.py"
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class HubPublisher:
     """A model package with its own Hugging Face publication procedure."""
 
     package: str
-    directory: str
+    directory: Path
 
 
 def discover_publishers(repository_root: Path) -> list[HubPublisher]:
@@ -49,7 +49,7 @@ def discover_publishers(repository_root: Path) -> list[HubPublisher]:
         publishers.append(
             HubPublisher(
                 package=package_name,
-                directory=package_directory.relative_to(repository_root).as_posix(),
+                directory=Path("models") / package_directory.name,
             )
         )
 
@@ -64,15 +64,20 @@ def select_publishers(
     if changed_paths is None:
         return publishers
 
-    changed_packages = {
-        parts[1]
-        for path in changed_paths
-        if len(parts := Path(path).parts) > 1 and parts[0] == "models"
-    }
+    changed_packages: set[str] = set()
+    for path in changed_paths:
+        first_directory, separator, remaining_path = path.partition("/")
+        if first_directory != "models" or not separator:
+            continue
+
+        package_directory, _, _ = remaining_path.partition("/")
+        if package_directory:
+            changed_packages.add(package_directory)
+
     return [
         publisher
         for publisher in publishers
-        if Path(publisher.directory).name in changed_packages
+        if publisher.directory.name in changed_packages
     ]
 
 
@@ -101,7 +106,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "include": [
-                    {"package": publisher.package, "directory": publisher.directory}
+                    {
+                        "package": publisher.package,
+                        "directory": publisher.directory.as_posix(),
+                    }
                     for publisher in publishers
                 ]
             },

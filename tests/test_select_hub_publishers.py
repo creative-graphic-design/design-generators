@@ -47,7 +47,8 @@ def test_selects_only_changed_packages_with_a_publisher(tmp_path: Path) -> None:
 
     assert selected == [
         SELECTOR.HubPublisher(
-            package="collage-diffusion", directory="models/collage-diffusion"
+            package="collage-diffusion",
+            directory=Path("models") / "collage-diffusion",
         )
     ]
 
@@ -65,8 +66,12 @@ def test_no_diff_selects_all_configured_publishers(tmp_path: Path) -> None:
     make_model_package(tmp_path, "a-model", publishes=True)
 
     assert SELECTOR.select_publishers(tmp_path, None) == [
-        SELECTOR.HubPublisher(package="a-model", directory="models/a-model"),
-        SELECTOR.HubPublisher(package="z-model", directory="models/z-model"),
+        SELECTOR.HubPublisher(
+            package="a-model", directory=Path("models") / "a-model"
+        ),
+        SELECTOR.HubPublisher(
+            package="z-model", directory=Path("models") / "z-model"
+        ),
     ]
 
 
