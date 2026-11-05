@@ -42,7 +42,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports CGB-DM, the content-aware poster layout diffusion model from LayoutDiT, into a `🧨diffusers`-style package.
+This package ports CGB-DM, the content-aware poster layout diffusion model from LayoutDiT, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
