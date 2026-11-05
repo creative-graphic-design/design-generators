@@ -45,7 +45,7 @@ Full checklist: see [docs/implementation-checklist.md](https://github.com/creati
 
 <!-- Optional for complete PRs that must remain draft:
 ## Draft Reason
-State what still blocks the change for its reader and the resolution trigger that will make this ready for review.
+Tell the reader what still blocks this change and what will make it ready for review.
 -->
 
 ## Deviations / Follow-ups

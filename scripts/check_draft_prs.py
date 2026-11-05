@@ -27,8 +27,8 @@ AUDIT_COMMENT_BODY = (
     "This draft PR currently looks complete by machine checks: the head checks "
     "are all passing, there are no unresolved review threads, and the PR body "
     "has no `## Draft Reason` section.\n\n"
-    "Please mark it ready for review or add `## Draft Reason` stating what still "
-    "blocks the change for its reader and the resolution trigger."
+    "Please mark it ready for review or add `## Draft Reason` telling the reader "
+    "what still blocks the change and what will make it ready for review."
 )
 PASSING_CHECK_RUN_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 
