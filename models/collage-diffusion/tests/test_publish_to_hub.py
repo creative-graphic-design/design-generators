@@ -58,6 +58,18 @@ def test_prepares_only_pipeline_and_model_card_and_pins_the_source_archives() ->
     assert files["pipeline.py"] == b"canonical pipeline"
 
 
+def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
+    readme_text = PUBLISHER.README_SOURCE.read_text(encoding="utf-8")
+    files = PUBLISHER.prepare_upload_files(b"pipeline", readme_text, REVISION)
+    card = files["README.md"].decode("utf-8")
+    laygen_requirement = (
+        "laygen @ https://github.com/creative-graphic-design/design-generators/"
+        f"archive/{REVISION}.zip#subdirectory=lib/laygen"
+    )
+
+    assert card.count(laygen_requirement) == 1
+
+
 def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
     published_readme = README.replace(
         PUBLISHER.PLANNED_HUB_BADGE,
@@ -69,47 +81,6 @@ def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
     card = files["README.md"].decode("utf-8")
     assert PUBLISHER.PUBLISHED_HUB_BADGE in card
     assert PUBLISHER.PLANNED_HUB_BADGE not in card
-
-
-def test_extracts_the_laygen_archive_install_from_the_published_card() -> None:
-    files = PUBLISHER.prepare_upload_files(b"pipeline", README, REVISION)
-    card = files["README.md"].decode("utf-8")
-
-    assert PUBLISHER.extract_laygen_requirement(card) == (
-        "laygen @ https:" + "//github.com/creative-graphic-design/design-generators/"
-        f"archive/{REVISION}.zip#subdirectory=lib/laygen"
-    )
-
-
-def test_laygen_verification_uses_uv_with_the_card_archive_without_python_pip(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    files = PUBLISHER.prepare_upload_files(b"pipeline", README, REVISION)
-    card = files["README.md"].decode("utf-8")
-    requirement = PUBLISHER.extract_laygen_requirement(card)
-    commands: list[list[str]] = []
-
-    def record_run(command: list[str], **kwargs: object) -> SimpleNamespace:
-        commands.append(command)
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(PUBLISHER.shutil, "which", lambda executable: "/opt/uv/bin/uv")
-    monkeypatch.setattr(PUBLISHER.sys, "executable", "/venv/bin/python-without-pip")
-    monkeypatch.setattr(PUBLISHER.subprocess, "run", record_run)
-
-    PUBLISHER.verify_laygen_install(card)
-
-    assert commands[0] == [
-        "/opt/uv/bin/uv",
-        "pip",
-        "install",
-        "--no-deps",
-        "--target",
-        commands[0][5],
-        requirement,
-    ]
-    assert commands[0][0] != "/venv/bin/python-without-pip"
-    assert commands[1][0] == "/venv/bin/python-without-pip"
 
 
 def test_staging_contains_only_the_explicit_upload_files(tmp_path: Path) -> None:
@@ -156,11 +127,6 @@ def test_card_generation_requires_exactly_one_frontmatter_license() -> None:
 
     with pytest.raises(ValueError, match="exactly one frontmatter license"):
         PUBLISHER.prepare_upload_files(b"pipeline", invalid_readme, REVISION)
-
-
-def test_laygen_requirement_rejects_an_unpinned_archive_url() -> None:
-    with pytest.raises(ValueError, match="must pin a full commit SHA"):
-        PUBLISHER.extract_laygen_requirement(README)
 
 
 def test_write_access_failure_names_the_repository() -> None:
@@ -265,9 +231,8 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
     monkeypatch.setattr(
         PUBLISHER,
         "_verify_uploaded_files",
-        lambda api, files, *, revision: "card",
+        lambda api, files, *, revision: None,
     )
-    monkeypatch.setattr(PUBLISHER, "verify_laygen_install", lambda card: None)
 
     PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
 
