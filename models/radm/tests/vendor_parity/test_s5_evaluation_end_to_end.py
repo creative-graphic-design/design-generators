@@ -82,6 +82,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     data_root = Path(
         validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
     )
+    assert data_root.is_absolute()
     validation = validate_terminal_checkpoint(
         package_checkpoint,
         manifest,
@@ -141,6 +142,8 @@ def test_package_checkpoint_evaluator_reads_test_text_features(
 
     monkeypatch.setattr(evaluation, "RADMDataModule", CapturingDataModule)
     monkeypatch.setattr(evaluation, "evaluate_checkpoint", lambda *args, **kwargs: {})
+    monkeypatch.chdir("/tmp")
+    visible_root = Path.cwd() / "radm_cgl"
 
     evaluate_package_checkpoint(
         tmp_path / "checkpoint.ckpt",
@@ -151,3 +154,20 @@ def test_package_checkpoint_evaluator_reads_test_text_features(
     )
 
     assert observed["test_read_text_features"] is True
+    assert observed["test_image_root"] == visible_root / "images" / "test"
+
+
+def test_vendor_evaluator_command_uses_absolute_visible_data_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir("/tmp")
+    data_root = Path(validate_dot_free_data_root("radm_cgl"))
+    command = _vendor_eval_command(
+        checkpoint=tmp_path / "model_final.pth",
+        output_dir=tmp_path / "evaluation",
+        data_root=data_root,
+    )
+
+    root_argument = command[command.index("DATASETS.DATASET_PATH") + 1]
+    assert root_argument == str(data_root)
+    assert Path(root_argument).is_absolute()

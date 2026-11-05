@@ -7,11 +7,13 @@ from os import PathLike
 
 
 def validate_dot_free_data_root(value: str | PathLike[str]) -> str:
-    """Preserve a visible data-root path after rejecting dotted components."""
-    path = os.fspath(value)
-    if not path or any("." in part for part in path.split(os.sep) if part):
-        raise ValueError(
-            f"RADM data root must have dot-free path components: {path!r}"
-        )
+    """Make a visible data-root path absolute without resolving symlinks."""
+    raw_path = os.fspath(value)
+    if not raw_path:
+        raise ValueError("RADM data root must not be empty")
+
+    path = os.path.abspath(raw_path)
+    if any("." in part for part in path.split(os.sep) if part):
+        raise ValueError(f"RADM data root must have dot-free path components: {path!r}")
 
     return path
