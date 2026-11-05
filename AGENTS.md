@@ -75,7 +75,7 @@
 - Every PR must carry the same lane/topic labels as its implementation issue, such as `ready-heavy`, `documentation`, or `meta`; status labels stay on issues only and must not be added to PRs.
 - PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do not replace the template when creating PRs with `gh pr create --body`.
 - PR titles state what the PR delivers and carry no progress or status wording (such as in progress, pending, WIP, blocked, retrain running); status belongs in the body's Completion Gate.
-- Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section.
+- Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section that states what still blocks the change for its reader.
 
 ### Status Labels And Milestones
 
