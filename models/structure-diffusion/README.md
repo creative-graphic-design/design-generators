@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
+This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
 
 ## Model Details
 
@@ -257,9 +257,9 @@ No training or checkpoint conversion is performed by this package. It loads the 
 
 ### Testing Data, Factors & Metrics
 
-The independent CPU comparison covers 64×64 and 512×512 outputs for `A red car and a white sheep`, seed 42, 10 `🧨diffusers` PNDM steps through its PLMS path, guidance scale 7.5, and CPU float32 execution. Each reference/package pair receives the same precomputed starting latent. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input.
+The independent CPU comparison covers 64×64 and 512×512 outputs for `A red car and a white sheep`, seed 42, 10 PNDM steps through the PLMS path in `diffusers`, guidance scale 7.5, and CPU float32 execution. Each reference/package pair receives the same precomputed starting latent. The vendor demo calls `preprocess_prompts` before parsing and token alignment, which lowercases the prompt; its `get_token_alignment_map` helper is case-sensitive only when called directly with mismatched prompt and tokenizer casing. The package also accepts capitalized input.
 
-The test directly compares vendor-derived noun phrases and token spans, and compares independently assembled key/value conditioning with the package conditioning. For the image comparison, a separate base `🧨diffusers` pipeline uses the pinned vendor attention processors to generate the reference image; the test compares that final image with the `StructureDiffusionPipeline` output. It does not capture or compare per-layer attention outputs. Both model loading and sampling use `🧨diffusers`, so this checks structured conditioning and its end-to-end image result without reproducing the vendor checkpoint loader or sampler implementation.
+The test directly compares vendor-derived noun phrases and token spans, and compares independently assembled key/value conditioning with the package conditioning. For the image comparison, a separate base `diffusers` pipeline uses the pinned vendor attention processors to generate the reference image; the test compares that final image with the `StructureDiffusionPipeline` output. It does not capture or compare per-layer attention outputs. Both model loading and sampling use `diffusers`, so this checks structured conditioning and its end-to-end image result without reproducing the vendor checkpoint loader or sampler implementation.
 
 ### Parity Results
 
@@ -272,7 +272,7 @@ The independent comparison ran on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28
 
 ## Reproducibility
 
-Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) to compare noun phrases, token spans, and K/V conditioning directly, then compare final generated images using the same scheduler, seed, and initial latent. A separate base `🧨diffusers` pipeline runs the pinned reference attention processors to generate the reference image; the test does not compare per-layer attention outputs. `🧨diffusers` supplies model loading and sampling in both paths, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched phrase and span outputs exactly, had zero measured K/V differences, and produced bit-exact 64×64 and 512×512 images with identical SHA-256 values.
+Run the CPU comparison test in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) to compare noun phrases, token spans, and K/V conditioning directly, then compare final generated images using the same scheduler, seed, and initial latent. A separate base `diffusers` pipeline runs the pinned reference attention processors to generate the reference image; the test does not compare per-layer attention outputs. `diffusers` supplies model loading and sampling in both paths, so the result does not claim parity with the reference checkpoint loader or sampler. The independently reviewed comparison on commit `786fcf6` matched phrase and span outputs exactly, had zero measured K/V differences, and produced bit-exact 64×64 and 512×512 images with identical SHA-256 values.
 
 ## Environmental Impact
 
@@ -286,7 +286,7 @@ The pipeline retains Stable Diffusion's VAE, CLIP text encoder, U-Net, and sched
 
 ### Compute Infrastructure
 
-The package supports `🧨diffusers` CPU and accelerator execution. The recorded comparison timings are test-process runtimes on a standard Colab CPU; setup time and GPU performance are not included.
+The package supports CPU and accelerator execution with `diffusers`. The recorded comparison timings are test-process runtimes on a standard Colab CPU; setup time and GPU performance are not included.
 
 #### Software
 

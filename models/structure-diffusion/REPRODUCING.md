@@ -1,6 +1,6 @@
 # Reproducing StructureDiffusion CPU Agreement
 
-This guide runs package tests and compares generated images against a reference image produced on a standard Colab CPU runtime. The test directly compares noun phrases, CLIP token spans, and independently assembled K/V conditioning with the package values. It generates the reference image by running the pinned reference attention processors in a separate base `🧨diffusers` pipeline, then compares the final reference and package images; it does not capture or compare per-layer attention outputs. Both paths use `🧨diffusers` for model loading and sampling, so the comparison does not claim parity with the reference checkpoint loader or native sampler implementation.
+This guide runs package tests and compares generated images against a reference image produced on a standard Colab CPU runtime. The test directly compares noun phrases, CLIP token spans, and independently assembled K/V conditioning with the package values. It generates the reference image by running the pinned reference attention processors in a separate base [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline, then compares the final reference and package images; it does not capture or compare per-layer attention outputs. Both paths use `diffusers` for model loading and sampling, so the comparison does not claim parity with the reference checkpoint loader or native sampler implementation.
 
 Run from the repository root. Do not install the model package dependencies on a machine whose free disk space is below 3 GB. Generated images and metric JSON files belong under `.cache/structure_diffusion/` and are not committed.
 
@@ -64,13 +64,13 @@ Use the same marked test for the rehearsal and the final 512×512 comparison. Th
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=64 uv run --package structure-diffusion pytest models/structure-diffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
 ```
 
-Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; proceed only if the full run remains within the 0.5 CU cap. The final run uses the same 10 PNDM steps through the `🧨diffusers` PLMS path and the same initial latent shape `[1, 4, 64, 64]` for each path.
+Record `elapsed_seconds`, peak memory, and process exit status. Estimate the 512×512 comparison from the rehearsal timing before continuing; proceed only if the full run remains within the 0.5 CU cap. The final run uses the same 10 PNDM steps through the PLMS path in `diffusers` and the same initial latent shape `[1, 4, 64, 64]` for each path.
 
 The independent comparison on commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac` also measured the 64×64 case. It completed in 126.777 seconds: noun phrases and spans matched exactly, the measured maximum K/V difference was 0.0, and the final images were bit-exact; see the formal results below.
 
 ## 5. Compare at 512×512
 
-Proceed only if the measured time projection remains within the 0.5 CU worker budget. The comparison fixture uses the input prompt (`A red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 `🧨diffusers` PNDM steps with `skip_prk_steps=True`, CPU float32, and one precomputed initial latent for both paths. The package receives the capitalized prompt; the vendor reference applies its own `preprocess_prompts` lowercasing before parsing and token alignment.
+Proceed only if the measured time projection remains within the 0.5 CU worker budget. The comparison fixture uses the input prompt (`A red car and a white sheep`), seed 42, constituency parsing, guidance scale 7.5, 10 PNDM steps with `skip_prk_steps=True` through the PLMS path in `diffusers`, CPU float32, and one precomputed initial latent for both paths. The package receives the capitalized prompt; the vendor reference applies its own `preprocess_prompts` lowercasing before parsing and token alignment.
 
 ```bash
 UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SDG_COMPARE_RESOLUTION=512 uv run --package structure-diffusion pytest models/structure-diffusion/tests/vendor_parity/test_cpu_image_parity.py -m vendor_parity -vv -s
@@ -78,7 +78,7 @@ UV_NO_SYNC=1 PYTHONPATH=vendor/structured-diffusion-guidance PARITY_REQUIRE=1 SD
 
 The test writes `.cache/structure_diffusion/parity/cpu-512.json` with phrase lists, independently mapped CLIP spans, key/value conditioning differences, initial-latent SHA-256, model-load and per-pipeline generation times, total elapsed time, peak process RSS, and maximum, mean, and root-mean-square absolute pixel differences. It also writes `package-512.png` and `reference-512.png`. Before stopping the Colab session, store result files in private storage, download them again, and verify each SHA-256 digest. Keep credentials out of notebook output and logs; inspect logs for token-shaped strings before uploading. The test requires each maximum absolute key/value conditioning difference to be at most `1e-6` and the mean absolute pixel difference to be below `1e-3`; the formal result had zero measured K/V differences and bit-exact images with equal SHA-256 values.
 
-The reviewer independently ran the comparison from commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac` on a standard CPU with input prompt `A red car and a white sheep`, seed 42, guidance scale 7.5, the same initial CPU latent for both paths, and 10 `🧨diffusers` PNDM steps through its PLMS path. The vendor demo lowercases its prompt before parsing and alignment. The result details are recorded in the [formal parity comment](https://github.com/creative-graphic-design/design-generators/issues/485#issuecomment-6608854871).
+The reviewer independently ran the comparison from commit `786fcf6cfbcfb68b9c9565d8ee275c32cd5a28ac` on a standard CPU with input prompt `A red car and a white sheep`, seed 42, guidance scale 7.5, the same initial CPU latent for both paths, and 10 PNDM steps through the PLMS path in `diffusers`. The vendor demo lowercases its prompt before parsing and alignment. The result details are recorded in the [formal parity comment](https://github.com/creative-graphic-design/design-generators/issues/485#issuecomment-6608854871).
 
 | Measurement                                        | 64×64                                                              | 512×512                                                            |
 | -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -91,7 +91,7 @@ The reviewer independently ran the comparison from commit `786fcf6cfbcfb68b9c956
 | Reference/package image SHA-256                    | Match                                                              | Match                                                              |
 | Test runtime                                       | 126.777 seconds                                                    | 948.902 seconds                                                    |
 
-At each resolution, noun phrases and token spans matched exactly, the measured maximum differences in keys and values were 0.0, and the final reference and package images were bit-exact with matching SHA-256 values. The reference attention processors generate the reference images; the test does not compare per-layer attention outputs. Model loading and sampling use `🧨diffusers` in both paths, so this comparison does not claim parity with the vendor checkpoint loader or sampler.
+At each resolution, noun phrases and token spans matched exactly, the measured maximum differences in keys and values were 0.0, and the final reference and package images were bit-exact with matching SHA-256 values. The reference attention processors generate the reference images; the test does not compare per-layer attention outputs. Model loading and sampling use `diffusers` in both paths, so this comparison does not claim parity with the vendor checkpoint loader or sampler.
 
 ## 6. Check outputs and stop the Colab session
 
