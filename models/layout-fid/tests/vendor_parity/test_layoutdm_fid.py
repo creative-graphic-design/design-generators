@@ -20,13 +20,15 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def _layoutdm_root() -> Path:
-    return Path(os.environ.get("LAYOUT_FID_LAYOUTDM_ROOT", ROOT / "vendor/layout-dm"))
+    return Path(
+        os.environ.get("LAYOUT_FID_LAYOUTDM_ROOT", ROOT / "vendor" / "layout-dm")
+    )
 
 
 def _load_layoutdm_metric():
     source_root = _layoutdm_root()
-    metric_py = source_root / "src/trainer/trainer/helpers/metric.py"
-    util_py = source_root / "src/trainer/trainer/helpers/util.py"
+    metric_py = source_root / "src" / "trainer" / "trainer" / "helpers" / "metric.py"
+    util_py = source_root / "src" / "trainer" / "trainer" / "helpers" / "util.py"
     missing = [path for path in (metric_py, util_py) if not path.exists()]
     if missing:
         skip_or_fail_vendor_parity(
@@ -38,7 +40,7 @@ def _load_layoutdm_metric():
         )
 
     _install_unused_layoutdm_import_stubs()
-    sys.path.insert(0, str(source_root / "src/trainer"))
+    sys.path.insert(0, str(source_root / "src" / "trainer"))
     sys.modules.pop("trainer.helpers.metric", None)
     try:
         return importlib.import_module("trainer.helpers.metric")

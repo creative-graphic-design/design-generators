@@ -67,7 +67,7 @@ def test_convert_layoutflow_checkpoint_with_stats(tmp_path):
     )
     assert converted_cfg.label_id_offset == 0
     assert (out / "model.safetensors").exists()
-    assert (out / "reference_stats/val.npz").exists()
+    assert (out / "reference_stats" / "val.npz").exists()
 
 
 def test_convert_layoutdm_checkpoint(tmp_path):

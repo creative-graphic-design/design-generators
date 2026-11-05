@@ -74,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vendor-dir",
         type=Path,
-        default=Path("vendor/layout-flow"),
+        default=Path("vendor") / "layout-flow",
         help="Path to the read-only original LayoutFlow source checkout.",
     )
     return parser
@@ -88,7 +88,7 @@ def main() -> None:
     output_dir = args.output_dir or default_output_dir(dataset)
     vendor_dir = vendor_root(
         "layout-flow",
-        marker=Path("src/models/backbone/layoutdm_backbone.py"),
+        marker=Path("src") / "models" / "backbone" / "layoutdm_backbone.py",
         path=args.vendor_dir,
     )
     sys.path.insert(0, str(vendor_dir))
