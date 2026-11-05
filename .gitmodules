@@ -148,3 +148,6 @@
 [submodule "vendor/lay-your-scene"]
 	path = vendor/lay-your-scene
 	url = https://github.com/mlpc-ucsd/Lay-Your-Scene
+[submodule "vendor/structured-diffusion-guidance"]
+	path = vendor/structured-diffusion-guidance
+	url = https://github.com/weixi-feng/Structured-Diffusion-Guidance.git
