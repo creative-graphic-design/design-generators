@@ -132,6 +132,8 @@ pip install \
 
 <!-- Include posgen in the same pip command when required, and preserve required shared-package extras. -->
 
+When a Git URL would recursively fetch vendor submodules, use a source archive URL with a subdirectory fragment instead. Pin the archive to the same commit as custom pipeline code in published Hub instructions.
+
 For local conversion and reproduction, use the repository checkout. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
 
 ```bash

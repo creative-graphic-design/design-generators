@@ -46,7 +46,7 @@ jobs:
   publish:
     name: Publish ${{ matrix.package }}
     needs: discover
-    if: needs.discover.outputs.has_publishers == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.discover.outputs.has_publishers == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -84,4 +84,4 @@ jobs:
             echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
             exit 1
           fi
-          uv run --package "$PACKAGE_NAME" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py"
+          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=0.24,<2" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py" --revision "$GITHUB_SHA"

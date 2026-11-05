@@ -1653,10 +1653,46 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
 """
 
     install.assert_pip_install_snippet(
-        Path("lib/laygen/README.md"),
+        Path("lib") / "laygen" / "README.md",
         section,
         [("laygen", "lib/laygen")],
         "Install",
+    )
+
+
+def test_library_pip_install_contract_accepts_source_archive() -> None:
+    fence = chr(96) * 3
+    section = (
+        "Install directly from this repository.\n\n" + fence + "bash\npip install "
+        '"laygen @ https://github.com/creative-graphic-design/design-generators/'
+        'archive/main.zip#subdirectory=lib/laygen"\n' + fence
+    )
+
+    install.assert_pip_install_snippet(
+        Path("lib") / "laygen" / "README.md",
+        section,
+        [("laygen", "lib/laygen")],
+        "Install",
+    )
+
+
+def test_model_install_contract_accepts_source_archives() -> None:
+    fence = chr(96) * 3
+    text = (
+        "# Model Card for Collage Diffusion\n\n"
+        "## How to Get Started with the Model\n\n" + fence + "bash\npip install \\\n"
+        '  "laygen @ https://github.com/creative-graphic-design/'
+        'design-generators/archive/main.zip#subdirectory=lib/laygen" \\\n'
+        '  "collage-diffusion @ https://github.com/creative-graphic-design/'
+        "design-generators/archive/main.zip"
+        '#subdirectory=models/collage-diffusion"\n'
+        + fence
+        + "\n\n## Training Details\n"
+    )
+
+    install.assert_model_pip_install_snippet(
+        REPO_ROOT / "models" / "collage-diffusion" / "README.md",
+        text,
     )
 
 

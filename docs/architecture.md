@@ -39,7 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Hub publication ownership
 
-The repository-owned `.github/workflows/hub-publish.yml` runs only after a push to `main`. The root-owned `scripts/select_hub_publishers.py` selects model packages changed by that push when they contain `scripts/publish_to_hub.py`. Each selected model package owns that script and decides which package artifacts to publish and how to verify them. The workflow supplies the required `HF_TOKEN` only to the publication step; pull requests and merge queue entries do not receive it. Merging a package to `main` is approval for its configured publication procedure.
+The repository-owned hub-publish workflow runs only after a push to main. The root-owned publisher selector identifies model packages changed by that push when they contain a package-local publish_to_hub.py. Each selected model package owns its publication procedure and decides which artifacts to publish and how to verify them. The workflow installs the selected package's locked dependencies, supplies huggingface-hub as a temporary script dependency, and passes the required HF_TOKEN only to the publication step; pull requests and merge queue entries do not receive it. Merging a package to main is approval for its configured publication procedure.
 
 ## Dependency environments
 
