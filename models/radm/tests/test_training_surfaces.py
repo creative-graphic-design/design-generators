@@ -419,7 +419,7 @@ def test_optimizer_scheduler_parity_and_training_module_paths(
     assert configured["lr_scheduler"]["interval"] == "step"
 
 
-def test_training_rois_use_float32_boxes_before_pixel_scaling(
+def test_training_rois_match_vendor_scale_then_float32_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lightning_module = pytest.importorskip("radm.training.lightning_module")
@@ -448,8 +448,7 @@ def test_training_rois_use_float32_boxes_before_pixel_scaling(
     )
     model = RADMDenoiser(config=config)
     normalized_boxes = torch.tensor(
-        [[0.0, 0.0, 447.99999170 / 800.0, 447.99999170 / 800.0]],
-        dtype=torch.float64,
+        [[0.0, 0.0, 0.314159265359, 0.314159265359]], dtype=torch.float64
     )
     monkeypatch.setattr(
         model,
@@ -468,19 +467,40 @@ def test_training_rois_use_float32_boxes_before_pixel_scaling(
         }
 
     monkeypatch.setattr(model.backbone, "forward", zero_backbone)
-    roi_boxes: list[torch.Tensor] = []
-    original_roi_features = model.head._roi_features
+    normalized_head_boxes: list[torch.Tensor] = []
+    roi_level_boxes: list[torch.Tensor] = []
+    original_head_forward = model.head.forward
+    original_assign_pooler_levels = model.head._assign_pooler_levels
 
-    def capture_roi_boxes(
-        features: dict[str, torch.Tensor], boxes: torch.Tensor
-    ) -> torch.Tensor:
-        roi_boxes.append(boxes.detach().clone())
-        return original_roi_features(features, boxes)
+    def capture_head_boxes(
+        features: dict[str, torch.Tensor],
+        boxes_xyxy: torch.Tensor,
+        text_features: torch.Tensor,
+        text_mask: torch.Tensor | None,
+        timesteps: torch.Tensor,
+        image_scales: torch.Tensor,
+        absolute_boxes_xyxy: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        normalized_head_boxes.append(boxes_xyxy.detach().clone())
+        return original_head_forward(
+            features,
+            boxes_xyxy,
+            text_features,
+            text_mask,
+            timesteps,
+            image_scales,
+            absolute_boxes_xyxy,
+        )
 
-    monkeypatch.setattr(model.head, "_roi_features", capture_roi_boxes)
+    def capture_pooler_levels(boxes_xyxy: torch.Tensor) -> torch.Tensor:
+        roi_level_boxes.append(boxes_xyxy.detach().clone())
+        return original_assign_pooler_levels(boxes_xyxy)
+
+    monkeypatch.setattr(model.head, "forward", capture_head_boxes)
+    monkeypatch.setattr(model.head, "_assign_pooler_levels", capture_pooler_levels)
     module = lightning_module.RADMTrainingModule(model=model, effective=effective)
     monkeypatch.setattr(module, "log", lambda *args, **kwargs: None)
-    scale = torch.full((1, 4), 800.0, dtype=torch.float64)
+    scale = torch.full((1, 4), 800.0, dtype=torch.float32)
     batch = {
         "boxes_xyxy": torch.tensor([[[0.2, 0.2, 0.3, 0.3]]]),
         "mask": torch.tensor([[True]]),
@@ -493,10 +513,22 @@ def test_training_rois_use_float32_boxes_before_pixel_scaling(
     }
 
     assert module.training_step(batch, 0).isfinite()
-    assert len(roi_boxes) == 1
-    assert roi_boxes[0].dtype == torch.float32
-    assert torch.equal(roi_boxes[0], torch.tensor([[[0.0, 0.0, 448.0, 448.0]]]))
-    assert model.head._assign_pooler_levels(roi_boxes[0]).tolist() == [[3]]
+    expected_roi_boxes = (
+        (normalized_boxes * scale).to(dtype=torch.float32).reshape(1, 1, 4)
+    )
+    wrong_roi_boxes = (normalized_boxes.to(dtype=torch.float32) * scale).reshape(
+        1, 1, 4
+    )
+
+    assert not torch.equal(expected_roi_boxes, wrong_roi_boxes)
+    assert normalized_head_boxes[0].dtype == torch.float32
+    assert torch.equal(
+        normalized_head_boxes[0],
+        normalized_boxes.to(dtype=torch.float32).reshape(1, 1, 4),
+    )
+    assert len(roi_level_boxes) == 1
+    assert roi_level_boxes[0].dtype == torch.float32
+    assert torch.equal(roi_level_boxes[0], expected_roi_boxes)
 
 
 def test_training_module_rejects_missing_model_and_ema() -> None:

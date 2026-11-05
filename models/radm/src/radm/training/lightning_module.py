@@ -163,15 +163,15 @@ class RADMTrainingModule(LightningModule):
                 }
             )
 
-        # Match the reference's float32 proposal rounding before pixel scaling.
-        diffusion_input = torch.stack(diffused_boxes).to(dtype=torch.float32)
-        diffusion_input_absolute = diffusion_input * batch["forward_image_scales"][
-            :, None, :
-        ].to(dtype=diffusion_input.dtype)
+        diffusion_input = torch.stack(diffused_boxes)
+        diffusion_input_absolute = (
+            diffusion_input * batch["forward_image_scales"][:, None, :]
+        )
+        normalized_head_input = diffusion_input.to(dtype=torch.float32)
         noise = torch.stack(noises)
         timestep_batch = torch.cat(timesteps)
         output = self(
-            boxes_xyxy=diffusion_input,
+            boxes_xyxy=normalized_head_input,
             timesteps=timestep_batch,
             text_features=batch["text_features"],
             text_mask=batch["text_mask"],
@@ -199,7 +199,7 @@ class RADMTrainingModule(LightningModule):
             self.latest_step_trace = {
                 "timestep": timestep_batch.detach(),
                 "noise": noise.detach(),
-                "diffusion_input": diffusion_input.detach(),
+                "diffusion_input": normalized_head_input.detach(),
                 "logits": output.logits.detach(),
                 "boxes_xyxy": output.boxes_xyxy.detach(),
                 **{name: value.detach() for name, value in losses.items()},
