@@ -87,13 +87,13 @@ def parse_args() -> argparse.Namespace:
     beam.add_argument(
         "--archive",
         type=Path,
-        default=Path(".cache/canvas-vae/data/semantic_annotations.zip"),
+        default=Path(".cache") / "canvas-vae" / "data" / "semantic_annotations.zip",
         help="RICO semantic-annotation zip (default: %(default)s).",
     )
     beam.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "original" / "data" / "rico",
         help="TFRecord output directory (default: %(default)s).",
     )
 
@@ -101,13 +101,13 @@ def parse_args() -> argparse.Namespace:
     trace.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "original" / "data" / "rico",
         help="Original TFRecord directory (default: %(default)s).",
     )
     trace.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/reference/trace"),
+        default=Path(".cache") / "canvas-vae" / "reference" / "trace",
         help="Trace output directory (default: %(default)s).",
     )
     trace.add_argument(
@@ -141,13 +141,13 @@ def parse_args() -> argparse.Namespace:
     stream.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "original" / "data" / "rico",
         help="Original TFRecord directory (default: %(default)s).",
     )
     stream.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/reference/stream"),
+        default=Path(".cache") / "canvas-vae" / "reference" / "stream",
         help="Stream output directory (default: %(default)s).",
     )
     stream.add_argument(

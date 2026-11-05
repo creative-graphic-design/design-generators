@@ -47,13 +47,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--trace-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/reference/trace"),
+        default=Path(".cache") / "canvas-vae" / "reference" / "trace",
         help="Reference trace directory (default: %(default)s).",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".cache/canvas-vae/reference/reports/batch_norm_control.json"),
+        default=Path(".cache")
+        / "canvas-vae"
+        / "reference"
+        / "reports"
+        / "batch_norm_control.json",
         help="Report path (default: %(default)s).",
     )
     parser.add_argument(
