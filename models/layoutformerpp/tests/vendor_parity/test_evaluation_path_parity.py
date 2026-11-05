@@ -65,27 +65,57 @@ def test_bitwise_metrics_accept_exact_values_and_record_zero_delta() -> None:
     assert _bitwise_parity_passes(True, comparison)
 
 
-def test_bitwise_metrics_accept_and_record_difference_at_absolute_bound() -> None:
+def test_bitwise_metrics_accept_label_size_values_at_two_ulp() -> None:
     original = 0.49364049868866455
     package = 0.49364049868866466
     comparison = _compare_metrics({"mIoU": original}, {"mIoU": package})
+    absolute_difference = abs(package - original)
 
-    assert abs(package - original) == 2.0**-53
+    assert absolute_difference == 2 * math.ulp(max(abs(package), abs(original)))
     assert comparison["metrics_bitwise_equal"] is False
     assert comparison["metrics_accepted"] is True
     assert comparison["per_metric"]["mIoU"] == {
-        "case": "within_absolute_bound",
+        "case": "within_2_ulp",
         "delta": package - original,
-        "absolute_difference": 2.0**-53,
+        "absolute_difference": absolute_difference,
         "original": original,
         "package": package,
     }
     assert _bitwise_parity_passes(True, comparison)
 
 
-def test_bitwise_metrics_reject_difference_above_absolute_bound() -> None:
+def test_bitwise_metrics_accept_one_ulp_near_fid_17() -> None:
+    original = 17.0
+    package = math.nextafter(original, math.inf)
+    comparison = _compare_metrics({"fid": original}, {"fid": package})
+
+    assert comparison["metrics_accepted"] is True
+    assert comparison["per_metric"]["fid"] == {
+        "case": "within_2_ulp",
+        "delta": package - original,
+        "absolute_difference": math.ulp(original),
+        "original": original,
+        "package": package,
+    }
+    assert _bitwise_parity_passes(True, comparison)
+
+
+def test_bitwise_metrics_accept_difference_across_binade_boundary() -> None:
+    original = math.nextafter(0.5, 0.0)
+    package = math.nextafter(0.5, math.inf)
+    comparison = _compare_metrics({"mIoU": original}, {"mIoU": package})
+
+    assert abs(package - original) <= 2 * math.ulp(max(abs(package), abs(original)))
+    assert comparison["metrics_accepted"] is True
+    assert comparison["per_metric"]["mIoU"]["case"] == "within_2_ulp"
+    assert _bitwise_parity_passes(True, comparison)
+
+
+def test_bitwise_metrics_reject_three_ulp_difference() -> None:
     original = 0.5
-    package = math.nextafter(math.nextafter(original, math.inf), math.inf)
+    package = math.nextafter(
+        math.nextafter(math.nextafter(original, math.inf), math.inf), math.inf
+    )
     comparison = _compare_metrics({"mIoU": original}, {"mIoU": package})
 
     assert comparison["metrics_bitwise_equal"] is False
@@ -94,7 +124,7 @@ def test_bitwise_metrics_reject_difference_above_absolute_bound() -> None:
     assert comparison["per_metric"]["mIoU"]["delta"] == package - original
     absolute_difference = comparison["per_metric"]["mIoU"]["absolute_difference"]
     assert absolute_difference is not None
-    assert absolute_difference > 2.0**-53
+    assert absolute_difference > 2 * math.ulp(max(abs(package), abs(original)))
     assert not _bitwise_parity_passes(True, comparison)
 
 

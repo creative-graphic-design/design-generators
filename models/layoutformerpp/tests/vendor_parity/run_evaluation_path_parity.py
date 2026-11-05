@@ -53,10 +53,7 @@ TASK_MODULES = {
 RICO25_SPLIT_FILES = ("train.pt", "val.pt", "test.pt")
 
 
-MetricComparisonCase = Literal[
-    "bitwise_equal", "within_absolute_bound", "different", "missing"
-]
-MAX_METRIC_ABSOLUTE_DIFFERENCE = 2.0**-53
+MetricComparisonCase = Literal["bitwise_equal", "within_2_ulp", "different", "missing"]
 
 
 class MetricValueComparison(TypedDict):
@@ -114,9 +111,12 @@ def _compare_metrics(
             case: MetricComparisonCase = "bitwise_equal"
         elif (
             absolute_difference is not None
-            and absolute_difference <= MAX_METRIC_ABSOLUTE_DIFFERENCE
+            and math.isfinite(original_value)
+            and math.isfinite(package_value)
+            and absolute_difference
+            <= 2 * math.ulp(max(abs(original_value), abs(package_value)))
         ):
-            case = "within_absolute_bound"
+            case = "within_2_ulp"
         else:
             case = "different"
 
@@ -134,7 +134,7 @@ def _compare_metrics(
         and all(item["case"] == "bitwise_equal" for item in per_metric.values()),
         "metrics_accepted": keys_match
         and all(
-            item["case"] in {"bitwise_equal", "within_absolute_bound"}
+            item["case"] in {"bitwise_equal", "within_2_ulp"}
             for item in per_metric.values()
         ),
         "per_metric": per_metric,
