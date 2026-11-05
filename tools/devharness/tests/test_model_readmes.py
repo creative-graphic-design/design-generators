@@ -16,6 +16,7 @@ from devharness.checks.model_readmes import (
     card,
     check,
     citation,
+    fix_badge,
     install,
     parity,
     reproducing,
@@ -830,6 +831,29 @@ def _docs_model_row(task: str, content: str = "content-agnostic") -> str:
         "[Paper](https://arxiv.org/abs/2303.03755) | "
         "[README](models/layout-dm/README.md) |"
     )
+
+
+def test_root_model_badge_fixer_rewrites_stale_value_and_then_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "![models](https://img.shields.io/static/v1?label=models&message=31&color=purple)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(fix_badge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(fix_badge, "model_member_count", lambda: 32)
+
+    assert fix_badge.main() == 1
+    assert readme.read_text(encoding="utf-8") == (
+        "![models](https://img.shields.io/static/v1?label=models&message=32&color=purple)\n"
+    )
+    assert capsys.readouterr().out == f"{readme}: models badge updated to 32\n"
+
+    assert fix_badge.main() == 0
+    assert capsys.readouterr().out == ""
 
 
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(

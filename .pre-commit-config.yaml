@@ -137,6 +137,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: fix-root-models-badge
+        name: fix root README models badge
+        entry: uv run --package devharness python -m devharness.checks.model_readmes.fix_badge
+        language: system
+        pass_filenames: false
+
       - id: model-readmes
         name: model README contracts
         entry: uv run --package devharness devharness check model-readmes

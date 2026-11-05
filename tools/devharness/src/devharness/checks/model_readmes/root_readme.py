@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlparse, urlunparse
 
 from .constants import (
     EXPECTED_MODEL_NAMES,
@@ -144,6 +144,9 @@ def _linked_static_badge(cell: str, label: str) -> tuple[str, str] | None:
 _LINKED_BADGE_RE = re.compile(
     r"\[!\[([^\]]*)\]\((https://img\.shields\.io/static/v1\?[^)]*)\)\]\(([^)]+)\)"
 )
+_STATIC_BADGE_RE = re.compile(
+    r"!\[(?P<alt>[^\]]*)\]\((?P<url>https://img\.shields\.io/static/v1\?[^)]+)\)"
+)
 
 
 def _linked_static_badges(cell: str, label: str) -> list[tuple[str, str]]:
@@ -238,6 +241,53 @@ def assert_root_model_badge_count(path: Path, expected_count: int) -> None:
         raise AssertionError(
             f"{path}: models badge {messages} != workspace model member count {expected_count}"
         )
+
+
+def update_root_model_badge_count(path: Path, expected_count: int) -> bool:
+    """Rewrite the root README model-count badge and report whether it changed."""
+    text = path.read_text(encoding="utf-8")
+    matching_badges = 0
+
+    def replace_badge(match: re.Match[str]) -> str:
+        nonlocal matching_badges
+
+        alt = match.group("alt")
+        url = match.group("url")
+        parsed_url = urlparse(url)
+        query = parse_qsl(parsed_url.query, keep_blank_values=True)
+        labels = [value for key, value in query if key == "label"]
+        if len(labels) != 1 or labels[0] != "models":
+            return match.group(0)
+
+        if semantic_badge_label(alt, labels[0]) != "models":
+            return match.group(0)
+
+        matching_badges += 1
+        message_indexes = [
+            index for index, (key, _) in enumerate(query) if key == "message"
+        ]
+        if len(message_indexes) != 1:
+            raise AssertionError(f"{path}: models badge must have one message value")
+
+        message_index = message_indexes[0]
+        if query[message_index][1] == str(expected_count):
+            return match.group(0)
+
+        query[message_index] = ("message", str(expected_count))
+        updated_url = urlunparse(parsed_url._replace(query=urlencode(query)))
+        return f"![{alt}]({updated_url})"
+
+    updated_text = _STATIC_BADGE_RE.sub(replace_badge, text)
+    if matching_badges != 1:
+        raise AssertionError(
+            f"{path}: expected one models badge, found {matching_badges}"
+        )
+
+    if updated_text == text:
+        return False
+
+    path.write_text(updated_text, encoding="utf-8")
+    return True
 
 
 def root_model_slugs(
