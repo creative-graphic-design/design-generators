@@ -33,13 +33,16 @@ DOCS_MODEL_TABLE_HEADER = [
     "Docs",
 ]
 MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
-MODEL_TASK_VALUES = (
+IMAGE_GENERATION_CATEGORY = "image generation"
+MODEL_TYPE_VALUES = (*MODEL_CONTENT_VALUES, IMAGE_GENERATION_CATEGORY)
+LAYOUT_TASK_VALUES = (
     "task-agnostic",
     "task-aware",
     "single-task",
     "evaluation",
     "saliency",
 )
+IMAGE_GENERATION_TASK_VALUES = ("text-to-image", "image-to-image")
 MODEL_CONDITIONING_ORDER = (
     "unconditional",
     "label",
@@ -55,6 +58,7 @@ MODEL_CONDITIONING_ORDER = (
     "saliency",
     "none",
 )
+IMAGE_GENERATION_CONDITIONING_ORDER = ("layers", "text")
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )
@@ -248,13 +252,13 @@ EXPECTED_FRONTMATTER = {
             "InfoPPT",
         ],
     },
-    "layoutvae": {
+    "layout-vae": {
         "license": "mit",
         "datasets": ["creative-graphic-design/PubLayNet"],
     },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
     "ltnet": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
-    "layoutdiffusion": {
+    "layout-diffusion": {
         "license": "other",
         "datasets": [
             "creative-graphic-design/Rico",
@@ -338,10 +342,10 @@ EXPECTED_MODEL_NAMES = {
     "layout-fid": "Layout FID",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
-    "layoutvae": "LayoutVAE",
+    "layout-vae": "LayoutVAE",
     "layout-gpt": "LayoutGPT",
     "ltnet": "LT-Net",
-    "layoutdiffusion": "LayoutDiffusion",
+    "layout-diffusion": "LayoutDiffusion",
     "layoutformerpp": "LayoutFormer++",
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
@@ -359,11 +363,11 @@ EXPECTED_MODEL_NAMES = {
 EXPECTED_REPOSITORY_LINKS = {
     "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
-    "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
+    "layout-diffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
     "ltnet": "https://github.com/davidhalladay/LayoutTransformer",
     "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
-    "layoutvae": "https://github.com/Layout-Generation/layout-generation",
+    "layout-vae": "https://github.com/Layout-Generation/layout-generation",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "posterllama": "https://github.com/jaepoong/PosterLlama",
     "ralf": "https://github.com/CyberAgentAILab/RALF",

@@ -40,9 +40,11 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
+- Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
+
 - Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
 
-- Each model package README has exactly one structured classification line in the form `- **Model type:** <content>; task: <task>; conditioning: <comma-separated canonical values in conventions order>.`, with lowercase content values `content-agnostic` or `content-aware`, task values `task-agnostic`, `task-aware`, or `single-task` for generators, and `evaluation` or `saliency` for non-generation roles; `single-task` is used iff exactly one conditioning value is accepted, while `task-agnostic` and `task-aware` require two or more conditioning values; the conditioning values `evaluation`, `saliency`, and `none` appear alone.
+- Each model package README has exactly one structured classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <comma-separated values>.` Category-specific values, task and conditioning relationships, Hugging Face `pipeline_tag`, and model-index task rules come from [the model catalog classification conventions](docs/conventions.md#model-catalog-classification). Do not add package-specific exceptions to those shared rules.
 - Use pip direct-reference installation for package users, including unpublished workspace dependencies in the same command. Preserve clone/uv setup in `How to Get Started with the Model` when a local converted checkpoint or prompt configuration is required before Hub publication.
 - `### Parity Results` under `## Evaluation` contains measured cases, criteria, and results. `## Reproducibility` opens with how to rerun agreement checks and links to `models/<slug>/REPRODUCING.md`.
 - Put the ordered command walkthrough in `REPRODUCING.md`: prerequisites, cache locations, asset download, original-code reference generation, package comparison, conversion or prompt-configuration serialization, and local loading. Include expected outputs and required extras. A metadata export alone is not a generated model reference.
@@ -54,7 +56,7 @@ Use the README template for required metadata and headings. Keep its overview, p
 
 Public API docstrings feed the API reference. Use Google-style `Args`, `Returns`, `Raises`, and `Examples` as applicable. Examples should be runnable doctests when they need no heavyweight downloads or credentials.
 
-Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs with the package README included through `pymdownx.snippets`, an `## API Reference` heading, `::: <import_name>`, and `show_submodules: true`, plus navigation in `mkdocs.yml`. Do not commit locally generated alternative API trees.
+Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
 
 - Model READMEs wrap everything after the YAML front matter in `<!-- --8<-- [start:card] -->` and `<!-- --8<-- [end:card] -->` so the front matter stays off the docs page.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.

@@ -64,9 +64,9 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 #### Model catalog classification
 
-`Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
+Each model README has one classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <values>.` For layout-generation models, `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input. It is `content-aware` when package inference uses a canvas/background image or saliency input. Element-level image or text feature fields, such as Flex-DM's feature infilling, do not affect this classification.
 
-`Task` is classified as follows:
+For layout-generation models, `Task` is classified as follows:
 
 - `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference; this value requires two or more accepted generation conditions.
 - `task-aware`: a separate checkpoint or training run exists for each accepted generation condition; this value requires two or more accepted generation conditions.
@@ -74,11 +74,16 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 - `evaluation`: the package evaluates layouts rather than generating them.
 - `saliency`: the package predicts saliency rather than generating layouts.
 
+Image-generation models use `image generation` as the `Model type` category. Their task is `text-to-image` or `image-to-image`. Their conditioning values are `layers` and `text`. List `layers` before `text` when both are accepted. In the model catalog, join the conditioning values with a plus sign in the `Content` column. In model cards, `pipeline_tag` matches the task value. Every `model-index` result's `task.type` also matches the task value. `layers` describes layer-based image input. It is not a layout `condition_type`.
+
+Use block-style YAML in model-card `model-index` frontmatter. Indent nested fields by two spaces. Use the canonical field order. Scalar values, including JSON-style double-quoted strings, contain only printable ASCII (`0x20`–`0x7E`). The `devharness check model-readmes` command uses only the standard library to validate this frontmatter. It reserializes the parsed block in canonical form. It rejects any byte-level difference with an explicit format error.
+
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
 The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
 
 - `evaluation`: evaluate layouts rather than generate them.
+- `layers`: describe layer-based image input to an image-generation model.
 - `saliency`: predict saliency as the package's primary public operation.
 - `none`: the package's only accepted condition is `content_image`.
 
@@ -127,6 +132,7 @@ The framework-selection and module-name rules below are mandatory for packages a
 Choose the framework from the model's generation process and checkpoint contract, not from the nearest example package.
 
 - Diffusion and flow-matching models use Diffusers. A denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration), a Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview), and diffusion generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline). Add a repository scheduler when no built-in scheduler expresses the required process.
+- Pass schedulers through `from_pretrained(..., scheduler=...)` and do not assign `pipeline.scheduler` after loading. When a method requires a particular scheduler, construct it from package-owned settings and make the pipeline reject incompatible scheduler types.
 - Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model). Use the same base for other non-diffusion models when they own a checkpoint and the standard `save_pretrained` / `from_pretrained` contract fits. Package-owned model configs use `PretrainedConfig` with a non-empty `model_type`; internal neural-network blocks remain `torch.nn.Module`.
 - A package that only composes an existing Transformers model loads it through the appropriate Transformers `AutoModel` class in its package pipeline (for example, `AutoModelForCausalLM`) and keeps package-specific inference in that pipeline.
 - LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.

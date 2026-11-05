@@ -7,8 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+from urllib.parse import parse_qs, urlparse
 
 import pytest
+
+from devharness.checks.model_readmes import root_readme
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +39,40 @@ def _run_script(script: str) -> None:
         text=True,
     )
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+def _classification_badges(
+    text: str, check_readme_badges: ModuleType
+) -> list[tuple[str, str, str | None]]:
+    badges: list[tuple[str, str, str | None]] = []
+    for match in check_readme_badges.BADGE_RE.finditer(text):
+        query_label = parse_qs(urlparse(match.group("url")).query).get("label", [None])[
+            0
+        ]
+        if query_label is None:
+            continue
+
+        label = check_readme_badges._semantic_label(match.group("alt"), query_label)
+        if label in {"task", "content"}:
+            badges.append((label, match.group("url"), match.group("link")))
+
+    return badges
+
+
+def _assert_root_model_classification_badges_match_table(
+    readme: Path, check_readme_badges: ModuleType
+) -> None:
+    text = readme.read_text(encoding="utf-8")
+    table_lines = root_readme._root_packages_table_lines(text)
+    table_badges: list[tuple[str, str, str | None]] = []
+    for line in table_lines[2:]:
+        cells = root_readme._split_markdown_table_row(line)
+        table_badges.extend(_classification_badges(cells[1], check_readme_badges))
+        table_badges.extend(_classification_badges(cells[2], check_readme_badges))
+
+    assert _classification_badges(text, check_readme_badges) == table_badges, (
+        f"{readme}: task/content badges must match the model table cells"
+    )
 
 
 def test_readme_badge_contracts() -> None:
@@ -75,14 +112,58 @@ def test_readme_badge_policy_derives_model_label_from_alt_prefix(
 
 def test_root_readme_model_classification_badges_follow_policy() -> None:
     check_readme_badges = _load_check_readme_badges()
+    readme = REPO_ROOT / "README.md"
     badges = [
         badge
-        for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
+        for badge in check_readme_badges._iter_badges(readme)
         if badge.label in {"task", "content"}
     ]
 
-    assert len(badges) == 62
     assert {badge.label for badge in badges} == {"task", "content"}
+    _assert_root_model_classification_badges_match_table(readme, check_readme_badges)
+
+
+@pytest.mark.parametrize(
+    ("label", "message"),
+    [("task", "task-agnostic"), ("content", "content-agnostic")],
+)
+def test_root_readme_model_classification_badges_reject_outside_table(
+    tmp_path: Path, label: str, message: str
+) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    task_badge = (
+        "![task: task-agnostic](https://img.shields.io/static/v1?label=task&"
+        "message=task-agnostic&color=purple)"
+    )
+    content_badge = (
+        "![content: content-agnostic](https://img.shields.io/static/v1?"
+        "label=content&message=content-agnostic&color=purple)"
+    )
+    outside_badge = (
+        f"![{label}: {message}](https://img.shields.io/static/v1?label={label}&"
+        f"message={message}&color=purple)"
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        f"""## Models
+
+| Model | Task | Content | Venue | Ckpt | Train |
+| --- | --- | --- | --- | --- | --- |
+| `Example` | {task_badge} | {content_badge} |  |  |  |
+
+## Libraries
+
+{outside_badge}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        AssertionError, match="task/content badges must match the model table cells"
+    ):
+        _assert_root_model_classification_badges_match_table(
+            readme, check_readme_badges
+        )
 
 
 def test_cikm_model_venue_badge_uses_neutral_catalog_color() -> None:
@@ -104,12 +185,48 @@ def test_docs_index_classification_badges_follow_root_policy(
     docs_index = tmp_path / "docs" / "index.md"
     docs_index.parent.mkdir()
     docs_index.write_text(
-        "![task: task-agnostic](https://img.shields.io/static/v1?label=task&"
+        "![task: task-agnostic](https://img.shields.io/static/v1?label=%F0%9F%8E%AF&"
         "message=task-agnostic&color=purple)\n",
         encoding="utf-8",
     )
 
     with pytest.raises(AssertionError, match="task.*color"):
+        check_readme_badges._iter_badges(docs_index)
+
+
+def test_docs_index_image_generation_badges_use_distinct_icons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    monkeypatch.setattr(check_readme_badges, "REPO_ROOT", tmp_path)
+    docs_index = tmp_path / "docs" / "index.md"
+    docs_index.parent.mkdir()
+    docs_index.write_text(
+        "![task: text-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%A8&message=text-to-image&color=6b7280)\n"
+        "![content: text](https://img.shields.io/static/v1?"
+        "label=%F0%9F%93%9D&message=text&color=2f80ed)\n"
+        "![task: image-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%A8&message=image-to-image&color=6b7280)\n"
+        "![content: layers + text](https://img.shields.io/static/v1?"
+        "label=%F0%9F%A7%A9&message=layers%20%2B%20text&color=eb5757)\n",
+        encoding="utf-8",
+    )
+
+    badges = check_readme_badges._iter_badges(docs_index)
+    assert [(badge.label, badge.message) for badge in badges] == [
+        ("task", "text-to-image"),
+        ("content", "text"),
+        ("task", "image-to-image"),
+        ("content", "layers + text"),
+    ]
+
+    docs_index.write_text(
+        "![task: text-to-image](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%AF&message=text-to-image&color=6b7280)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="task.*icon"):
         check_readme_badges._iter_badges(docs_index)
 
 
