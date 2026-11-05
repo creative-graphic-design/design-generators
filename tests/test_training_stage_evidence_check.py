@@ -1179,7 +1179,7 @@ Package training reproduction is achieved with training-seed n=3.
 {complete_stage_evidence_table()}
 """,
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         '{"config":{"shipped_source":"models/layout-dm/configs/training/full.yaml"}}\n',

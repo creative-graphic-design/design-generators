@@ -162,17 +162,23 @@ def build_report() -> ComparisonReport:
         for seed in SEEDS:
             vendor_dir = (
                 ROOT
-                / ".cache/layoutganpp/vendor-work/output"
+                / ".cache"
+                / "layoutganpp"
+                / "vendor-work"
+                / "output"
                 / vendor_dataset
                 / "LayoutGAN++"
                 / f"s5-{dataset}-original-seed-{seed}"
             )
             package_dir = (
                 ROOT
-                / ".cache/layoutganpp/package-rerun-295e2c6-20261026"
+                / ".cache"
+                / "layoutganpp"
+                / "package-rerun-295e2c6-20261026"
                 / dataset
                 / f"package-seed-{seed}"
-                / "lightning_logs/version_0"
+                / "lightning_logs"
+                / "version_0"
             )
             vendor_path = _event_file(vendor_dir)
             package_path = _event_file(package_dir)
@@ -237,7 +243,12 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".cache/layoutganpp/s5/full-run-loss-event-comparison.json"),
+        default=(
+            Path(".cache")
+            / "layoutganpp"
+            / "s5"
+            / "full-run-loss-event-comparison.json"
+        ),
     )
     args = parser.parse_args()
     report = build_report()
