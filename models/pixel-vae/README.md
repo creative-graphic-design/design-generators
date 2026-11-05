@@ -202,7 +202,7 @@ The only verified runtime in this package is CPU; GPU training and S5 evaluation
 
 #### Software
 
-The model uses PyTorch and [`🤗transformers`](https://huggingface.co/docs/transformers/index). Conversion and source comparison require TensorFlow CPU 2.15.1. See the package `pyproject.toml` for workspace dependencies.
+The model uses PyTorch and `transformers`. Conversion and source comparison require TensorFlow CPU 2.15.1. See the package `pyproject.toml` for workspace dependencies.
 
 ## Citation
 
