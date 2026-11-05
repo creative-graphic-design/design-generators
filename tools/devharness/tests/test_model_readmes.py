@@ -1732,6 +1732,44 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
     )
 
 
+def test_library_pip_install_contract_accepts_source_archive() -> None:
+    fence = chr(96) * 3
+    archive_url = (
+        "https://github.com/creative-graphic-design/design-generators/archive/main.zip"
+    )
+    section = (
+        "Install directly from this repository.\n\n" + fence + "bash\npip install "
+        f'"laygen @ {archive_url}#subdirectory=lib/laygen"\n' + fence
+    )
+
+    install.assert_pip_install_snippet(
+        Path("lib") / "laygen" / "README.md",
+        section,
+        [("laygen", "lib/laygen")],
+        "Install",
+    )
+
+
+def test_model_install_contract_accepts_source_archives() -> None:
+    fence = chr(96) * 3
+    archive_url = (
+        "https://github.com/creative-graphic-design/design-generators/archive/main.zip"
+    )
+    text = (
+        "# Model Card for Collage Diffusion\n\n"
+        "## How to Get Started with the Model\n\n" + fence + "bash\npip install \\\n"
+        f'  "laygen @ {archive_url}#subdirectory=lib/laygen" \\\n'
+        f'  "collage-diffusion @ {archive_url}#subdirectory=models/collage-diffusion"\n'
+        + fence
+        + "\n\n## Training Details\n"
+    )
+
+    install.assert_model_pip_install_snippet(
+        REPO_ROOT / "models" / "collage-diffusion" / "README.md",
+        text,
+    )
+
+
 def test_model_install_contract_requires_workspace_model_dependencies() -> None:
     text = """# Model Card for SmartText
 

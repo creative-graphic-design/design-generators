@@ -28,7 +28,7 @@ Read sources without modifying them or another participant's draft. Stay in the 
 
 Cover each agenda item with evidence, an interface decision, or an explicit unresolved question. Keep each Round 1 proposal to 15 lines or fewer. Record target-specific exceptions with reasons. Preserve the user's literal requirements and distinguish them from your proposals.
 
-After Round 1, report the draft path directly to `<coordinator-agent-name-or-pane-id>` and end the turn. Start Round 2 only when the coordinator requests it. After Round 2, report agreements and remaining disagreements to the same recorded recipient and end the turn. The coordinator reviews the plans; publication and implementation require their own authorization.
+After Round 1, report the draft path directly to `<coordinator-agent-name-or-pane-id>` and end the turn. Start Round 2 only when the coordinator requests it. After Round 2, report agreements and remaining disagreements to the same recorded recipient and end the turn. The coordinator reviews the plans; implementation requires a coordinator request, and Hub publication follows the main-merge policy in the repository `AGENTS.md`.
 
 If a participant is unresolved, the coordinator uses bounded reconciliation from the skill. `herdr notification show` is a UI fallback for the coordinator/user; it does not deliver a participant message.
 

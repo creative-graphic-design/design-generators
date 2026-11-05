@@ -311,15 +311,53 @@ Review each output and confirm rights to every input layer, embedding, and gener
 
 ## How to Get Started with the Model
 
-Install the package with its workspace dependency from this repository:
+Install the pipeline package and `laygen` from commit-pinned GitHub source archives. The repository README uses the `main` archive URL so the command stays current; the published Hub card pins both packages to the commit that published its pipeline code. The archive includes the selected package directory without fetching vendor submodules.
 
 ```bash
 pip install \
-  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
-  "collage-diffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/collage-diffusion"
+  "laygen @ https://github.com/creative-graphic-design/design-generators/archive/main.zip#subdirectory=lib/laygen" \
+  "collage-diffusion @ https://github.com/creative-graphic-design/design-generators/archive/main.zip#subdirectory=models/collage-diffusion"
 ```
 
-This package has no learned checkpoints. The pipeline loads the upstream Stable Diffusion base model and accepts caller-provided layers and optional textual-inversion embeddings.
+The Hub pipeline loads code from `creative-graphic-design/collage-diffusion` and weights from `sd2-community/stable-diffusion-2-1-base`. Before setting `trust_remote_code=True`, review the pipeline code in the [Collage Diffusion Hub repository](https://huggingface.co/creative-graphic-design/collage-diffusion); `diffusers` executes that code when it loads the custom pipeline.
+
+```python
+from PIL import Image
+from diffusers import DiffusionPipeline
+from collage_diffusion import CollageLayer
+
+base = "sd2-community/stable-diffusion-2-1-base"
+base_revision = "4e63672c03103b6c636b8fb4119ba982469b2955"
+pipe = DiffusionPipeline.from_pretrained(
+    base,
+    revision=base_revision,
+    custom_pipeline="creative-graphic-design/collage-diffusion",
+    trust_remote_code=True,
+)
+layer = CollageLayer(
+    image=Image.open("toy.png").convert("RGBA"),
+    prompt="a small wooden toy",
+    position=(64, 96),
+    noise_level=0.35,
+    positive_attention_weight=0.5,
+    negative_attention_weight=0.5,
+)
+result = pipe(
+    prompt="a small wooden toy on a studio table",
+    layers=[layer],
+    negative_prompt="collage",
+    seed=0,
+    num_inference_steps=20,
+)
+result.images[0].save("harmonized.png")
+print(type(pipe).__name__)
+```
+
+```text
+CollageDiffusionPipeline
+```
+
+The Hub card pins both source archives to the repository commit that published the pipeline. This package has no learned checkpoints; the pipeline reads base weights from the upstream Stable Diffusion repository and accepts caller-provided layers and optional textual-inversion embeddings.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
