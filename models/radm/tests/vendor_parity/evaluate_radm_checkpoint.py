@@ -14,6 +14,7 @@ from radm.configuration_radm import RADMConfig
 from radm.evaluation import evaluate_checkpoint
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
+from radm.training.data_paths import validate_dot_free_data_root
 
 
 EXPECTED_STEPS = 250000
@@ -110,6 +111,7 @@ def evaluate_package_checkpoint(
     evaluation_seed: int,
 ) -> dict[str, object]:
     """Evaluate one guarded package checkpoint on the fixed CGL test stream."""
+    data_root = Path(validate_dot_free_data_root(data_root))
     config = RADMConfig(
         dataset_name="cgl",
         num_classes=4,
@@ -133,7 +135,7 @@ def evaluate_package_checkpoint(
         batch_size=1,
         num_workers=0,
         allow_missing_text_features=True,
-        test_read_text_features=False,
+        test_read_text_features=True,
         effective=effective,
     )
     report = evaluate_checkpoint(
@@ -156,11 +158,12 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--data-root", type=Path, required=True)
+    parser.add_argument("--data-root", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--evaluation-seed", type=int, default=1)
     args = parser.parse_args()
+    data_root = validate_dot_free_data_root(args.data_root)
     validation = validate_terminal_checkpoint(
         args.checkpoint,
         args.manifest,
@@ -168,7 +171,7 @@ def main() -> None:
     )
     report = evaluate_package_checkpoint(
         args.checkpoint,
-        data_root=args.data_root,
+        data_root=Path(data_root),
         output_dir=args.output_dir,
         device=args.device,
         evaluation_seed=args.evaluation_seed,

@@ -12,7 +12,9 @@ from typing import cast
 import pytest
 
 from laygen.common.testing import skip_or_fail_vendor_parity
+from radm.training.data_paths import validate_dot_free_data_root
 
+import evaluate_radm_checkpoint as evaluation
 from evaluate_radm_checkpoint import (
     evaluate_package_checkpoint,
     validate_terminal_checkpoint,
@@ -77,7 +79,9 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     package_checkpoint = _required_env("RADM_E2E_PACKAGE_CHECKPOINT")
     vendor_checkpoint = _required_env("RADM_E2E_VENDOR_CHECKPOINT")
     manifest = _required_env("RADM_E2E_PACKAGE_MANIFEST")
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     validation = validate_terminal_checkpoint(
         package_checkpoint,
         manifest,
@@ -124,3 +128,26 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
         row["image_id"] for row in vendor_predictions
     }
     assert len(package_predictions) == len(vendor_predictions)
+
+
+def test_package_checkpoint_evaluator_reads_test_text_features(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: dict[str, object] = {}
+
+    class CapturingDataModule:
+        def __init__(self, **kwargs: object) -> None:
+            observed.update(kwargs)
+
+    monkeypatch.setattr(evaluation, "RADMDataModule", CapturingDataModule)
+    monkeypatch.setattr(evaluation, "evaluate_checkpoint", lambda *args, **kwargs: {})
+
+    evaluate_package_checkpoint(
+        tmp_path / "checkpoint.ckpt",
+        data_root=Path("radm_cgl"),
+        output_dir=tmp_path / "output",
+        device="cpu",
+        evaluation_seed=1,
+    )
+
+    assert observed["test_read_text_features"] is True

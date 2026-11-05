@@ -654,6 +654,9 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     assert not check_training_stage_evidence.has_s5_claim(
         "training-seed n=3 is not claimed in this PR."
     )
+    assert not check_training_stage_evidence.has_s5_claim(
+        "The CGL training-seed n=3 result is not-yet-run."
+    )
 
 
 def test_has_s5_claim_does_not_cross_sentence_boundaries() -> None:

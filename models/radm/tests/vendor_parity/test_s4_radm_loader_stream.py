@@ -20,6 +20,7 @@ import torch
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
 from radm.training.dataset import RADMCOCODataset, load_text_features
+from radm.training.data_paths import validate_dot_free_data_root
 from reference_adapter import (
     RADMReferenceAdapter,
     _legacy_pillow_compat,
@@ -177,6 +178,8 @@ def _aligned_sample(
             (source_features - package_features).abs().max()
         ),
         "text_mask_equal": torch.equal(source_mask, package_mask),
+        "source_text_valid_count": int(source_mask.sum()),
+        "package_text_valid_count": int(package_mask.sum()),
         "source_image_size": [int(source_height), int(source_width)],
         "package_image_size": [
             int(package_height),
@@ -203,6 +206,17 @@ def _assert_aligned_train_mapper_oracle(sample: dict[str, object]) -> None:
     assert sample["package_boxes_dtype"] == "torch.float32", json.dumps(
         sample, ensure_ascii=False, indent=2
     )
+    assert sample["text_features_max_abs"] == 0.0, json.dumps(
+        sample, ensure_ascii=False, indent=2
+    )
+    assert sample["text_mask_equal"] is True, json.dumps(
+        sample, ensure_ascii=False, indent=2
+    )
+    source_text_valid_count = sample["source_text_valid_count"]
+    assert isinstance(source_text_valid_count, int), json.dumps(
+        sample, ensure_ascii=False, indent=2
+    )
+    assert source_text_valid_count > 0, json.dumps(sample, ensure_ascii=False, indent=2)
 
 
 def _rng_state() -> tuple[object, object, torch.Tensor]:
@@ -437,8 +451,8 @@ def _run_s4(*, include_full_training_stream: bool = True) -> dict[str, object]:
             "RADM_S4_ALLOW_MISSING=1 is required for the approved diagnostic fallback"
         )
     data_root = Path(
-        os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl")
-    ).resolve()
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     device = os.environ.get("RADM_REFERENCE_DEVICE", "cuda:0")
     archive_sha256 = os.environ.get("RADM_S4_ARCHIVE_SHA256")
     if not archive_sha256:
@@ -484,7 +498,7 @@ def _run_s4(*, include_full_training_stream: bool = True) -> dict[str, object]:
                 effective=package_effective,
                 allow_missing_text_features=True,
                 train=split == "train",
-                read_text_features=split == "train",
+                read_text_features=True,
             )
             if split == "train":
                 train_dataset = package_dataset
@@ -525,7 +539,21 @@ def _run_s4(*, include_full_training_stream: bool = True) -> dict[str, object]:
                 and split_report["first_order_difference"] is not None
             ):
                 first_divergence = f"{split}.order"
-            first_record = source_records[0]
+            first_record = next(
+                (
+                    record
+                    for record in source_records
+                    if (
+                        data_root
+                        / "text_features"
+                        / split
+                        / f"{Path(str(record['file_name'])).stem}_feats.pth"
+                    ).is_file()
+                ),
+                None,
+            )
+            if first_record is None:
+                raise RuntimeError(f"no {split} image has a text-feature file")
             aligned_samples[split] = _aligned_sample(
                 source_record=first_record,
                 package_index=package_by_id[int(first_record["image_id"])],
@@ -664,6 +692,17 @@ def test_s4_radm_loader_stream_parity() -> None:
     assert aligned_test_sample["text_mask_equal"] is True, json.dumps(
         aligned_test_sample, ensure_ascii=False, indent=2
     )
+    source_text_valid_count = aligned_test_sample["source_text_valid_count"]
+    assert isinstance(source_text_valid_count, int), json.dumps(
+        aligned_test_sample, ensure_ascii=False, indent=2
+    )
+    assert source_text_valid_count > 0, json.dumps(
+        aligned_test_sample, ensure_ascii=False, indent=2
+    )
+    assert (
+        aligned_test_sample["package_text_valid_count"]
+        == aligned_test_sample["source_text_valid_count"]
+    ), json.dumps(aligned_test_sample, ensure_ascii=False, indent=2)
     output_box_frame = aligned_test_sample["output_box_frame"]
     assert isinstance(output_box_frame, dict)
     output_box_frame = cast(dict[str, object], output_box_frame)

@@ -84,7 +84,6 @@ def test_s3_radm_production_traingen_fit_wiring(
         "CUDA_VISIBLE_DEVICES": os.environ.get("CUDA_VISIBLE_DEVICES", "0"),
         "PARITY_REQUIRE": "1",
         "RADM_REFERENCE_DEVICE": "cuda:0",
-        "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
     }
     completed = subprocess.run(
         command,
@@ -161,7 +160,6 @@ def test_s3_radm_production_traingen_fit_wiring(
             "CUDA_VISIBLE_DEVICES": environment["CUDA_VISIBLE_DEVICES"],
             "PARITY_REQUIRE": environment["PARITY_REQUIRE"],
             "RADM_REFERENCE_DEVICE": environment["RADM_REFERENCE_DEVICE"],
-            "CUBLAS_WORKSPACE_CONFIG": environment["CUBLAS_WORKSPACE_CONFIG"],
         },
         "config_sha256": _sha256(config),
         "runtime": {

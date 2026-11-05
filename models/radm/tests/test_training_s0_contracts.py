@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 import numpy as np
 import torch
+import yaml
 from PIL import Image
 
 from radm import RADMConfig, RADMDenoiser
@@ -49,6 +50,19 @@ _PROHIBITED_RUNTIME_LANGUAGE = (
     "original simota",
     "original full-model",
 )
+
+
+def test_s0_cgl_production_config_disables_deterministic_algorithms() -> None:
+    """Keep the shipped CGL recipe on the vendor's non-deterministic path."""
+    repository_root = Path(__file__).parents[3]
+    config_path = repository_root / "models/radm/configs/training/radm_cgl.yaml"
+    config = cast(
+        dict[str, object],
+        yaml.safe_load(config_path.read_text(encoding="utf-8")),
+    )
+    trainer = cast(dict[str, object], config["trainer"])
+
+    assert trainer["deterministic"] is False
 
 
 def _probe_training_namespace(*, block_lightning: bool) -> dict[str, bool]:
