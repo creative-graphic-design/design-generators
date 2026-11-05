@@ -78,6 +78,11 @@ def test_model_readme_policy_runs_in_process() -> None:
     check.check()
 
 
+def test_code_only_pipeline_model_card_does_not_claim_its_own_checkpoint() -> None:
+    path = REPO_ROOT / "models" / "collage-diffusion" / "README.md"
+    card.assert_model_index_policy(path, "---\nlicense: apache-2.0\n---\n")
+
+
 def test_model_readme_dispatch_rejects_unsupported_command(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1491,17 +1496,57 @@ def test_card_contracts_require_expected_source_and_summary_subject() -> None:
         )
 
 
-def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(
+def test_library_name_style_accepts_linked_first_and_plain_later_mentions(
     tmp_path: Path,
 ) -> None:
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) "
-        "and second `🤗transformers`.",
+        "---\nlibrary_name: diffusers\n---\n"
+        "![🧨diffusers](https://img.shields.io/static/v1?label=framework&message=diffusers)\n"
+        "```text\n`🧨diffusers` and `🤗transformers`\n```\n"
+        "First [`🤗transformers`](https://huggingface.co/docs/transformers/index), "
+        "[`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and "
+        "[`🤖pydantic-ai`](https://ai.pydantic.dev/); later use `transformers`, "
+        "`diffusers`, and `pydantic-ai`.",
         encoding="utf-8",
     )
 
     root_readme.assert_library_name_style(readme)
+
+
+def test_library_name_style_ignores_tilde_fenced_code(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "~~~~text\n`🧨diffusers`\n~~~\n`diffusers`\n```\n~~~~~\n"
+        "~~~text\n`🧨diffusers` and `diffusers`\n~~~\n"
+        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), "
+        "then `diffusers`.",
+        encoding="utf-8",
+    )
+
+    root_readme.assert_library_name_style(readme)
+
+
+def test_library_name_style_requires_link_on_first_mention(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("This package uses `diffusers` for inference.", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="first diffusers mention must link"):
+        root_readme.assert_library_name_style(readme)
+
+
+def test_library_name_style_rejects_emoji_after_first_mention(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), "
+        "then `🧨diffusers` again.",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        AssertionError, match="later diffusers mention must use `diffusers`"
+    ):
+        root_readme.assert_library_name_style(readme)
 
 
 @pytest.mark.parametrize(

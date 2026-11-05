@@ -1163,7 +1163,33 @@ Package training reproduction is achieved with training-seed n=3.
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
 
 
-def test_repository_training_evidence_is_green_and_layoutganpp_is_unclaimed() -> None:
+def test_new_s5_record_accepts_shipped_source_in_manifest_config(
+    tmp_path: Path,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table()}
+""",
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        '{"config":{"shipped_source":"models/layout-dm/configs/training/full.yaml"}}\n',
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
+def test_repository_training_evidence_includes_layoutganpp_s5_smokes() -> None:
     root = Path(__file__).resolve().parents[1]
     assert (
         check_training_stage_evidence.check_training_stage_evidence(
@@ -1174,4 +1200,5 @@ def test_repository_training_evidence_is_green_and_layoutganpp_is_unclaimed() ->
     layoutganpp_training = (root / "models" / "layoutganpp" / "TRAINING.md").read_text(
         encoding="utf-8"
     )
-    assert not check_training_stage_evidence.has_s5_claim(layoutganpp_training)
+    assert check_training_stage_evidence.has_s5_claim(layoutganpp_training)
+    assert check_training_stage_evidence.checkpoint_gate_entries(root) == set()

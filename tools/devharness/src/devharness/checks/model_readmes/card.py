@@ -24,12 +24,13 @@ from .constants import (
     MODEL_CONDITIONING_ORDER,
     MODEL_TYPE_VALUES,
     MODEL_MEMBER_DIRS,
+    NO_MODEL_WEIGHTS_SLUGS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
     REQUIRED_HEADINGS,
     REPO_ROOT,
 )
-from .install import project_metadata
+from .install import _project_name, project_metadata
 
 
 def section(text: str, heading: str) -> str:
@@ -54,6 +55,10 @@ def _frontmatter(text: str) -> str:
     return text[:end]
 
 
+_FENCE_OPENING_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_FENCE_CLOSING_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[ \t]*$")
+
+
 def without_frontmatter_and_code(text: str) -> str:
     """Remove frontmatter and fenced code from reader-facing Markdown text."""
     if text.startswith("---\n"):
@@ -62,14 +67,31 @@ def without_frontmatter_and_code(text: str) -> str:
             text = text[end + len("\n---\n") :]
 
     lines: list[str] = []
-    in_code = False
+    opening_fence: str | None = None
     for line in text.splitlines():
-        if line.startswith("```"):
-            in_code = not in_code
+        if opening_fence is None:
+            opening = _FENCE_OPENING_RE.match(line)
+            if opening is None:
+                lines.append(line)
+                continue
+
+            opening_fence = opening.group("fence")
+            info = opening.group("info")
+            if opening_fence.startswith("`") and "`" in info:
+                lines.append(line)
+                opening_fence = None
+
             continue
 
-        if not in_code:
-            lines.append(line)
+        closing = _FENCE_CLOSING_RE.match(line)
+        if closing is None:
+            continue
+
+        closing_fence = closing.group("fence")
+        if closing_fence[0] == opening_fence[0] and len(closing_fence) >= len(
+            opening_fence
+        ):
+            opening_fence = None
 
     return "\n".join(lines)
 
@@ -888,7 +910,7 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
 def assert_model_index_policy(path: Path, frontmatter: str) -> None:
     """Require model-index metadata only for weight-backed model cards."""
     has_model_index = "model-index:" in frontmatter
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         if has_model_index:
             raise AssertionError(
                 f"{path}: prompt-only README must not include model-index"
@@ -1073,10 +1095,10 @@ def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
     if "<<'PY'" in get_started or '<<"PY"' in get_started:
         raise AssertionError(f"{path}: Get Started must not use heredoc examples")
 
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         required = [
             "git clone https://github.com/creative-graphic-design/design-generators.git",
-            f"uv sync --package {path.parent.name}",
+            f"uv sync --package {_project_name(path.parent)}",
             "no learned checkpoints",
         ]
         missing = [snippet for snippet in required if snippet not in get_started]
