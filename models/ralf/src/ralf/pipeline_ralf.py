@@ -122,6 +122,7 @@ class RalfPipeline(LayoutGenerationPipeline):
         self.model = model
         self.processor = processor or RalfProcessor.from_config(model.config)
         self._relation_conditioner: RelationConditioner | None = None
+        self._relation_conditioner_relations: RalfRelationshipTable | None = None
 
     @classmethod
     def from_pretrained(
@@ -162,6 +163,7 @@ class RalfPipeline(LayoutGenerationPipeline):
     def configure_relation_conditioner(self, relations: RalfRelationshipTable) -> None:
         """Install the inference-only relation condition preparer."""
         self._relation_conditioner = self._build_relation_conditioner(relations)
+        self._relation_conditioner_relations = relations
 
     def _build_relation_conditioner(
         self, relations: RalfRelationshipTable
@@ -323,8 +325,14 @@ class RalfPipeline(LayoutGenerationPipeline):
             if relations is None:
                 raise ValueError("relation generation requires a relationship table")
 
-            conditioner = self._build_relation_conditioner(relations)
-            self._relation_conditioner = conditioner
+            conditioner = self._relation_conditioner
+            if (
+                conditioner is None
+                or self._relation_conditioner_relations is not relations
+            ):
+                conditioner = self._build_relation_conditioner(relations)
+                self._relation_conditioner = conditioner
+                self._relation_conditioner_relations = relations
 
             relation_sequence, relation_pad_mask = conditioner.prepare(
                 input_ids, query_ids

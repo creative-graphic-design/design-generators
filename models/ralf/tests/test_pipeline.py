@@ -1,3 +1,4 @@
+import random
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
@@ -143,6 +144,68 @@ def test_pipeline_rebuilds_relation_conditioner_for_each_relationship_table(
         (["sample"], "right"),
         (["new"], "right"),
     ]
+
+
+def test_pipeline_reuses_configured_relation_conditioner_without_python_rng(
+    monkeypatch,
+) -> None:
+    import ralf.relation_restriction as relation_module
+    from ralf.relation_restriction import RelationConditioner
+
+    class RelationGenerationReached(Exception):
+        pass
+
+    pipe = _pipeline()
+    relation_table = {
+        "sample": [
+            ["A", "1", "left", "B", "2"],
+            ["A", "1", "right", "B", "2"],
+            ["A", "1", "above", "B", "2"],
+            ["A", "1", "below", "B", "2"],
+        ]
+    }
+    original_random_state = random.getstate()
+    random.seed(0)
+    try:
+        pipe.configure_relation_conditioner(relation_table)
+        configured = pipe._relation_conditioner
+        assert configured is not None
+        configured_order = configured.relationship_table["sample"].copy()
+        configured_random_state = random.getstate()
+        seen_conditioners: list[RelationConditioner] = []
+
+        def prepare_without_sampling(
+            self: RelationConditioner,
+            input_ids: torch.Tensor,
+            _sample_ids: object,
+        ) -> tuple[torch.Tensor, torch.Tensor]:
+            seen_conditioners.append(self)
+            return input_ids, torch.zeros_like(input_ids, dtype=torch.bool)
+
+        def stop_before_generation(*_args: object, **kwargs: object) -> None:
+            seen_conditioners.append(cast(RelationConditioner, kwargs["vocabulary"]))
+            raise RelationGenerationReached
+
+        monkeypatch.setattr(RelationConditioner, "prepare", prepare_without_sampling)
+        monkeypatch.setattr(
+            relation_module, "generate_relation_sequences", stop_before_generation
+        )
+        for _ in range(2):
+            with pytest.raises(RelationGenerationReached):
+                pipe(
+                    condition_type="relation",
+                    labels=torch.tensor([[0, 1]]),
+                    bbox=torch.full((1, 2, 4), 0.5),
+                    mask=torch.tensor([[True, True]]),
+                    relations=relation_table,
+                    query_ids=["sample"],
+                )
+            assert random.getstate() == configured_random_state
+
+        assert seen_conditioners == [configured, configured, configured, configured]
+        assert configured.relationship_table["sample"] == configured_order
+    finally:
+        random.setstate(original_random_state)
 
 
 def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:

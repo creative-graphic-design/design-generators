@@ -48,10 +48,11 @@ def test_tokenizer_decode_valid_buckets_is_batch_invariant() -> None:
 def test_tokenizer_decode_matches_vendor_oov_and_clipping() -> None:
     """Decode a synthetic five-item sequence for OOV and clipping behavior.
 
-    This mirrors ``vendor/ralf/image2layout/train/helpers/layout_tokenizer.py``:
-    ``_detect_oov`` validates offset-adjusted geometry against ``N_bbox`` at
-    lines 200-211, and ``decode`` clips bucket indices in ``BaseBucketizer`` at
-    lines 58-60 before the sequence-level invalid handling at lines 390-401.
+    ``_detect_oov`` validates offset-adjusted geometry against ``N_bbox`` in
+    ``vendor/ralf/image2layout/train/helpers/layout_tokenizer.py`` at lines
+    200-211. ``decode`` clips bucket indices in
+    ``vendor/ralf/image2layout/train/helpers/bucketizer.py`` at lines 58-60,
+    before sequence-level invalid handling at layout-tokenizer lines 390-401.
     """
     tokenizer = RalfLayoutTokenizer(
         RalfConfig(
