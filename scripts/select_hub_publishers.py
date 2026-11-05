@@ -130,6 +130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error(
                 "--check-freshness requires --package-directory and --event-revision"
             )
+
         if args.base is not None or args.head is not None:
             parser.error("--check-freshness cannot be combined with --base or --head")
 
