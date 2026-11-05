@@ -404,4 +404,4 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         )
 
     def _runtime_device(self) -> torch.device:
-        return self.device or next(self.scorer.parameters()).device
+        return self.device
