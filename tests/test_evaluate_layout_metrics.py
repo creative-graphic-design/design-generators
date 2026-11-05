@@ -19,7 +19,7 @@ def test_evaluate_layout_metrics_match_layout_dm_vendor() -> None:
         )
 
     script_path = (
-        Path(__file__).parents[1] / "scripts/verify_evaluate_layout_metrics.py"
+        Path(__file__).parents[1] / "scripts" / "verify_evaluate_layout_metrics.py"
     )
     spec = importlib.util.spec_from_file_location(
         "verify_evaluate_layout_metrics", script_path

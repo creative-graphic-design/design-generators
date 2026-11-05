@@ -58,13 +58,15 @@ def main() -> None:
     parser.add_argument(
         "--vendor-dir",
         type=Path,
-        default=Path("vendor/const-layout"),
+        default=Path("vendor") / "const-layout",
         help="Path to the original const-layout repository checkout.",
     )
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=Path(".cache/layoutganpp/original/layoutganpp_rico.pth.tar"),
+        default=(
+            Path(".cache") / "layoutganpp" / "original" / "layoutganpp_rico.pth.tar"
+        ),
         help=(
             "Original checkpoint to load. The dataset is read from the checkpoint "
             "args, so changing this path selects the matching dataset."
@@ -73,7 +75,9 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".cache/layoutganpp/fixtures/rico/reference_seed0.pt"),
+        default=(
+            Path(".cache") / "layoutganpp" / "fixtures" / "rico" / "reference_seed0.pt"
+        ),
         help="Output .pt fixture consumed by tests/vendor_parity.",
     )
     parser.add_argument(

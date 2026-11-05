@@ -161,7 +161,7 @@ def write_full_run_checkpoint_evidence(
         ),
         encoding="utf-8",
     )
-    manifest = root / ".cache/pkg/full-run/manifest.json"
+    manifest = root / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         json.dumps(
@@ -957,7 +957,7 @@ Package training reproduction is achieved with training-seed n=3.
     write_checkpoint_grandfather_baseline(
         tmp_path, path, path.read_text(encoding="utf-8")
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text('{"source_commit":"existing"}\n', encoding="utf-8")
 
@@ -1028,10 +1028,10 @@ def test_pre_rule_full_run_checkpoint_passes_with_unreachable_source_commit(
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     source_commit = json.loads(manifest.read_text(encoding="utf-8"))["source_commit"]
     manifest.unlink()
-    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    training_md = tmp_path / "models" / "layout-dm" / "TRAINING.md"
     original = training_md.read_text(encoding="utf-8")
     unreachable_commit = "f" * 40
     updated = original.replace(
@@ -1052,7 +1052,7 @@ def test_pre_rule_full_run_checkpoint_requires_smoke_command_to_be_not_required(
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
-    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    training_md = tmp_path / "models" / "layout-dm" / "TRAINING.md"
     original = training_md.read_text(encoding="utf-8")
     updated = original.replace(
         "| S3 | `uv run pytest s3-trajectory` | `not required` |",
@@ -1116,7 +1116,7 @@ def test_pre_rule_s5_claim_without_smoke_or_full_run_checkpoint_fails(
         f"Package training reproduction is achieved with training-seed n=3.\n"
         f"{table}",
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         '{"config":"models/layout-dm/configs/training/full.yaml",'
@@ -1193,7 +1193,7 @@ def test_pre_rule_full_run_checkpoint_rejects_manifest_mismatch(tmp_path: Path) 
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
     manifest_data["source_commit"] = "0" + manifest_data["source_commit"]
     manifest.write_text(
@@ -1339,7 +1339,9 @@ def test_checkpoint_smoke_accepts_an_unmonitored_top_k_callback(
 ) -> None:
     table = complete_stage_evidence_table()
     path = write_training_md(tmp_path, "layout-dm", table)
-    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path = (
+        tmp_path / "models" / "layout-dm" / "configs" / "training" / "full.yaml"
+    )
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
             "monitor: val_loss", "monitor: null"
@@ -1363,7 +1365,9 @@ def test_checkpoint_smoke_accepts_the_implicit_default_top_k_callback(
         ".cache/pkg/s3/checkpoints/epoch=0-step=2.ckpt",
     )
     path = write_training_md(tmp_path, "layout-dm", table)
-    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path = (
+        tmp_path / "models" / "layout-dm" / "configs" / "training" / "full.yaml"
+    )
     config_path.write_text("trainer:\n  enable_checkpointing: true\n", encoding="utf-8")
     evidence, _duplicates = check_training_stage_evidence.parse_stage_evidence(
         path.read_text(encoding="utf-8")
@@ -1377,7 +1381,9 @@ def test_checkpoint_smoke_accepts_the_implicit_default_top_k_callback(
 def test_checkpoint_smoke_rejects_disabled_checkpointing(tmp_path: Path) -> None:
     table = complete_stage_evidence_table()
     path = write_training_md(tmp_path, "layout-dm", table)
-    config_path = tmp_path / "models/layout-dm/configs/training/full.yaml"
+    config_path = (
+        tmp_path / "models" / "layout-dm" / "configs" / "training" / "full.yaml"
+    )
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
             "trainer:\n", "trainer:\n  enable_checkpointing: false\n"
@@ -1400,7 +1406,7 @@ def test_checkpoint_smoke_config_must_match_launch_manifest(tmp_path: Path) -> N
         "layout-dm",
         f"# Training\n\n## Reproduction Results\n\nS5 is reproduced.\n{table}",
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         '{"config":"models/layout-dm/configs/training/other.yaml"}\n',
@@ -1427,7 +1433,7 @@ Package training reproduction is achieved with training-seed n=3.
 {complete_stage_evidence_table()}
 """,
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         '{"config":"models/layout-dm/configs/training/full.yaml"}\n',
@@ -1453,7 +1459,7 @@ Package training reproduction is achieved with training-seed n=3.
 {complete_stage_evidence_table()}
 """,
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest = tmp_path / ".cache" / "pkg" / "full-run" / "manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         '{"config":{"shipped_source":"models/layout-dm/configs/training/full.yaml"}}\n',
@@ -1471,7 +1477,7 @@ def test_repository_training_evidence_includes_layoutganpp_s5_smokes() -> None:
         )
         == 0
     )
-    layoutganpp_training = (root / "models/layoutganpp/TRAINING.md").read_text(
+    layoutganpp_training = (root / "models" / "layoutganpp" / "TRAINING.md").read_text(
         encoding="utf-8"
     )
     assert check_training_stage_evidence.has_s5_claim(layoutganpp_training)

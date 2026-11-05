@@ -7,7 +7,7 @@ from laygen.common.testing import skip_or_fail_vendor_parity
 
 @pytest.mark.vendor_parity
 def test_dlt_inference_reference_assets_present() -> None:
-    reference = Path(".cache/dlt/reference/publaynet-all.json")
+    reference = Path(".cache") / "dlt" / "reference" / "publaynet-all.json"
     if not reference.exists():
         skip_or_fail_vendor_parity(
             "DLT inference parity reference metadata is absent.",

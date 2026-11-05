@@ -45,19 +45,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache-root",
         type=Path,
-        default=Path(".cache/layout-diffusion"),
+        default=Path(".cache") / "layout-diffusion",
         help="Local LayoutDiffusion cache root.",
     )
     parser.add_argument(
         "--vendor-source",
         type=Path,
-        default=Path("vendor/ms-layout-generation/LayoutDiffusion/improved-diffusion"),
+        default=(
+            Path("vendor")
+            / "ms-layout-generation"
+            / "LayoutDiffusion"
+            / "improved-diffusion"
+        ),
         help="Read-only vendor improved-diffusion source tree.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-diffusion/references"),
+        default=Path(".cache") / "layout-diffusion" / "references",
         help="Directory for generated parity references.",
     )
     parser.add_argument("--seed", type=int, default=101)
@@ -73,7 +78,7 @@ def main() -> None:
     vendor_work = prepare_vendor_tree(args.vendor_source, args.cache_root)
     for dataset in datasets:
         checkpoint_dir = (
-            args.cache_root / "original/results/checkpoint" / DATASETS[dataset]
+            args.cache_root / "original" / "results" / "checkpoint" / DATASETS[dataset]
         ).resolve()
         artifacts = validate_checkpoint_artifacts(checkpoint_dir)
         checkpoint = find_ema_checkpoint(checkpoint_dir)
@@ -139,14 +144,16 @@ def prepare_vendor_tree(vendor_source: Path, cache_root: Path) -> Path:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
     data_link = run_root / "data"
-    data_source = cache_root / "original/data"
+    data_source = cache_root / "original" / "data"
     if data_link.exists() or data_link.is_symlink():
         if data_link.resolve() != data_source.resolve():
             raise RuntimeError(f"Unexpected data link target: {data_link}")
     else:
         data_link.symlink_to(data_source, target_is_directory=True)
     (run_root / "results").mkdir(exist_ok=True)
-    patch_discrete_diffusion(vendor_work / "improved_diffusion/discrete_diffusion.py")
+    patch_discrete_diffusion(
+        vendor_work / "improved_diffusion" / "discrete_diffusion.py"
+    )
     return vendor_work
 
 

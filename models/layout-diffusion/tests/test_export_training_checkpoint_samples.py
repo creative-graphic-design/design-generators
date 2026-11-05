@@ -17,8 +17,11 @@ from layout_diffusion.training.lightning_module import (
 
 pytestmark = pytest.mark.training
 
-SCRIPT_PATH = Path(
-    "models/layout-diffusion/scripts/export_training_checkpoint_samples.py"
+SCRIPT_PATH = (
+    Path("models")
+    / "layout-diffusion"
+    / "scripts"
+    / "export_training_checkpoint_samples.py"
 )
 CheckpointValue = (
     dict[str, torch.Tensor] | torch.Tensor | int | float | str | bool | None

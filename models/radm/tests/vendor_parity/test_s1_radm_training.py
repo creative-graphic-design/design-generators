@@ -188,7 +188,7 @@ def _require_reference_state(text_root: Path) -> ReferenceTrainingState:
     _assert_vendor_revision()
     try:
         return RADMReferenceAdapter(
-            vendor_root=Path("vendor/radm"),
+            vendor_root=Path("vendor") / "radm",
             text_feature_root=text_root,
             device=os.environ.get("RADM_REFERENCE_DEVICE", "cpu"),
         ).build_initialized_state()
@@ -237,7 +237,7 @@ def _build_source_fixture(
             },
         ]
 
-    with _vendor_import_root(Path("vendor/radm")), _legacy_pillow_compat():
+    with _vendor_import_root(Path("vendor") / "radm"), _legacy_pillow_compat():
         import importlib
 
         mapper = importlib.import_module("RADM.dataset_mapper").RADMDatasetMapper(
@@ -388,12 +388,12 @@ def test_s1_radm_real_batch16_backbone_bitwise_parity() -> None:
             pytest.fail(message)
         pytest.skip(message)
     state = RADMReferenceAdapter(
-        vendor_root=Path("vendor/radm"),
+        vendor_root=Path("vendor") / "radm",
         dataset_root=data_root,
         text_feature_root=text_root,
         device=os.environ.get("RADM_REFERENCE_DEVICE", "cpu"),
     ).build_initialized_state()
-    with _vendor_import_root(Path("vendor/radm")), _legacy_pillow_compat():
+    with _vendor_import_root(Path("vendor") / "radm"), _legacy_pillow_compat():
         checkpointer = importlib.import_module(
             "detectron2.checkpoint"
         ).DetectionCheckpointer(state.model)
@@ -2019,8 +2019,12 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
         evidence = {
             "vendor_revision": _VENDOR_REVISION,
             "config_sha256": hashlib.sha256(
-                Path(
-                    "models/radm/configs/training/effective_radm_config.yaml"
+                (
+                    Path("models")
+                    / "radm"
+                    / "configs"
+                    / "training"
+                    / "effective_radm_config.yaml"
                 ).read_bytes()
             ).hexdigest(),
             "seed": _SEED,
@@ -2125,8 +2129,12 @@ def test_s2_radm_one_optimizer_step_parity() -> None:
         evidence = {
             "vendor_revision": _VENDOR_REVISION,
             "config_sha256": hashlib.sha256(
-                Path(
-                    "models/radm/configs/training/effective_radm_config.yaml"
+                (
+                    Path("models")
+                    / "radm"
+                    / "configs"
+                    / "training"
+                    / "effective_radm_config.yaml"
                 ).read_bytes()
             ).hexdigest(),
             "seed": _SEED,
@@ -2398,8 +2406,12 @@ def _run_s3_radm_mode(mode: str, run_root: Path) -> dict[str, Any]:
             "run_root": run_root.as_posix(),
             "vendor_revision": _VENDOR_REVISION,
             "config_sha256": hashlib.sha256(
-                Path(
-                    "models/radm/configs/training/effective_radm_config.yaml"
+                (
+                    Path("models")
+                    / "radm"
+                    / "configs"
+                    / "training"
+                    / "effective_radm_config.yaml"
                 ).read_bytes()
             ).hexdigest(),
             "seed": _SEED,

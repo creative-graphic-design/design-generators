@@ -291,11 +291,11 @@ def _load_vendor_rows(
         from utils.util import load_config
 
         cfg = load_config("configs/pku.yaml")
-        cfg.paths.train.inp_dir = str(data_root / "train/inpaint")
-        cfg.paths.train.sal_dir = str(data_root / "train/saliency")
-        cfg.paths.train.sal_sub_dir = str(data_root / "train/saliency_sub")
-        cfg.paths.train.annotated_dir = str(data_root / "csv/train.csv")
-        cfg.paths.train.salbox_dir = str(data_root / "csv/train_sal.csv")
+        cfg.paths.train.inp_dir = str(data_root / "train" / "inpaint")
+        cfg.paths.train.sal_dir = str(data_root / "train" / "saliency")
+        cfg.paths.train.sal_sub_dir = str(data_root / "train" / "saliency_sub")
+        cfg.paths.train.annotated_dir = str(data_root / "csv" / "train.csv")
+        cfg.paths.train.salbox_dir = str(data_root / "csv" / "train_sal.csv")
         dataset = train_dataset(cfg)
         return [dataset[index] for index in range(min(count, len(dataset)))]
     finally:

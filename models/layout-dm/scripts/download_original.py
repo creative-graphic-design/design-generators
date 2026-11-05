@@ -23,7 +23,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-dm/original"),
+        default=Path(".cache") / "layout-dm" / "original",
         help=(
             "Directory that stores layoutdm_starter.zip and the extracted "
             "`download/` tree. From models/layout-dm, use "

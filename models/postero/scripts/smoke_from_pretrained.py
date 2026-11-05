@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--work-dir",
         type=Path,
-        default=Path("artifacts/postero-smoke"),
+        default=Path("artifacts") / "postero-smoke",
         help="Directory used for the temporary saved prompt config.",
     )
     return parser.parse_args()

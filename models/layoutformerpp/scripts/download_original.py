@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layoutformerpp/original"),
+        default=Path(".cache") / "layoutformerpp" / "original",
         help=(
             "Destination directory for the downloaded snapshot. "
             "Default: .cache/layoutformerpp/original"

@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vendor-root",
         type=Path,
-        default=Path("vendor/ms-layout-generation/Coarse-to-Fine"),
+        default=Path("vendor") / "ms-layout-generation" / "Coarse-to-Fine",
         help="Initialized Coarse-to-Fine vendor checkout.",
     )
     return parser.parse_args()

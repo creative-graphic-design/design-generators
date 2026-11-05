@@ -62,7 +62,7 @@ def test_statistics_load_save_mapping_and_direct_fid(tmp_path):
         feature_dim=2,
         num_samples=3,
     )
-    path = tmp_path / "reference_stats/test.npz"
+    path = tmp_path / "reference_stats" / "test.npz"
     save_reference_statistics(path, stats)
     loaded = load_reference_statistics(path)
     assert loaded.num_samples == 3

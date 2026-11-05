@@ -3332,7 +3332,14 @@ def run_s3_self_repeat(repeat: int, json_path: Path, state_path: Path) -> None:
 
 
 def run_s3_production_wiring() -> Path:
-    config_path = ROOT / "models/ds-gan/configs/training/ds_gan_pku_posterlayout.yaml"
+    config_path = (
+        ROOT
+        / "models"
+        / "ds-gan"
+        / "configs"
+        / "training"
+        / "ds_gan_pku_posterlayout.yaml"
+    )
     config_text = config_path.read_text()
     required_config_fragments = (
         "class_path: lightning.pytorch.loggers.CSVLogger",
@@ -4803,18 +4810,20 @@ def run_s4() -> Path:
         raw_vendor_output_root = EVIDENCE / "s4-evaluation" / "vendor-raw-output"
         raw_vendor_output_root.mkdir(parents=True, exist_ok=True)
         shutil.copy2(
-            vendor_root / "output/clses-Epoch300.pt",
+            vendor_root / "output" / "clses-Epoch300.pt",
             raw_vendor_output_root / "clses-Epoch300.pt",
         )
         shutil.copy2(
-            vendor_root / "output/boxes-Epoch300.pt",
+            vendor_root / "output" / "boxes-Epoch300.pt",
             raw_vendor_output_root / "boxes-Epoch300.pt",
         )
         torch.save(
-            vendor_classes_full[: len(names)], vendor_root / "output/clses-Epoch300.pt"
+            vendor_classes_full[: len(names)],
+            vendor_root / "output" / "clses-Epoch300.pt",
         )
         torch.save(
-            vendor_boxes_full[: len(names)], vendor_root / "output/boxes-Epoch300.pt"
+            vendor_boxes_full[: len(names)],
+            vendor_root / "output" / "boxes-Epoch300.pt",
         )
         vendor_classes = np.squeeze(vendor_classes_full[: len(names)], axis=-1)
         vendor_boxes = vendor_boxes_full[: len(names)] * np.asarray(
@@ -4895,11 +4904,11 @@ def run_s4() -> Path:
     )
     torch.save(
         package_classes_raw_array[: len(names), ..., np.newaxis],
-        package_eval_root / "output/clses-Epoch300.pt",
+        package_eval_root / "output" / "clses-Epoch300.pt",
     )
     torch.save(
         package_boxes_for_eval[: len(names)],
-        package_eval_root / "output/boxes-Epoch300.pt",
+        package_eval_root / "output" / "boxes-Epoch300.pt",
     )
     with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as package_metrics_dir:
         package_metrics_root = Path(package_metrics_dir)

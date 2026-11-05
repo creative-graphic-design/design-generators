@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path[:0] = [
-    str(ROOT / "models/layoutganpp/src"),
-    str(ROOT / "lib/laygen/src"),
+    str(ROOT / "models" / "layoutganpp" / "src"),
+    str(ROOT / "lib" / "laygen" / "src"),
 ]
 
 from layoutganpp import LayoutGANPPPipeline  # noqa: E402
@@ -67,7 +67,7 @@ def main() -> None:
     dataset = LayoutGANPPDataset(
         dataset_name=args.dataset,
         split="test",
-        data_root=ROOT / ".cache/layoutganpp/data" / args.dataset,
+        data_root=ROOT / ".cache" / "layoutganpp" / "data" / args.dataset,
         synthetic_size=0,
         seed=0,
     )

@@ -133,7 +133,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-corrector/original"),
+        default=Path(".cache") / "layout-corrector" / "original",
         help=(
             "Directory for layout_corrector_starter.zip and the extracted "
             "layout_corrector_starter_kit directory."

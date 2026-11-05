@@ -46,8 +46,8 @@ def _pipeline_saliency_as_vendor_png(
 
 def test_converted_pipeline_matches_vendor_reference_artifacts():
     _configure_torch_determinism()
-    reference_dir = Path(".cache/smarttext/references")
-    checkpoint_dir = Path(".cache/smarttext/converted/smarttext-smt")
+    reference_dir = Path(".cache") / "smarttext" / "references"
+    checkpoint_dir = Path(".cache") / "smarttext" / "converted" / "smarttext-smt"
     required = [
         "meta.json",
         "candidates.json",

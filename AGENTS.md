@@ -109,6 +109,7 @@
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
+- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories.
 - `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
 - `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
 - `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.

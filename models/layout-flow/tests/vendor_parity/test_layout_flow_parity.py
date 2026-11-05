@@ -24,7 +24,7 @@ CHECKPOINT_DIR = ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
 def _load_vendor_backbone():
     vendor_dir = vendor_root(
         "layout-flow",
-        marker=Path("src/models/backbone/layoutdm_backbone.py"),
+        marker=Path("src") / "models" / "backbone" / "layoutdm_backbone.py",
         repo_root=ROOT,
     )
     sys.path.insert(0, str(vendor_dir))

@@ -55,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--vendor-root", type=Path, default=Path("vendor/layout-transformer")
+        "--vendor-root", type=Path, default=Path("vendor") / "layout-transformer"
     )
     parser.add_argument("--cfg-path", type=Path, required=True)
     parser.add_argument("--checkpoint-path", type=Path, required=True)

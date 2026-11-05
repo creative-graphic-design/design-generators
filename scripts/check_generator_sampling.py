@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN_GLOBS = ("lib/*/src/**/*.py", "models/*/src/**/*.py")
-HELPER_PATH = Path("lib/laygen/src/laygen/common/randomness.py")
+HELPER_PATH = Path("lib") / "laygen" / "src" / "laygen" / "common" / "randomness.py"
 TORCH_DRAW_NAMES = frozenset(
     {
         "bernoulli",

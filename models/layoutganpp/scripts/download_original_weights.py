@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layoutganpp/original"),
+        default=Path(".cache") / "layoutganpp" / "original",
         help="Directory where downloaded .pth.tar files are stored.",
     )
     parser.add_argument(

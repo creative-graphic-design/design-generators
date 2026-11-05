@@ -24,20 +24,20 @@ def _layoutflow_root() -> Path:
     import os
 
     return Path(
-        os.environ.get("LAYOUT_FID_LAYOUTFLOW_ROOT", ROOT / "vendor/layout-flow")
+        os.environ.get("LAYOUT_FID_LAYOUTFLOW_ROOT", ROOT / "vendor" / "layout-flow")
     )
 
 
 def _load_layoutnet():
     source_root = _layoutflow_root()
-    fid_model = source_root / "src/utils/fid_model.py"
+    fid_model = source_root / "src" / "utils" / "fid_model.py"
     if not fid_model.exists():
         skip_or_fail_vendor_parity(
             "LayoutFlow source is missing",
             missing_paths=[fid_model],
             regeneration_hint="set LAYOUT_FID_LAYOUTFLOW_ROOT to an initialized LayoutFlow checkout",
         )
-    sys.path.insert(0, str(source_root / "src/utils"))
+    sys.path.insert(0, str(source_root / "src" / "utils"))
     from fid_model import LayoutNet
 
     return LayoutNet

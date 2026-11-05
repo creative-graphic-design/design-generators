@@ -23,13 +23,13 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "original" / "data" / "rico",
         help="Original TFRecord directory (default: %(default)s).",
     )
     parser.add_argument(
         "--job-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/original/jobs/rico-seed0"),
+        default=Path(".cache") / "canvas-vae" / "original" / "jobs" / "rico-seed0",
         help="Output directory for logs, checkpoints, and test results (default: %(default)s).",
     )
     parser.add_argument(

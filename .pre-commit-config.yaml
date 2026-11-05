@@ -86,6 +86,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: path-components
+        name: Python path components
+        entry: uv run --locked --package design-generators scripts/check_path_components.py
+        language: system
+        pass_filenames: false
+
       - id: jaxtyping-annotations
         name: jaxtyping annotations
         entry: uv run --locked --package devharness devharness check jaxtyping-annotations

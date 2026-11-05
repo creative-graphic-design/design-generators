@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("artifacts/postero-prompt-config"),
+        default=Path("artifacts") / "postero-prompt-config",
         help="Directory that will receive postero_config.json.",
     )
     parser.add_argument(

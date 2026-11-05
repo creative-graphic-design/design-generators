@@ -26,8 +26,8 @@ def _configure_torch_determinism() -> None:
 
 def test_converted_basnet_matches_reference_saliency():
     _configure_torch_determinism()
-    reference_path = Path(".cache/basnet/references/saliency.pt")
-    checkpoint_dir = Path(".cache/basnet/converted/basnet-gdi")
+    reference_path = Path(".cache") / "basnet" / "references" / "saliency.pt"
+    checkpoint_dir = Path(".cache") / "basnet" / "converted" / "basnet-gdi"
     if not reference_path.exists():
         _skip_or_fail(f"BASNet reference saliency tensor missing: {reference_path}")
     if not checkpoint_dir.exists():

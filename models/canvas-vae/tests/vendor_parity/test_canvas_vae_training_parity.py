@@ -89,14 +89,14 @@ class RecordingCrossEpochBatchSampler(CrossEpochBatchSampler):
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
-CACHE = Path(".cache/canvas-vae")
+CACHE = Path(".cache") / "canvas-vae"
 REFERENCE = Path(os.environ.get("CANVAS_VAE_REFERENCE_DIR", CACHE / "reference"))
 DATA_DIR = Path(os.environ.get("CANVAS_VAE_DATA_DIR", CACHE / "data" / "rico"))
 ARCHIVE = Path(
     os.environ.get("CANVAS_VAE_ARCHIVE", CACHE / "data" / "semantic_annotations.zip")
 )
 REPORTS = REFERENCE / "reports"
-CONFIG_DIR = Path("models/canvas-vae/configs/training")
+CONFIG_DIR = Path("models") / "canvas-vae" / "configs" / "training"
 CALIBRATION_MODE = os.environ.get("CANVAS_VAE_PARITY_CALIBRATE") == "1"
 REGENERATE = (
     "uv run --package canvas-vae --extra vendor "

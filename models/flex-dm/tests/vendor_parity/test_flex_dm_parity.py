@@ -18,14 +18,24 @@ from flex_dm.masking import iterative_decode
 
 EXPECTED_CONVERSIONS = {
     "crello": {
-        "report": Path(
-            ".cache/flex-dm/converted/flex-dm-crello/conversion_report.json"
+        "report": (
+            Path(".cache")
+            / "flex-dm"
+            / "converted"
+            / "flex-dm-crello"
+            / "conversion_report.json"
         ),
         "matched_tensor_count": 98,
         "matched_parameter_count": 2_812_257,
     },
     "rico": {
-        "report": Path(".cache/flex-dm/converted/flex-dm-rico/conversion_report.json"),
+        "report": (
+            Path(".cache")
+            / "flex-dm"
+            / "converted"
+            / "flex-dm-rico"
+            / "conversion_report.json"
+        ),
         "matched_tensor_count": 88,
         "matched_parameter_count": 2_296_679,
     },
@@ -33,17 +43,27 @@ EXPECTED_CONVERSIONS = {
 
 EXPECTED_REFERENCES = {
     "crello": {
-        "path": Path(
-            ".cache/flex-dm/goldens/crello-ours-exp-ft/reference_results.json"
+        "path": (
+            Path(".cache")
+            / "flex-dm"
+            / "goldens"
+            / "crello-ours-exp-ft"
+            / "reference_results.json"
         ),
-        "checkpoint_dir": Path(".cache/flex-dm/converted/flex-dm-crello"),
+        "checkpoint_dir": Path(".cache") / "flex-dm" / "converted" / "flex-dm-crello",
         "tasks": ["elem", "pos", "attr", "img", "txt"],
         "task_cases": 10,
         "max_logit_atol": 1.1e-5,
     },
     "rico": {
-        "path": Path(".cache/flex-dm/goldens/rico-ours-exp-ft/reference_results.json"),
-        "checkpoint_dir": Path(".cache/flex-dm/converted/flex-dm-rico"),
+        "path": (
+            Path(".cache")
+            / "flex-dm"
+            / "goldens"
+            / "rico-ours-exp-ft"
+            / "reference_results.json"
+        ),
+        "checkpoint_dir": Path(".cache") / "flex-dm" / "converted" / "flex-dm-rico",
         "tasks": ["elem", "pos", "attr"],
         "task_cases": 6,
         "max_logit_atol": 5.5e-6,
@@ -52,35 +72,51 @@ EXPECTED_REFERENCES = {
 
 EXPECTED_LAYER_PROBES = {
     "crello-attr": {
-        "path": Path(".cache/flex-dm/probes/crello-attr/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "crello-attr" / "torch_compare.json"
+        ),
         "max_logit_atol": 1.1e-5,
     },
     "crello-elem": {
-        "path": Path(".cache/flex-dm/probes/crello-elem/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "crello-elem" / "torch_compare.json"
+        ),
         "max_logit_atol": 8.0e-6,
     },
     "crello-img": {
-        "path": Path(".cache/flex-dm/probes/crello-img/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "crello-img" / "torch_compare.json"
+        ),
         "max_logit_atol": 6.0e-6,
     },
     "crello-pos": {
-        "path": Path(".cache/flex-dm/probes/crello-pos/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "crello-pos" / "torch_compare.json"
+        ),
         "max_logit_atol": 1.0e-5,
     },
     "crello-txt": {
-        "path": Path(".cache/flex-dm/probes/crello-txt/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "crello-txt" / "torch_compare.json"
+        ),
         "max_logit_atol": 2.5e-6,
     },
     "rico-attr": {
-        "path": Path(".cache/flex-dm/probes/rico-attr/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "rico-attr" / "torch_compare.json"
+        ),
         "max_logit_atol": 4.0e-6,
     },
     "rico-elem": {
-        "path": Path(".cache/flex-dm/probes/rico-elem/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "rico-elem" / "torch_compare.json"
+        ),
         "max_logit_atol": 4.0e-6,
     },
     "rico-pos": {
-        "path": Path(".cache/flex-dm/probes/rico-pos/torch_compare.json"),
+        "path": (
+            Path(".cache") / "flex-dm" / "probes" / "rico-pos" / "torch_compare.json"
+        ),
         "max_logit_atol": 2.5e-6,
     },
 }

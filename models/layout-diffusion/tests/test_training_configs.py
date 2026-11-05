@@ -3,9 +3,13 @@ from pathlib import Path
 
 import pytest
 
-CONFIG_DIR = Path("models/layout-diffusion/configs/training")
-REFERENCE_GENERATOR = Path(
-    "models/layout-diffusion/tests/vendor_parity/layout_diffusion_training_reference.py"
+CONFIG_DIR = Path("models") / "layout-diffusion" / "configs" / "training"
+REFERENCE_GENERATOR = (
+    Path("models")
+    / "layout-diffusion"
+    / "tests"
+    / "vendor_parity"
+    / "layout_diffusion_training_reference.py"
 )
 ORIGINAL_AUXILIARY_LOSS_WEIGHT = 1e-3
 

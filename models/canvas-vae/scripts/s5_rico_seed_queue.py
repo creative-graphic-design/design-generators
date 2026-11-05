@@ -21,7 +21,11 @@ from typing import TypeAlias, TypedDict
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MANIFEST = (
     REPOSITORY_ROOT
-    / "models/canvas-vae/configs/training/s5_rico_launch_manifest.template.json"
+    / "models"
+    / "canvas-vae"
+    / "configs"
+    / "training"
+    / "s5_rico_launch_manifest.template.json"
 )
 BLOCKED_EXIT = 78
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")

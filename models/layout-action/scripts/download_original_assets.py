@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-action/original"),
+        default=Path(".cache") / "layout-action" / "original",
         help="Directory where assets and asset_manifest.json are stored.",
     )
     parser.add_argument(

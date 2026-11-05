@@ -48,7 +48,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "semantic_blank_lines_baseline.txt"
-BASELINE_RELATIVE_PATH = Path("scripts/semantic_blank_lines_baseline.txt")
+BASELINE_RELATIVE_PATH = Path("scripts") / "semantic_blank_lines_baseline.txt"
 MAX_CONSECUTIVE_STATEMENTS = 15
 CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally"})
 ESTABLISHED_RULE_PREFIX = "# Established rule:"

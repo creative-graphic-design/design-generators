@@ -77,7 +77,7 @@ print(json.dumps({
 }))
 """.replace("BLOCK_LIGHTNING", repr(block_lightning), 1)
     environment = os.environ.copy()
-    source_path = str(repository_root / "models/radm/src")
+    source_path = str(repository_root / "models" / "radm" / "src")
     environment["PYTHONPATH"] = os.pathsep.join(
         path for path in (source_path, environment.get("PYTHONPATH", "")) if path
     )
@@ -96,7 +96,13 @@ def test_s0_training_namespace_respects_optional_lightning() -> None:
     """Import training classes only when the optional dependency is present."""
     repository_root = Path(__file__).parents[3]
     namespace_source = (
-        repository_root / "models/radm/src/radm/training/__init__.py"
+        repository_root
+        / "models"
+        / "radm"
+        / "src"
+        / "radm"
+        / "training"
+        / "__init__.py"
     ).read_text(encoding="utf-8")
 
     assert (
@@ -108,7 +114,7 @@ def test_s0_training_namespace_respects_optional_lightning() -> None:
     assert "__getattr__" not in namespace_source
     assert "globals(" not in namespace_source
 
-    training_root = repository_root / "models/radm/src/radm/training"
+    training_root = repository_root / "models" / "radm" / "src" / "radm" / "training"
 
     for source_path in sorted(training_root.glob("*.py")):
         source_text = source_path.read_text(encoding="utf-8")
@@ -119,7 +125,9 @@ def test_s0_training_namespace_respects_optional_lightning() -> None:
         assert "globals(" not in source_text, source_path
 
     for config_path in sorted(
-        (repository_root / "models/radm/configs/training").glob("radm_*.yaml")
+        (repository_root / "models" / "radm" / "configs" / "training").glob(
+            "radm_*.yaml"
+        )
     ):
         config_text = config_path.read_text(encoding="utf-8")
         assert "radm.training.lightning_module.RADMTrainingModule" in config_text
@@ -153,7 +161,7 @@ def test_s0_training_namespace_respects_optional_lightning() -> None:
 def test_s0_runtime_source_uses_package_neutral_language() -> None:
     """Keep reference-stack wording out of runtime and training source."""
     repository_root = Path(__file__).parents[3]
-    source_root = repository_root / "models/radm/src/radm"
+    source_root = repository_root / "models" / "radm" / "src" / "radm"
     violations: list[str] = []
     for source_path in sorted(source_root.rglob("*.py")):
         if source_path.name == "conversion.py":
@@ -176,7 +184,9 @@ def test_s0_optimizer_is_the_only_gradient_clipping_owner() -> None:
     """Disable Lightning clipping while retaining captured optimizer clipping."""
     repository_root = Path(__file__).parents[3]
     config_paths = sorted(
-        (repository_root / "models/radm/configs/training").glob("radm_*.yaml")
+        (repository_root / "models" / "radm" / "configs" / "training").glob(
+            "radm_*.yaml"
+        )
     )
     assert config_paths
     for config_path in config_paths:
@@ -184,7 +194,7 @@ def test_s0_optimizer_is_the_only_gradient_clipping_owner() -> None:
         assert "gradient_clip_val: 0.0" in config_text, config_path
         assert "gradient_clip_algorithm" not in config_text, config_path
     optimizer_text = (
-        repository_root / "models/radm/src/radm/training/optim.py"
+        repository_root / "models" / "radm" / "src" / "radm" / "training" / "optim.py"
     ).read_text(encoding="utf-8")
     assert "clip_grad_norm_" in optimizer_text
 
@@ -235,7 +245,7 @@ def test_s0_forward_parity_checks_derived_diffusion_outputs() -> None:
 def test_s0_training_doc_records_accepted_topology_evidence() -> None:
     """Keep the durable static record aligned with the recorded evidence."""
     repository_root = Path(__file__).parents[3]
-    training_doc = (repository_root / "models/radm/TRAINING.md").read_text(
+    training_doc = (repository_root / "models" / "radm" / "TRAINING.md").read_text(
         encoding="utf-8"
     )
     normalized_doc = training_doc.casefold()
@@ -253,7 +263,12 @@ def test_s0_real_topology_test_invokes_package_topology_guard() -> None:
     """Keep the real-model test on the package-side static topology guard."""
     repository_root = Path(__file__).parents[3]
     topology_test = (
-        repository_root / "models/radm/tests/vendor_parity/test_s0_radm_topology.py"
+        repository_root
+        / "models"
+        / "radm"
+        / "tests"
+        / "vendor_parity"
+        / "test_s0_radm_topology.py"
     ).read_text(encoding="utf-8")
     assert "assert_radm_package_topology" in topology_test
     assert "assert_radm_package_topology(package, state.effective)" in topology_test
@@ -263,7 +278,9 @@ def test_s0_training_surface_excludes_vendor_dependencies_and_language() -> None
     """Keep package-local training independent of the reference stack."""
     repository_root = Path(__file__).parents[3]
     package_metadata = tomllib.loads(
-        (repository_root / "models/radm/pyproject.toml").read_text(encoding="utf-8")
+        (repository_root / "models" / "radm" / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
     )
     training_dependencies = cast(
         list[str], package_metadata["project"]["optional-dependencies"]["training"]
@@ -274,7 +291,7 @@ def test_s0_training_surface_excludes_vendor_dependencies_and_language() -> None
         if any(name in dependency.casefold() for name in _VENDOR_DEPENDENCY_NAMES)
     ]
 
-    source_root = repository_root / "models/radm/src/radm/training"
+    source_root = repository_root / "models" / "radm" / "src" / "radm" / "training"
     source_leaks: list[str] = []
     for source_path in sorted(source_root.rglob("*.py")):
         for line_number, line in enumerate(

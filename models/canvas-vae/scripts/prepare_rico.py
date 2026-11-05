@@ -21,13 +21,13 @@ def main() -> None:
     parser.add_argument(
         "--archive",
         type=Path,
-        default=Path(".cache/canvas-vae/data/semantic_annotations.zip"),
+        default=Path(".cache") / "canvas-vae" / "data" / "semantic_annotations.zip",
         help="RICO semantic-annotation zip (default: %(default)s).",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "data" / "rico",
         help="Prepared split directory (default: %(default)s).",
     )
     args = parser.parse_args()

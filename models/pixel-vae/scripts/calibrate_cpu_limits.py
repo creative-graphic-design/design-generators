@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from pixel_vae.testing import JSONValue
 
-DEFAULT_INPUT_DIR: Final[Path] = Path(".cache/pixel-vae/parity/calibration")
+DEFAULT_INPUT_DIR: Final[Path] = Path(".cache") / "pixel-vae" / "parity" / "calibration"
 DEFAULT_OUTPUT: Final[Path] = DEFAULT_INPUT_DIR / "limits.json"
-DEFAULT_LOWER_BOUNDS: Final[Path] = Path("models/pixel-vae/parity-limit-floors.json")
+DEFAULT_LOWER_BOUNDS: Final[Path] = (
+    Path("models") / "pixel-vae" / "parity-limit-floors.json"
+)
 CALIBRATION_SELECTION_RULE: Final[str] = (
     "deduplicated canonical train PNGs in UTF-8 document_id/source element order; "
     "repeat r uses document-stage indexes [2(r-1), 2r) and filtered training-stage "

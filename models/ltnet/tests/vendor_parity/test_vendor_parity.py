@@ -10,9 +10,9 @@ from ltnet import LTNetForLayoutGeneration
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize("dataset_name", ["coco", "vg_msdn"])
 def test_vendor_reference_matches_local_converted_checkpoint(dataset_name):
-    reference_dir = Path(".cache/ltnet/reference")
+    reference_dir = Path(".cache") / "ltnet" / "reference"
     sample_path = reference_dir / dataset_name / f"{dataset_name}_sample_0.pt"
-    converted_dir = Path(".cache/ltnet/converted") / dataset_name
+    converted_dir = Path(".cache") / "ltnet" / "converted" / dataset_name
     if not sample_path.exists() or not (converted_dir / "config.json").exists():
         skip_or_fail_vendor_parity(
             "Generate vendor references with scripts/export_reference.py first",

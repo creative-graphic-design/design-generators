@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 
-CONFIG_DIR = Path("models/layout-dm/configs/training")
+CONFIG_DIR = Path("models") / "layout-dm" / "configs" / "training"
 
 
 def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:

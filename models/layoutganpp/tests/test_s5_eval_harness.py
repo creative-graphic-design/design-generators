@@ -30,7 +30,7 @@ def test_vendor_harness_refuses_existing_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(VENDOR_RUN, "VENDOR_WORK", tmp_path)
-    output_dir = tmp_path / "output/magazine/LayoutGAN++/existing"
+    output_dir = tmp_path / "output" / "magazine" / "LayoutGAN++" / "existing"
     output_dir.mkdir(parents=True)
     monkeypatch.setattr(
         sys,

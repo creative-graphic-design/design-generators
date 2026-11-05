@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/pixel-vae/converted"),
+        default=Path(".cache") / "pixel-vae" / "converted",
         help="directory for save_pretrained output and conversion metadata (default: .cache/pixel-vae/converted)",
     )
     parser.add_argument(

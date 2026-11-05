@@ -39,8 +39,12 @@ def main() -> None:
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(
-            ".cache/layout-corrector/original/layout_corrector_starter_kit/download"
+        default=(
+            Path(".cache")
+            / "layout-corrector"
+            / "original"
+            / "layout_corrector_starter_kit"
+            / "download"
         ),
         help="Extracted starter-kit download directory.",
     )

@@ -124,7 +124,7 @@ def _vendor_classes() -> tuple[type[torch.nn.Module], type[object]]:
     try:
         vendor_dir = vendor_root(
             "layout-dm",
-            marker=Path("src/trainer/trainer/models/layoutdm.py"),
+            marker=Path("src") / "trainer" / "trainer" / "models" / "layoutdm.py",
             repo_root=ROOT,
         )
     except FileNotFoundError as exc:

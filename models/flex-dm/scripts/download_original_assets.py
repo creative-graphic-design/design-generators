@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/flex-dm/original")
+        "--output-dir", type=Path, default=Path(".cache") / "flex-dm" / "original"
     )
     parser.add_argument(
         "--dataset", choices=["crello", "rico", "all"], default="crello"

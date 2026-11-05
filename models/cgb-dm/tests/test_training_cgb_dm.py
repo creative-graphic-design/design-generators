@@ -19,7 +19,7 @@ from cgb_dm.training.parity import (
 from cgb_dm.training.seed import apply_seed_mode
 
 
-CONFIG_DIR = Path("models/cgb-dm/configs/training")
+CONFIG_DIR = Path("models") / "cgb-dm" / "configs" / "training"
 CONFIG_NAMES = (
     "cgb_dm_cgl.yaml",
     "cgb_dm_cgl_deterministic.yaml",
@@ -200,14 +200,14 @@ def test_source_order_manifest_helpers(tmp_path):
         "csv",
     ]:
         (root / rel).mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (20, 20)).save(root / "train/inpaint/sample.png")
-    Image.new("L", (20, 20)).save(root / "train/saliency/sample.png")
-    Image.new("L", (20, 20)).save(root / "train/saliency_sub/sample.png")
-    (root / "csv/train.csv").write_text(
+    Image.new("RGB", (20, 20)).save(root / "train" / "inpaint" / "sample.png")
+    Image.new("L", (20, 20)).save(root / "train" / "saliency" / "sample.png")
+    Image.new("L", (20, 20)).save(root / "train" / "saliency_sub" / "sample.png")
+    (root / "csv" / "train.csv").write_text(
         'poster_path,box_elem,cls_elem\nsample.png,"[0, 0, 10, 10]",1\n',
         encoding="utf-8",
     )
-    (root / "csv/train_sal.csv").write_text(
+    (root / "csv" / "train_sal.csv").write_text(
         'poster_path,box_elem\nsample.png,"[0, 0, 20, 20]"\n',
         encoding="utf-8",
     )

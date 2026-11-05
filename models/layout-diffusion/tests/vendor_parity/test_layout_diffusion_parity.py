@@ -12,8 +12,8 @@ from layout_diffusion import LayoutDiffusionPipeline
 from layout_diffusion.sampling import LayoutDiffusionSamplingConfig
 
 
-REFERENCE_ROOT = Path(".cache/layout-diffusion/references")
-CONVERTED_ROOT = Path(".cache/layout-diffusion/converted")
+REFERENCE_ROOT = Path(".cache") / "layout-diffusion" / "references"
+CONVERTED_ROOT = Path(".cache") / "layout-diffusion" / "converted"
 DATASETS = ("rico25", "publaynet")
 
 

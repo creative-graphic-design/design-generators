@@ -30,11 +30,11 @@ def test_s0_reference_adapter_is_lazy_and_source_selected() -> None:
     if importlib.util.find_spec("detectron2") is None:
         with pytest.raises(ReferenceUnavailable, match="optional Detectron2"):
             RADMReferenceAdapter(
-                vendor_root=Path("vendor/radm")
+                vendor_root=Path("vendor") / "radm"
             ).build_initialized_state()
     else:
-        adapter = RADMReferenceAdapter(vendor_root=Path("vendor/radm"))
-        assert adapter.vendor_root == Path("vendor/radm")
+        adapter = RADMReferenceAdapter(vendor_root=Path("vendor") / "radm")
+        assert adapter.vendor_root == Path("vendor") / "radm"
 
 
 def test_s0_reference_adapter_bridges_detectron2_pillow_symbol() -> None:

@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/ds-gan/original"),
+        default=Path(".cache") / "ds-gan" / "original",
         help="Directory where manually downloaded assets should be placed.",
     )
     parser.add_argument(

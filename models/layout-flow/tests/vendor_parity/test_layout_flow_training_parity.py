@@ -80,7 +80,7 @@ def _vendor_classes() -> tuple[
     try:
         vendor_dir = vendor_root(
             "layout-flow",
-            marker=Path("src/models/LayoutFlow.py"),
+            marker=Path("src") / "models" / "LayoutFlow.py",
             repo_root=ROOT,
         )
     except FileNotFoundError as exc:

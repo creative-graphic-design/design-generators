@@ -42,7 +42,7 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/data/rico"),
+        default=Path(".cache") / "canvas-vae" / "data" / "rico",
         help="Prepared split directory (default: %(default)s).",
     )
     parser.add_argument(

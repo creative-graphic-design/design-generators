@@ -22,7 +22,9 @@ from typing import TypeAlias
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_MANIFEST = REPOSITORY_ROOT / ".cache/canvas-vae/full-run/rico/manifest.json"
+DEFAULT_MANIFEST = (
+    REPOSITORY_ROOT / ".cache" / "canvas-vae" / "full-run" / "rico" / "manifest.json"
+)
 COLAB_COMMAND = ["mise", "exec", "--", "colab"]
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 RUN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -322,7 +324,7 @@ def record_smoke_exit_code(
         return
     result_path = Path(result_path_value).resolve()
     try:
-        result_path.relative_to(REPOSITORY_ROOT / ".cache/canvas-vae/s5")
+        result_path.relative_to(REPOSITORY_ROOT / ".cache" / "canvas-vae" / "s5")
     except ValueError as error:
         raise ExecutorError("smoke result path must stay under the S5 cache") from error
     result = load_json(result_path)
@@ -1332,7 +1334,11 @@ def execute_run(
         run_env.chmod(0o600)
         capture_path = (
             REPOSITORY_ROOT
-            / ".cache/canvas-vae/full-run/rico/executor-logs"
+            / ".cache"
+            / "canvas-vae"
+            / "full-run"
+            / "rico"
+            / "executor-logs"
             / f"{run_id}-{segment_id}.log"
         )
         capture_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1554,7 +1560,11 @@ def execute_cpu_smoke(
 
     smoke_id = uuid.uuid4().hex[:8]
     smoke_root = (
-        REPOSITORY_ROOT / ".cache/canvas-vae/s5" / f"cpu-e2e-{session_name}-{smoke_id}"
+        REPOSITORY_ROOT
+        / ".cache"
+        / "canvas-vae"
+        / "s5"
+        / f"cpu-e2e-{session_name}-{smoke_id}"
     )
     smoke_root.mkdir(parents=True, exist_ok=False)
     hub_prefix = f"{HUB_REPOSITORY_PREFIX}/{session_name}-{smoke_id}"
@@ -1715,7 +1725,11 @@ def execute_cpu_smoke(
             [
                 sys.executable,
                 str(
-                    REPOSITORY_ROOT / "models/canvas-vae/scripts/s5_rico_seed_queue.py"
+                    REPOSITORY_ROOT
+                    / "models"
+                    / "canvas-vae"
+                    / "scripts"
+                    / "s5_rico_seed_queue.py"
                 ),
                 "--manifest",
                 str(manifest_path),
