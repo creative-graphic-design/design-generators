@@ -250,6 +250,11 @@ def publish(*, token: str, revision: str) -> None:
     api = HfApi(token=token)
     verify_hub_write_access(api)
     parent_commit = api.model_info(HUB_REPOSITORY_ID, revision="main").sha
+    if parent_commit is None:
+        raise RuntimeError(
+            f"Hub repository {HUB_REPOSITORY_ID} main revision has no commit SHA"
+        )
+
     source_assets_before = _source_asset_files(api, revision=parent_commit)
     if not source_assets_before:
         raise RuntimeError("the existing Hub repository has no source-assets files")

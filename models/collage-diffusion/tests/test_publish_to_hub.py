@@ -242,3 +242,48 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
 
     assert upload_arguments["parent_commit"] == parent_commit
     assert source_asset_revisions == [parent_commit, uploaded_commit]
+
+
+def test_publish_requires_a_hub_main_commit_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MissingMainCommitApi:
+        def __init__(self, *, token: str) -> None:
+            assert token == "fine-grained-token"
+
+        def auth_check(self, **kwargs: str | bool) -> None:
+            assert kwargs == {
+                "repo_id": "creative-graphic-design/collage-diffusion",
+                "repo_type": "model",
+                "write": True,
+            }
+
+        def model_info(self, repo_id: str, *, revision: str) -> SimpleNamespace:
+            assert repo_id == "creative-graphic-design/collage-diffusion"
+            assert revision == "main"
+            return SimpleNamespace(sha=None)
+
+        def upload_folder(self, **kwargs: object) -> SimpleNamespace:
+            pytest.fail("upload requires a Hub main commit SHA")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        SimpleNamespace(HfApi=MissingMainCommitApi),
+    )
+    monkeypatch.setattr(
+        PUBLISHER,
+        "_read_source_files",
+        lambda revision: {"README.md": b"card", "pipeline.py": b"pipeline"},
+    )
+    monkeypatch.setattr(
+        PUBLISHER,
+        "_source_asset_files",
+        lambda api, *, revision: pytest.fail("source assets need a pinned revision"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Hub repository creative-graphic-design/collage-diffusion main revision has no commit SHA",
+    ):
+        PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
