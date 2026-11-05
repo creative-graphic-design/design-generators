@@ -434,6 +434,15 @@ def _resolved_config(
     return args
 
 
+def _recorded_resolved_settings(
+    resolved_settings: Mapping[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    return {
+        "original": resolved_settings["vendor"],
+        "package": resolved_settings["package"],
+    }
+
+
 def _apply_evaluation_environment(settings: dict[str, int]) -> None:
     for name in (
         "MKL_NUM_THREADS",
@@ -959,7 +968,9 @@ def _orchestrate(args: argparse.Namespace) -> None:
             "original": source_record.get("evaluation_environment"),
             "package": package_record.get("evaluation_environment"),
         }
-        if reuse_record.get("settings", {}).get("resolved") != resolved_settings:
+        if reuse_record.get("settings", {}).get("resolved") != (
+            _recorded_resolved_settings(resolved_settings)
+        ):
             raise RuntimeError("reused parity record has different resolved settings")
         if reuse_record.get("settings", {}).get("sampling_seed") != int(
             source_record["eval_seed"]
@@ -1116,10 +1127,7 @@ def _orchestrate(args: argparse.Namespace) -> None:
             "sample_count": len(original_predictions),
         },
         "settings": {
-            "resolved": {
-                "original": resolved_settings["vendor"],
-                "package": resolved_settings["package"],
-            },
+            "resolved": _recorded_resolved_settings(resolved_settings),
             "evaluation_environment": {
                 "original": source_record.get("evaluation_environment"),
                 "package": package_record.get("evaluation_environment"),

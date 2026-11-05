@@ -21,6 +21,7 @@ from run_evaluation_path_parity import (
     _git_worktree_dirty,
     _package_evaluator_source_commit,
     _original_entrypoint_path,
+    _recorded_resolved_settings,
     _record_entrypoint,
     _record_path,
     _resolved_argv,
@@ -332,6 +333,16 @@ def test_resolved_argv_handles_wrapped_campaign_entrypoint() -> None:
         "--tasks",
         "completion",
     ]
+
+
+def test_reused_resolved_settings_use_the_recorded_original_key() -> None:
+    original = {"dataset": "rico", "tasks": "gen_ts"}
+    package = {"dataset": "rico", "tasks": "gen_ts"}
+
+    assert _recorded_resolved_settings({"vendor": original, "package": package}) == {
+        "original": original,
+        "package": package,
+    }
 
 
 def test_campaign_eval_entrypoint_uses_vendor_main_without_cache(
