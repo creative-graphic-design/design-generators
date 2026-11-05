@@ -40,7 +40,7 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
-- For framework and library names, follow the naming rule in the [Model README template](../design-generators-model-conversion/references/model-readme-template.md).
+- For framework and library names, follow the naming rule in the [Model README template](.agents/skills/design-generators-model-conversion/references/model-readme-template.md).
 
 - Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
 
