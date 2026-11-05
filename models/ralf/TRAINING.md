@@ -1494,6 +1494,19 @@ The six primary relation lanes use the committed seeded vendor wrapper (`vendor_
 
 The earlier unseeded relation records are superseded: CGL suffix `024` seed 2 measured 5,992 mismatches of 6,002 with cuDNN enabled, and PKU suffix `026` seed 0 measured 998 mismatches of 1,000 with cuDNN enabled. Their artifacts remain historical diagnostics only; failed, incomplete, and CUDA-13-runtime records are not evidence.
 
+#### Independent CGL relation endpoint reruns
+
+CGL relation seeds 0 and 1 were independently rerun with the runner from commit `1ba3796ca3e9567a58ed06186b4853bc8941edaa` (runner SHA-256 `8ef857a837c1dd1b9da97057b6d6aee2c21262e3e69f4685db09c7d5c77d8654`). Both runs exited 0 and produced bitwise-equal package/vendor predictions and metrics on 6,002 TEST layouts. The run-016 launch record was reconstructed from a `/proc` capture at 2026-11-05 04:43:17 JST after the helper's runner-discovery timeout; the captured runner was live and was not relaunched.
+
+The vendor inference subprocess used an evaluation-only batch-clone wrapper. The wrapper calls the original `DataLoader` iterator once, then recursively clones tensor values in dictionary, list, and tuple batches before the vendor's preload cache retains each batch. This gives cached tensors process-owned storage so worker-backed shared-memory segments can be released; the root-cause analysis found that retaining each batch in the preload cache caused the earlier shared-memory exhaustion and Bus error. A 50-batch CPU probe matched all unpatched batch hashes, retained zero shared tensors after cloning, and left Python and Torch RNG states unchanged. Vendor source and settings, `preload_data=True`, worker count, batch size, inference seeds, and cuDNN setting stayed unchanged. Both parity artifacts record `vendor_batch_clone_wrapper.used=true`; the wrapper SHA-256 is `cb81b50b1c322fb5cf3c543513c7121c711c921e8145349124466be61b98e6cf`.
+
+| Seed | Run     | Exit | TEST rows per system | Prediction mismatches | Metrics | Evaluation-path parity artifact (SHA-256) |
+| ---- | ------- | ---- | -------------------- | --------------------- | ------- | ---------------------------------------- |
+| 0    | run-015 | 0    | 6,002                | 0                     | 15/15 bitwise equal | `.cache/ralf/independent-rerun/run-015/output/cgl/relation/seed-0/evaluation-path-parity.json` (`f82c5cb3ed13c70c16f526f098df3ee1424451008e734b4c26e5b307d61477be`) |
+| 1    | run-016 | 0    | 6,002                | 0                     | 15/15 bitwise equal | `.cache/ralf/independent-rerun/run-016/output/cgl/relation/seed-1/evaluation-path-parity.json` (`ed2bb9daf1afa57c4e20f5e485cd2e1f32594f17b216b6480d37342f21240194`) |
+
+The recomputed canonical campaign inventory passes 16/16 lanes and totals 126,036 TEST prediction rows per system. It uses the passing artifact for each dataset/condition/seed lane. The run-011 and run-012 artifacts are excluded because those runs set `preload_data=False` instead of the vendor default and produced different predictions; run-014 is excluded because its Bus-error failure left no complete parity artifact.
+
 ## Evaluator Adapter Diagnostic
 
 The retained CPU diagnostic is a PASS for the vendor config, pickle loader, and validity checks, and is not S-stage evidence. The narrow adapter under `tests/vendor_parity` achieves that result by extracting the Lightning `state_dict`, removing the single `model.` wrapper, writing a vendor raw checkpoint beside its config, and mapping package `LayoutGenerationOutput` normalized `xywh` boxes, labels, masks, and explicit sample ids to the vendor pickle geometry fields. The retained JSON binds the reported PASS to the exact source checkpoint, raw checkpoint, config, and pickle; their SHA-256 values allow integrity checking.
