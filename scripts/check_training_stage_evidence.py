@@ -30,8 +30,8 @@ from devharness.markdown import (
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
-CHECKPOINT_GATE_BASELINE_RELATIVE_PATH = Path(
-    "scripts/training_s5_checkpoint_gate_baseline.txt"
+CHECKPOINT_GATE_BASELINE_RELATIVE_PATH = (
+    Path("scripts") / "training_s5_checkpoint_gate_baseline.txt"
 )
 TRAINING_GLOB = "models/*/TRAINING.md"
 STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
