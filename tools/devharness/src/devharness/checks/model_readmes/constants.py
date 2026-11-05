@@ -161,6 +161,7 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "collage-diffusion": {"license": "apache-2.0", "datasets": []},
     "cgb-dm": {
         "license": "apache-2.0",
         "datasets": [
@@ -328,6 +329,7 @@ EXPECTED_MODEL_INDEX_TASKS = {"pixel-vae": "image-feature-extraction"}
 
 
 EXPECTED_MODEL_NAMES = {
+    "collage-diffusion": "Collage Diffusion",
     "coarse-to-fine": "Coarse-to-Fine",
     "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
@@ -363,6 +365,7 @@ EXPECTED_MODEL_NAMES = {
 }
 
 EXPECTED_REPOSITORY_LINKS = {
+    "collage-diffusion": "https://github.com/VSAnimator/collage-diffusion",
     "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layout-diffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
@@ -389,6 +392,8 @@ EXPECTED_REPOSITORY_LINKS = {
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
+CODE_ONLY_SLUGS = {"collage-diffusion"}
+NO_MODEL_WEIGHTS_SLUGS = PROMPT_ONLY_SLUGS | CODE_ONLY_SLUGS
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",
     "converted behavior follows the upstream checkpoints",
