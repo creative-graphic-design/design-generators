@@ -844,7 +844,9 @@ def convert_checkpoint(
     repo_root = Path(__file__).resolve().parents[4]
     command = [
         str(args.runtime_python),
-        str(repo_root / "models/ralf/scripts/convert_original_checkpoint.py"),
+        str(
+            repo_root / "models" / "ralf" / "scripts" / "convert_original_checkpoint.py"
+        ),
         "--job-dir",
         str(conversion_job),
         "--checkpoint",

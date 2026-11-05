@@ -28,6 +28,7 @@ from .modeling_ralf import (
     RalfRelationLocation,
     RalfRelationSize,
     _apply_decode_space_restriction,
+    _consume_relation_graph_rng,
 )
 from laygen.common.randomness import multinomial
 from .tokenization_ralf import RalfLayoutTokenizer
@@ -37,19 +38,6 @@ RelationConstraintItem = tuple[
 ]
 RelationConstraints = list[list[RelationConstraintItem]]
 RelationTarget = int | str | RalfRelationLocation | RalfRelationSize | None
-
-
-def consume_relation_graph_rng(
-    valid_mask: Bool[torch.Tensor, "batch elements"], *, edge_ratio: float = 0.1
-) -> None:
-    """Consume the reference relation-graph draws before condition preparation."""
-    for valid_count in (valid_mask.sum(dim=1) + 1).tolist():
-        for first in range(valid_mask.size(1) + 1):
-            for second in range(first + 1, valid_mask.size(1) + 1):
-                if valid_count <= first or valid_count <= second:
-                    continue
-
-                random.random()
 
 
 class RelationConditioner:
@@ -104,6 +92,26 @@ class RelationConditioner:
 
     def id_to_name(self, token_id: int) -> str:
         return self._id_to_token[token_id]
+
+    @staticmethod
+    def parse_ids(
+        sample_ids: Sequence[int | str] | Int[torch.Tensor, "batch"] | int | str | None,
+        batch_size: int,
+    ) -> list[str]:
+        if sample_ids is None:
+            raise KeyError("relation condition requires sample ids")
+
+        if isinstance(sample_ids, torch.Tensor):
+            ids = [str(item) for item in sample_ids.detach().cpu().tolist()]
+        elif isinstance(sample_ids, (list, tuple)):
+            ids = [str(item) for item in sample_ids]
+        else:
+            ids = [str(sample_ids)] * batch_size
+
+        if len(ids) != batch_size or any(not item for item in ids):
+            raise KeyError("relation condition requires one sample id per item")
+
+        return ids
 
     def _parse_labels(
         self, input_ids: Int[torch.Tensor, "batch tokens"], *, shuffle: bool
@@ -204,22 +212,11 @@ class RelationConditioner:
         sample_ids: Sequence[int | str] | Int[torch.Tensor, "batch"] | int | str | None,
     ) -> tuple[Int[torch.Tensor, "batch tokens"], Bool[torch.Tensor, "batch tokens"]]:
         """Return padded relation conditions and their padding mask."""
-        if sample_ids is None:
-            raise KeyError("relation condition requires sample ids")
-
-        if isinstance(sample_ids, torch.Tensor):
-            ids = [str(item) for item in sample_ids.detach().cpu().tolist()]
-        elif isinstance(sample_ids, (list, tuple)):
-            ids = [str(item) for item in sample_ids]
-        else:
-            ids = [str(sample_ids)] * input_ids.size(0)
-
-        if len(ids) != input_ids.size(0):
-            raise KeyError("relation condition requires one sample id per item")
+        ids = self.parse_ids(sample_ids, input_ids.size(0))
 
         _labels, counts = self._parse_labels(input_ids, shuffle=False)
         valid_mask = _labels != self.name_to_id("pad")
-        consume_relation_graph_rng(valid_mask)
+        _consume_relation_graph_rng(valid_mask)
         # RelationshipPreprocessor first parses and records the sequence, then
         # its LabelPreprocessor parses it again before building the condition.
         # The first pass is discarded but still consumes the reference
@@ -415,9 +412,7 @@ class RelationConstraint:
             ).item()
         )
         sequence = sequence[:eos_index]
-        prefix_length = (
-            1 if self.preprocessor.tokenizer.config.global_task_embedding else 3
-        )
+        prefix_length = 1 if self.preprocessor.global_task_embedding else 3
         types = sequence[prefix_length:relation_sep_index][::2]
         self.type_constraint_token_id = types
         relations = sequence[relation_sep_index + 1 :]

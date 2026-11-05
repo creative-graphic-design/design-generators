@@ -97,7 +97,7 @@ def test_relation_constraint_reads_types_after_configured_prefix(
         id2label={0: "logo", 1: "text"},
         max_seq_length=2,
         num_bin=8,
-        global_task_embedding=global_task_embedding,
+        global_task_embedding=not global_task_embedding,
     )
     tokenizer = RalfLayoutTokenizer(config)
     conditioner = RelationConditioner(

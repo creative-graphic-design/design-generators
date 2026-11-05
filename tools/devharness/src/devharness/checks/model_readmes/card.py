@@ -271,6 +271,11 @@ def model_member_slugs() -> set[str]:
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
 
 
+def model_member_count() -> int:
+    """Return the number of model workspace members."""
+    return len(model_member_slugs())
+
+
 ModelType: TypeAlias = tuple[str, str, tuple[str, ...]]
 
 _MODEL_TYPE_LINE_RE = re.compile(

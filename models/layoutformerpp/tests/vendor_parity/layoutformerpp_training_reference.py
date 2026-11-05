@@ -30,7 +30,7 @@ REFERENCE_ROOT = vendor_root(
     marker="LayoutFormer++/src/model/layout_transformer/model.py",
     repo_root=PROJECT_ROOT,
 )
-REFERENCE_SRC = REFERENCE_ROOT / "LayoutFormer++/src"
+REFERENCE_SRC = REFERENCE_ROOT / "LayoutFormer++" / "src"
 
 
 class _OptimizerDefaults(TypedDict):
@@ -265,7 +265,7 @@ def reference_serialization(
 
 
 def _deepspeed_pin() -> str:
-    requirements = (REFERENCE_ROOT / "LayoutFormer++/requirements.txt").read_text(
+    requirements = (REFERENCE_ROOT / "LayoutFormer++" / "requirements.txt").read_text(
         encoding="utf-8"
     )
     for line in requirements.splitlines():
@@ -280,7 +280,7 @@ def _audit_runtime_python() -> Path:
         raise RuntimeError(
             "LAYOUTFORMERPP_AUDIT_VENV must point to the audited runtime"
         )
-    python = Path(runtime) / "bin/python"
+    python = Path(runtime) / "bin" / "python"
     if not python.is_file():
         raise RuntimeError("the audited runtime is missing its Python interpreter")
     return python
@@ -539,7 +539,7 @@ def reference_checkpoint_behavior() -> dict[str, object]:
     exec(
         compile(
             ast.Module(body=[get_trainer_node], type_ignores=[]),
-            str(REFERENCE_SRC / "trainer/__init__.py"),
+            str(REFERENCE_SRC / "trainer" / "__init__.py"),
             "exec",
         ),
         trainer_namespace,
@@ -631,11 +631,11 @@ def reference_classes() -> tuple[type, type]:
     """Load model and tokenizer classes directly without dataset imports."""
     model_module = _load_module(
         "layoutformerpp_s0_reference_model",
-        REFERENCE_SRC / "model/layout_transformer/model.py",
+        REFERENCE_SRC / "model" / "layout_transformer" / "model.py",
     )
     tokenizer_module = _load_module(
         "layoutformerpp_s0_reference_tokenizer",
-        REFERENCE_SRC / "model/layout_transformer/tokenizer.py",
+        REFERENCE_SRC / "model" / "layout_transformer" / "tokenizer.py",
     )
     return model_module.LayoutTransformer, tokenizer_module.LayoutTransformerTokenizer
 
@@ -839,15 +839,19 @@ def reference_loader_stream(
 def source_facts() -> dict[str, bool | str]:
     """Record construction-order and trainer-branch facts from source text."""
     main_text = (REFERENCE_SRC / "main.py").read_text(encoding="utf-8")
-    trainer_text = (REFERENCE_SRC / "trainer/__init__.py").read_text(encoding="utf-8")
-    basic_text = (REFERENCE_SRC / "trainer/basic_trainer.py").read_text(
+    trainer_text = (REFERENCE_SRC / "trainer" / "__init__.py").read_text(
         encoding="utf-8"
     )
-    multitask_text = (REFERENCE_SRC / "trainer/multitask_trainer.py").read_text(
+    basic_text = (REFERENCE_SRC / "trainer" / "basic_trainer.py").read_text(
         encoding="utf-8"
     )
-    measurement_text = (REFERENCE_SRC / "trainer/utils.py").read_text(encoding="utf-8")
-    ds_text = (REFERENCE_SRC / "trainer/ds_trainer.py").read_text(encoding="utf-8")
+    multitask_text = (REFERENCE_SRC / "trainer" / "multitask_trainer.py").read_text(
+        encoding="utf-8"
+    )
+    measurement_text = (REFERENCE_SRC / "trainer" / "utils.py").read_text(
+        encoding="utf-8"
+    )
+    ds_text = (REFERENCE_SRC / "trainer" / "ds_trainer.py").read_text(encoding="utf-8")
     main_tree = ast.parse(main_text)
     imported_names = {
         alias.asname or alias.name: f"{node.module}.{alias.name}"

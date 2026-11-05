@@ -20,8 +20,8 @@ from layout_gpt.prompts import form_prompt_for_chatgpt, form_prompt_for_gpt3
 
 pytestmark = pytest.mark.vendor_parity
 
-COUNTING_TRAIN_JSON = Path("dataset/NSR-1K/counting/counting.train.json")
-COUNTING_VAL_JSON = Path("dataset/NSR-1K/counting/counting.val.json")
+COUNTING_TRAIN_JSON = Path("dataset") / "NSR-1K" / "counting" / "counting.train.json"
+COUNTING_VAL_JSON = Path("dataset") / "NSR-1K" / "counting" / "counting.val.json"
 
 
 class GoldenMetadata(TypedDict):
@@ -57,7 +57,7 @@ def _vendor_root() -> Path:
     except FileNotFoundError as exc:
         skip_or_fail_vendor_parity(
             str(exc),
-            missing_paths=[Path("vendor/layout-gpt") / COUNTING_TRAIN_JSON],
+            missing_paths=[Path("vendor") / "layout-gpt" / COUNTING_TRAIN_JSON],
             regeneration_hint="initialize the layout-gpt vendor submodule before running vendor parity",
         )
 
@@ -149,7 +149,7 @@ def test_vendor_golden_metadata_documents_regeneration_policy() -> None:
 
 def _build_vendor_golden() -> VendorGolden:
     module_path = (
-        Path(__file__).resolve().parents[2] / "scripts/generate_vendor_golden.py"
+        Path(__file__).resolve().parents[2] / "scripts" / "generate_vendor_golden.py"
     )
     spec = importlib.util.spec_from_file_location("generate_vendor_golden", module_path)
     assert spec is not None

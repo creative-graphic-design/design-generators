@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/coarse-to-fine/original"),
+        default=Path(".cache") / "coarse-to-fine" / "original",
         help="Directory where the jzy124/Coarse2Fine snapshot is stored.",
     )
     return parser.parse_args()

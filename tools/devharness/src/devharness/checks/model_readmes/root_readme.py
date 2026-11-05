@@ -1,13 +1,14 @@
-"""Root README model and library table contracts."""
+"""Repository model and library table contracts."""
 
 from __future__ import annotations
 
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlparse, urlunparse
 
 from .constants import (
+    DOCS_LIBRARY_TABLE_HEADER,
     EXPECTED_MODEL_NAMES,
     IMAGE_GENERATION_CATEGORY,
     LINK_REQUIRED_DATASET_IDS,
@@ -120,6 +121,20 @@ def _root_libraries_table_lines(text: str) -> list[str]:
     return text[start:end].splitlines()
 
 
+def _docs_libraries_table_lines(text: str) -> list[str]:
+    marker = "## Libraries\n\n"
+    start = text.index(marker) + len(marker)
+    lines = text[start:].splitlines()
+    table_lines: list[str] = []
+    for line in lines:
+        if not line.startswith("|"):
+            break
+
+        table_lines.append(line)
+
+    return table_lines
+
+
 def _split_markdown_table_row(line: str) -> list[str]:
     stripped = line.strip()
     if not stripped.startswith("|") or not stripped.endswith("|"):
@@ -160,6 +175,9 @@ def _linked_static_badge(cell: str, label: str) -> tuple[str, str] | None:
 
 _LINKED_BADGE_RE = re.compile(
     r"\[!\[([^\]]*)\]\((https://img\.shields\.io/static/v1\?[^)]*)\)\]\(([^)]+)\)"
+)
+_STATIC_BADGE_RE = re.compile(
+    r"!\[(?P<alt>[^\]]*)\]\((?P<url>https://img\.shields\.io/static/v1\?[^)]+)\)"
 )
 
 
@@ -255,6 +273,53 @@ def assert_root_model_badge_count(path: Path, expected_count: int) -> None:
         raise AssertionError(
             f"{path}: models badge {messages} != workspace model member count {expected_count}"
         )
+
+
+def update_root_model_badge_count(path: Path, expected_count: int) -> bool:
+    """Rewrite the root README model-count badge and report whether it changed."""
+    text = path.read_text(encoding="utf-8")
+    matching_badges = 0
+
+    def replace_badge(match: re.Match[str]) -> str:
+        nonlocal matching_badges
+
+        alt = match.group("alt")
+        url = match.group("url")
+        parsed_url = urlparse(url)
+        query = parse_qsl(parsed_url.query, keep_blank_values=True)
+        labels = [value for key, value in query if key == "label"]
+        if len(labels) != 1 or labels[0] != "models":
+            return match.group(0)
+
+        if semantic_badge_label(alt, labels[0]) != "models":
+            return match.group(0)
+
+        matching_badges += 1
+        message_indexes = [
+            index for index, (key, _) in enumerate(query) if key == "message"
+        ]
+        if len(message_indexes) != 1:
+            raise AssertionError(f"{path}: models badge must have one message value")
+
+        message_index = message_indexes[0]
+        if query[message_index][1] == str(expected_count):
+            return match.group(0)
+
+        query[message_index] = ("message", str(expected_count))
+        updated_url = urlunparse(parsed_url._replace(query=urlencode(query)))
+        return f"![{alt}]({updated_url})"
+
+    updated_text = _STATIC_BADGE_RE.sub(replace_badge, text)
+    if matching_badges != 1:
+        raise AssertionError(
+            f"{path}: expected one models badge, found {matching_badges}"
+        )
+
+    if updated_text == text:
+        return False
+
+    path.write_text(updated_text, encoding="utf-8")
+    return True
 
 
 def root_model_slugs(
@@ -401,6 +466,60 @@ def assert_root_libraries_table_matches_members(path: Path) -> None:
     if missing or extra:
         raise AssertionError(
             f"root README Libraries table mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def docs_library_slugs(path: Path) -> set[str]:
+    """Validate the docs library table and return its workspace slugs."""
+    text = path.read_text(encoding="utf-8")
+    table_lines = _docs_libraries_table_lines(text)
+    if _split_markdown_table_row(table_lines[0]) != DOCS_LIBRARY_TABLE_HEADER or not (
+        _is_markdown_table_separator(table_lines[1], len(DOCS_LIBRARY_TABLE_HEADER))
+    ):
+        raise AssertionError(
+            f"{path}: Libraries table must use {', '.join(DOCS_LIBRARY_TABLE_HEADER)}"
+        )
+
+    slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = _split_markdown_table_row(line)
+        if len(cells) != len(DOCS_LIBRARY_TABLE_HEADER):
+            raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+
+        library_badge = _linked_static_badge(cells[0], "library")
+        if library_badge is None:
+            raise AssertionError(
+                f"{path}: Library cell must be a linked library badge: {line}"
+            )
+
+        label, library_link = library_badge
+        slug_match = re.fullmatch(r"api/libraries/([^/)]+)/", library_link)
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Library cell must link api/libraries/<slug>/: {line}"
+            )
+
+        slug = slug_match.group(1)
+        if label != slug:
+            raise AssertionError(
+                f"{path}: Library badge message {label!r} must match {slug!r}"
+            )
+
+        slugs.add(slug)
+
+    return slugs
+
+
+def assert_docs_libraries_table_matches_members(
+    docs_slugs: set[str], path: Path
+) -> None:
+    """Require the docs library table to match workspace library members."""
+    member_slugs = library_member_slugs()
+    missing = sorted(member_slugs - docs_slugs)
+    extra = sorted(docs_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"{path}: Libraries table mismatch: missing={missing}, extra={extra}"
         )
 
 

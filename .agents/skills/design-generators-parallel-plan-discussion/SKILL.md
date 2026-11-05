@@ -44,6 +44,6 @@ The coordinator/user may use the same UI fallback when a prompt or wait reports 
 
 ## Review, retention, and authority
 
-Review the unified specification and every target plan. Confirm every agenda item is a decision or an explicitly listed open question, and spot-check load-bearing claims against the source documents. Publishing or implementation is outside this protocol and remains with the coordinator and user.
+Review the unified specification and every target plan. Confirm every agenda item is a decision or an explicitly listed open question, and spot-check load-bearing claims against the source documents. Publication follows the repository policy: merging a package to `main` approves its configured Hub procedure, which the main-push workflow runs. This council protocol does not publish or implement packages.
 
 Retain the participant worktrees, tabs, branches, ledger, drafts, and readable outputs by default. Cleanup is a separate action and requires explicit user authorization naming the resources and scope. Never close, remove, or delete council resources as an automatic completion step.

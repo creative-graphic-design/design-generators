@@ -101,6 +101,50 @@ def test_pipeline_lazily_initializes_relation_conditioner(monkeypatch) -> None:
         )
 
 
+def test_pipeline_rebuilds_relation_conditioner_for_each_relationship_table(
+    monkeypatch,
+) -> None:
+    import ralf.relation_restriction as relation_module
+    from ralf.relation_restriction import RelationConditioner
+
+    seen_relations: list[tuple[list[str], str]] = []
+
+    def stop_before_generation(*_args: object, **kwargs: object) -> None:
+        vocabulary = cast(RelationConditioner, kwargs["vocabulary"])
+        item_id = next(iter(vocabulary.relationship_table))
+        relation = vocabulary.relationship_table[item_id][0]
+        seen_relations.append((list(vocabulary.relationship_table), str(relation[2])))
+        raise RuntimeError("generation reached")
+
+    monkeypatch.setattr(
+        relation_module, "generate_relation_sequences", stop_before_generation
+    )
+    pipe = _pipeline()
+    labels = list((pipe.config.id2label or {}).values())
+    first_relation = [labels[0], "A", "left", labels[1], "A"]
+    second_relation = [labels[0], "B", "right", labels[1], "B"]
+    for relation_table, sample_id in (
+        ({"sample": [first_relation]}, "sample"),
+        ({"sample": [second_relation]}, "sample"),
+        ({"new": [second_relation]}, "new"),
+    ):
+        with pytest.raises(RuntimeError, match="generation reached"):
+            pipe(
+                condition_type="relation",
+                labels=torch.tensor([[0, 1]]),
+                bbox=torch.full((1, 2, 4), 0.5),
+                mask=torch.tensor([[True, True]]),
+                relations=relation_table,
+                query_ids=[sample_id],
+            )
+
+    assert seen_relations == [
+        (["sample"], "left"),
+        (["sample"], "right"),
+        (["new"], "right"),
+    ]
+
+
 def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:
     pipe = _pipeline()
 

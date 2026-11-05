@@ -16,7 +16,7 @@ QUEUE_SPEC.loader.exec_module(QUEUE)
 def test_queue_launch_forwards_hub_repository() -> None:
     repository = "example-owner/test-artifacts"
     manifest_path = QUEUE.DEFAULT_MANIFEST
-    parity_path = QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
+    parity_path = QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["source_commit"] = "a" * 40
     manifest["queue_status"] = "ready"

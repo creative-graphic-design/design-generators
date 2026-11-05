@@ -23,7 +23,7 @@ def test_vendor_root_prefers_valid_requested_path(tmp_path):
 def test_vendor_root_falls_back_to_sibling_worktree(tmp_path):
     repo_root = tmp_path / "design-generators=impl-layoutganpp"
     repo_root.mkdir()
-    requested = Path("vendor/const-layout")
+    requested = Path("vendor") / "const-layout"
     sibling_vendor = tmp_path / "design-generators" / requested
     (sibling_vendor / "model").mkdir(parents=True)
     (sibling_vendor / "model" / "layoutganpp.py").write_text("")

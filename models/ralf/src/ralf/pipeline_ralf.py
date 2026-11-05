@@ -160,10 +160,15 @@ class RalfPipeline(LayoutGenerationPipeline):
         )
 
     def configure_relation_conditioner(self, relations: RalfRelationshipTable) -> None:
-        """Install the inference-only relation condition preparer once."""
+        """Install the inference-only relation condition preparer."""
+        self._relation_conditioner = self._build_relation_conditioner(relations)
+
+    def _build_relation_conditioner(
+        self, relations: RalfRelationshipTable
+    ) -> RelationConditioner:
         from .relation_restriction import RelationConditioner
 
-        self._relation_conditioner = RelationConditioner(
+        return RelationConditioner(
             self.processor.layout_tokenizer,
             relations,
             global_task_embedding=self.config.global_task_embedding,
@@ -297,7 +302,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             retrieval=retrieval,
             batch_size=batch_size,
         )
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
@@ -313,23 +318,15 @@ class RalfPipeline(LayoutGenerationPipeline):
         input_ids = encoded["input_ids"].to(model_device)
         token_mask = self.processor.layout_tokenizer.token_mask(model_device)
         if condition == ConditionType.relation:
-            from .relation_restriction import (
-                RelationConditioner,
-                generate_relation_sequences,
-            )
+            from .relation_restriction import generate_relation_sequences
 
             if relations is None:
                 raise ValueError("relation generation requires a relationship table")
 
-            if self._relation_conditioner is None:
-                self._relation_conditioner = RelationConditioner(
-                    self.processor.layout_tokenizer,
-                    relations,
-                    global_task_embedding=self.config.global_task_embedding,
-                    relation_size=self.config.relation_size,
-                )
+            conditioner = self._build_relation_conditioner(relations)
+            self._relation_conditioner = conditioner
 
-            relation_sequence, relation_pad_mask = self._relation_conditioner.prepare(
+            relation_sequence, relation_pad_mask = conditioner.prepare(
                 input_ids, query_ids
             )
             encoder_inputs = self.model._prepare_conditional_inputs(
@@ -352,7 +349,7 @@ class RalfPipeline(LayoutGenerationPipeline):
                 top_k=top_k,
                 generator=generation_generator,
                 token_mask=token_mask,
-                vocabulary=self._relation_conditioner,
+                vocabulary=conditioner,
             )
         else:
             sequences = self.model._generate_sequences(

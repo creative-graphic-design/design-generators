@@ -621,8 +621,8 @@ def _assert_model_order(path: Path) -> None:
 
 def check() -> None:
     _assert_prefix(REPO_ROOT / "README.md", ROOT_ORDER)
-    _assert_prefix(REPO_ROOT / "lib/laygen/README.md", LAYGEN_ORDER)
-    _assert_prefix(REPO_ROOT / "lib/posgen/README.md", POSGEN_ORDER)
+    _assert_prefix(REPO_ROOT / "lib" / "laygen" / "README.md", LAYGEN_ORDER)
+    _assert_prefix(REPO_ROOT / "lib" / "posgen" / "README.md", POSGEN_ORDER)
     for path in sorted((REPO_ROOT / "models").glob("*/README.md")):
         _assert_model_order(path)
     _assert_badge_links()

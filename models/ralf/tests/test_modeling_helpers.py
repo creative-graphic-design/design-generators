@@ -274,10 +274,12 @@ def test_relation_task_preprocessor_sequences_and_helpers() -> None:
     with pytest.raises(KeyError, match="sample"):
         missing(inputs)
 
+    from ralf.relation_restriction import RelationConditioner
+
     with pytest.raises(KeyError, match="sample ids"):
-        preprocessor._relation_ids(None, 2)
-    assert preprocessor._relation_ids(torch.tensor([3]), 1) == ["3"]
-    assert preprocessor._relation_ids(["a"], 1) == ["a"]
+        RelationConditioner.parse_ids(None, 2)
+    assert RelationConditioner.parse_ids(torch.tensor([3]), 1) == ["3"]
+    assert RelationConditioner.parse_ids(["a"], 1) == ["a"]
 
     class RelSize:
         name = "UNKNOWN"

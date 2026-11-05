@@ -18,13 +18,13 @@ def main() -> None:
     parser.add_argument(
         "--source-root",
         type=Path,
-        default=Path("vendor/layout-generation-baselines/LayoutVAE"),
+        default=(Path("vendor") / "layout-generation-baselines" / "LayoutVAE"),
         help="Path to the LayoutVAE source root.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-vae/converted/layout-vae-publaynet"),
+        default=Path(".cache") / "layout-vae" / "converted" / "layout-vae-publaynet",
         help="Directory for converted artifacts.",
     )
     args = parser.parse_args()

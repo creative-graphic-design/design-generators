@@ -17,12 +17,14 @@ SHA_PATTERN = re.compile(r"(?i)(?<![0-9a-f])([0-9a-f]{64,})(?![0-9a-f])")
 PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_$])((?:\.cache|models|scripts|docs|evals)/[A-Za-z0-9_./=-]+|\$RALF_CACHE_DIR/[A-Za-z0-9_./=-]+)"
 )
-DOC_PATHS = (Path("models/ralf/TRAINING.md"), Path("PR270_BODY.md"))
+DOC_PATHS = (Path("models") / "ralf" / "TRAINING.md", Path("PR270_BODY.md"))
 MANIFEST_PATHS = (
-    Path(".cache/ralf/training-reproduction/cgl/s5/manifest.json"),
-    Path(".cache/ralf/training-reproduction/pku/s5/manifest.json"),
+    Path(".cache") / "ralf" / "training-reproduction" / "cgl" / "s5" / "manifest.json",
+    Path(".cache") / "ralf" / "training-reproduction" / "pku" / "s5" / "manifest.json",
 )
-PARITY_ROOT = Path(".cache/ralf/training-reproduction/evaluation-path-parity-003")
+PARITY_ROOT = (
+    Path(".cache") / "ralf" / "training-reproduction" / "evaluation-path-parity-003"
+)
 DIGEST_CACHE: dict[Path, str] = {}
 VALUE_DIGEST_MARKERS = (
     "canonical stream",
@@ -117,7 +119,13 @@ def candidate_paths(
         for root in roots:
             for name in condition_names:
                 candidates.append(
-                    root / ".cache/ralf/training-reproduction" / dataset / name / suffix
+                    root
+                    / ".cache"
+                    / "ralf"
+                    / "training-reproduction"
+                    / dataset
+                    / name
+                    / suffix
                 )
     return unique_paths(candidates)
 

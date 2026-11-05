@@ -1448,7 +1448,12 @@ def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, o
     recipe = TRAINING_RECIPES_BY_NAME[recipe_name]
     project_root = Path(__file__).resolve().parents[4]
     config = (
-        project_root / "models/layoutformerpp/configs/training" / f"{recipe_name}.yaml"
+        project_root
+        / "models"
+        / "layoutformerpp"
+        / "configs"
+        / "training"
+        / f"{recipe_name}.yaml"
     )
     output_root = tmp_path / recipe_name
     traingen = Path(sys.executable).with_name("traingen")

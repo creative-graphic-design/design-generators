@@ -100,7 +100,7 @@ def _runtime_paths() -> tuple[str, Path]:
     if path.is_absolute() or ".." in path.parts:
         raise SystemExit("LAYOUTFORMERPP_AUDIT_VENV must be repository-relative")
     runtime = REPO_ROOT / path
-    return relative.rstrip("/"), runtime / "bin/python"
+    return relative.rstrip("/"), runtime / "bin" / "python"
 
 
 def _runtime_freeze(runtime_python: Path) -> str:
@@ -149,7 +149,7 @@ def main() -> int:
         ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
     ).strip()
     runtime_freeze_sha256 = sha256(EXPECTED_FREEZE)
-    run_root = REPO_ROOT / ".cache/layoutformerpp/post-merge" / args.attempt
+    run_root = REPO_ROOT / ".cache" / "layoutformerpp" / "post-merge" / args.attempt
     if run_root.exists():
         raise SystemExit(f"refusing to reuse existing campaign directory: {run_root}")
     run_root.mkdir(parents=True)

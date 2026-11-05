@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from itertools import combinations
-from typing import Final, Literal, NoReturn, Protocol, cast, runtime_checkable
+from typing import Final, Literal, Protocol, cast, runtime_checkable
 
 import timm
 import torch
@@ -67,10 +67,6 @@ RalfTaskTokenName = Literal[
     "refinement",
     "completion",
 ]
-
-
-def _raise_relation_ids_error(message: str) -> NoReturn:
-    raise KeyError(message)
 
 
 @runtime_checkable
@@ -795,14 +791,10 @@ class RalfTaskPreprocessor:
         non_padding_counts = (label != self.name_to_id("pad")).sum(dim=1)
         shuffled = {key: value.clone() for key, value in seq_vars.items()}
         for batch_idx, count in enumerate(non_padding_counts.tolist()):
-            if self.task_name == "c":
-                # Label permutations use the CPU generator, including size 0/1.
-                indexes = torch.randperm(count)
-            else:
-                if count <= 1:
-                    continue
+            if self.task_name != "c" and count <= 1:
+                continue
 
-                indexes = torch.randperm(count)
+            indexes = torch.randperm(count)
 
             if count <= 1:
                 continue
@@ -915,25 +907,6 @@ class RalfTaskPreprocessor:
                 pieces.append(sep)
         return torch.cat(pieces, dim=1), valid_counts
 
-    def _relation_ids(
-        self,
-        ids: Int[torch.Tensor, "batch"] | Sequence[int | str] | int | str | None,
-        batch_size: int,
-    ) -> list[str]:
-        if ids is None:
-            _raise_relation_ids_error("relation condition requires sample ids")
-        if isinstance(ids, Tensor):
-            relation_ids = [str(item) for item in ids.detach().cpu().tolist()]
-        elif isinstance(ids, (list, tuple)):
-            relation_ids = [str(item) for item in ids]
-        else:
-            relation_ids = [str(ids)] * batch_size
-        if len(relation_ids) != batch_size or any(not item for item in relation_ids):
-            _raise_relation_ids_error(
-                "relation condition requires one sample id per item"
-            )
-        return relation_ids
-
     def _relation_sequence(
         self,
         inputs: RalfConditionalInputs,
@@ -948,6 +921,8 @@ class RalfTaskPreprocessor:
         label_sequence[label_sequence == self.name_to_id("eos")] = self.name_to_id(
             "relation_sep"
         )
+        from .relation_restriction import RelationConditioner
+
         seq_vars = self._parse_seq_into_vars(
             cast(Int[torch.Tensor, "batch tokens"], inputs.seq)
         )
@@ -956,7 +931,9 @@ class RalfTaskPreprocessor:
 
         outputs = []
         max_length = 0
-        for batch_idx, item_id in enumerate(self._relation_ids(inputs.id, batch)):
+        for batch_idx, item_id in enumerate(
+            RelationConditioner.parse_ids(inputs.id, batch)
+        ):
             valid_count = int(valid_counts[batch_idx].item())
             body_length = valid_count * len(self._VAR) + max(valid_count - 1, 0)
             seq = label_sequence[batch_idx, : prefix_length + body_length]
@@ -1403,8 +1380,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         | str
         | None = None,
     ) -> dict[str, Shaped[torch.Tensor, ...] | Mapping[str, Shaped[torch.Tensor, ...]]]:
-        device = next(self.parameters()).device
-        dtype = next(self.parameters()).dtype
+        device = self.device
+        dtype = self.dtype
         if pixel_values is None:
             pixel_values = torch.zeros(
                 batch_size, 3, 64, 64, device=device, dtype=dtype

@@ -34,7 +34,7 @@ from dlt.training.seed import apply_seed_mode
 from traingen_parity.trace import trace_training_step
 
 
-CONFIG_DIR = Path("models/dlt/configs/training")
+CONFIG_DIR = Path("models") / "dlt" / "configs" / "training"
 CONFIG_NAMES = (
     "dlt_magazine.yaml",
     "dlt_publaynet.yaml",

@@ -519,7 +519,7 @@ def _float_field(record: Mapping[str, JsonValue], key: str) -> float:
 
 def _rss_bytes() -> int:
     page_size = os.sysconf("SC_PAGE_SIZE")
-    with Path("/proc/self/statm").open() as handle:
+    with Path(os.sep, "proc", "self", "statm").open() as handle:
         resident_pages = int(handle.read().split()[1])
     return resident_pages * page_size
 
