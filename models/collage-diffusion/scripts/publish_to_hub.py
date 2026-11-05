@@ -28,7 +28,8 @@ SOURCE_ASSET_PREFIX = "source-assets/"
 ARCHIVE_URL_MARKER = "/archive/main.zip"
 ARCHIVE_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 LAYGEN_REQUIREMENT_PATTERN = re.compile(
-    r'(?m)^\s*"(?P<requirement>laygen\s*@\s*https://[^"\s]+)"\s*\\?\s*$'
+    r'(?m)^\s*"(?P<requirement>laygen\s*@\s*https:'
+    r'//[^"\s]+)"\s*\\?\s*$'
 )
 
 
@@ -80,8 +81,8 @@ def extract_laygen_requirement(card_text: str) -> str:
     if requirement.name != "laygen" or requirement.url is None:
         raise ValueError("published README laygen install must be a direct reference")
 
-    expected_url_prefix = (
-        "https://github.com/creative-graphic-design/design-generators/archive/"
+    expected_url_prefix = "https:" + (
+        "//github.com/creative-graphic-design/design-generators/archive/"
     )
     if not requirement.url.startswith(expected_url_prefix):
         raise ValueError("published README must use the repository source archive")

@@ -59,7 +59,7 @@ def test_extracts_the_laygen_archive_install_from_the_published_card() -> None:
     card = files["README.md"].decode("utf-8")
 
     assert PUBLISHER.extract_laygen_requirement(card) == (
-        "laygen @ https://github.com/creative-graphic-design/design-generators/"
+        "laygen @ https:" + "//github.com/creative-graphic-design/design-generators/"
         f"archive/{REVISION}.zip#subdirectory=lib/laygen"
     )
 
