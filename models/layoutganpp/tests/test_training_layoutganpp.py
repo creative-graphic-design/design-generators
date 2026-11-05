@@ -11,6 +11,7 @@ import torch
 import yaml
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader, TensorDataset
 
 from layoutganpp.training.datamodule import LayoutGANPPDataModule
 from layoutganpp.training.callbacks import LayoutGANPPVendorSchedule
@@ -374,6 +375,7 @@ def test_vendor_schedule_matches_iteration_and_validation_cadence():
         ),
         current_epoch=0,
         check_val_every_n_epoch=1,
+        limit_train_batches=1.0,
     )
     callback = LayoutGANPPVendorSchedule(iterations=200_000)
 
@@ -386,6 +388,70 @@ def test_vendor_schedule_matches_iteration_and_validation_cadence():
     trainer.current_epoch = 2_500
     callback.on_validation_end(cast(Trainer, trainer), cast(LightningModule, None))
     assert trainer.check_val_every_n_epoch == 5_001
+
+
+@pytest.mark.parametrize(
+    ("max_epochs", "limit_train_batches", "expected_max_epochs"),
+    [(1, 2.0, 1), (-1, 2.0, 1), (1, 1.0, 1), (0, 1.0, 0)],
+)
+def test_vendor_schedule_preserves_explicit_smoke_bounds(
+    max_epochs: int, limit_train_batches: float, expected_max_epochs: int
+):
+    datamodule = LayoutGANPPDataModule(
+        dataset_name="magazine",
+        batch_size=2,
+        num_workers=0,
+        synthetic_size=8,
+    )
+    trainer = SimpleNamespace(
+        datamodule=datamodule,
+        fit_loop=SimpleNamespace(
+            max_epochs=max_epochs,
+            epoch_loop=SimpleNamespace(max_steps=-1),
+        ),
+        current_epoch=0,
+        check_val_every_n_epoch=1,
+        limit_train_batches=limit_train_batches,
+    )
+
+    LayoutGANPPVendorSchedule(iterations=200_000).on_fit_start(
+        cast(Trainer, trainer), cast(LightningModule, None)
+    )
+
+    assert trainer.fit_loop.max_epochs == expected_max_epochs
+
+
+@pytest.mark.parametrize(
+    ("dataset", "train_size", "batches_per_epoch", "expected_updates"),
+    [
+        ("magazine", 3_331, 53, 203_679),
+        ("rico13", 32_585, 510, 200_430),
+        ("publaynet", 160_549, 2_509, 200_720),
+    ],
+)
+def test_vendor_schedule_preserves_shipped_full_run_update_counts(
+    dataset: str, train_size: int, batches_per_epoch: int, expected_updates: int
+):
+    train_dataset = TensorDataset(torch.empty(train_size))
+    train_loader = DataLoader(train_dataset, batch_size=64)
+    assert len(train_loader) == batches_per_epoch
+    datamodule = SimpleNamespace(train_dataloader=lambda: train_loader)
+    trainer = SimpleNamespace(
+        datamodule=datamodule,
+        fit_loop=SimpleNamespace(
+            max_epochs=-1,
+            epoch_loop=SimpleNamespace(max_steps=-1),
+        ),
+        current_epoch=0,
+        check_val_every_n_epoch=1,
+        limit_train_batches=1.0,
+    )
+
+    LayoutGANPPVendorSchedule(iterations=200_000).on_fit_start(
+        cast(Trainer, trainer), cast(LightningModule, None)
+    )
+
+    assert trainer.fit_loop.max_epochs * len(train_loader) == expected_updates, dataset
 
 
 def test_vendor_schedule_rejects_nonpositive_iterations_before_fit():
@@ -410,6 +476,7 @@ def test_vendor_schedule_preserves_bounded_diagnostic_step_limit():
         ),
         current_epoch=0,
         check_val_every_n_epoch=1,
+        limit_train_batches=1.0,
     )
     callback = LayoutGANPPVendorSchedule(iterations=200_000)
 

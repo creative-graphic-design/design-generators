@@ -44,8 +44,16 @@ class LayoutGANPPVendorSchedule(Callback):
             raise ValueError("training schedule requires at least one train batch")
 
         self._batches_per_epoch = batches_per_epoch
-        if trainer.fit_loop.epoch_loop.max_steps > 0:
+        if (
+            trainer.fit_loop.epoch_loop.max_steps > 0
+            or trainer.fit_loop.max_epochs != -1
+        ):
             self._max_epochs = None
+            return
+
+        if trainer.limit_train_batches != 1.0:
+            self._max_epochs = 1
+            trainer.fit_loop.max_epochs = 1
             return
 
         self._max_epochs = math.ceil(self.iterations * batch_size / train_size)
