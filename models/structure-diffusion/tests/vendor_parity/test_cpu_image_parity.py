@@ -188,7 +188,11 @@ class VendorAttentionReferenceProcessor:
 
 def _vendor_prompt_functions(repo_root: Path) -> _VendorPromptFunctions:
     source_path = (
-        repo_root / "vendor/structured-diffusion-guidance/scripts/txt2img_demo.py"
+        repo_root
+        / "vendor"
+        / "structured-diffusion-guidance"
+        / "scripts"
+        / "txt2img_demo.py"
     )
     source_tree = ast.parse(source_path.read_text(encoding="utf-8"))
     requested = {
@@ -421,8 +425,11 @@ def test_cpu_image_matches_independent_vendor_path() -> None:
         pytest.skip("Set PARITY_REQUIRE=1 to run the Stable Diffusion CPU comparison.")
 
     repo_root = Path(__file__).resolve().parents[4]
-    vendor_root = repo_root / "vendor/structured-diffusion-guidance"
-    if not (vendor_root / "structured_stable_diffusion/modules/attention.py").is_file():
+    vendor_root = repo_root / "vendor" / "structured-diffusion-guidance"
+    attention_path = (
+        vendor_root / "structured_stable_diffusion" / "modules" / "attention.py"
+    )
+    if not attention_path.is_file():
         pytest.fail("Initialize vendor/structured-diffusion-guidance before parity.")
     if torch.cuda.is_available():
         pytest.fail("The authorized parity comparison is CPU-only.")
@@ -562,11 +569,9 @@ def test_cpu_image_matches_independent_vendor_path() -> None:
         "elapsed_seconds": time.perf_counter() - started,
         "peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
     }
+    default_output_dir = repo_root / ".cache" / "structure_diffusion" / "parity"
     output_dir = Path(
-        os.getenv(
-            "STRUCTURE_DIFFUSION_PARITY_OUTPUT",
-            str(repo_root / ".cache/structure_diffusion/parity"),
-        )
+        os.getenv("STRUCTURE_DIFFUSION_PARITY_OUTPUT", str(default_output_dir))
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"cpu-{resolution}.json"
