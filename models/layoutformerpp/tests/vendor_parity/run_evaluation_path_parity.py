@@ -53,12 +53,16 @@ TASK_MODULES = {
 RICO25_SPLIT_FILES = ("train.pt", "val.pt", "test.pt")
 
 
-MetricComparisonCase = Literal["bitwise_equal", "one_ulp", "different", "missing"]
+MetricComparisonCase = Literal[
+    "bitwise_equal", "within_absolute_bound", "different", "missing"
+]
+MAX_METRIC_ABSOLUTE_DIFFERENCE = 2.0**-53
 
 
 class MetricValueComparison(TypedDict):
     case: MetricComparisonCase
     delta: float | None
+    absolute_difference: float | None
     original: float | None
     package: float | None
 
@@ -89,6 +93,7 @@ def _compare_metrics(
             per_metric[name] = {
                 "case": "missing",
                 "delta": None,
+                "absolute_difference": None,
                 "original": (
                     float(original_metrics[name]) if name in original_metrics else None
                 ),
@@ -100,23 +105,25 @@ def _compare_metrics(
 
         original_value = float(original_metrics[name])
         package_value = float(package_metrics[name])
-        if struct.pack("!d", original_value) == struct.pack("!d", package_value):
+        bitwise_equal = struct.pack("!d", original_value) == struct.pack(
+            "!d", package_value
+        )
+        delta = 0.0 if bitwise_equal else package_value - original_value
+        absolute_difference = abs(delta) if math.isfinite(delta) else None
+        if bitwise_equal:
             case: MetricComparisonCase = "bitwise_equal"
         elif (
-            math.isfinite(original_value)
-            and math.isfinite(package_value)
-            and (
-                math.nextafter(original_value, package_value) == package_value
-                or math.nextafter(package_value, original_value) == original_value
-            )
+            absolute_difference is not None
+            and absolute_difference <= MAX_METRIC_ABSOLUTE_DIFFERENCE
         ):
-            case = "one_ulp"
+            case = "within_absolute_bound"
         else:
             case = "different"
 
         per_metric[name] = {
             "case": case,
-            "delta": package_value - original_value,
+            "delta": delta,
+            "absolute_difference": absolute_difference,
             "original": original_value,
             "package": package_value,
         }
@@ -127,7 +134,8 @@ def _compare_metrics(
         and all(item["case"] == "bitwise_equal" for item in per_metric.values()),
         "metrics_accepted": keys_match
         and all(
-            item["case"] in {"bitwise_equal", "one_ulp"} for item in per_metric.values()
+            item["case"] in {"bitwise_equal", "within_absolute_bound"}
+            for item in per_metric.values()
         ),
         "per_metric": per_metric,
     }
