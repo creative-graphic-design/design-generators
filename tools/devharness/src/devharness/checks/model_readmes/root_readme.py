@@ -1,4 +1,4 @@
-"""Root README model and library table contracts."""
+"""Repository model and library table contracts."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlparse, urlunparse
 
 from .constants import (
+    DOCS_LIBRARY_TABLE_HEADER,
     EXPECTED_MODEL_NAMES,
     LINK_REQUIRED_DATASET_IDS,
     REPO_ROOT,
@@ -101,6 +102,20 @@ def _root_libraries_table_lines(text: str) -> list[str]:
     start = text.index(marker) + len(marker)
     end = text.index("\n\n", start)
     return text[start:end].splitlines()
+
+
+def _docs_libraries_table_lines(text: str) -> list[str]:
+    marker = "## Libraries\n\n"
+    start = text.index(marker) + len(marker)
+    lines = text[start:].splitlines()
+    table_lines: list[str] = []
+    for line in lines:
+        if not line.startswith("|"):
+            break
+
+        table_lines.append(line)
+
+    return table_lines
 
 
 def _split_markdown_table_row(line: str) -> list[str]:
@@ -434,6 +449,60 @@ def assert_root_libraries_table_matches_members(path: Path) -> None:
     if missing or extra:
         raise AssertionError(
             f"root README Libraries table mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def docs_library_slugs(path: Path) -> set[str]:
+    """Validate the docs library table and return its workspace slugs."""
+    text = path.read_text(encoding="utf-8")
+    table_lines = _docs_libraries_table_lines(text)
+    if _split_markdown_table_row(table_lines[0]) != DOCS_LIBRARY_TABLE_HEADER or not (
+        _is_markdown_table_separator(table_lines[1], len(DOCS_LIBRARY_TABLE_HEADER))
+    ):
+        raise AssertionError(
+            f"{path}: Libraries table must use {', '.join(DOCS_LIBRARY_TABLE_HEADER)}"
+        )
+
+    slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = _split_markdown_table_row(line)
+        if len(cells) != len(DOCS_LIBRARY_TABLE_HEADER):
+            raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+
+        library_badge = _linked_static_badge(cells[0], "library")
+        if library_badge is None:
+            raise AssertionError(
+                f"{path}: Library cell must be a linked library badge: {line}"
+            )
+
+        label, library_link = library_badge
+        slug_match = re.fullmatch(r"api/libraries/([^/)]+)/", library_link)
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Library cell must link api/libraries/<slug>/: {line}"
+            )
+
+        slug = slug_match.group(1)
+        if label != slug:
+            raise AssertionError(
+                f"{path}: Library badge message {label!r} must match {slug!r}"
+            )
+
+        slugs.add(slug)
+
+    return slugs
+
+
+def assert_docs_libraries_table_matches_members(
+    docs_slugs: set[str], path: Path
+) -> None:
+    """Require the docs library table to match workspace library members."""
+    member_slugs = library_member_slugs()
+    missing = sorted(member_slugs - docs_slugs)
+    extra = sorted(docs_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"{path}: Libraries table mismatch: missing={missing}, extra={extra}"
         )
 
 

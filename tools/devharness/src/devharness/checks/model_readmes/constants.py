@@ -32,6 +32,7 @@ DOCS_MODEL_TABLE_HEADER = [
     "Paper",
     "Docs",
 ]
+DOCS_LIBRARY_TABLE_HEADER = ["Library", "Description", "Docs"]
 MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
 MODEL_TASK_VALUES = (
     "task-agnostic",

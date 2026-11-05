@@ -83,6 +83,11 @@ def check() -> None:
         root_readme.assert_root_models_table_matches_members(root_slugs, path)
 
     root_readme.assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
+    docs_index = REPO_ROOT / "docs" / "index.md"
+    docs_library_slugs = root_readme.docs_library_slugs(docs_index)
+    root_readme.assert_docs_libraries_table_matches_members(
+        docs_library_slugs, docs_index
+    )
 
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
