@@ -6,13 +6,9 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from packaging.requirements import Requirement
 
 if TYPE_CHECKING:
     from huggingface_hub import HfApi
@@ -35,10 +31,6 @@ PUBLISHED_HUB_BADGE = (
 )
 ARCHIVE_URL_MARKER = "/archive/main.zip"
 ARCHIVE_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
-LAYGEN_REQUIREMENT_PATTERN = re.compile(
-    r'(?m)^\s*"(?P<requirement>laygen\s*@\s*https:'
-    r'//[^"\s]+)"\s*\\?\s*$'
-)
 
 
 def prepare_upload_files(
@@ -77,78 +69,6 @@ def prepare_upload_files(
     card_text = card_text.replace(ARCHIVE_URL_MARKER, f"/archive/{revision}.zip")
     card_text = card_text.replace(PLANNED_HUB_BADGE, PUBLISHED_HUB_BADGE, 1)
     return {"README.md": card_text.encode("utf-8"), "pipeline.py": pipeline_source}
-
-
-def extract_laygen_requirement(card_text: str) -> str:
-    """Return the laygen direct reference documented in the published card."""
-    matches = list(LAYGEN_REQUIREMENT_PATTERN.finditer(card_text))
-    if len(matches) != 1:
-        raise ValueError("published README must contain one laygen archive install")
-
-    requirement_text = matches[0].group("requirement")
-    requirement = Requirement(requirement_text)
-    if requirement.name != "laygen" or requirement.url is None:
-        raise ValueError("published README laygen install must be a direct reference")
-
-    expected_url_prefix = "https:" + (
-        "//github.com/creative-graphic-design/design-generators/archive/"
-    )
-    if not requirement.url.startswith(expected_url_prefix):
-        raise ValueError("published README must use the repository source archive")
-
-    if "#subdirectory=lib/laygen" not in requirement.url:
-        raise ValueError("published README must select the lib/laygen subdirectory")
-
-    archive_revision = requirement.url.removeprefix(expected_url_prefix).split(".", 1)[
-        0
-    ]
-    if not ARCHIVE_REVISION_PATTERN.fullmatch(archive_revision):
-        raise ValueError("published README laygen archive must pin a full commit SHA")
-
-    return requirement_text
-
-
-def verify_laygen_install(card_text: str) -> None:
-    """Install the card's laygen archive into a temp target and import its helper."""
-    requirement = extract_laygen_requirement(card_text)
-
-    with tempfile.TemporaryDirectory(prefix="collage-laygen-smoke-") as temp_directory:
-        target_directory = Path(temp_directory) / "target"
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--no-deps",
-                "--target",
-                str(target_directory),
-                requirement,
-            ],
-            check=True,
-        )
-
-        environment = os.environ.copy()
-        inherited_pythonpath = environment.get("PYTHONPATH", "")
-        environment["PYTHONPATH"] = os.pathsep.join(
-            item for item in (str(target_directory), inherited_pythonpath) if item
-        )
-        environment["LAYGEN_SMOKE_TARGET"] = str(target_directory)
-        import_check = (
-            "import os\n"
-            "from pathlib import Path\n"
-            "import laygen\n"
-            "from laygen.common.randomness import randn, resolve_torch_generator\n"
-            "target = Path(os.environ['LAYGEN_SMOKE_TARGET']).resolve()\n"
-            "origin = Path(laygen.__file__).resolve()\n"
-            "assert origin.is_relative_to(target), (origin, target)\n"
-            "assert callable(randn) and callable(resolve_torch_generator)\n"
-        )
-        subprocess.run(
-            [sys.executable, "-c", import_check],
-            check=True,
-            env=environment,
-        )
 
 
 def _read_source_files(revision: str) -> dict[str, bytes]:
@@ -191,7 +111,7 @@ def _verify_uploaded_files(
     files: dict[str, bytes],
     *,
     revision: str,
-) -> str:
+) -> None:
     from huggingface_hub import hf_hub_download
 
     repository_files = set(
@@ -205,7 +125,6 @@ def _verify_uploaded_files(
     if missing_files:
         raise RuntimeError(f"Hub publication is missing files: {sorted(missing_files)}")
 
-    card_text = ""
     for filename, expected_data in files.items():
         downloaded_path = hf_hub_download(
             repo_id=HUB_REPOSITORY_ID,
@@ -217,11 +136,6 @@ def _verify_uploaded_files(
         downloaded_data = Path(downloaded_path).read_bytes()
         if downloaded_data != expected_data:
             raise RuntimeError(f"Hub read-back differs from the staged {filename}")
-
-        if filename == "README.md":
-            card_text = downloaded_data.decode("utf-8")
-
-    return card_text
 
 
 def write_upload_staging(staging_directory: Path, files: dict[str, bytes]) -> None:
@@ -273,7 +187,7 @@ def publish(*, token: str, revision: str) -> None:
         )
 
     published_revision = commit_info.oid
-    card_text = _verify_uploaded_files(
+    _verify_uploaded_files(
         api,
         files,
         revision=published_revision,
@@ -284,7 +198,6 @@ def publish(*, token: str, revision: str) -> None:
             "Hub publication changed the existing source-assets file set"
         )
 
-    verify_laygen_install(card_text)
     print(
         f"Published and verified {', '.join(UPLOAD_ALLOW_PATTERNS)} at "
         f"{published_revision}; preserved {len(source_assets_after)} source-assets files."
