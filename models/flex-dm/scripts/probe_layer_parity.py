@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task", required=True)
     parser.add_argument("--variant", default="ours-exp-ft")
     parser.add_argument(
-        "--asset-dir", type=Path, default=Path(".cache/flex-dm/original")
+        "--asset-dir", type=Path, default=Path(".cache") / "flex-dm" / "original"
     )
     parser.add_argument("--probe-dir", type=Path, required=True)
     parser.add_argument("--checkpoint-dir", type=Path)

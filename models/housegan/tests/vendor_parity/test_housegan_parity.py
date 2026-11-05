@@ -8,8 +8,8 @@ import torch
 from housegan import HouseGanPipeline
 
 
-PARITY_ROOT = Path(".cache/housegan/parity/housegan-floorplan-d")
-CONVERTED_ROOT = Path(".cache/housegan/converted/housegan-floorplan-d")
+PARITY_ROOT = Path(".cache") / "housegan" / "parity" / "housegan-floorplan-d"
+CONVERTED_ROOT = Path(".cache") / "housegan" / "converted" / "housegan-floorplan-d"
 
 
 @pytest.mark.vendor_parity
