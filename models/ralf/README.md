@@ -87,6 +87,8 @@ Use this package for research inference, conversion checks, and vendor-parity va
 
 Generation accepts optional content images, saliency maps, explicit retrieval examples, and task constraints through `condition_type="unconditional"`, `"label"`, `"label_size"`, `"completion"`, `"refinement"`, `"relation"`, `"retrieval"`, or `"content_image"`. Selected retrieval indexes are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
 
+Relation generation requires `relations`, a mapping from string sample IDs to five-value rows `(label_i, element_i, relation, label_j, element_j)`, and one matching `query_ids` value per input item.
+
 Calling `pipe()` without images or retrieval data is a smoke/debug path that uses a zero image and zero retrieval memory. Use real content images, saliency maps, and retrieved examples for paper-equivalent inference.
 
 ### Downstream Use

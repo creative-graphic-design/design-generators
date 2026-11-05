@@ -255,8 +255,12 @@ class RalfPipeline(LayoutGenerationPipeline):
             retrieved_indexes: Explicit retrieved indexes.
             retrieval: Canonical v2 retrieval container.
             retrieval_table: Optional model-side retrieval table.
-            query_ids: Query ids used for table lookup when explicit examples are absent.
-            relations: Optional relation constraints.
+            query_ids: Query ids for retrieval lookup when explicit examples are absent.
+                For relation generation, provide one id per item matching a key in
+                `relations`.
+            relations: Relation table required for relation generation; maps sample
+                ids to five-value rows `(label_i, element_i, relation, label_j,
+                element_j)`.
             num_inference_steps: Reserved v1 argument.
             output_type: `dataclass` or `dict`.
             return_intermediates: Whether to return retrieval debug metadata.
