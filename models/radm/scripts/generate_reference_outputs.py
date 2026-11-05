@@ -7,8 +7,6 @@ import hashlib
 import json
 from pathlib import Path
 
-from radm.training.data_paths import validate_dot_free_data_root
-
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
@@ -27,10 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--checkpoint", type=Path, required=True, help="Local RADM checkpoint."
     )
     parser.add_argument(
-        "--dataset-root", required=True, help="Local dot-free CGL dataset-root path."
+        "--dataset-root", required=True, help="Local CGL dataset-root path."
     )
     parser.add_argument(
-        "--text-feature-root", required=True, help="Local dot-free text-feature path."
+        "--text-feature-root", required=True, help="Local text-feature path."
     )
     parser.add_argument(
         "--output-dir", type=Path, required=True, help="Reference metadata directory."
@@ -51,8 +49,8 @@ def _sha256(path: Path) -> str:
 def main() -> None:
     """Write reference metadata and explain the gated execution boundary."""
     args = build_parser().parse_args()
-    dataset_root = validate_dot_free_data_root(args.dataset_root)
-    text_feature_root = validate_dot_free_data_root(args.text_feature_root)
+    dataset_root = str(Path(args.dataset_root).absolute())
+    text_feature_root = str(Path(args.text_feature_root).absolute())
     marker = args.vendor_root / "train_net.py"
     if not marker.exists():
         raise RuntimeError(

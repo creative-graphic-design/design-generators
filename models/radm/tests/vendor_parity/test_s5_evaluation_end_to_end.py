@@ -45,7 +45,6 @@ def _vendor_eval_command(
 ) -> list[str]:
     launcher = (
         "import pdb, runpy; pdb.set_trace=lambda: None; "
-        "from PIL import Image; Image.LINEAR=Image.BILINEAR; "
         "runpy.run_path('train_net.py', run_name='__main__')"
     )
     return [
@@ -99,7 +98,11 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     vendor_output = tmp_path / "vendor"
     environment = os.environ.copy()
     environment["PYTHONPATH"] = os.pathsep.join(
-        [str(VENDOR_ROOT), environment.get("PYTHONPATH", "")]
+        [
+            str(ROOT / "models" / "radm" / "scripts" / "vendor_compat"),
+            str(VENDOR_ROOT),
+            environment.get("PYTHONPATH", ""),
+        ]
     )
     completed = subprocess.run(
         _vendor_eval_command(

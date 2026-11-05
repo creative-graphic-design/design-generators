@@ -66,6 +66,9 @@ def validate_terminal_checkpoint(
     expected_steps: int = EXPECTED_STEPS,
 ) -> dict[str, object]:
     """Validate checkpoint step, seed, and resolved recipe identity before loading."""
+    if not checkpoint_path.is_file():
+        raise RuntimeError(f"terminal checkpoint is missing: {checkpoint_path}")
+
     config_sha256 = sha256(config_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     job = _manifest_job(manifest, seed)

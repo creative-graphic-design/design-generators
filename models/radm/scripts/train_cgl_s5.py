@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from importlib.metadata import PackageNotFoundError, version
 import json
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import torch
+import yaml
 
 from radm.training.data_paths import validate_dot_free_data_root
 
@@ -20,6 +24,8 @@ CONFIG = ROOT / "models" / "radm" / "configs" / "training" / "radm_cgl.yaml"
 EVALUATOR = (
     ROOT / "models" / "radm" / "tests" / "vendor_parity" / "evaluate_radm_checkpoint.py"
 )
+VENDOR_COMPAT_ROOT = ROOT / "models" / "radm" / "scripts" / "vendor_compat"
+VENDOR_COMPAT_MODULE = VENDOR_COMPAT_ROOT / "sitecustomize.py"
 STEPS = 250000
 
 
@@ -31,6 +37,113 @@ def sha256_file(path: Path) -> str:
             digest.update(chunk)
 
     return digest.hexdigest()
+
+
+def verify_source_tree(expected_commit: str) -> dict[str, str]:
+    """Require clean root and vendor checkouts pinned to the same gitlink."""
+    source_commit = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
+    ).strip()
+    if source_commit != expected_commit:
+        raise SystemExit(
+            f"source commit {source_commit} does not match --source-commit {expected_commit}"
+        )
+
+    gitlink_fields = subprocess.check_output(
+        ["git", "-C", str(ROOT), "ls-tree", "HEAD", "vendor/radm"], text=True
+    ).split()
+    if len(gitlink_fields) != 4 or gitlink_fields[:2] != ["160000", "commit"]:
+        raise SystemExit("root commit has no vendor/radm gitlink")
+    vendor_gitlink_commit = gitlink_fields[2]
+    vendor_checkout_commit = subprocess.check_output(
+        ["git", "-C", str(VENDOR_ROOT), "rev-parse", "HEAD"], text=True
+    ).strip()
+    if vendor_checkout_commit != vendor_gitlink_commit:
+        raise SystemExit(
+            "RADM vendor checkout HEAD does not match root gitlink: "
+            f"{vendor_checkout_commit} != {vendor_gitlink_commit}"
+        )
+
+    for repository, name in ((ROOT, "repository"), (VENDOR_ROOT, "RADM vendor")):
+        try:
+            status = subprocess.check_output(
+                [
+                    "git",
+                    "-C",
+                    str(repository),
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                ],
+                text=True,
+            ).strip()
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise SystemExit(f"unable to verify {name} source tree: {exc}") from exc
+        if status:
+            raise SystemExit(f"refusing dirty {name} source tree:\n{status}")
+
+    return {
+        "source_commit": source_commit,
+        "vendor_gitlink_commit": vendor_gitlink_commit,
+        "vendor_checkout_commit": vendor_checkout_commit,
+    }
+
+
+def runtime_metadata(arm: str) -> dict[str, str | int]:
+    """Record the selected training runtime and effective worker counts."""
+    config = yaml.safe_load(configuration_path(arm).read_text(encoding="utf-8"))
+    if arm == "package":
+        num_workers = int(config["data"]["init_args"]["num_workers"])
+    else:
+        base_path = configuration_path(arm).parent / config["_BASE_"]
+        base = yaml.safe_load(base_path.read_text(encoding="utf-8"))
+        base_num_workers = base.get("DATALOADER", {}).get("NUM_WORKERS", 2)
+        num_workers = int(
+            config.get("DATALOADER", {}).get("NUM_WORKERS", base_num_workers)
+        )
+
+    if not torch.cuda.is_available():
+        raise SystemExit("CGL S5 training requires one available CUDA device")
+
+    try:
+        torchvision_version = version("torchvision")
+        detectron2_version = version("detectron2")
+    except PackageNotFoundError as exc:
+        raise SystemExit(f"training runtime package is missing: {exc.name}") from exc
+
+    return {
+        "torch_version": str(torch.__version__),
+        "torchvision_version": torchvision_version,
+        "detectron2_version": detectron2_version,
+        "cuda_version": str(torch.version.cuda),
+        "gpu_name": torch.cuda.get_device_name(0),
+        "num_workers": num_workers,
+        "omp_num_threads": int(
+            os.environ.get("OMP_NUM_THREADS", torch.get_num_threads())
+        ),
+    }
+
+
+def vendor_compatibility_environment() -> dict[str, str]:
+    """Prepend the tracked Pillow compatibility module to child Python paths."""
+    environment = os.environ.copy()
+    pythonpath = environment.get("PYTHONPATH", "")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        path for path in (str(VENDOR_COMPAT_ROOT), pythonpath) if path
+    )
+    return environment
+
+
+def vendor_compatibility_metadata(arm: str) -> dict[str, str] | None:
+    """Describe the tracked Pillow alias used by original-code subprocesses."""
+    if arm != "original":
+        return None
+
+    return {
+        "module": VENDOR_COMPAT_MODULE.relative_to(ROOT).as_posix(),
+        "sha256": sha256_file(VENDOR_COMPAT_MODULE),
+        "pythonpath_entry": str(VENDOR_COMPAT_ROOT),
+    }
 
 
 def sha256_tree(root: Path) -> str:
@@ -110,7 +223,7 @@ def terminal_checkpoint_path(arm: str, output_dir: Path) -> Path:
 
 def build_command(
     *, arm: str, seed: int, data_root: str, output_dir: Path
-) -> tuple[list[str], Path]:
+) -> tuple[list[str], Path, dict[str, str] | None]:
     """Build the selected training command without launching it."""
     data_root = validate_dot_free_data_root(data_root)
     if arm == "original":
@@ -139,6 +252,7 @@ def build_command(
                 str(output_dir),
             ],
             VENDOR_ROOT,
+            vendor_compatibility_environment(),
         )
 
     if arm == "package":
@@ -177,6 +291,7 @@ def build_command(
                 f"--trainer.callbacks={callbacks}",
             ],
             ROOT,
+            None,
         )
 
     raise ValueError(f"unsupported CGL S5 arm: {arm}")
@@ -190,7 +305,7 @@ def build_evaluator_command(
     output_dir: Path,
     manifest_path: Path,
     checkpoint_path: Path,
-) -> tuple[list[str], Path]:
+) -> tuple[list[str], Path, dict[str, str] | None]:
     """Build the evaluation command for the arm's terminal checkpoint."""
     if arm == "package":
         return (
@@ -211,11 +326,11 @@ def build_evaluator_command(
                 "cuda",
             ],
             ROOT,
+            None,
         )
 
     launcher = (
         "import pdb, runpy; pdb.set_trace=lambda: None; "
-        "from PIL import Image; Image.LINEAR=Image.BILINEAR; "
         "runpy.run_path('train_net.py', run_name='__main__')"
     )
     return (
@@ -239,6 +354,7 @@ def build_evaluator_command(
             str(output_dir / "evaluation"),
         ],
         VENDOR_ROOT,
+        vendor_compatibility_environment(),
     )
 
 
@@ -292,13 +408,9 @@ def main() -> None:
             f"RADM original source is missing: {VENDOR_ROOT / 'train_net.py'}"
         )
 
-    current_commit = subprocess.check_output(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
-    ).strip()
-    if current_commit != args.source_commit:
-        raise SystemExit(
-            f"source commit {current_commit} does not match --source-commit {args.source_commit}"
-        )
+    source_provenance = verify_source_tree(args.source_commit)
+    current_commit = source_provenance["source_commit"]
+    runtime = runtime_metadata(args.arm)
 
     config_path = configuration_path(args.arm)
     if not config_path.is_file():
@@ -308,7 +420,7 @@ def main() -> None:
     manifest_path = output_dir / "manifest.json"
     checkpoint_path = terminal_checkpoint_path(args.arm, output_dir)
     checkpoint_name = checkpoint_path.name
-    evaluator_command, evaluator_cwd = build_evaluator_command(
+    evaluator_command, evaluator_cwd, _ = build_evaluator_command(
         arm=args.arm,
         seed=args.seed,
         data_root=data_root,
@@ -323,10 +435,14 @@ def main() -> None:
         data_root: data_root_sha256,
         str(data_root_target): data_root_sha256,
     }
+    vendor_compatibility = vendor_compatibility_metadata(args.arm)
+    if vendor_compatibility is not None:
+        artifacts[vendor_compatibility["module"]] = vendor_compatibility["sha256"]
     manifest = {
-        "source_commit": current_commit,
+        **source_provenance,
         "arm": args.arm,
         "training_seed": args.seed,
+        "runtime": runtime,
         "config": {"path": config_relative_path, "sha256": config_sha256},
         "package_config": CONFIG.relative_to(ROOT).as_posix(),
         "package_config_sha256": sha256_file(CONFIG),
@@ -334,6 +450,7 @@ def main() -> None:
         "output_root": str(output_dir),
         "data_root": {"alias": data_root, "target": str(data_root_target)},
         "text_feature_inventory": text_inventory,
+        "vendor_compatibility": vendor_compatibility,
         "checkpoint_rule": {
             "type": "top_k_val_loss" if args.arm == "package" else "final_iteration",
             "checkpoint": str(checkpoint_path),
@@ -344,7 +461,7 @@ def main() -> None:
         "artifacts": artifacts,
         "launched_at": datetime.now(timezone.utc).isoformat(),
     }
-    command, cwd = build_command(
+    command, cwd, environment = build_command(
         arm=args.arm,
         seed=args.seed,
         data_root=data_root,
@@ -363,7 +480,11 @@ def main() -> None:
         flush=True,
     )
     print(f"launch_manifest={manifest_path}", flush=True)
-    subprocess.run(command, cwd=cwd, check=True)
+    subprocess.run(command, cwd=cwd, env=environment, check=True)
+    if not checkpoint_path.is_file():
+        raise SystemExit(
+            f"training completed without the terminal checkpoint: {checkpoint_path}"
+        )
 
 
 if __name__ == "__main__":
