@@ -911,7 +911,51 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
         ROOT_MODEL_TABLE_HEADER,
         "models/<slug>/README.md",
         tmp_path,
-    ) == {"layoutformerpp"}
+    ) == ["layoutformerpp"]
+
+
+def test_root_models_table_rejects_duplicate_model_slugs_with_diagnostic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    row = _root_model_row(
+        "LayoutDM",
+        "layout-dm",
+        "task-agnostic",
+        "content-agnostic",
+        training="train",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        f"""# Example
+
+## Models
+
+| Model | Task | Content | Venue | Ckpt | Train |
+| --- | --- | --- | --- | --- | --- |
+{row}
+{row}
+
+## Libraries
+""",
+        encoding="utf-8",
+    )
+
+    slugs = root_readme.root_model_slugs(
+        readme,
+        ROOT_MODEL_TABLE_HEADER,
+        "models/<slug>/README.md",
+        tmp_path,
+    )
+    monkeypatch.setattr(root_readme, "model_member_slugs", lambda: {"layout-dm"})
+
+    with pytest.raises(AssertionError, match="duplicate model slug.*layout-dm"):
+        root_readme.assert_root_models_table_matches_members(slugs, readme)
 
 
 def test_root_models_table_escapes_link_pattern_punctuation(tmp_path: Path) -> None:
@@ -1061,7 +1105,7 @@ def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> N
         DOCS_MODEL_TABLE_HEADER,
         "api/models/<slug>/",
         tmp_path,
-    ) == {"layout-dm"}
+    ) == ["layout-dm"]
 
 
 def test_docs_index_model_table_rejects_task_mismatch(tmp_path: Path) -> None:
@@ -1208,7 +1252,7 @@ def test_root_models_table_requires_training_link_when_file_exists(
         ROOT_MODEL_TABLE_HEADER,
         "models/<slug>/README.md",
         tmp_path,
-    ) == {"layout-flow"}
+    ) == ["layout-flow"]
 
 
 def test_root_readme_table_helpers_reject_malformed_cells() -> None:
@@ -1787,4 +1831,4 @@ def test_docs_index_model_table_accepts_image_generation_models(
         DOCS_MODEL_TABLE_HEADER,
         "api/models/<slug>/",
         tmp_path,
-    ) == {"layout-dm"}
+    ) == ["layout-dm"]

@@ -262,7 +262,7 @@ def root_model_slugs(
     expected_header: Sequence[str],
     model_link_pattern: str,
     repository_root: Path,
-) -> set[str]:
+) -> list[str]:
     """Validate the root model table and return its model slugs."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
@@ -275,7 +275,7 @@ def root_model_slugs(
             f"{path}: Models table must use {', '.join(expected_header)}"
         )
 
-    slugs: set[str] = set()
+    slugs: list[str] = []
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
         if len(cells) != len(expected_header):
@@ -336,7 +336,7 @@ def root_model_slugs(
             )
 
         _assert_root_reproduction_cells(path, slug, checkpoint_cell, training_cell)
-        slugs.add(slug)
+        slugs.append(slug)
 
     return slugs
 
@@ -426,11 +426,28 @@ def assert_model_doc_sets() -> None:
             )
 
 
-def assert_root_models_table_matches_members(root_slugs: set[str], path: Path) -> None:
+def assert_root_models_table_matches_members(
+    root_slugs: Sequence[str], path: Path
+) -> None:
     """Require root README model rows to match workspace model members."""
+    seen_slugs: set[str] = set()
+    duplicate_slugs: set[str] = set()
+    for slug in root_slugs:
+        if slug in seen_slugs:
+            duplicate_slugs.add(slug)
+
+        seen_slugs.add(slug)
+
+    if duplicate_slugs:
+        raise AssertionError(
+            f"{path}: Models table contains duplicate model slugs: "
+            f"{sorted(duplicate_slugs)}"
+        )
+
+    root_slug_set = set(root_slugs)
     member_slugs = model_member_slugs()
-    missing = sorted(member_slugs - root_slugs)
-    extra = sorted(root_slugs - member_slugs)
+    missing = sorted(member_slugs - root_slug_set)
+    extra = sorted(root_slug_set - member_slugs)
     if missing or extra:
         raise AssertionError(
             f"{path}: Models table mismatch: missing={missing}, extra={extra}"
