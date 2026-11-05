@@ -32,6 +32,7 @@ from ..serialization import (
     T5LayoutSequenceForGenR,
     T5LayoutSequenceForGenT,
     build_default_tokens,
+    build_task_prompt,
 )
 from ..tasks import LayoutFormerPPTask, layoutformerpp_vendor_dataset_slug
 from ..tokenization_layoutformerpp import LayoutFormerPPTokenizer
@@ -100,16 +101,6 @@ def vendor_effective_cross_entropy(
     )
 
 
-_TASK_PROMPTS: dict[str, str] = {
-    "refinement": "task-refinement :",
-    "completion": "task-completion :",
-    "ugen": "task-ugen :",
-    "gen_t": "task-gen_t :",
-    "gen_ts": "task-gen_ts :",
-    "gen_r": "task-gen_r :",
-}
-
-
 def _package_tokenizer(recipe: LayoutFormerPPTrainingRecipe) -> LayoutFormerPPTokenizer:
     labels = tuple(
         label_translation_for_dataset(recipe.dataset).sequence_id2label.values()
@@ -118,15 +109,8 @@ def _package_tokenizer(recipe: LayoutFormerPPTrainingRecipe) -> LayoutFormerPPTo
         labels,
         task=recipe.tasks[-1],
         grid=recipe.discrete_x_grid,
+        add_task_prompt="add_task_prompt" in recipe.serialization_flags,
     )
-    if "add_task_prompt" in recipe.serialization_flags:
-        prompt_tokens: list[str] = []
-        for task in ("refinement", "completion", "ugen", "gen_t", "gen_ts", "gen_r"):
-            for token in _TASK_PROMPTS[task].split():
-                if token not in prompt_tokens:
-                    prompt_tokens.append(token)
-
-        tokens.extend(prompt_tokens)
 
     return LayoutFormerPPTokenizer(tokens=tokens)
 
@@ -557,7 +541,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
             )
 
         if "add_task_prompt" in self.recipe.serialization_flags:
-            input_text = f"{_TASK_PROMPTS[str(task)].lower()} {input_text}"
+            input_text = build_task_prompt(task, input_text)
 
         input_text = input_text.lower()
         if "add_task_prompt" not in self.recipe.serialization_flags:

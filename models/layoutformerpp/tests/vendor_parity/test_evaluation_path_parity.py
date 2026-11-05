@@ -12,6 +12,8 @@ from typing import Any  # noqa: TID251 - call spies record dynamic pipeline keyw
 import pytest
 import torch
 import run_evaluation_path_parity as parity_runner
+import run_publaynet_checkpoint_parity as checkpoint_runner
+import run_publaynet_evaluation_path_parity as publaynet_runner
 
 from run_evaluation_path_parity import (
     _PackageAdapter,
@@ -141,12 +143,14 @@ def test_bitwise_parity_rejects_prediction_mismatch_with_accepted_metrics() -> N
         ("label", "label", 120),
         ("label_size", "label_size", 120),
         ("relation", "relation", 150),
+        ("refinement", "refinement", 120),
+        ("completion", "completion", 120),
     ],
 )
-def test_package_adapter_uses_public_pipeline_and_its_constraints(
+def test_package_adapter_passes_conditional_batch_size_to_public_pipeline(
     family: str, condition: str, max_length: int
 ) -> None:
-    generated = torch.tensor([[1]])
+    generated = torch.tensor([[1], [1]])
     pipeline_calls: list[dict[str, Any]] = []
     processor_calls: list[dict[str, Any]] = []
 
@@ -154,8 +158,8 @@ def test_package_adapter_uses_public_pipeline_and_its_constraints(
         def __call__(self, **kwargs: Any) -> dict[str, torch.Tensor]:
             processor_calls.append(kwargs)
             return {
-                "input_ids": torch.tensor([[1]]),
-                "attention_mask": torch.tensor([[True]]),
+                "input_ids": torch.tensor([[1], [1]]),
+                "attention_mask": torch.tensor([[True], [True]]),
             }
 
     class Pipeline:
@@ -175,18 +179,25 @@ def test_package_adapter_uses_public_pipeline_and_its_constraints(
         y_grid=128,
     )
     batch: dict[str, Any] = {
-        "gold_labels": [torch.tensor([1, 2])],
-        "input_labels": [torch.tensor([1, 2])],
+        "in_str": ["first", "second"],
+        "gold_labels": [torch.tensor([1, 2]), torch.tensor([1, 2])],
+        "input_labels": [torch.tensor([1, 2]), torch.tensor([1, 2])],
     }
-    if family == "label_size":
-        batch["input_bboxes"] = [torch.tensor([[0, 0, 12, 20], [0, 0, 30, 40]])]
+    if family in {"label_size", "refinement", "completion"}:
+        batch["input_bboxes"] = [
+            torch.tensor([[0, 0, 12, 20], [0, 0, 30, 40]]),
+            torch.tensor([[0, 0, 12, 20], [0, 0, 30, 40]]),
+        ]
     if family == "relation":
-        batch["relations"] = [torch.tensor([[1, 1, 2, 1, 3]])]
+        batch["relations"] = [
+            torch.tensor([[1, 1, 2, 1, 3]]),
+            torch.tensor([[1, 1, 2, 1, 3]]),
+        ]
     adapter.set_batch(batch)
 
     result = adapter(
-        torch.tensor([[1]]),
-        torch.tensor([[False]]),
+        torch.tensor([[1], [1]]),
+        torch.tensor([[False], [False]]),
         max_length=max_length,
         constrained_decoding=True,
         generation_constraint_fn=object(),
@@ -195,7 +206,11 @@ def test_package_adapter_uses_public_pipeline_and_its_constraints(
     assert result["output"] is generated
     assert len(processor_calls) == len(pipeline_calls) == 1
     assert pipeline_calls[0]["condition_type"] == condition
-    assert pipeline_calls[0]["labels"] == [["button", "text"]]
+    assert pipeline_calls[0]["batch_size"] == 2
+    assert pipeline_calls[0]["labels"] == [
+        ["button", "text"],
+        ["button", "text"],
+    ]
     assert pipeline_calls[0]["max_length"] == max_length
     assert "constrained_decoding" not in pipeline_calls[0]
     assert "generation_constraint_fn" not in pipeline_calls[0]
@@ -204,10 +219,14 @@ def test_package_adapter_uses_public_pipeline_and_its_constraints(
     assert "temperature" not in pipeline_calls[0]
     if family == "label_size":
         assert pipeline_calls[0]["bbox"] == [
-            [[0.0, 0.0, 12 / 127, 20 / 127], [0.0, 0.0, 30 / 127, 40 / 127]]
+            [[0.0, 0.0, 12 / 127, 20 / 127], [0.0, 0.0, 30 / 127, 40 / 127]],
+            [[0.0, 0.0, 12 / 127, 20 / 127], [0.0, 0.0, 30 / 127, 40 / 127]],
         ]
     if family == "relation":
-        assert pipeline_calls[0]["relations"] == [[(2, 1, 1, 1, 3)]]
+        assert pipeline_calls[0]["relations"] == [
+            [(2, 1, 1, 1, 3)],
+            [(2, 1, 1, 1, 3)],
+        ]
 
 
 def test_evaluation_path_parity_artifact_schema(tmp_path: Path) -> None:
@@ -507,3 +526,97 @@ def test_reuse_rejects_legacy_hardlinked_predictions_without_runner_commit(
             reuse_original=side == "original",
         )
     assert os.path.samefile(source, target)
+
+
+def test_publaynet_runner_hashes_output_after_vendor_chdir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vendor_dir = tmp_path / "vendor"
+    vendor_dir.mkdir()
+    output = Path("relative-results") / "unconditional"
+    monkeypatch.chdir(tmp_path)
+
+    def write_result(
+        family: str, _data_root: Path, output_path: Path
+    ) -> dict[str, Any]:
+        resolved_output = output_path.resolve()
+        resolved_output.mkdir(parents=True)
+        (resolved_output / "parity.json").write_text("{}\n", encoding="utf-8")
+        monkeypatch.chdir(vendor_dir)
+        return {
+            "comparison": {
+                "predictions_bitwise_equal": True,
+                "metrics_accepted": True,
+            },
+            "family": family,
+            "systems": {"package": {"prediction_count": 1}},
+        }
+
+    monkeypatch.setattr(publaynet_runner, "_run_family", write_result)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_publaynet_evaluation_path_parity.py",
+            "--family",
+            "unconditional",
+            "--data-root",
+            str(tmp_path),
+            "--output",
+            output.as_posix(),
+        ],
+    )
+
+    publaynet_runner.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["parity_sha256"] == sha256(tmp_path / output / "parity.json")
+
+
+def test_trained_checkpoint_runner_resolves_output_before_vendor_chdir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vendor_dir = tmp_path / "vendor"
+    vendor_dir.mkdir()
+    output = Path("relative-results") / "completion"
+    monkeypatch.chdir(tmp_path)
+
+    def write_result(args: argparse.Namespace) -> dict[str, Any]:
+        assert args.output.is_absolute()
+        args.output.mkdir(parents=True)
+        (args.output / "parity.json").write_text("{}\n", encoding="utf-8")
+        monkeypatch.chdir(vendor_dir)
+        return {
+            "comparison": {
+                "metrics_accepted": True,
+                "metrics_bitwise_equal": True,
+                "predictions_bitwise_equal": True,
+            },
+            "family": "completion",
+            "systems": {
+                "original": {"metrics": {"mIoU": 0.5}},
+                "package": {"metrics": {"mIoU": 0.5}, "prediction_count": 1},
+            },
+        }
+
+    monkeypatch.setattr(checkpoint_runner, "_run", write_result)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_publaynet_checkpoint_parity.py",
+            "--data-root",
+            str(tmp_path),
+            "--checkpoint",
+            "checkpoint.pth.tar",
+            "--converted-checkpoint",
+            "converted",
+            "--output",
+            output.as_posix(),
+        ],
+    )
+
+    checkpoint_runner.main()
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["parity_sha256"] == sha256(tmp_path / output / "parity.json")

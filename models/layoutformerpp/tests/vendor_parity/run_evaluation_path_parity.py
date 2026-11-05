@@ -515,8 +515,9 @@ class _PackageAdapter:
     def _pipeline_inputs(self) -> dict[str, Any]:
         if self.batch is None:
             raise RuntimeError("package pipeline adapter has no evaluation batch")
+        batch_size = len(self.batch["in_str"])
         if self.family == "unconditional":
-            return {"batch_size": len(self.batch["in_str"])}
+            return {"batch_size": batch_size}
 
         label_field = "gold_labels" if self.family == "relation" else "input_labels"
         label_rows = self.batch[label_field]
@@ -555,7 +556,7 @@ class _PackageAdapter:
                     ]
                 )
 
-        inputs: dict[str, Any] = {"labels": labels}
+        inputs: dict[str, Any] = {"batch_size": batch_size, "labels": labels}
         if bboxes is not None:
             inputs["bbox"] = bboxes
         if self.family == "relation":

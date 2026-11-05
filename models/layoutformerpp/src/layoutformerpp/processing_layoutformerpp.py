@@ -21,8 +21,9 @@ from laygen.common.labels import DatasetName, labels_for_dataset
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .tasks import (
-    OutputType,
+    DEFAULT_TASK_FOR_CONDITION,
     LayoutFormerPPTask,
+    OutputType,
     SUPPORTED_CONDITIONS,
     layoutformerpp_dataset_slug,
     normalize_layoutformerpp_dataset,
@@ -43,6 +44,7 @@ from .serialization import (
     T5LayoutSequenceForGenR,
     T5LayoutSequenceForGenT,
     build_default_tokens,
+    build_task_prompt,
 )
 from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
@@ -82,6 +84,11 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         dataset: DatasetName | str = DEFAULT_DATASET,
         task: LayoutFormerPPTask | ConditionType | str = DEFAULT_TASK,
         add_sep_token: bool = True,
+        add_task_prompt: bool = False,
+        gen_t_add_unk_token: bool = False,
+        gen_ts_add_unk_token: bool = False,
+        gen_r_add_unk_token: bool = False,
+        gen_r_compact: bool = False,
         x_grid: int = 128,
         y_grid: int = 128,
         id2label: dict[int, str] | None = None,
@@ -94,6 +101,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self.dataset = layoutformerpp_dataset_slug(normalized_dataset)
         self.task = str(normalized_task)
         self.add_sep_token = add_sep_token
+        self.add_task_prompt = add_task_prompt
+        self.gen_t_add_unk_token = gen_t_add_unk_token
+        self.gen_ts_add_unk_token = gen_ts_add_unk_token
+        self.gen_r_add_unk_token = gen_r_add_unk_token
+        self.gen_r_compact = gen_r_compact
+
         self.x_grid = x_grid
         self.y_grid = y_grid
         labels = labels_for_dataset(normalized_dataset)
@@ -149,6 +162,11 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         task: LayoutFormerPPTask | ConditionType | str = DEFAULT_TASK,
         *,
         add_sep_token: bool = True,
+        add_task_prompt: bool = False,
+        gen_t_add_unk_token: bool = False,
+        gen_ts_add_unk_token: bool = False,
+        gen_r_add_unk_token: bool = False,
+        gen_r_compact: bool = False,
         x_grid: int = 128,
         y_grid: int = 128,
         id2label: dict[int, str] | None = None,
@@ -157,13 +175,23 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         normalized_dataset = normalize_layoutformerpp_dataset(dataset)
         normalized_task = normalize_layoutformerpp_task(task)
         labels = labels_for_dataset(normalized_dataset)
-        tokens = build_default_tokens(labels, task=normalized_task, grid=x_grid)
+        tokens = build_default_tokens(
+            labels,
+            task=normalized_task,
+            grid=x_grid,
+            add_task_prompt=add_task_prompt,
+        )
         tokenizer = LayoutFormerPPTokenizer(tokens=tokens)
         return cls(
             tokenizer=tokenizer,
             dataset=normalized_dataset,
             task=normalized_task,
             add_sep_token=add_sep_token,
+            add_task_prompt=add_task_prompt,
+            gen_t_add_unk_token=gen_t_add_unk_token,
+            gen_ts_add_unk_token=gen_ts_add_unk_token,
+            gen_r_add_unk_token=gen_r_add_unk_token,
+            gen_r_compact=gen_r_compact,
             x_grid=x_grid,
             y_grid=y_grid,
             id2label=id2label,
@@ -281,7 +309,52 @@ class LayoutFormerPPProcessor(ProcessorMixin):
     ) -> list[list[list[int]]]:
         if bbox is None:
             return [[[0, 0, 1, 1] for _ in item] for item in labels]
-        tensor = torch.as_tensor(bbox, dtype=torch.float32)
+        try:
+            tensor = torch.as_tensor(bbox, dtype=torch.float32)
+        except ValueError:
+            if not isinstance(bbox, list) or len(bbox) != len(labels):
+                raise
+
+            if not normalized:
+                if canvas_size is None:
+                    raise ValueError("canvas_size is required when normalized=False")
+
+            rows: list[list[list[int]]] = []
+            for row_idx, boxes in enumerate(bbox):
+                if not boxes:
+                    rows.append([])
+                    continue
+
+                row_tensor = torch.as_tensor(boxes, dtype=torch.float32)
+                discrete_box_format = box_format
+                if not normalized:
+                    assert canvas_size is not None
+                    row_tensor = normalize_boxes(
+                        row_tensor,
+                        canvas_size=canvas_size,
+                        box_format=box_format,
+                    )
+
+                    discrete_box_format = BoxFormat.xywh
+
+                discrete = public_to_discrete_ltwh(
+                    row_tensor,
+                    box_format=discrete_box_format,
+                    x_grid=self.x_grid,
+                    y_grid=self.y_grid,
+                )
+                row = cast(list[list[int]], discrete.tolist())
+                if mask is not None:
+                    row_mask = mask[row_idx]
+                    if len(row_mask) < len(row):
+                        raise ValueError("mask sequence length must cover all boxes")
+
+                    row = [box for idx, box in enumerate(row) if row_mask[idx]]
+
+                rows.append(row)
+
+            return rows
+
         if tensor.ndim == 2:
             tensor = tensor.unsqueeze(0)
         discrete_box_format = box_format
@@ -356,13 +429,19 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             elif condition is ConditionType.label:
                 texts.append(
                     self.gen_t_serializer.build_input_seq(
-                        "gen_t", internal_labels[idx], internal_bbox[idx]
+                        "gen_t",
+                        internal_labels[idx],
+                        internal_bbox[idx],
+                        add_unk_for_label=self.gen_t_add_unk_token,
                     )
                 )
             elif condition is ConditionType.label_size:
                 texts.append(
                     self.gen_t_serializer.build_input_seq(
-                        "gen_ts", internal_labels[idx], internal_bbox[idx]
+                        "gen_ts",
+                        internal_labels[idx],
+                        internal_bbox[idx],
+                        add_unk_for_label_size=self.gen_ts_add_unk_token,
                     )
                 )
             elif condition is ConditionType.relation:
@@ -375,9 +454,13 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                             for row in item_relations.tolist()
                         ],
                     )
+
                 texts.append(
                     self.gen_r_serializer.build_input_seq(
-                        internal_labels[idx], item_relations
+                        internal_labels[idx],
+                        item_relations,
+                        add_unk_token=self.gen_r_add_unk_token,
+                        compact=self.gen_r_compact,
                     )
                 )
             elif condition is ConditionType.completion:
@@ -390,6 +473,11 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                 )
             else:
                 raise ValueError(f"Unsupported condition_type: {condition}")
+
+            if self.add_task_prompt:
+                texts[-1] = build_task_prompt(
+                    DEFAULT_TASK_FOR_CONDITION[condition], texts[-1]
+                )
 
         encoded = self.tokenizer.encode_text(texts, add_eos=True, add_bos=False)
         if return_tensors != "pt":
