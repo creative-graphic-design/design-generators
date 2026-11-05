@@ -84,10 +84,11 @@
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
 - Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair.
-- Treat publication to the `creative-graphic-design` Hugging Face organization as a separate approved step.
+- Treat merging a model package to `main` as approval to publish it to the `creative-graphic-design` Hugging Face organization. The main-push workflow selects changed model packages with `scripts/publish_to_hub.py` and runs only those package-local procedures; pull requests and merge queue entries never receive the publishing secret.
+- The shared repository secret `HF_TOKEN` is required for an eligible publication run, and the workflow must fail clearly when it is missing. Use a Hugging Face fine-grained token that grants content-write permission only to the Hub repositories whose packages define publishers; do not grant organization-wide access. When adding a package publisher, add its destination repository to the token's resource scope. Each publisher checks write access before upload and must clearly name its destination when access is missing.
 - Track publication separately from local serialization and parity verification.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
-- Hub publishing is deferred and is not part of the per-issue close condition.
+- Hub publishing runs after the package merge through the main-push workflow and remains separate from the per-issue close condition.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement

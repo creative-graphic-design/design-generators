@@ -88,6 +88,16 @@ def _direct_requirement(package_name: str, subdirectory: str) -> str:
     return f"{package_name} @ git+{GIT_REPO_URL}#subdirectory={subdirectory}"
 
 
+def _direct_requirement_options(
+    package_name: str, subdirectory: str
+) -> tuple[str, str]:
+    archive_url = GIT_REPO_URL.removesuffix(".git") + "/archive/main.zip"
+    return (
+        _direct_requirement(package_name, subdirectory),
+        f"{package_name} @ {archive_url}#subdirectory={subdirectory}",
+    )
+
+
 def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
     workspace_dependencies: list[tuple[str, str]] = []
     workspace_package_subdirs = _workspace_package_subdirs()
@@ -140,21 +150,22 @@ def assert_pip_install_snippet(
     section_label: str,
 ) -> None:
     """Require a bash fence with the expected direct-reference requirements."""
-    expected_requirements = [
-        _direct_requirement(package_name, subdirectory)
+    requirement_options = [
+        _direct_requirement_options(package_name, subdirectory)
         for package_name, subdirectory in requirements
     ]
     for fence in _bash_fences(section):
         if "pip install" in fence and all(
-            requirement in fence for requirement in expected_requirements
+            any(requirement in fence for requirement in options)
+            for options in requirement_options
         ):
             return
 
     expected_example = f"```bash\n{_pip_install_snippet(requirements)}\n```"
     missing = [
-        requirement
-        for requirement in expected_requirements
-        if requirement not in section
+        options[0]
+        for options in requirement_options
+        if not any(requirement in section for requirement in options)
     ]
     raise AssertionError(
         f"{path}: {section_label} must include a pip install snippet with "
@@ -194,12 +205,11 @@ def assert_lib_readme_install_contract(path: Path, text: str) -> None:
 
     package = path.parent.name
     install = section(text, "## Install")
-    direct_reference = (
-        f'pip install "{package} @ '
-        "git+https://github.com/creative-graphic-design/design-generators.git"
-        f'#subdirectory=lib/{package}"'
-    )
-    if direct_reference not in install:
+    direct_references = _direct_requirement_options(package, f"lib/{package}")
+    if not any(
+        f'pip install "{direct_reference}"' in install
+        for direct_reference in direct_references
+    ):
         raise AssertionError(
             f"{path}: Install must include pip direct-reference subdirectory form"
         )
