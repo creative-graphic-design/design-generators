@@ -21,7 +21,7 @@ def test_original_dataset_reads_tiny_extract(tmp_path):
         ("train/saliency_sub/sample.png", "L"),
     ]:
         Image.new(mode, (20, 20), color=255).save(root / rel)
-    with (root / "csv/train.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (root / "csv" / "train.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle, fieldnames=["poster_path", "box_elem", "cls_elem"]
         )
@@ -29,7 +29,9 @@ def test_original_dataset_reads_tiny_extract(tmp_path):
         writer.writerow(
             {"poster_path": "sample.png", "box_elem": "[0, 0, 10, 10]", "cls_elem": "1"}
         )
-    with (root / "csv/train_sal.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (root / "csv" / "train_sal.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=["poster_path", "box_elem"])
         writer.writeheader()
         writer.writerow({"poster_path": "sample.png", "box_elem": "[0, 0, 20, 20]"})
@@ -59,7 +61,7 @@ def test_original_dataset_replays_manifest_with_reference_encoding(tmp_path):
         )
         Image.new("L", (20, 20), color=0).save(root / f"train/saliency/{name}")
         Image.new("L", (20, 20), color=255).save(root / f"train/saliency_sub/{name}")
-    with (root / "csv/train.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (root / "csv" / "train.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle, fieldnames=["poster_path", "box_elem", "cls_elem"]
         )
@@ -68,7 +70,9 @@ def test_original_dataset_replays_manifest_with_reference_encoding(tmp_path):
             writer.writerow(
                 {"poster_path": name, "box_elem": "[0, 0, 10, 10]", "cls_elem": "1"}
             )
-    with (root / "csv/train_sal.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (root / "csv" / "train_sal.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=["poster_path", "box_elem"])
         writer.writeheader()
         for name in ["a.png", "b.png"]:
