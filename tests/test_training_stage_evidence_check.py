@@ -152,6 +152,15 @@ def write_full_run_checkpoint_evidence(
         capture_output=True,
         text=True,
     ).stdout.strip()
+    training_md = root / "models" / package / "TRAINING.md"
+    training_md.write_text(
+        training_md.read_text(encoding="utf-8").replace(
+            f"manifest launched_at={launched_at}; training-seed",
+            f"manifest launched_at={launched_at}; "
+            f"source_commit={source_commit}; training-seed",
+        ),
+        encoding="utf-8",
+    )
     manifest = root / ".cache/pkg/full-run/manifest.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
@@ -1017,6 +1026,10 @@ def test_pre_rule_s5_claim_passes_with_full_run_checkpoint(tmp_path: Path) -> No
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_data["artifacts"] = {}
+    manifest.write_text(json.dumps(manifest_data), encoding="utf-8")
     config = tmp_path / "models/layout-dm/configs/training/full.yaml"
     config.write_text(
         config.read_text(encoding="utf-8").replace(
@@ -1028,6 +1041,16 @@ def test_pre_rule_s5_claim_passes_with_full_run_checkpoint(tmp_path: Path) -> No
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
 
 
+def test_pre_rule_s5_claim_passes_without_local_manifest(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest.unlink()
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
 def test_pre_rule_s5_claim_accepts_the_default_model_checkpoint(tmp_path: Path) -> None:
     write_full_run_checkpoint_evidence(
         tmp_path,
@@ -1035,6 +1058,24 @@ def test_pre_rule_s5_claim_accepts_the_default_model_checkpoint(tmp_path: Path) 
         "2026-10-26T14:07:59+09:00",
         ".cache/pkg/full-run/checkpoints/epoch=0-step=12.ckpt",
         "trainer:\n  max_epochs: 10\n",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
+def test_pre_rule_s5_claim_accepts_save_all_top_k(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path,
+        "layout-dm",
+        "2026-10-26T14:07:59+09:00",
+        config_text=(
+            "trainer:\n"
+            "  callbacks:\n"
+            "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
+            "      init_args:\n"
+            "        save_top_k: -1\n"
+            "        filename: best\n"
+        ),
     )
 
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
@@ -1084,6 +1125,17 @@ def test_post_rule_s5_claim_rejects_full_run_checkpoint_without_smoke(
     }
 
 
+def test_post_rule_s5_claim_rejects_cutoff_in_utc_without_smoke(
+    tmp_path: Path,
+) -> None:
+    write_full_run_checkpoint_evidence(tmp_path, "layout-dm", "2026-10-26T05:08:00Z")
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
 def test_pre_rule_full_run_checkpoint_rejects_last_checkpoint(tmp_path: Path) -> None:
     write_full_run_checkpoint_evidence(
         tmp_path,
@@ -1106,9 +1158,27 @@ def test_pre_rule_full_run_checkpoint_rejects_mismatched_launch_timestamp(
     )
     path.write_text(
         path.read_text(encoding="utf-8").replace(
-            "manifest launched_at=2026-10-26T14:07:59+09:00; training-seed",
-            "manifest launched_at=2026-10-26T14:07:58+09:00; training-seed",
+            "manifest launched_at=2026-10-26T14:07:59+09:00; source_commit=",
+            "manifest launched_at=2026-10-26T14:07:58+09:00; source_commit=",
         ),
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_full_run_checkpoint_rejects_manifest_mismatch(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_data["source_commit"] = "0" + manifest_data["source_commit"]
+    manifest.write_text(
+        json.dumps(manifest_data),
         encoding="utf-8",
     )
 

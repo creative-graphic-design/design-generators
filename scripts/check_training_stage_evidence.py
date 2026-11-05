@@ -109,6 +109,7 @@ CHECKPOINT_SMOKE_VIOLATION = (
 CHECKPOINT_SMOKE_START = datetime.fromisoformat("2026-10-26T14:08:00+09:00")
 FULL_RUN_STEP_RE = re.compile(r"\bsaved training step=(\d+)\b")
 MANIFEST_LAUNCHED_AT_RE = re.compile(r"\bmanifest launched_at=([^;\s|]+)")
+SOURCE_COMMIT_RE = re.compile(r"\bsource_commit=([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\b")
 
 
 @dataclass(frozen=True)
@@ -633,6 +634,7 @@ def checkpoint_record_matches_full_run_config(
     package: str,
     root: Path,
     source_commit: str | None = None,
+    launched_at: str | None = None,
 ) -> bool:
     """Return whether the checkpoint record matches the checked-in run config."""
     if evidence is None or full_run_evidence is None:
@@ -650,7 +652,13 @@ def checkpoint_record_matches_full_run_config(
         or config_path.parts[:2] != ("models", package)
         or config_path.suffix not in {".yaml", ".yml"}
         or "training" not in config_path.parts
-        or not manifest_config_matches(full_run_evidence, config_path.as_posix(), root)
+        or not manifest_matches(
+            full_run_evidence,
+            config_path.as_posix(),
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
+        )
     ):
         return False
 
@@ -696,32 +704,20 @@ def is_pre_rule_full_run_checkpoint(
     if evidence is None or full_run_evidence is None:
         return False
 
-    manifest, _parity_path = parse_s5_artifact_paths(full_run_evidence.artifact)
-    if manifest is None:
-        return False
-
-    try:
-        manifest_data = json.loads((root / manifest).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-
-    source_commit = (
-        manifest_data.get("source_commit") if isinstance(manifest_data, dict) else None
-    )
-    if not isinstance(
-        source_commit, str
-    ) or not checkpoint_record_matches_full_run_config(
-        evidence,
-        full_run_evidence,
-        package,
-        root,
-        source_commit=source_commit,
+    stage_three_launches = MANIFEST_LAUNCHED_AT_RE.findall(evidence.result)
+    stage_five_launches = MANIFEST_LAUNCHED_AT_RE.findall(full_run_evidence.result)
+    source_commits = SOURCE_COMMIT_RE.findall(full_run_evidence.result)
+    saved_steps = FULL_RUN_STEP_RE.findall(evidence.result)
+    if (
+        len(stage_three_launches) != 1
+        or stage_five_launches != stage_three_launches
+        or len(source_commits) != 1
+        or len(saved_steps) != 1
     ):
         return False
 
-    launched_at = manifest_data.get("launched_at")
-    if not isinstance(launched_at, str):
-        return False
+    launched_at = stage_three_launches[0]
+    source_commit = source_commits[0]
 
     try:
         launch_time = datetime.fromisoformat(launched_at)
@@ -732,28 +728,18 @@ def is_pre_rule_full_run_checkpoint(
         launch_time.tzinfo is None
         or launch_time.utcoffset() is None
         or launch_time >= CHECKPOINT_SMOKE_START
-        or manifest_data.get("config")
-        != unquote_cell(full_run_evidence.full_run_config)
+        or not checkpoint_record_matches_full_run_config(
+            evidence,
+            full_run_evidence,
+            package,
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
+        )
     ):
         return False
 
-    checkpoint_path = unquote_cell(evidence.checkpoint_path)
-    checkpoint_sha256 = unquote_cell(evidence.checkpoint_sha256)
-    artifacts = manifest_data.get("artifacts")
-    if (
-        not isinstance(artifacts, dict)
-        or str(artifacts.get(checkpoint_path, "")).lower() != checkpoint_sha256.lower()
-    ):
-        return False
-
-    stage_three_launches = MANIFEST_LAUNCHED_AT_RE.findall(evidence.result)
-    stage_five_launches = MANIFEST_LAUNCHED_AT_RE.findall(full_run_evidence.result)
-    saved_steps = FULL_RUN_STEP_RE.findall(evidence.result)
-    return (
-        stage_three_launches == [launched_at]
-        and stage_five_launches == [launched_at]
-        and len(saved_steps) == 1
-    )
+    return True
 
 
 def production_fit_arguments_start(tokens: list[str]) -> int | None:
@@ -823,10 +809,14 @@ def is_tracked_file(root: Path, path: Path) -> bool:
     return result.returncode == 0
 
 
-def manifest_config_matches(
-    evidence: StageEvidence, full_run_config: str, root: Path
+def manifest_matches(
+    evidence: StageEvidence,
+    full_run_config: str,
+    root: Path,
+    source_commit: str | None = None,
+    launched_at: str | None = None,
 ) -> bool:
-    """Match the recorded full-run config to a locally available launch manifest."""
+    """Match recorded launch values to a manifest when it is locally available."""
     manifest, _parity_path = parse_s5_artifact_paths(evidence.artifact)
     if manifest is None:
         return False
@@ -836,17 +826,26 @@ def manifest_config_matches(
         return True
 
     try:
-        manifest_config = json.loads(manifest_path.read_text(encoding="utf-8"))[
-            "config"
-        ]
-    except (KeyError, OSError, TypeError, json.JSONDecodeError):
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return False
 
-    if isinstance(manifest_config, str):
-        return manifest_config == full_run_config
+    if not isinstance(manifest_data, dict):
+        return False
 
-    return isinstance(manifest_config, dict) and (
-        manifest_config.get("shipped_source") == full_run_config
+    manifest_config = manifest_data.get("config")
+    config_matches = (
+        manifest_config == full_run_config
+        if isinstance(manifest_config, str)
+        else isinstance(manifest_config, dict)
+        and manifest_config.get("shipped_source") == full_run_config
+    )
+    return (
+        config_matches
+        and (
+            source_commit is None or manifest_data.get("source_commit") == source_commit
+        )
+        and (launched_at is None or manifest_data.get("launched_at") == launched_at)
     )
 
 
@@ -891,7 +890,7 @@ def callback_checkpoint_filename_matches(
         except (TypeError, ValueError):
             return False
 
-        if save_top_k <= 0:
+        if save_top_k == 0:
             continue
 
         filename = init_args.get("filename")
