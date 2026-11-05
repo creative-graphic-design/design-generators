@@ -473,50 +473,70 @@ def assert_linked_first_reference_policy(path: Path) -> None:
 
 
 def assert_library_name_style(path: Path) -> None:
-    """Require reader-facing library names to use their annotated code forms."""
+    """Require a linked emoji form first and a plain code form afterward."""
     text = without_badges(
         without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     )
-    banned_names = {
-        "Transformers": "`🤗transformers`",
-        "Diffusers": "`🧨diffusers`",
-        "Pydantic AI": "`🤖pydantic-ai`",
-    }
-    for name, replacement in banned_names.items():
+    banned_names = ("Transformers", "Diffusers", "Pydantic AI")
+    for name in banned_names:
         match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
         if match:
             raise AssertionError(
-                f"{path}: use {replacement} instead of prose library name {name!r}"
+                f"{path}: use a code-form library name instead of prose name {name!r}"
             )
 
-    huggingface_mentions = re.findall(r"`🤗transformers`", text)
-    if text.count("🤗") != len(huggingface_mentions):
-        raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
-
-    diffusers_mentions = re.findall(r"`🧨diffusers`", text)
-    if text.count("🧨") != len(diffusers_mentions):
-        raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
-
-    pydantic_ai_mentions = re.findall(r"`🤖pydantic-ai`", text)
-    if text.count("🤖") != len(pydantic_ai_mentions):
-        raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
-
-    if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
-        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-
-    if re.search(r"🤗\s+pydantic-ai", text):
-        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-
-    required_code_spans = {
-        "transformers": "`🤗transformers`",
-        "diffusers": "`🧨diffusers`",
-        "pydantic-ai": "`🤖pydantic-ai`",
+    library_styles = {
+        "transformers": ("🤗", "https://huggingface.co/docs/transformers/index"),
+        "diffusers": ("🧨", "https://huggingface.co/docs/diffusers/index"),
+        "pydantic-ai": ("🤖", "https://ai.pydantic.dev/"),
     }
-    for library in ("transformers", "diffusers", "pydantic-ai"):
-        for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
-            if inline_code_span_at(text, match.start()) == required_code_spans[library]:
+    for library, (emoji, official_docs_url) in library_styles.items():
+        emoji_code = f"`{emoji}{library}`"
+        plain_code = f"`{library}`"
+        if text.count(emoji) != text.count(emoji_code):
+            raise AssertionError(
+                f"{path}: {emoji} must annotate a {library} library mention"
+            )
+
+        mentions: list[tuple[re.Match[str], str | None]] = []
+        for match in re.finditer(rf"(?<![/\w=-]){re.escape(library)}(?![/\w])", text):
+            code_span = inline_code_span_at(text, match.start())
+            if code_span is not None and code_span not in (emoji_code, plain_code):
+                if code_span.startswith(f"`{library}."):
+                    continue
+
                 continue
 
-            raise AssertionError(
-                f"{path}: use code-form {required_code_spans[library]} for library names"
-            )
+            mentions.append((match, code_span))
+
+        if not mentions:
+            continue
+
+        link_pattern = re.compile(r"\[(`[^`\n]+`)\]\(([^)\n]+)\)")
+        for index, (match, code_span) in enumerate(mentions):
+            if index == 0:
+                link = next(
+                    (
+                        candidate
+                        for candidate in link_pattern.finditer(text)
+                        if candidate.start() <= match.start() < candidate.end()
+                    ),
+                    None,
+                )
+                if (
+                    code_span != emoji_code
+                    or link is None
+                    or link.group(1) != emoji_code
+                    or link.group(2) != official_docs_url
+                ):
+                    raise AssertionError(
+                        f"{path}: first {library} mention must link {emoji_code} "
+                        f"to its official documentation at {official_docs_url}"
+                    )
+
+                continue
+
+            if code_span != plain_code:
+                raise AssertionError(
+                    f"{path}: later {library} mention must use {plain_code}"
+                )

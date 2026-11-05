@@ -160,10 +160,10 @@ Metrics are exact scheduler/timestep agreement, exact tensor equality where the 
 
 ### Parity Results
 
-| Dataset         | Compared path                                                  | Cases | Assertion                                                                                                                              |
-| --------------- | -------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------------------------------------- |
-| CGL             | original Detectron2 RADM path vs. converted `🧨diffusers` path |     0 | not run; vendor parity is not verified, and the recorded evaluation-path artifact is diagnosis evidence, not an accepted parity result |
-| Synthetic smoke | randomly initialized RADM pipeline save/load                   |     1 | schema smoke only, no original-code parity claim                                                                                       |
+| Dataset         | Compared path                                                | Cases | Assertion                                                                                                                              |
+| --------------- | ------------------------------------------------------------ | ----: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| CGL             | original Detectron2 RADM path vs. converted `diffusers` path |     0 | not run; vendor parity is not verified, and the recorded evaluation-path artifact is diagnosis evidence, not an accepted parity result |
+| Synthetic smoke | randomly initialized RADM pipeline save/load                 |     1 | schema smoke only, no original-code parity claim                                                                                       |
 
 No accepted original-code inference parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
 
@@ -185,7 +185,7 @@ No model weights are included. Conversion, reference generation, and parity cost
 
 ### Model Architecture and Objective
 
-RADM samples proposal boxes and denoises them with relation-aware image and text conditioning. The package-level runtime keeps the image/text feature processor, proposal scheduler, denoiser, and postprocessing separate so converted artifacts can load through `🧨diffusers` component folders.
+RADM samples proposal boxes and denoises them with relation-aware image and text conditioning. The package-level runtime keeps the image/text feature processor, proposal scheduler, denoiser, and postprocessing separate so converted artifacts can load through `diffusers` component folders.
 
 ### Compute Infrastructure
 
