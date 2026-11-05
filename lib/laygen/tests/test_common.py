@@ -911,7 +911,7 @@ def test_vendor_root_resolution(tmp_path):
 def test_vendor_root_sibling_worktree_and_uninitialized_errors(tmp_path):
     repo_root = tmp_path / "design-generators=impl-layoutganpp"
     repo_root.mkdir()
-    requested = Path("vendor/const-layout")
+    requested = Path("vendor") / "const-layout"
     marker = "model/layoutganpp.py"
     sibling_vendor = tmp_path / "design-generators" / requested
     (sibling_vendor / "model").mkdir(parents=True)
