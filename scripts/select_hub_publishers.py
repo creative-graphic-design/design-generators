@@ -98,9 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if (args.base is None) != (args.head is None):
         parser.error("--base and --head must be provided together")
 
-    changed_paths = (
-        None if args.base is None else _changed_paths(args.base, args.head)
-    )
+    changed_paths = None if args.base is None else _changed_paths(args.base, args.head)
     publishers = select_publishers(REPOSITORY_ROOT, changed_paths)
     print(
         json.dumps(

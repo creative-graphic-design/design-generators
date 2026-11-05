@@ -22,9 +22,7 @@ LOADER.exec_module(SELECTOR)
 def make_model_package(root: Path, name: str, *, publishes: bool) -> None:
     package_directory = root / "models" / name
     package_directory.mkdir(parents=True)
-    (package_directory / "pyproject.toml").write_text(
-        f"[project]\nname = '{name}'\n"
-    )
+    (package_directory / "pyproject.toml").write_text(f"[project]\nname = '{name}'\n")
     if publishes:
         publisher_path = package_directory / "scripts" / "publish_to_hub.py"
         publisher_path.parent.mkdir()
@@ -66,12 +64,8 @@ def test_no_diff_selects_all_configured_publishers(tmp_path: Path) -> None:
     make_model_package(tmp_path, "a-model", publishes=True)
 
     assert SELECTOR.select_publishers(tmp_path, None) == [
-        SELECTOR.HubPublisher(
-            package="a-model", directory=Path("models") / "a-model"
-        ),
-        SELECTOR.HubPublisher(
-            package="z-model", directory=Path("models") / "z-model"
-        ),
+        SELECTOR.HubPublisher(package="a-model", directory=Path("models") / "a-model"),
+        SELECTOR.HubPublisher(package="z-model", directory=Path("models") / "z-model"),
     ]
 
 
@@ -90,7 +84,15 @@ def test_changed_paths_reads_null_delimited_git_output(
     def fake_git_diff(
         command: list[str], *, check: bool, stdout: int
     ) -> subprocess.CompletedProcess[bytes]:
-        assert command == ["git", "diff", "--name-only", "--no-renames", "-z", "base", "head"]
+        assert command == [
+            "git",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "-z",
+            "base",
+            "head",
+        ]
         assert check is True
         assert stdout == subprocess.PIPE
         return subprocess.CompletedProcess(command, 0, b"models/example/README.md\0")
