@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -58,6 +59,28 @@ def test_prepares_only_pipeline_and_model_card_and_pins_the_source_archives() ->
     assert files["pipeline.py"] == b"canonical pipeline"
 
 
+def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
+    readme_text = PUBLISHER.README_SOURCE.read_text(encoding="utf-8")
+    files = PUBLISHER.prepare_upload_files(b"pipeline", readme_text, REVISION)
+    card = files["README.md"].decode("utf-8")
+    url_pattern = re.compile(
+        r'(?m)^\s*"laygen @ (?P<url>https:'
+        r'//[^"\s]+)"(?:\s*\\)?\s*$'
+    )
+    readme_urls = url_pattern.findall(readme_text)
+    card_urls = url_pattern.findall(card)
+    expected_archive = "https:" + (
+        "//github.com/creative-graphic-design/design-generators/archive"
+    )
+
+    assert len(readme_urls) == 1
+    assert readme_urls[0] == f"{expected_archive}/main.zip#subdirectory=lib/laygen"
+    assert len(card_urls) == 1
+    assert card_urls[0] == (
+        f"{expected_archive}/{REVISION}.zip#subdirectory=lib/laygen"
+    )
+
+
 def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
     published_readme = README.replace(
         PUBLISHER.PLANNED_HUB_BADGE,
@@ -69,16 +92,6 @@ def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
     card = files["README.md"].decode("utf-8")
     assert PUBLISHER.PUBLISHED_HUB_BADGE in card
     assert PUBLISHER.PLANNED_HUB_BADGE not in card
-
-
-def test_extracts_the_laygen_archive_install_from_the_published_card() -> None:
-    files = PUBLISHER.prepare_upload_files(b"pipeline", README, REVISION)
-    card = files["README.md"].decode("utf-8")
-
-    assert PUBLISHER.extract_laygen_requirement(card) == (
-        "laygen @ https:" + "//github.com/creative-graphic-design/design-generators/"
-        f"archive/{REVISION}.zip#subdirectory=lib/laygen"
-    )
 
 
 def test_staging_contains_only_the_explicit_upload_files(tmp_path: Path) -> None:
@@ -125,11 +138,6 @@ def test_card_generation_requires_exactly_one_frontmatter_license() -> None:
 
     with pytest.raises(ValueError, match="exactly one frontmatter license"):
         PUBLISHER.prepare_upload_files(b"pipeline", invalid_readme, REVISION)
-
-
-def test_laygen_requirement_rejects_an_unpinned_archive_url() -> None:
-    with pytest.raises(ValueError, match="must pin a full commit SHA"):
-        PUBLISHER.extract_laygen_requirement(README)
 
 
 def test_write_access_failure_names_the_repository() -> None:
@@ -234,9 +242,8 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
     monkeypatch.setattr(
         PUBLISHER,
         "_verify_uploaded_files",
-        lambda api, files, *, revision: "card",
+        lambda api, files, *, revision: None,
     )
-    monkeypatch.setattr(PUBLISHER, "verify_laygen_install", lambda card: None)
 
     PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
 
