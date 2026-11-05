@@ -81,7 +81,9 @@ def convert_layoutflow_checkpoint(
                 dataset_name=config.dataset_name,
                 source=config.source,
             )
-            save_reference_statistics(output / f"reference_stats/{split}.npz", stats)
+            save_reference_statistics(
+                output / "reference_stats" / f"{split}.npz", stats
+            )
     return config
 
 

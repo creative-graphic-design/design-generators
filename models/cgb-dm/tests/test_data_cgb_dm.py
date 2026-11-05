@@ -57,10 +57,10 @@ def test_original_dataset_replays_manifest_with_reference_encoding(tmp_path):
         (root / rel).mkdir(parents=True, exist_ok=True)
     for name in ["b.png", "a.png"]:
         Image.new("RGB", (20, 20), color=(255, 0, 0)).save(
-            root / f"train/inpaint/{name}"
+            root / "train" / "inpaint" / name
         )
-        Image.new("L", (20, 20), color=0).save(root / f"train/saliency/{name}")
-        Image.new("L", (20, 20), color=255).save(root / f"train/saliency_sub/{name}")
+        Image.new("L", (20, 20), color=0).save(root / "train" / "saliency" / name)
+        Image.new("L", (20, 20), color=255).save(root / "train" / "saliency_sub" / name)
     with (root / "csv" / "train.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle, fieldnames=["poster_path", "box_elem", "cls_elem"]

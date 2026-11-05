@@ -211,8 +211,8 @@ def compare_torch(args: argparse.Namespace) -> None:
     from flex_dm import FlexDmForMaskedDocumentModeling
 
     tf_probe = np.load(args.probe_dir / "tf_probe.npz")
-    checkpoint_dir = args.checkpoint_dir or Path(
-        f".cache/flex-dm/converted/flex-dm-{args.dataset}"
+    checkpoint_dir = args.checkpoint_dir or (
+        Path(".cache") / "flex-dm" / "converted" / f"flex-dm-{args.dataset}"
     )
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     model = (

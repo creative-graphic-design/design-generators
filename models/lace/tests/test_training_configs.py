@@ -34,9 +34,7 @@ def test_training_configs_instantiate_package_classes() -> None:
             Path(".cache")
             / "lace"
             / "data"
-            / (
-                f"{cli.datamodule.dataset_name}-max{cli.datamodule.max_seq_length}"
-                "/processed"
-            )
+            / f"{cli.datamodule.dataset_name}-max{cli.datamodule.max_seq_length}"
+            / "processed"
         )
         assert cli.datamodule.processed_data_dir == expected_root
