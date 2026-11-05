@@ -16,6 +16,7 @@ from devharness.checks.model_readmes import (
     card,
     check,
     citation,
+    fix_badge,
     install,
     parity,
     reproducing,
@@ -23,6 +24,7 @@ from devharness.checks.model_readmes import (
 )
 from devharness.checks.jaxtyping_annotations import check as jaxtyping_annotations
 from devharness.checks.model_readmes.constants import (
+    DOCS_LIBRARY_TABLE_HEADER,
     DOCS_MODEL_TABLE_HEADER,
     ROOT_MODEL_TABLE_HEADER,
 )
@@ -879,6 +881,71 @@ def _docs_model_row(task: str, content: str = "content-agnostic") -> str:
         "message=train&color=success)](models/layout-dm/TRAINING.md) | "
         "[Paper](https://arxiv.org/abs/2303.03755) | "
         "[README](models/layout-dm/README.md) |"
+    )
+
+
+def test_root_model_badge_fixer_rewrites_stale_value_and_then_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "![models](https://img.shields.io/static/v1?label=models&message=31&color=purple)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(fix_badge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(fix_badge, "model_member_count", lambda: 32)
+
+    assert fix_badge.main() == 1
+    assert readme.read_text(encoding="utf-8") == (
+        "![models](https://img.shields.io/static/v1?label=models&message=32&color=purple)\n"
+    )
+    assert capsys.readouterr().out == f"{readme}: models badge updated to 32\n"
+
+    assert fix_badge.main() == 0
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("rows", "missing", "extra"),
+    [
+        (["laygen"], ["posgen"], []),
+        (["laygen", "posgen", "unused"], [], ["unused"]),
+    ],
+)
+def test_docs_index_libraries_table_matches_workspace_members(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rows: list[str],
+    missing: list[str],
+    extra: list[str],
+) -> None:
+    index = tmp_path / "index.md"
+    library_rows = "\n".join(
+        f"| [![library: {slug}](https://img.shields.io/static/v1?label=library&"
+        f"message={slug}&color=2f80ed)](api/libraries/{slug}/) | Description | "
+        f"[README](lib/{slug}/README.md) |"
+        for slug in rows
+    )
+    index.write_text(
+        "## Libraries\n\n"
+        f"| {' | '.join(DOCS_LIBRARY_TABLE_HEADER)} |\n"
+        f"| {' | '.join('---' for _ in DOCS_LIBRARY_TABLE_HEADER)} |\n"
+        f"{library_rows}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        root_readme, "library_member_slugs", lambda: {"laygen", "posgen"}
+    )
+
+    docs_slugs = root_readme.docs_library_slugs(index)
+
+    with pytest.raises(AssertionError) as exc_info:
+        root_readme.assert_docs_libraries_table_matches_members(docs_slugs, index)
+
+    assert str(exc_info.value) == (
+        f"{index}: Libraries table mismatch: missing={missing}, extra={extra}"
     )
 
 
