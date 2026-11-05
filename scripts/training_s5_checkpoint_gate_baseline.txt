@@ -1,4 +1,4 @@
-# Existing S5 claim fingerprints; new or changed claims require checkpoint smoke evidence.
+# Existing S5 claim fingerprints; new or changed claims require bounded checkpoint evidence.
 models/canvas-vae/TRAINING.md	d5d99eedb143965315891806a77e48889135f04caf7c7ca9b8c26d7b82b5717e
 models/cgb-dm/TRAINING.md	887e0985f23ea5245ff569ffc48c710390a1ab2f036d558b0d46b9eb37003472
 models/dlt/TRAINING.md	bfaf9dd2cd6dd820abecdf235aae47efc703388df09b67a09eeab062fb47d137

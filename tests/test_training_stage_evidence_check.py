@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
@@ -81,6 +82,100 @@ def complete_stage_evidence_table(checkpoint_fields: bool = True) -> str:
 | S4 | `uv run pytest s4` | not required | not required | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed.{(" | — | — |" if checkpoint_fields else "")}
 | S5 | `uv run train full` | not required | `models/pkg/configs/training/full.yaml` | `.cache/pkg/full-run/manifest.json; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json` | training-seed n=3 accepted.{(" | — | — |" if checkpoint_fields else "")}
 """
+
+
+def write_full_run_checkpoint_evidence(
+    root: Path,
+    package: str,
+    launched_at: str,
+    checkpoint_path: str = ".cache/pkg/full-run/checkpoints/best.ckpt",
+    config_text: str | None = None,
+) -> Path:
+    table = complete_stage_evidence_table()
+    table = table.replace(
+        "uv run --package pkg --extra training traingen fit --config "
+        "models/pkg/configs/training/full.yaml --trainer.max_epochs=1 "
+        "--trainer.limit_train_batches=2 --trainer.limit_val_batches=2",
+        "not required",
+    )
+    table = table.replace(".cache/pkg/s3/checkpoints/best.ckpt", checkpoint_path)
+    table = table.replace(
+        "Multi-batch deterministic run passed.",
+        f"Full-run top-k checkpoint saved training step=12; "
+        f"manifest launched_at={launched_at}",
+    )
+    table = table.replace(
+        "training-seed n=3 accepted.",
+        f"manifest launched_at={launched_at}; training-seed n=3 accepted.",
+    )
+    path = write_training_md(
+        root,
+        package,
+        f"# Training\n\n## Reproduction Results\n\n"
+        f"Package training reproduction is achieved with training-seed n=3.\n"
+        f"{table}",
+    )
+    if config_text is not None:
+        config_path = root / "models" / package / "configs" / "training" / "full.yaml"
+        config_path.write_text(config_text, encoding="utf-8")
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "add",
+                "--",
+                config_path.relative_to(root).as_posix(),
+            ],
+            check=True,
+        )
+
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "-c",
+            "user.name=Training evidence test",
+            "-c",
+            "user.email=training-evidence@example.com",
+            "commit",
+            "--quiet",
+            "-m",
+            "full-run config",
+        ],
+        check=True,
+    )
+    source_commit = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    training_md = root / "models" / package / "TRAINING.md"
+    training_md.write_text(
+        training_md.read_text(encoding="utf-8").replace(
+            f"manifest launched_at={launched_at}; training-seed",
+            f"manifest launched_at={launched_at}; "
+            f"source_commit={source_commit}; training-seed",
+        ),
+        encoding="utf-8",
+    )
+    manifest = root / ".cache/pkg/full-run/manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "config": f"models/{package}/configs/training/full.yaml",
+                "source_commit": source_commit,
+                "launched_at": launched_at,
+                "artifacts": {checkpoint_path: "a" * 64},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def test_parse_stage_evidence_accepts_complete_rows() -> None:
@@ -919,6 +1014,191 @@ Package training reproduction is achieved with training-seed n=3.
 
 {complete_stage_evidence_table(checkpoint_fields=False)}
 """,
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_full_run_checkpoint_passes_with_unreachable_source_commit(
+    tmp_path: Path,
+) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    source_commit = json.loads(manifest.read_text(encoding="utf-8"))["source_commit"]
+    manifest.unlink()
+    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    original = training_md.read_text(encoding="utf-8")
+    unreachable_commit = "f" * 40
+    updated = original.replace(
+        f"source_commit={source_commit}", f"source_commit={unreachable_commit}"
+    )
+    assert updated != original
+    training_md.write_text(
+        updated,
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
+def test_pre_rule_full_run_checkpoint_requires_smoke_command_to_be_not_required(
+    tmp_path: Path,
+) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    original = training_md.read_text(encoding="utf-8")
+    updated = original.replace(
+        "| S3 | `uv run pytest s3-trajectory` | `not required` |",
+        "| S3 | `uv run pytest s3-trajectory` | `not recorded` |",
+    )
+    assert updated != original
+    training_md.write_text(
+        updated,
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_s5_claim_accepts_the_default_model_checkpoint(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path,
+        "layout-dm",
+        "2026-10-26T14:07:59+09:00",
+        ".cache/pkg/full-run/checkpoints/epoch=0-step=12.ckpt",
+        "trainer:\n  max_epochs: 10\n",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
+def test_pre_rule_s5_claim_accepts_save_all_top_k(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path,
+        "layout-dm",
+        "2026-10-26T14:07:59+09:00",
+        config_text=(
+            "trainer:\n"
+            "  callbacks:\n"
+            "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
+            "      init_args:\n"
+            "        save_top_k: -1\n"
+            "        filename: best\n"
+        ),
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+
+
+def test_pre_rule_s5_claim_without_smoke_or_full_run_checkpoint_fails(
+    tmp_path: Path,
+) -> None:
+    table = complete_stage_evidence_table(checkpoint_fields=False).replace(
+        "uv run --package pkg --extra training traingen fit --config "
+        "models/pkg/configs/training/full.yaml --trainer.max_epochs=1 "
+        "--trainer.limit_train_batches=2 --trainer.limit_val_batches=2",
+        "not required",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"# Training\n\n## Reproduction Results\n\n"
+        f"Package training reproduction is achieved with training-seed n=3.\n"
+        f"{table}",
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        '{"config":"models/layout-dm/configs/training/full.yaml",'
+        '"source_commit":"0000000000000000000000000000000000000000",'
+        '"launched_at":"2026-10-26T14:07:59+09:00","artifacts":{}}\n',
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_post_rule_s5_claim_rejects_full_run_checkpoint_without_smoke(
+    tmp_path: Path,
+) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:08:00+09:00"
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_post_rule_s5_claim_rejects_cutoff_in_utc_without_smoke(
+    tmp_path: Path,
+) -> None:
+    write_full_run_checkpoint_evidence(tmp_path, "layout-dm", "2026-10-26T05:08:00Z")
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_full_run_checkpoint_rejects_last_checkpoint(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path,
+        "layout-dm",
+        "2026-10-26T14:07:59+09:00",
+        ".cache/pkg/full-run/checkpoints/last-v1.ckpt",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_full_run_checkpoint_rejects_mismatched_launch_timestamp(
+    tmp_path: Path,
+) -> None:
+    path = write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "manifest launched_at=2026-10-26T14:07:59+09:00; source_commit=",
+            "manifest launched_at=2026-10-26T14:07:58+09:00; source_commit=",
+        ),
+        encoding="utf-8",
+    )
+
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
+
+
+def test_pre_rule_full_run_checkpoint_rejects_manifest_mismatch(tmp_path: Path) -> None:
+    write_full_run_checkpoint_evidence(
+        tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
+    )
+    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_data["source_commit"] = "0" + manifest_data["source_commit"]
+    manifest.write_text(
+        json.dumps(manifest_data),
+        encoding="utf-8",
     )
 
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
