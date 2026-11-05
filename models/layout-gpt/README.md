@@ -24,7 +24,7 @@ datasets:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
+This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [`🤖pydantic-ai`](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
 
 ## Model Details
 

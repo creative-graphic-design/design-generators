@@ -28,7 +28,7 @@ datasets:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
+This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [`🤖pydantic-ai`](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
 
 ## Model Details
 

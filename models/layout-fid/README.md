@@ -41,7 +41,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package is a `transformers` port of the layout-fid FIDNet/LayoutNet evaluator. It exposes feature extraction and Frechet-statistics scoring for generated layouts through the repository layout schema.
+This package is a [`🤗transformers`](https://huggingface.co/docs/transformers/index) port of the layout-fid FIDNet/LayoutNet evaluator. It exposes feature extraction and Frechet-statistics scoring for generated layouts through the repository layout schema.
 
 ## Model Details
 

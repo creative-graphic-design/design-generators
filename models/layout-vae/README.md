@@ -43,7 +43,7 @@ This package implements LayoutVAE as a stochastic scene layout generator that pr
 
 ### Model Description
 
-LayoutVAE is a `🤗transformers`-style implementation for label-conditioned PubLayNet layout generation. It returns normalized center `xywh` boxes, dataset-local labels, a valid-element mask, and `id2label`.
+LayoutVAE is a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style implementation for label-conditioned PubLayNet layout generation. It returns normalized center `xywh` boxes, dataset-local labels, a valid-element mask, and `id2label`.
 
 - **Developed by:** Akash Abdu Jyothi, Thibaut Durand, Jiawei He, Leonid Sigal, and Greg Mori.
 - **Shared by:** creative-graphic-design.

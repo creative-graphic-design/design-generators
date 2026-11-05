@@ -54,6 +54,10 @@ def _frontmatter(text: str) -> str:
     return text[:end]
 
 
+_FENCE_OPENING_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+_FENCE_CLOSING_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})[ \t]*$")
+
+
 def without_frontmatter_and_code(text: str) -> str:
     """Remove frontmatter and fenced code from reader-facing Markdown text."""
     if text.startswith("---\n"):
@@ -62,14 +66,31 @@ def without_frontmatter_and_code(text: str) -> str:
             text = text[end + len("\n---\n") :]
 
     lines: list[str] = []
-    in_code = False
+    opening_fence: str | None = None
     for line in text.splitlines():
-        if line.startswith("```"):
-            in_code = not in_code
+        if opening_fence is None:
+            opening = _FENCE_OPENING_RE.match(line)
+            if opening is None:
+                lines.append(line)
+                continue
+
+            opening_fence = opening.group("fence")
+            info = opening.group("info")
+            if opening_fence.startswith("`") and "`" in info:
+                lines.append(line)
+                opening_fence = None
+
             continue
 
-        if not in_code:
-            lines.append(line)
+        closing = _FENCE_CLOSING_RE.match(line)
+        if closing is None:
+            continue
+
+        closing_fence = closing.group("fence")
+        if closing_fence[0] == opening_fence[0] and len(closing_fence) >= len(
+            opening_fence
+        ):
+            opening_fence = None
 
     return "\n".join(lines)
 

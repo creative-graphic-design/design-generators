@@ -56,7 +56,7 @@ model-index:
 This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
 <!-- Include the literature method name, conference or journal if known, and a stable paper URL. -->
-<!-- Link the framework name to its official documentation, for example [`🧨diffusers`](https://huggingface.co/docs/diffusers/index). -->
+<!-- Link each library's first prose mention to its official documentation using the emoji code form; use the plain code form on later mentions. Examples: [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/). -->
 
 ## Model Details
 
@@ -64,7 +64,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 <longer description of what the converted checkpoint does and what package loads it>
 
-<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is `🤗transformers` or `🧨diffusers` style. -->
+<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is `transformers` or `diffusers` style. -->
 
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
