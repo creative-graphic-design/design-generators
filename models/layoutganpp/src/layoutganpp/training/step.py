@@ -8,6 +8,7 @@ from typing import cast
 import torch
 import torch.nn.functional as F
 from jaxtyping import Bool, Float, Int, Shaped
+from lightning.pytorch.core.optimizer import LightningOptimizer
 from torch import nn
 
 from laygen.common.randomness import randn
@@ -126,7 +127,7 @@ def run_gan_iteration(
     generator: nn.Module,
     discriminator: nn.Module,
     batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
-    optimizer_g: torch.optim.Optimizer,
+    optimizer_g: torch.optim.Optimizer | LightningOptimizer,
     optimizer_d: torch.optim.Optimizer,
     *,
     backward: Callable[[Float[torch.Tensor, "..."]], None] | None = None,

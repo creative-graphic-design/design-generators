@@ -1,4 +1,4 @@
-"""Validate training evidence formats and new full-run checkpoint smoke claims.
+"""Validate training evidence formats and new full-run checkpoint claims.
 
 The checker does not execute recorded commands, hash artifact contents, or scan
 README and model-card claims.
@@ -13,6 +13,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -103,8 +104,12 @@ CLAIM_PATTERNS = (
     ),
 )
 CHECKPOINT_SMOKE_VIOLATION = (
-    "new or changed S5 claim lacks bounded production checkpoint smoke evidence"
+    "new or changed S5 claim lacks bounded production checkpoint evidence"
 )
+CHECKPOINT_SMOKE_START = datetime.fromisoformat("2026-10-26T14:08:00+09:00")
+FULL_RUN_STEP_RE = re.compile(r"\bsaved training step=(\d+)\b")
+MANIFEST_LAUNCHED_AT_RE = re.compile(r"\bmanifest launched_at=([^;\s|]+)")
+SOURCE_COMMIT_RE = re.compile(r"\bsource_commit=([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\b")
 
 
 @dataclass(frozen=True)
@@ -558,12 +563,8 @@ def is_bounded_production_checkpoint_smoke(
     if evidence is None or full_run_evidence is None:
         return False
 
-    checkpoint_path = unquote_cell(evidence.checkpoint_path)
-    checkpoint_sha256 = unquote_cell(evidence.checkpoint_sha256)
-    if (
-        not is_artifact_path(checkpoint_path)
-        or not checkpoint_path.endswith(".ckpt")
-        or re.fullmatch(r"[0-9a-fA-F]{64}", checkpoint_sha256) is None
+    if not checkpoint_record_matches_full_run_config(
+        evidence, full_run_evidence, package, root
     ):
         return False
 
@@ -620,24 +621,107 @@ def is_bounded_production_checkpoint_smoke(
     ):
         return False
 
-    config_path = Path(config_values[0])
     full_run_config = unquote_cell(full_run_evidence.full_run_config)
     if config_values[0] != full_run_config:
         return False
 
-    return (
-        not config_path.is_absolute()
-        and ".." not in config_path.parts
-        and config_path.parts[:2] == ("models", package)
-        and config_path.suffix in {".yaml", ".yml"}
-        and "training" in config_path.parts
-        and (root / config_path).is_file()
-        and is_tracked_file(root, config_path)
-        and manifest_config_matches(full_run_evidence, full_run_config, root)
-        and callback_checkpoint_filename_matches(
-            root / config_path, Path(checkpoint_path).name
+    return True
+
+
+def checkpoint_record_matches_full_run_config(
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
+    source_commit: str | None = None,
+    launched_at: str | None = None,
+) -> bool:
+    """Return whether the checkpoint record matches the checked-in run config."""
+    if evidence is None or full_run_evidence is None:
+        return False
+
+    checkpoint_path = unquote_cell(evidence.checkpoint_path)
+    checkpoint_sha256 = unquote_cell(evidence.checkpoint_sha256)
+    config_path = Path(unquote_cell(full_run_evidence.full_run_config))
+    if (
+        not is_artifact_path(checkpoint_path)
+        or not checkpoint_path.endswith(".ckpt")
+        or re.fullmatch(r"[0-9a-fA-F]{64}", checkpoint_sha256) is None
+        or config_path.is_absolute()
+        or ".." in config_path.parts
+        or config_path.parts[:2] != ("models", package)
+        or config_path.suffix not in {".yaml", ".yml"}
+        or "training" not in config_path.parts
+        or not manifest_matches(
+            full_run_evidence,
+            config_path.as_posix(),
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
         )
-    )
+    ):
+        return False
+
+    if not (root / config_path).is_file() or not is_tracked_file(root, config_path):
+        return False
+
+    try:
+        config_text = (root / config_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    return callback_checkpoint_filename_matches(config_text, Path(checkpoint_path).name)
+
+
+def is_pre_rule_full_run_checkpoint(
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
+) -> bool:
+    """Return whether a pre-rule run records its own top-k checkpoint."""
+    if evidence is None or full_run_evidence is None:
+        return False
+
+    if unquote_cell(evidence.checkpoint_smoke_command) != "not required":
+        return False
+
+    stage_three_launches = MANIFEST_LAUNCHED_AT_RE.findall(evidence.result)
+    stage_five_launches = MANIFEST_LAUNCHED_AT_RE.findall(full_run_evidence.result)
+    source_commits = SOURCE_COMMIT_RE.findall(full_run_evidence.result)
+    saved_steps = FULL_RUN_STEP_RE.findall(evidence.result)
+    if (
+        len(stage_three_launches) != 1
+        or stage_five_launches != stage_three_launches
+        or len(source_commits) != 1
+        or len(saved_steps) != 1
+    ):
+        return False
+
+    launched_at = stage_three_launches[0]
+    source_commit = source_commits[0]
+
+    try:
+        launch_time = datetime.fromisoformat(launched_at)
+    except ValueError:
+        return False
+
+    if (
+        launch_time.tzinfo is None
+        or launch_time.utcoffset() is None
+        or launch_time >= CHECKPOINT_SMOKE_START
+        or not checkpoint_record_matches_full_run_config(
+            evidence,
+            full_run_evidence,
+            package,
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
+        )
+    ):
+        return False
+
+    return True
 
 
 def production_fit_arguments_start(tokens: list[str]) -> int | None:
@@ -707,10 +791,14 @@ def is_tracked_file(root: Path, path: Path) -> bool:
     return result.returncode == 0
 
 
-def manifest_config_matches(
-    evidence: StageEvidence, full_run_config: str, root: Path
+def manifest_matches(
+    evidence: StageEvidence,
+    full_run_config: str,
+    root: Path,
+    source_commit: str | None = None,
+    launched_at: str | None = None,
 ) -> bool:
-    """Match the recorded full-run config to a locally available launch manifest."""
+    """Match recorded launch values to a manifest when it is locally available."""
     manifest, _parity_path = parse_s5_artifact_paths(evidence.artifact)
     if manifest is None:
         return False
@@ -720,25 +808,39 @@ def manifest_config_matches(
         return True
 
     try:
-        manifest_config = json.loads(manifest_path.read_text(encoding="utf-8"))[
-            "config"
-        ]
-    except (KeyError, OSError, TypeError, json.JSONDecodeError):
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return False
 
-    return isinstance(manifest_config, str) and manifest_config == full_run_config
+    if not isinstance(manifest_data, dict):
+        return False
+
+    manifest_config = manifest_data.get("config")
+    config_matches = (
+        manifest_config == full_run_config
+        if isinstance(manifest_config, str)
+        else isinstance(manifest_config, dict)
+        and manifest_config.get("shipped_source") == full_run_config
+    )
+    return (
+        config_matches
+        and (
+            source_commit is None or manifest_data.get("source_commit") == source_commit
+        )
+        and (launched_at is None or manifest_data.get("launched_at") == launched_at)
+    )
 
 
 def callback_checkpoint_filename_matches(
-    config_path: Path, checkpoint_filename: str
+    config_text: str, checkpoint_filename: str
 ) -> bool:
     """Match a top-k callback save and reject last-only checkpoint files."""
     if re.fullmatch(r"last.*\.ckpt", checkpoint_filename, re.IGNORECASE):
         return False
 
     try:
-        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
+        config = yaml.safe_load(config_text) or {}
+    except yaml.YAMLError:
         return False
 
     if not isinstance(config, dict):
@@ -812,7 +914,7 @@ def checkpoint_filename_matches_pattern(
 
 
 def checkpoint_gate_entries(root: Path) -> set[str]:
-    """Return new S5 claims without production checkpoint smoke evidence."""
+    """Return new S5 claims without bounded checkpoint evidence."""
     baseline_path = root / CHECKPOINT_GATE_BASELINE_RELATIVE_PATH
     grandfathered = (
         read_entry_baseline(baseline_path) if baseline_path.is_file() else set()
@@ -838,8 +940,16 @@ def checkpoint_gate_entries(root: Path) -> set[str]:
             if not new_claim:
                 continue
 
-            if not is_bounded_production_checkpoint_smoke(
-                evidence.get("S3"), evidence.get("S5"), path.parent.name, root
+            s3_evidence = evidence.get("S3")
+            s5_evidence = evidence.get("S5")
+            package = path.parent.name
+            if not (
+                is_bounded_production_checkpoint_smoke(
+                    s3_evidence, s5_evidence, package, root
+                )
+                or is_pre_rule_full_run_checkpoint(
+                    s3_evidence, s5_evidence, package, root
+                )
             ):
                 entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
 
@@ -856,7 +966,9 @@ def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
     print_entries("Stale training stage evidence baseline entries:", "-", stale)
-    print_entries("New S5 checkpoint smoke violations:", "+", sorted(checkpoint_gaps))
+    print_entries(
+        "New S5 checkpoint evidence violations:", "+", sorted(checkpoint_gaps)
+    )
     return 1
 
 
