@@ -1,4 +1,7 @@
+import json
+import os
 from pathlib import Path
+import sys
 from typing import cast
 
 import pytest
@@ -9,6 +12,43 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 
 from ds_gan import DSGANConfig, DSGANModel, DSGANProcessor
 from ds_gan.conversion import convert_vendor_state_dict
+
+
+@pytest.mark.vendor_parity
+def test_s0_ds_gan_topology_guard():
+    """Fail closed unless every required static parity gate is measured."""
+    root = Path(__file__).resolve().parents[4]
+    weights = {
+        "DSGAN_RESNET18_WEIGHTS": root
+        / ".cache/ds-gan/backbones/resnet18-5c106cde.pth",
+        "DSGAN_RESNET50_WEIGHTS": root
+        / ".cache/ds-gan/backbones/resnet50_a1_0-14fe96d1.pth",
+    }
+    for variable, path in weights.items():
+        if not path.is_file():
+            pytest.fail(f"S0 topology guard requires {path}")
+        os.environ[variable] = str(path)
+    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+    sys.path.insert(0, str(Path(__file__).parent))
+    from training_stage_evidence import run_s0
+
+    record = json.loads(run_s0().read_text())
+    assert record["stage"] == "S0"
+    assert record["result"] == "PASS"
+    gate = record["topology"]["s0_gate"]
+    assert gate["passed"]
+    assert gate["parameter_counts"]["passed"]
+    assert gate["state_dict_name_maps"]["passed"]
+    assert gate["initial_parameter_state_equality"]["passed"]
+    assert gate["schedule_and_derived_buffer_equality"]["passed"]
+    assert gate["same_seed_copied_weight_forward_equality"]["passed"]
+    assert gate["optimizer_ema_sampler_static_equality"]["passed"]
+    assert gate["dataset_tokenizer_static_equality"]["passed"]
+    for model_name in ("generator", "discriminator"):
+        name_map = gate["state_dict_name_maps"][model_name]
+        assert name_map["missing_package_keys"] == []
+        assert name_map["unexpected_package_keys"] == []
+        assert name_map["allowlisted_extra_keys"] == []
 
 
 @pytest.mark.vendor_parity

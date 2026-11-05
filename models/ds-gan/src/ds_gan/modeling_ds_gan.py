@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -13,7 +15,7 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import resolve_torch_generator
+from laygen.common.randomness import multinomial, normal, resolve_torch_generator
 
 from .configuration_ds_gan import DSGANConfig
 
@@ -41,7 +43,9 @@ class DSGANModelOutput(ModelOutput):
 class ResnetBackbone(nn.Module):
     """DS-GAN ResNet-FPN encoder used to initialize the DS-GAN LSTM state."""
 
-    def __init__(self, config: DSGANConfig) -> None:
+    def __init__(
+        self, config: DSGANConfig, *, backbone_weights: str | Path | None = None
+    ) -> None:
         """Initialize the ResNet-FPN encoder."""
         super().__init__()
         try:
@@ -59,6 +63,17 @@ class ResnetBackbone(nn.Module):
             raise ValueError(f"Unsupported DS-GAN backbone: {config.backbone}")
 
         resnet = timm.create_model(config.backbone, pretrained=False)
+        if backbone_weights is not None:
+            weight_path = Path(backbone_weights)
+            if not weight_path.is_file():
+                raise FileNotFoundError(f"backbone weights not found: {weight_path}")
+
+            weights = torch.load(weight_path, map_location="cpu", weights_only=False)
+            if not isinstance(weights, Mapping):
+                raise TypeError("backbone weights must contain a state-dict mapping")
+
+            resnet.load_state_dict(weights, strict=True)
+
         resnet.conv1 = nn.Conv2d(
             4,
             64,
@@ -149,10 +164,16 @@ class DSGANModel(PreTrainedModel):
     base_model_prefix = "ds_gan"
     supports_gradient_checkpointing = False
 
-    def __init__(self, config: DSGANConfig) -> None:
+    def _init_weights(self, module: nn.Module) -> None:
+        """Leave module-specific initialization unchanged during ``post_init``."""
+        del module
+
+    def __init__(
+        self, config: DSGANConfig, *, backbone_weights: str | Path | None = None
+    ) -> None:
         """Initialize DS-GAN generator layers."""
         super().__init__(config)
-        self.resnet_fpn = ResnetBackbone(config)
+        self.resnet_fpn = ResnetBackbone(config, backbone_weights=backbone_weights)
         self.cnnlstm = CNNLSTM(config)
         self.fc1 = nn.Linear(2 * config.hidden_size, config.output_size // 2)
         self.fc2 = nn.Linear(2 * config.hidden_size, config.output_size // 2)
@@ -247,9 +268,7 @@ def random_initial_layout(
     resolved_device = (
         torch.device(device) if device is not None else torch.device("cpu")
     )
-    generator = resolve_torch_generator(
-        generator=generator, seed=seed, device=resolved_device
-    )
+    generator = resolve_torch_generator(generator=generator, seed=seed)
     if weighted_classes:
         probs = torch.tensor((0.1, 0.8, 1.0, 1.0), device=resolved_device)
         probs = probs / probs.sum()
@@ -264,11 +283,12 @@ def random_initial_layout(
             device=resolved_device,
         )
     else:
-        class_ids = torch.multinomial(
+        class_ids = multinomial(
             probs,
             num_samples=batch_size * max_elem,
             replacement=True,
             generator=generator,
+            device=resolved_device,
         ).reshape(batch_size, max_elem, 1)
     class_one_hot = torch.zeros(
         batch_size,
@@ -278,9 +298,9 @@ def random_initial_layout(
         device=resolved_device,
     )
     class_one_hot.scatter_(-1, class_ids, 1)
-    box_xyxy = torch.normal(
-        mean=0.5,
-        std=0.15,
+    box_xyxy = normal(
+        0.5,
+        0.15,
         size=(batch_size, max_elem, 1, 4),
         generator=generator,
         device=resolved_device,

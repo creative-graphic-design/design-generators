@@ -1,20 +1,39 @@
-"""Validate training claims against recorded stage-evidence rows.
+"""Validate training evidence formats and new full-run checkpoint claims.
 
-The checker validates claim/document shape only. It does not inspect artifact
-contents and it does not scan README or model-card full training run claims.
+The checker does not execute recorded commands, hash artifact contents, or scan
+README and model-card claims.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
-import sys
-from collections.abc import Iterable
+import shlex
+import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+
+import yaml
+from devharness.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from devharness.markdown import (
+    is_table_delimiter,
+    iter_heading_sections,
+    split_markdown_row,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
+CHECKPOINT_GATE_BASELINE_RELATIVE_PATH = Path(
+    "scripts/training_s5_checkpoint_gate_baseline.txt"
+)
 TRAINING_GLOB = "models/*/TRAINING.md"
 STAGES = ("S0", "S1", "S2", "S3", "S4", "S5")
 MISSING_SECTION_STAGE = "*"
@@ -26,8 +45,10 @@ PENDING_VALUES = {
     "not recorded",
     "not run",
     "pending",
+    "placeholder",
     "tbd",
     "todo",
+    "<repo/cache-relative path or project issue/pr url>",
 }
 COMMAND_STARTERS = (
     "./",
@@ -51,9 +72,10 @@ ARTIFACT_PREFIXES = (
     "vendor/",
 )
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
+EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
-FENCE_START_RE = re.compile(r"^\s*(```|~~~)")
-CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
+CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
+CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
     re.IGNORECASE,
@@ -64,19 +86,30 @@ POSITIVE_CLAIM_RE = re.compile(
 )
 CLAIM_PATTERNS = (
     re.compile(
-        r"\b(?:s-?5|stage\s*5)\b.{0,160}"
-        r"\b(?:accepted|achieved|complete|equivalent|evaluated|reproduced|verdict)\b",
+        r"\b(?:s-?5|stage\s*5)\b"
+        + CLAIM_GAP
+        + r"\b(?:accepted|achieved|complete|equivalent|evaluated|reproduced|verdict)\b",
         re.IGNORECASE,
     ),
     re.compile(r"\btraining-seed\s+n\s*=\s*\d+\b", re.IGNORECASE),
     re.compile(r"\btraining reproduction is achieved\b", re.IGNORECASE),
     re.compile(r"\bstatistically equivalent\b", re.IGNORECASE),
     re.compile(
-        r"\bfull[- ]run\b.{0,160}\b(?:comparison|evidence|statistical|verdict)\b"
-        r".{0,160}\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
+        r"\bfull[- ]run\b"
+        + CLAIM_GAP
+        + r"\b(?:comparison|evidence|statistical|verdict)\b"
+        + CLAIM_GAP
+        + r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
         re.IGNORECASE,
     ),
 )
+CHECKPOINT_SMOKE_VIOLATION = (
+    "new or changed S5 claim lacks bounded production checkpoint evidence"
+)
+CHECKPOINT_SMOKE_START = datetime.fromisoformat("2026-10-26T14:08:00+09:00")
+FULL_RUN_STEP_RE = re.compile(r"\bsaved training step=(\d+)\b")
+MANIFEST_LAUNCHED_AT_RE = re.compile(r"\bmanifest launched_at=([^;\s|]+)")
+SOURCE_COMMIT_RE = re.compile(r"\bsource_commit=([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\b")
 
 
 @dataclass(frozen=True)
@@ -87,14 +120,24 @@ class StageEvidence:
     command: str
     artifact: str
     result: str
+    checkpoint_smoke_command: str = ""
+    full_run_config: str = ""
+    checkpoint_path: str = ""
+    checkpoint_sha256: str = ""
 
     @property
     def is_complete(self) -> bool:
         """Return whether the row carries non-placeholder evidence."""
+        artifact_is_complete = is_artifact_path(self.artifact)
+        if self.stage == "S5":
+            artifact_is_complete = s5_artifact_paths_are_valid(
+                *parse_s5_artifact_paths(self.artifact)
+            )
+
         return (
             is_rerunnable_command(self.command)
-            and is_artifact_path(self.artifact)
-            and normalize_value(self.result) not in PENDING_VALUES
+            and artifact_is_complete
+            and not is_pending_or_placeholder(self.result)
         )
 
 
@@ -121,6 +164,14 @@ def normalize_header(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.strip().strip("`").lower())
 
 
+def is_pending_or_placeholder(value: str) -> bool:
+    """Return whether a cell carries no recorded evidence."""
+    normalized = normalize_value(value)
+    return normalized in PENDING_VALUES or (
+        normalized.startswith("<") and normalized.endswith(">")
+    )
+
+
 def unquote_cell(value: str) -> str:
     """Return a Markdown table cell without simple code-span quoting."""
     return value.strip().strip("`").strip()
@@ -132,11 +183,38 @@ def is_rerunnable_command(value: str) -> bool:
     normalized = normalize_value(command)
     if normalized in PENDING_VALUES:
         return False
-    return command.startswith(COMMAND_STARTERS)
+
+    while True:
+        assignment = re.match(
+            r"[A-Za-z_][A-Za-z0-9_]*=(?:<[^>]*>|'[^']*'|\"[^\"]*\"|\S*)\s+",
+            command,
+        )
+        if assignment is None:
+            break
+
+        command = command[assignment.end() :]
+
+    if command.startswith(COMMAND_STARTERS):
+        return True
+
+    return bool(
+        re.match(r"""(["'])\$[A-Za-z_][A-Za-z0-9_]*/bin/python\1(?:\s|$)""", command)
+    )
 
 
 def is_artifact_path(value: str) -> bool:
     """Return whether an artifact cell is repo-relative or cache-relative."""
+    if ";" in value:
+        return all(is_artifact_path(part) for part in value.split(";"))
+
+    quoted_paths = re.findall(r"`([^`]+)`", value)
+    if quoted_paths:
+        remainder = re.sub(r"`[^`]+`", "", value).strip()
+        if remainder:
+            return False
+
+        return all(is_artifact_path(path) for path in quoted_paths)
+
     artifact = unquote_cell(value)
     normalized = normalize_value(artifact)
     if normalized in PENDING_VALUES or " " in artifact:
@@ -148,88 +226,45 @@ def is_artifact_path(value: str) -> bool:
     )
 
 
-def split_markdown_row(line: str) -> list[str]:
-    """Split a simple Markdown table row into stripped cells."""
-    cells: list[str] = []
-    current: list[str] = []
-    escaped = False
-    for char in line.strip().strip("|"):
-        if escaped:
-            current.append(char)
-            escaped = False
-        elif char == "\\":
-            escaped = True
-        elif char == "|":
-            cells.append("".join(current).strip())
-            current = []
-        else:
-            current.append(char)
-    if escaped:
-        current.append("\\")
-    cells.append("".join(current).strip())
-    return cells
+def parse_s5_artifact_paths(value: str) -> tuple[str | None, str | None]:
+    """Return the manifest path and evaluation-path parity path from an S5 cell."""
+    manifest: str | None = None
+    parity_path: str | None = None
+    parity_seen = False
+    parts = [part.strip().strip("`").strip() for part in value.strip().split(";")]
+    if not parts or any(not part for part in parts):
+        return None, None
 
+    for cleaned in parts:
+        marker, _separator, path = cleaned.partition(":")
+        if marker.strip().lower() == EVALUATION_PATH_PARITY_MARKER:
+            if parity_seen:
+                return None, None
 
-def is_table_delimiter(line: str) -> bool:
-    """Return whether a Markdown table row is a delimiter row."""
-    cells = split_markdown_row(line)
-    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
-
-
-def iter_unfenced_lines(text: str) -> Iterable[str]:
-    """Yield Markdown lines outside fenced code blocks."""
-    in_fence = False
-    fence_marker = ""
-
-    for line in text.splitlines():
-        match = FENCE_START_RE.match(line)
-
-        if match:
-            marker = match.group(1)
-
-            if not in_fence:
-                in_fence = True
-                fence_marker = marker
-            elif marker == fence_marker:
-                in_fence = False
-                fence_marker = ""
+            parity_seen = True
+            parity_path = path.strip().strip("`").strip() or None
             continue
 
-        if not in_fence:
-            yield line
+        if cleaned:
+            if manifest is not None:
+                return None, None
+
+            manifest = cleaned
+
+    return manifest, parity_path
 
 
-def iter_heading_sections_with_level(
-    text: str,
-) -> Iterable[tuple[int, str, list[str]]]:
-    """Yield Markdown heading level, text, and section lines outside fences."""
-    current_heading: str | None = None
-    current_level: int | None = None
-    current_lines: list[str] = []
-
-    for line in iter_unfenced_lines(text):
-        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
-        if match:
-            if current_heading is not None:
-                assert current_level is not None
-                yield current_level, current_heading, current_lines
-                current_lines = []
-
-            current_level = len(match.group(1))
-            current_heading = match.group(2).strip()
-            continue
-        if current_heading is not None:
-            current_lines.append(line)
-
-    if current_heading is not None:
-        assert current_level is not None
-        yield current_level, current_heading, current_lines
-
-
-def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
-    """Yield Markdown heading text with the lines inside that heading."""
-    for _, current_heading, current_lines in iter_heading_sections_with_level(text):
-        yield current_heading, current_lines
+def s5_artifact_paths_are_valid(manifest: str | None, parity_path: str | None) -> bool:
+    """Return whether parsed S5 artifact paths satisfy the artifact contract."""
+    return (
+        manifest is not None
+        and parity_path is not None
+        and is_artifact_path(manifest)
+        and manifest.startswith(ARTIFACT_PREFIXES)
+        and Path(manifest).name == "manifest.json"
+        and is_artifact_path(parity_path)
+        and parity_path != manifest
+    )
 
 
 def section_named(text: str, heading_name: str) -> str:
@@ -265,65 +300,156 @@ def clause_around_match(text: str, start: int, end: int) -> str:
 
 def has_s5_claim(text: str) -> bool:
     """Return whether the document claims full training run results."""
+    return bool(s5_claim_clauses(text))
+
+
+def s5_claim_clauses(text: str) -> tuple[str, ...]:
+    """Return the clauses that contain full-run claims."""
     normalized = claim_text(text)
+    clauses = []
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
             clause = clause_around_match(normalized, match.start(), match.end())
             if NEGATED_CLAIM_RE.search(clause):
                 if POSITIVE_CLAIM_RE.search(match.group(0)):
-                    return True
+                    clauses.append(clause)
                 continue
-            return True
-    return False
+            clauses.append(clause)
+    return tuple(sorted(clauses))
+
+
+def s5_record_signature(text: str) -> str:
+    """Return a stable fingerprint for a document's recorded full-run claim."""
+    stage_rows = []
+    for _heading, evidence, _duplicates in parse_stage_evidence_sections(text):
+        row = evidence.get("S5")
+        if row is not None:
+            stage_rows.append((row.command, row.artifact, row.result))
+
+    payload = json.dumps(
+        {"claim_clauses": s5_claim_clauses(text), "stage_rows": stage_rows},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _parse_stage_evidence_lines(
+    lines: list[str],
+) -> list[tuple[dict[str, StageEvidence], set[str]]]:
+    """Parse every machine-readable Stage Evidence table in a section."""
+    required_headers = {"stage", "command", "artifact", "result"}
+    tables = []
+
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not line.lstrip().startswith("|"):
+            index += 1
+            continue
+        headers = [normalize_header(cell) for cell in split_markdown_row(line)]
+        if not required_headers.issubset(headers):
+            index += 1
+            continue
+        row_start = index + 1
+        if row_start < len(lines) and is_table_delimiter(lines[row_start]):
+            row_start += 1
+        positions = {
+            name: headers.index(name)
+            for name in ("stage", "command", "artifact", "result")
+        }
+        optional_positions = {
+            name: headers.index(name) if name in headers else None
+            for name in (
+                "checkpointsmokecommand",
+                "fullrunconfig",
+                "checkpointpath",
+                "checkpointsha256",
+            )
+        }
+        evidence: dict[str, StageEvidence] = {}
+        duplicates: set[str] = set()
+
+        row_index = row_start
+        while row_index < len(lines):
+            row = lines[row_index]
+            if not row.lstrip().startswith("|"):
+                break
+            if required_headers.issubset(
+                normalize_header(cell) for cell in split_markdown_row(row)
+            ):
+                break
+
+            if is_table_delimiter(row):
+                row_index += 1
+                continue
+            cells = split_markdown_row(row)
+            if len(cells) < len(headers):
+                row_index += 1
+                continue
+
+            stage = cells[positions["stage"]].strip().upper()
+            if stage not in STAGES:
+                row_index += 1
+                continue
+
+            if stage in evidence:
+                duplicates.add(stage)
+
+            evidence[stage] = StageEvidence(
+                stage=stage,
+                command=cells[positions["command"]],
+                artifact=cells[positions["artifact"]],
+                result=cells[positions["result"]],
+                checkpoint_smoke_command=(
+                    cells[optional_positions["checkpointsmokecommand"]]
+                    if optional_positions["checkpointsmokecommand"] is not None
+                    else ""
+                ),
+                full_run_config=(
+                    cells[optional_positions["fullrunconfig"]]
+                    if optional_positions["fullrunconfig"] is not None
+                    else ""
+                ),
+                checkpoint_path=(
+                    cells[optional_positions["checkpointpath"]]
+                    if optional_positions["checkpointpath"] is not None
+                    else ""
+                ),
+                checkpoint_sha256=(
+                    cells[optional_positions["checkpointsha256"]]
+                    if optional_positions["checkpointsha256"] is not None
+                    else ""
+                ),
+            )
+            row_index += 1
+        tables.append((evidence, duplicates))
+        index = row_index
+
+    return tables
+
+
+def parse_stage_evidence_sections(
+    text: str,
+) -> list[tuple[str, dict[str, StageEvidence], set[str]]]:
+    """Parse every exact Stage Evidence section in a training document."""
+    sections = []
+    for heading, lines in iter_heading_sections(text):
+        if heading.lower() != "stage evidence":
+            continue
+        for evidence, duplicates in _parse_stage_evidence_lines(lines):
+            sections.append((heading, evidence, duplicates))
+
+    return sections
 
 
 def parse_stage_evidence(
     text: str,
 ) -> tuple[dict[str, StageEvidence], set[str]]:
-    """Parse the machine-readable Stage Evidence table."""
-    for heading, lines in iter_heading_sections(text):
-        if heading.lower() != "stage evidence":
-            continue
-        for index, line in enumerate(lines):
-            if not line.lstrip().startswith("|"):
-                continue
-            headers = [normalize_header(cell) for cell in split_markdown_row(line)]
-            if not {"stage", "command", "artifact", "result"}.issubset(headers):
-                continue
-            row_start = index + 1
-            if row_start < len(lines) and is_table_delimiter(lines[row_start]):
-                row_start += 1
-            positions = {
-                name: headers.index(name)
-                for name in ("stage", "command", "artifact", "result")
-            }
-            evidence: dict[str, StageEvidence] = {}
-            duplicates: set[str] = set()
-
-            for row in lines[row_start:]:
-                if not row.lstrip().startswith("|"):
-                    break
-
-                if is_table_delimiter(row):
-                    continue
-                cells = split_markdown_row(row)
-                if len(cells) < len(headers):
-                    continue
-
-                stage = cells[positions["stage"]].strip().upper()
-                if stage not in STAGES:
-                    continue
-
-                if stage in evidence:
-                    duplicates.add(stage)
-
-                evidence[stage] = StageEvidence(
-                    stage=stage,
-                    command=cells[positions["command"]],
-                    artifact=cells[positions["artifact"]],
-                    result=cells[positions["result"]],
-                )
-            return evidence, duplicates
+    """Parse the first machine-readable Stage Evidence table."""
+    for _heading, evidence, duplicates in parse_stage_evidence_sections(text):
+        return evidence, duplicates
     return {}, set()
 
 
@@ -333,12 +459,16 @@ def training_docs(root: Path) -> list[Path]:
 
 
 def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceViolation]:
-    """Return evidence violations for one TRAINING.md."""
+    """Return evidence violations for one TRAINING.md.
+
+    S5 artifact diagnostics run before row-completeness diagnostics without
+    suppressing a completeness diagnostic for an otherwise valid S5 artifact.
+    """
     text = path.read_text(encoding="utf-8")
     if not has_s5_claim(text):
         return []
     relative_path = path.relative_to(root).as_posix()
-    evidence, duplicates = parse_stage_evidence(text)
+    evidence_sections = parse_stage_evidence_sections(text)
     violations: list[StageEvidenceViolation] = []
     if not has_reproduction_results_heading(text):
         violations.append(
@@ -348,7 +478,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                 "S5 result claim requires a Reproduction Results heading",
             )
         )
-    if not evidence:
+    if not evidence_sections:
         violations.append(
             StageEvidenceViolation(
                 relative_path,
@@ -357,81 +487,488 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
             )
         )
         return violations
-    for stage in sorted(duplicates):
-        violations.append(
-            StageEvidenceViolation(
-                relative_path,
-                stage,
-                "stage evidence table contains duplicate rows for this stage",
-            )
-        )
-    for stage in STAGES:
-        row = evidence.get(stage)
-        if row is None:
+    for _heading, evidence, duplicates in evidence_sections:
+        for stage in sorted(duplicates):
             violations.append(
                 StageEvidenceViolation(
                     relative_path,
                     stage,
-                    "S5 result claim requires a complete evidence row for this stage",
+                    "stage evidence table contains duplicate rows for this stage",
                 )
             )
-        elif not row.is_complete:
-            violations.append(
-                StageEvidenceViolation(
-                    relative_path,
-                    stage,
-                    "stage evidence row has a placeholder command, artifact, or result",
+        for stage in STAGES:
+            row = evidence.get(stage)
+            if row is None:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 result claim requires a complete evidence row for this stage",
+                    )
                 )
-            )
+            elif stage == "S5" and not is_pending_or_placeholder(row.artifact):
+                manifest, parity_path = parse_s5_artifact_paths(row.artifact)
+                if parity_path is None:
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "S5 artifact must include an evaluation-path parity artifact reference",
+                        )
+                    )
+                elif not s5_artifact_paths_are_valid(manifest, parity_path):
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
+                        )
+                    )
+                elif not row.is_complete:
+                    violations.append(
+                        StageEvidenceViolation(
+                            relative_path,
+                            stage,
+                            "stage evidence row has a placeholder command, artifact, or result",
+                        )
+                    )
+            elif not row.is_complete:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "stage evidence row has a placeholder command, artifact, or result",
+                    )
+                )
     return violations
 
 
 def current_entries(root: Path) -> set[str]:
     """Return current violation entries."""
-    return {
-        violation.as_baseline_entry()
-        for path in training_docs(root)
-        for violation in violations_for_training_doc(path, root)
-    }
-
-
-def baseline_entries(path: Path) -> set[str]:
-    """Return committed shrink-only baseline entries."""
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
     entries: set[str] = set()
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        if raw_line and not raw_line.startswith("#"):
-            entries.add(raw_line)
+    for path in training_docs(root):
+        violations = violations_for_training_doc(path, root)
+        entries.update(violation.as_baseline_entry() for violation in violations)
+
     return entries
 
 
-def write_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted baseline entries."""
-    lines = sorted(entries)
-    path.write_text("\n".join([*lines, ""]) if lines else "", encoding="utf-8")
+def is_bounded_production_checkpoint_smoke(
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
+) -> bool:
+    """Return whether bounded production-command evidence identifies its checkpoint."""
+    if evidence is None or full_run_evidence is None:
+        return False
+
+    if not checkpoint_record_matches_full_run_config(
+        evidence, full_run_evidence, package, root
+    ):
+        return False
+
+    command = unquote_cell(evidence.checkpoint_smoke_command)
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+
+    argument_start = production_fit_arguments_start(tokens)
+    if argument_start is None:
+        return False
+
+    arguments = tokens[argument_start:]
+    config_values: list[str] = []
+    trainer_overrides: dict[str, str] = {}
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token == "--config":
+            if (
+                len(config_values) == 1
+                or index + 1 >= len(arguments)
+                or arguments[index + 1].startswith("-")
+            ):
+                return False
+
+            config_values.append(arguments[index + 1])
+            index += 2
+            continue
+
+        if token.startswith("--trainer.") and "=" in token:
+            name, value = token.removeprefix("--trainer.").split("=", 1)
+            if name in trainer_overrides:
+                return False
+
+            trainer_overrides[name] = value
+            index += 1
+            continue
+
+        return False
+
+    required = {
+        "max_epochs": "1",
+        "limit_train_batches": "2",
+        "limit_val_batches": "2",
+    }
+    allowed = {*required, "check_val_every_n_epoch"}
+    if (
+        len(config_values) != 1
+        or set(trainer_overrides) - allowed
+        or any(trainer_overrides.get(name) != value for name, value in required.items())
+        or trainer_overrides.get("check_val_every_n_epoch", "1") != "1"
+    ):
+        return False
+
+    full_run_config = unquote_cell(full_run_evidence.full_run_config)
+    if config_values[0] != full_run_config:
+        return False
+
+    return True
 
 
-def print_entries(header: str, marker: str, entries: list[str]) -> None:
-    """Print formatted violation entries to stderr."""
-    if not entries:
-        return
-    print(header, file=sys.stderr)
-    for entry in entries:
-        print(f"  {marker} {entry}", file=sys.stderr)
+def checkpoint_record_matches_full_run_config(
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
+    source_commit: str | None = None,
+    launched_at: str | None = None,
+) -> bool:
+    """Return whether the checkpoint record matches the checked-in run config."""
+    if evidence is None or full_run_evidence is None:
+        return False
+
+    checkpoint_path = unquote_cell(evidence.checkpoint_path)
+    checkpoint_sha256 = unquote_cell(evidence.checkpoint_sha256)
+    config_path = Path(unquote_cell(full_run_evidence.full_run_config))
+    if (
+        not is_artifact_path(checkpoint_path)
+        or not checkpoint_path.endswith(".ckpt")
+        or re.fullmatch(r"[0-9a-fA-F]{64}", checkpoint_sha256) is None
+        or config_path.is_absolute()
+        or ".." in config_path.parts
+        or config_path.parts[:2] != ("models", package)
+        or config_path.suffix not in {".yaml", ".yml"}
+        or "training" not in config_path.parts
+        or not manifest_matches(
+            full_run_evidence,
+            config_path.as_posix(),
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
+        )
+    ):
+        return False
+
+    if not (root / config_path).is_file() or not is_tracked_file(root, config_path):
+        return False
+
+    try:
+        config_text = (root / config_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    return callback_checkpoint_filename_matches(config_text, Path(checkpoint_path).name)
+
+
+def is_pre_rule_full_run_checkpoint(
+    evidence: StageEvidence | None,
+    full_run_evidence: StageEvidence | None,
+    package: str,
+    root: Path,
+) -> bool:
+    """Return whether a pre-rule run records its own top-k checkpoint."""
+    if evidence is None or full_run_evidence is None:
+        return False
+
+    if unquote_cell(evidence.checkpoint_smoke_command) != "not required":
+        return False
+
+    stage_three_launches = MANIFEST_LAUNCHED_AT_RE.findall(evidence.result)
+    stage_five_launches = MANIFEST_LAUNCHED_AT_RE.findall(full_run_evidence.result)
+    source_commits = SOURCE_COMMIT_RE.findall(full_run_evidence.result)
+    saved_steps = FULL_RUN_STEP_RE.findall(evidence.result)
+    if (
+        len(stage_three_launches) != 1
+        or stage_five_launches != stage_three_launches
+        or len(source_commits) != 1
+        or len(saved_steps) != 1
+    ):
+        return False
+
+    launched_at = stage_three_launches[0]
+    source_commit = source_commits[0]
+
+    try:
+        launch_time = datetime.fromisoformat(launched_at)
+    except ValueError:
+        return False
+
+    if (
+        launch_time.tzinfo is None
+        or launch_time.utcoffset() is None
+        or launch_time >= CHECKPOINT_SMOKE_START
+        or not checkpoint_record_matches_full_run_config(
+            evidence,
+            full_run_evidence,
+            package,
+            root,
+            source_commit=source_commit,
+            launched_at=launched_at,
+        )
+    ):
+        return False
+
+    return True
+
+
+def production_fit_arguments_start(tokens: list[str]) -> int | None:
+    """Return the first argument after the production training command."""
+    if any(token in {"&&", "||", ";", "|", ">", "<", "&"} for token in tokens):
+        return None
+
+    index = 0
+    while index < len(tokens) and re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_]*=.*", tokens[index]
+    ):
+        index += 1
+
+    if tokens[index : index + 2] == ["traingen", "fit"]:
+        return index + 2
+
+    if tokens[index : index + 4] == ["python", "-m", "traingen.lightning.cli", "fit"]:
+        return index + 4
+
+    if tokens[index : index + 2] != ["uv", "run"]:
+        return None
+
+    index += 2
+    options_with_values = {
+        "--config-file",
+        "--directory",
+        "--env-file",
+        "--extra",
+        "--package",
+        "--project",
+        "--python",
+        "--with",
+    }
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            index += 1
+            break
+
+        if token in options_with_values:
+            index += 2
+            continue
+
+        if token.startswith("-"):
+            index += 1
+            continue
+
+        break
+
+    if tokens[index : index + 2] == ["traingen", "fit"]:
+        return index + 2
+
+    if tokens[index : index + 4] == ["python", "-m", "traingen.lightning.cli", "fit"]:
+        return index + 4
+
+    return None
+
+
+def is_tracked_file(root: Path, path: Path) -> bool:
+    """Return whether Git tracks a repository-relative file."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", path.as_posix()],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def manifest_matches(
+    evidence: StageEvidence,
+    full_run_config: str,
+    root: Path,
+    source_commit: str | None = None,
+    launched_at: str | None = None,
+) -> bool:
+    """Match recorded launch values to a manifest when it is locally available."""
+    manifest, _parity_path = parse_s5_artifact_paths(evidence.artifact)
+    if manifest is None:
+        return False
+
+    manifest_path = root / manifest
+    if not manifest_path.is_file():
+        return True
+
+    try:
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(manifest_data, dict):
+        return False
+
+    manifest_config = manifest_data.get("config")
+    config_matches = (
+        manifest_config == full_run_config
+        if isinstance(manifest_config, str)
+        else isinstance(manifest_config, dict)
+        and manifest_config.get("shipped_source") == full_run_config
+    )
+    return (
+        config_matches
+        and (
+            source_commit is None or manifest_data.get("source_commit") == source_commit
+        )
+        and (launched_at is None or manifest_data.get("launched_at") == launched_at)
+    )
+
+
+def callback_checkpoint_filename_matches(
+    config_text: str, checkpoint_filename: str
+) -> bool:
+    """Match a top-k callback save and reject last-only checkpoint files."""
+    if re.fullmatch(r"last.*\.ckpt", checkpoint_filename, re.IGNORECASE):
+        return False
+
+    try:
+        config = yaml.safe_load(config_text) or {}
+    except yaml.YAMLError:
+        return False
+
+    if not isinstance(config, dict):
+        return False
+
+    trainer = config.get("trainer", {})
+    if not isinstance(trainer, dict) or trainer.get("enable_checkpointing") is False:
+        return False
+
+    callbacks = trainer.get("callbacks") or []
+    if not isinstance(callbacks, list):
+        return False
+
+    patterns = []
+    has_model_checkpoint = False
+    for callback in callbacks:
+        if not isinstance(callback, dict) or not str(
+            callback.get("class_path", "")
+        ).endswith("ModelCheckpoint"):
+            continue
+
+        has_model_checkpoint = True
+        init_args = callback.get("init_args", {})
+        if not isinstance(init_args, dict):
+            return False
+
+        try:
+            save_top_k = int(init_args.get("save_top_k", 1))
+        except (TypeError, ValueError):
+            return False
+
+        if save_top_k == 0:
+            continue
+
+        filename = init_args.get("filename")
+        auto_insert_metric_name = bool(init_args.get("auto_insert_metric_name", True))
+        patterns.append(
+            (
+                str(filename) if filename is not None else "{epoch}-{step}",
+                auto_insert_metric_name,
+            )
+        )
+
+    if not has_model_checkpoint:
+        patterns.append(("{epoch}-{step}", True))
+
+    return any(
+        checkpoint_filename_matches_pattern(pattern, checkpoint_filename, auto_insert)
+        for pattern, auto_insert in patterns
+    )
+
+
+def checkpoint_filename_matches_pattern(
+    pattern: str, filename: str, auto_insert_metric_name: bool
+) -> bool:
+    """Match a rendered checkpoint filename against a callback's filename pattern."""
+    pattern_parts = re.split(r"(\{[^{}]+\})", pattern)
+    rendered = ""
+    for part in pattern_parts:
+        if part.startswith("{") and part.endswith("}"):
+            field = part[1:-1].split(":", 1)[0]
+            field_name = rf"(?:{re.escape(field)}=)?" if auto_insert_metric_name else ""
+            rendered += field_name + r"[^/]+"
+        else:
+            rendered += re.escape(part)
+
+    if not pattern.endswith(".ckpt"):
+        rendered += r"(?:-v\d+)?\.ckpt"
+
+    return re.fullmatch(rendered, filename) is not None
+
+
+def checkpoint_gate_entries(root: Path) -> set[str]:
+    """Return new S5 claims without bounded checkpoint evidence."""
+    baseline_path = root / CHECKPOINT_GATE_BASELINE_RELATIVE_PATH
+    grandfathered = (
+        read_entry_baseline(baseline_path) if baseline_path.is_file() else set()
+    )
+    entries: set[str] = set()
+
+    for path in training_docs(root):
+        text = path.read_text(encoding="utf-8")
+        relative_path = path.relative_to(root).as_posix()
+        claimed = has_s5_claim(text)
+        signature_entry = f"{relative_path}\t{s5_record_signature(text)}"
+        grandfathered_claim = claimed and signature_entry in grandfathered
+        new_claim = claimed and not grandfathered_claim
+        sections = parse_stage_evidence_sections(text)
+
+        if not sections:
+            if new_claim:
+                entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
+
+            continue
+
+        for _heading, evidence, _duplicates in sections:
+            if not new_claim:
+                continue
+
+            s3_evidence = evidence.get("S3")
+            s5_evidence = evidence.get("S5")
+            package = path.parent.name
+            if not (
+                is_bounded_production_checkpoint_smoke(
+                    s3_evidence, s5_evidence, package, root
+                )
+                or is_pre_rule_full_run_checkpoint(
+                    s3_evidence, s5_evidence, package, root
+                )
+            ):
+                entries.add(f"{relative_path}\tS3\t{CHECKPOINT_SMOKE_VIOLATION}")
+
+    return entries
 
 
 def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
     """Check current training evidence violations against the baseline."""
     current_snapshot = current_entries(root)
-    baseline_snapshot = baseline_entries(baseline_path)
-    unexpected = sorted(current_snapshot.difference(baseline_snapshot))
-    stale = sorted(baseline_snapshot.difference(current_snapshot))
-    if not unexpected and not stale:
+    baseline_snapshot = read_entry_baseline(baseline_path)
+    unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
+    checkpoint_gaps = checkpoint_gate_entries(root)
+    if not unexpected and not stale and not checkpoint_gaps:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
     print_entries("Stale training stage evidence baseline entries:", "-", stale)
+    print_entries(
+        "New S5 checkpoint evidence violations:", "+", sorted(checkpoint_gaps)
+    )
     return 1
 
 
@@ -444,8 +981,15 @@ def main(argv: list[str] | None = None) -> int:
     namespace = parser.parse_args(argv)
     should_update_baseline = bool(namespace.write_baseline)
     if should_update_baseline:
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
-        return 0
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
+        checkpoint_gaps = checkpoint_gate_entries(ROOT)
+        if not checkpoint_gaps:
+            return 0
+
+        print_entries(
+            "New S5 checkpoint smoke violations:", "+", sorted(checkpoint_gaps)
+        )
+        return 1
     exit_status = check_training_stage_evidence(ROOT, BASELINE_PATH)
     return exit_status
 

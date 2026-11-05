@@ -9,6 +9,8 @@ import torch
 from jaxtyping import Float, Int
 from torch.nn import functional as F
 
+from laygen.common.randomness import multinomial
+
 from .configuration_layout_action import (
     LayoutActionSamplingMode,
     normalize_sampling_mode,
@@ -134,7 +136,9 @@ def sample_action_tokens(
         if sampling.mode is LayoutActionSamplingMode.greedy:
             _, next_id = torch.topk(probs, k=1, dim=-1)
         else:
-            next_id = torch.multinomial(probs, num_samples=1, generator=generator)
+            next_id = multinomial(
+                probs, num_samples=1, generator=generator, device=probs.device
+            )
         if forced_token_ids is not None:
             forced = forced_token_ids[:, step].unsqueeze(1)
             next_id = torch.where(forced.ge(0), forced, next_id)

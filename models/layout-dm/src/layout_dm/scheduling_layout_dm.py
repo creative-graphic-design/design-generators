@@ -14,11 +14,13 @@ from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int, Shaped
 
 from laygen.common.discrete import (
+    SamplingMode,
     index_to_log_onehot,
     log_add_exp,
     log_onehot_to_index,
     sample_categorical,
 )
+from laygen.common.randomness import multinomial
 
 from .sampling import LayoutDMSamplingConfig
 
@@ -45,7 +47,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         mask_token_id: Full vocabulary id used for mask tokens.
         pad_token_id: Full vocabulary id used for padding tokens.
         var_order: Per-element token variable order.
-        token_mask: Optional valid-token mask for each sequence position.
         per_var_full_ids: Optional constrained vocabulary ids per variable.
         att_1: Initial keep-probability schedule value.
         att_T: Final keep-probability schedule value.
@@ -71,7 +72,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         mask_token_id: int,
         pad_token_id: int,
         var_order: tuple[str, ...] = ("c", "x", "y", "w", "h"),
-        token_mask: list[list[bool]] | None = None,
         per_var_full_ids: dict[str, list[int]] | None = None,
         att_1: float = 0.99999,
         att_T: float = 0.000009,
@@ -85,9 +85,6 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         self.mask_token_id = mask_token_id
         self.pad_token_id = pad_token_id
         self.var_order = tuple(var_order)
-        self.token_mask = (
-            None if token_mask is None else torch.tensor(token_mask, dtype=torch.bool)
-        )
         self.per_var_full_ids = per_var_full_ids
         self.att_1 = att_1
         self.att_T = att_T
@@ -128,7 +125,15 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Create the initial log one-hot sample for reverse diffusion."""
         if condition is not None:
-            ids = condition.input_ids.to(device)
+            ids = torch.full(
+                condition.input_ids.shape,
+                self.mask_token_id,
+                dtype=condition.input_ids.dtype,
+                device=device,
+            )
+            ids = torch.where(
+                condition.mask.to(device), condition.input_ids.to(device), ids
+            )
         else:
             ids = torch.full(
                 (batch_size, token_length),
@@ -142,17 +147,15 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         self, denoiser_output: Float[torch.Tensor, "batch tokens vocab"]
     ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Convert denoiser logits to start-sequence log probabilities."""
-        logits = denoiser_output[:, :, :-1]
-        log_pred = torch.log_softmax(logits.double(), dim=-1).float()
+        logits = denoiser_output[:, :, :-1].permute(0, 2, 1)
+        log_pred = torch.log_softmax(logits.double(), dim=1).float()
         mask_col = torch.full(
-            (*log_pred.shape[:2], 1),
+            (log_pred.shape[0], 1, log_pred.shape[-1]),
             -70.0,
             device=log_pred.device,
             dtype=log_pred.dtype,
         )
-        return (
-            torch.cat((log_pred, mask_col), dim=-1).permute(0, 2, 1).clamp(-70.0, 0.0)
-        )
+        return torch.cat((log_pred, mask_col), dim=1).clamp(-70.0, 0.0)
 
     def q_posterior(
         self,
@@ -401,30 +404,63 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         """
         log_x_recon = self.predict_start(denoiser_output)
         model_log_prob = self.q_posterior(log_x_recon, sample, timestep)
-        if self.token_mask is not None:
-            valid = self.token_mask.to(model_log_prob.device).T.unsqueeze(0)
-            model_log_prob = model_log_prob.masked_fill(~valid, -70.0)
-        if condition is not None:
-            strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
-            strong_log_prob = index_to_log_onehot(
-                condition.input_ids.to(model_log_prob.device), self.vocab_size
+        model_log_prob = self.apply_condition(model_log_prob, condition)
+        if sampling.name is SamplingMode.random:
+            probabilities = (model_log_prob / sampling.temperature).softmax(dim=1)
+            ids = multinomial(
+                probabilities.permute(0, 2, 1).reshape(-1, self.vocab_size),
+                1,
+                generator=generator,
+                device=model_log_prob.device,
+            ).reshape(model_log_prob.shape[0], model_log_prob.shape[-1])
+        else:
+            logits = model_log_prob.permute(0, 2, 1)
+            ids = sample_categorical(
+                logits,
+                sampling=sampling.name,
+                temperature=sampling.temperature,
+                top_k=sampling.top_k,
+                top_p=sampling.top_p,
+                generator=generator,
             )
-            model_log_prob = torch.where(strong_mask, strong_log_prob, model_log_prob)
-        logits = model_log_prob.permute(0, 2, 1)
-        ids = sample_categorical(
-            logits,
-            sampling=sampling.name,
-            temperature=sampling.temperature,
-            top_k=sampling.top_k,
-            top_p=sampling.top_p,
-            generator=generator,
-        )
         prev_sample = index_to_log_onehot(ids, self.vocab_size)
         return LayoutDMSchedulerOutput(
             prev_sample=prev_sample,
             pred_original_sample=log_x_recon,
             model_log_prob=model_log_prob,
         )
+
+    def apply_condition(
+        self,
+        model_log_prob: Float[torch.Tensor, "batch vocab tokens"],
+        condition: LayoutDMCondition | None,
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
+        """Apply strong conditions and conditional padding restrictions."""
+        if condition is None:
+            return model_log_prob
+
+        strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
+        strong_log_prob = index_to_log_onehot(
+            condition.input_ids.to(model_log_prob.device), self.vocab_size
+        )
+        model_log_prob = torch.where(strong_mask, strong_log_prob, model_log_prob)
+        if condition.type not in ("c", "cwh"):
+            return model_log_prob
+
+        attribute_indices = torch.arange(
+            model_log_prob.shape[-1], device=model_log_prob.device
+        ).remainder(len(self.var_order))
+        pad_positions = (attribute_indices != 0) & (
+            condition.input_ids.to(model_log_prob.device) != self.pad_token_id
+        )
+        pad_class = (
+            torch.arange(self.vocab_size, device=model_log_prob.device).reshape(
+                1, -1, 1
+            )
+            == self.pad_token_id
+        )
+        restricted = pad_positions.unsqueeze(1) & pad_class
+        return model_log_prob.masked_fill(restricted, math.log(1.0e-30))
 
 
 def _alpha_schedule(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from os import PathLike
 from pathlib import Path
 from typing import Final, Literal, TypeAlias, assert_never, cast
@@ -16,8 +17,7 @@ from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_common_condition_type,
 )
-from laygen.common.labels import DatasetName
-from laygen.common.labels import labels_for_dataset
+from laygen.common.labels import DatasetName, labels_for_dataset
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .tasks import (
@@ -29,7 +29,16 @@ from .tasks import (
     normalize_layoutformerpp_task,
 )
 from .geometry import discrete_ltwh_to_public, public_to_discrete_ltwh
+from .labels import (
+    RICO25_LABEL_TRANSLATION,
+    LabelTranslationMetadata,
+    build_label_translation,
+    label_translation_for_dataset,
+    normalize_label_name,
+    validate_label_translation_metadata,
+)
 from .serialization import (
+    ParsedLayout,
     T5LayoutSequence,
     T5LayoutSequenceForGenR,
     T5LayoutSequenceForGenT,
@@ -37,6 +46,8 @@ from .serialization import (
 )
 from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_DATASET: Final[DatasetName] = DatasetName.rico25
 DEFAULT_TASK: Final[LayoutFormerPPTask] = LayoutFormerPPTask.gen_t
@@ -74,6 +85,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         x_grid: int = 128,
         y_grid: int = 128,
         id2label: dict[int, str] | None = None,
+        label_translation_metadata: LabelTranslationMetadata | None = None,
     ) -> None:
         """Initialize serializers, label maps, and tokenizer state."""
         self.tokenizer = tokenizer
@@ -85,18 +97,40 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self.x_grid = x_grid
         self.y_grid = y_grid
         labels = labels_for_dataset(normalized_dataset)
-        self.id2label = (
+        public_id2label = (
             {int(key): str(value) for key, value in id2label.items()}
             if id2label is not None
             else dict(enumerate(labels))
         )
-        self.public_id2label = dict(self.id2label)
+        canonical_translation = label_translation_for_dataset(normalized_dataset)
+        if normalized_dataset is DatasetName.rico25 and public_id2label != dict(
+            RICO25_LABEL_TRANSLATION.public_id2label
+        ):
+            raise ValueError("RICO25 public id2label must match the canonical map")
+
+        translation = build_label_translation(
+            public_id2label,
+            canonical_translation.sequence_id2label,
+        )
+        self.id2label = dict(translation.public_id2label)
+        self.public_id2label = dict(translation.public_id2label)
         self.public_label2id = {
-            value.lower(): key for key, value in self.public_id2label.items()
+            normalize_label_name(value): key
+            for key, value in self.public_id2label.items()
         }
-        self.internal_id2label = {
-            idx + 1: f"label_{idx + 1}" for idx in range(len(labels))
-        }
+        self.sequence_id2label = dict(translation.sequence_id2label)
+        self.public_to_sequence = dict(translation.public_to_sequence)
+        self.sequence_to_public = dict(translation.sequence_to_public)
+        self.label_translation_metadata = (
+            translation.metadata()
+            if label_translation_metadata is None
+            else validate_label_translation_metadata(
+                label_translation_metadata,
+                translation,
+            )
+        )
+        self.label_translation_sha256 = translation.sha256
+        self.internal_id2label = {idx: f"label_{idx}" for idx in self.sequence_id2label}
         self.serializer = T5LayoutSequence(
             self.internal_id2label, add_sep_token=add_sep_token
         )
@@ -173,12 +207,16 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def _label_to_internal_id(self, label: int | str) -> int:
         if isinstance(label, int):
-            return label + 1 if label in self.public_id2label else label
-        lowered = label.lower()
-        if lowered in self.public_label2id:
-            return self.public_label2id[lowered] + 1
-        if lowered.startswith("label_"):
-            return int(lowered.split("_", 1)[1])
+            if label not in self.public_to_sequence:
+                raise ValueError(f"Unknown label: {label}")
+
+            return self.public_to_sequence[label]
+        normalized = normalize_label_name(label)
+        if normalized.startswith("label_"):
+            raise ValueError("Raw label_<id> tokens are internal-only")
+
+        if normalized in self.public_label2id:
+            return self.public_to_sequence[self.public_label2id[normalized]]
         raise ValueError(f"Unknown label: {label}")
 
     def _prepare_labels(
@@ -370,23 +408,52 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         """Parse generated token ids to the common layout output schema."""
         texts = self.tokenizer.batch_decode(sequences, skip_special_tokens=True)
         parsed = [self.serializer.parse_seq(text.strip()) for text in texts]
+        recognized: list[ParsedLayout | None] = []
+        dropped_count = 0
+        for item in parsed:
+            if item is None:
+                recognized.append(None)
+                continue
+
+            public_labels: list[int] = []
+            public_boxes: list[list[int]] = []
+            for label, box in zip(item.labels, item.bbox, strict=True):
+                if label not in self.sequence_to_public:
+                    # Original tasks/refinement.py::T5LayoutSequence.parse_seq keeps
+                    # error label 0 and its parsed, possibly shifted box.
+                    # tasks/ugen.py uses that parser.
+                    # Drop it because the public schema has no unknown category.
+                    dropped_count += 1
+                    continue
+
+                public_labels.append(self.sequence_to_public[label])
+                public_boxes.append(box)
+
+            recognized.append(ParsedLayout(labels=public_labels, bbox=public_boxes))
+
+        if dropped_count:
+            logger.warning(
+                "Dropped %d unrecognized-label element%s from LayoutFormer++ output.",
+                dropped_count,
+                "" if dropped_count == 1 else "s",
+            )
+
         max_len = max(
-            (len(item.labels) for item in parsed if item is not None), default=0
+            (len(item.labels) for item in recognized if item is not None),
+            default=0,
         )
         if max_len == 0:
             max_len = 1
         label_rows: list[Int[torch.Tensor, "elements"]] = []
         bbox_rows: list[Int[torch.Tensor, "elements 4"]] = []
         mask_rows: list[Bool[torch.Tensor, "elements"]] = []
-        for item in parsed:
-            if item is None:
+        for item in recognized:
+            if item is None or not item.labels:
                 labels = torch.zeros(max_len, dtype=torch.long)
                 boxes = torch.zeros(max_len, 4, dtype=torch.long)
                 mask = torch.zeros(max_len, dtype=torch.bool)
             else:
-                labels = torch.tensor(
-                    [max(0, label - 1) for label in item.labels], dtype=torch.long
-                )
+                labels = torch.tensor(item.labels, dtype=torch.long)
                 boxes = torch.tensor(item.bbox, dtype=torch.long)
                 mask = torch.ones(len(labels), dtype=torch.bool)
                 if len(labels) < max_len:

@@ -14,6 +14,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
+]
 download = [
     "huggingface-hub>=0.24",
 ]
@@ -26,6 +30,8 @@ vendor = [
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "transformers"
@@ -39,3 +45,22 @@ conditions = [
     "refinement",
 ]
 datasets = ["rico25", "publaynet"]
+
+[tool.pytest.ini_options]
+markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
+    "vendor_parity: requires original LayoutFormer++ source and vendor dependencies",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["layoutformerpp"]
+omit = [
+    "models/layoutformerpp/src/layoutformerpp/training/*",
+    "src/layoutformerpp/training/*",
+    "*/src/layoutformerpp/training/*",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

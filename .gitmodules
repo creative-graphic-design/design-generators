@@ -66,7 +66,7 @@
 	url = https://github.com/OPPO-Mente-Lab/GlyphDraw2
 [submodule "vendor/radm"]
 	path = vendor/radm
-	url = https://github.com/liuan0803/RADM
+	url = https://github.com/JD-GenX/RADM
 [submodule "vendor/cgl-gan"]
 	path = vendor/cgl-gan
 	url = https://github.com/minzhouGithub/CGL-GAN
@@ -148,3 +148,6 @@
 [submodule "vendor/lay-your-scene"]
 	path = vendor/lay-your-scene
 	url = https://github.com/mlpc-ucsd/Lay-Your-Scene
+[submodule "vendor/structured-diffusion-guidance"]
+	path = vendor/structured-diffusion-guidance
+	url = https://github.com/weixi-feng/Structured-Diffusion-Guidance.git

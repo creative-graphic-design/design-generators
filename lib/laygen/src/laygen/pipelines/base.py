@@ -470,7 +470,6 @@ class LayoutGenerationPipeline(ABC):
         *,
         generator: torch.Generator | None = None,
         seed: int | None = None,
-        device: str | torch.device | None = None,
     ) -> torch.Generator | None:
         """Apply generator-over-seed precedence for generation calls.
 
@@ -478,20 +477,18 @@ class LayoutGenerationPipeline(ABC):
             generator: Explicit torch generator. When provided, `seed` is
                 ignored.
             seed: Integer seed used only when `generator` is absent.
-            device: Optional device for a newly created generator. If omitted,
-                the pipeline's current device is used.
 
         Returns:
-            The explicit generator, a locally seeded generator, or `None` when
-            neither is supplied.
+            The explicit generator, a CPU-seeded generator, or `None` after
+            setting global Transformers/PyTorch seed state.
         """
         if generator is not None:
             return generator
         if seed is None:
             return None
+
         set_seed(seed)
-        generator_device = torch.device(device) if device is not None else self.device
-        return resolve_torch_generator(seed=seed, device=generator_device)
+        return resolve_torch_generator(seed=seed)
 
     def _pipeline_component_values(self) -> tuple[PipelineComponent, ...]:
         values: list[PipelineComponent] = []

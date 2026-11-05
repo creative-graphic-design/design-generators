@@ -311,9 +311,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
             )
             initial_layout = encoded_layout["layout"]
         if initial_layout is None:
-            prepared = self.prepare_generator(
-                generator=generator, seed=seed, device=device
-            )
+            prepared = self.prepare_generator(generator=generator, seed=seed)
             initial_layout = random_initial_layout(
                 batch_size,
                 self.config.max_elem,

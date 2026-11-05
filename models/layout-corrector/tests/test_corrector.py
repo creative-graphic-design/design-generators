@@ -88,3 +88,10 @@ def test_aggregated_transformer_rejects_bad_token_length():
             num_attributes_per_element=5,
             num_timesteps=10,
         )
+
+
+def test_aggregated_transformer_keeps_fixed_embedding_dropout():
+    model = tiny_model(dropout=0.0)
+
+    assert model.model.drop.p == 0.1
+    assert model.model.backbone.layers[0].dropout.p == 0.0

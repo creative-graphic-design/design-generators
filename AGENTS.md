@@ -9,14 +9,12 @@
 
 ## Sources Of Truth
 
-- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy remains in [docs/conventions.md](docs/conventions.md), shared-library structure remains in [docs/architecture.md](docs/architecture.md), and repository workflow remains here. Historical discussion remains preserved in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2).
-- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
-- Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy lives in [docs/conventions.md](docs/conventions.md), shared-library structure lives in [docs/architecture.md](docs/architecture.md), and repository workflow lives here. Historical discussion lives in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion lives in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
 ## Workspace
 
-- The root uv workspace uses members `["lib/*", "models/*"]`.
 - Run member-specific commands with the member package selected: `uv run --package <name> ...`. Examples: `uv run --package laygen pytest`, `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends on that member's extras, dependency source mapping, or package metadata.
 - Do not commit host-specific absolute filesystem paths. Pass runtime absolute paths through environment variables or CLI arguments; repository defaults must be repo-root-relative.
@@ -49,7 +47,10 @@
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
-- Shared packages are `laygen.common` for layout-generation utilities and `posgen.common` for poster/content-aware utilities.
+- Join a target word to a common method type with a hyphen, such as `layout-dm`, `layout-diffusion`, and `layout-vae`.
+- Keep established model names together, such as `layoutformerpp`, `posterllama`, `layoutganpp`, and `housegan`.
+- Use hyphens in model directory and distribution names and underscores in Python import names, such as `models/layout-dm` → `layout-dm` → `layout_dm`.
+- Serialize the current package name in `model_type`; do not retain aliases for prior package names after a rename.
 
 ### Class Design And Code Style
 
@@ -59,6 +60,7 @@
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
 - Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
+- For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference` (see [Source Language](.agents/skills/design-generators-model-conversion/SKILL.md#source-language)); put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
 - Source-code prose (docstrings, comments, and user-visible messages) does not use the training-reproduction stage codes S0-S5; state what the stage checks in plain words. The codes belong to `TRAINING.md` and the scripts that check it.
 
 ## Tracking
@@ -72,6 +74,7 @@
 - Every implementation PR must reference its implementation issue in the PR summary with `Closes #N` or `Refs #N`. The implementation checklist document does not count as the implementation issue.
 - Every PR must carry the same lane/topic labels as its implementation issue, such as `ready-heavy`, `documentation`, or `meta`; status labels stay on issues only and must not be added to PRs.
 - PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do not replace the template when creating PRs with `gh pr create --body`.
+- PR titles state what the PR delivers and carry no progress or status wording (such as in progress, pending, WIP, blocked, retrain running); status belongs in the body's Completion Gate.
 - Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section.
 
 ### Status Labels And Milestones
@@ -91,11 +94,14 @@
 
 - Treat `AGENTS.md`, repo-local skills, PR templates, and checklist issues as living documents. When work exposes incorrect, stale, or missing guidance, fix it in the same PR if the change is small and in scope; otherwise open or propose a focused `meta` issue.
 - Do not silently work around guidance known to be wrong. If the same kind of mistake is raised repeatedly, add or revise a rule, template item, or check so future work can catch it mechanically.
+- When the same class of check failure recurs a second time, stop case-specific patching and redesign the check around its claim. Before adding a rule, exception, threshold, or check, first try to remove or replace a gate; gate only independent quantities and keep derived quantities report-only. State what an addition replaces or why nothing can be removed, and justify failure-triggered changes by the check's purpose, not observed results.
+- When asking the user to decide, list the simplest option, including removal or redesign, first. Keep reusable rules in their owning repository document so the rule set stays visible; issue amendments record package-specific decisions, while the document states the current rule.
 - Keep PR diffs minimal for the stated task. Do not move dependencies between core `dependencies` and `[project.optional-dependencies]`, or add/modify `[build-system]`, unless the task requires it and the PR explains why.
 
 ## Reader-First Documentation
 
 - Reader-facing documents (package `TRAINING.md` and `README.md` files, `docs/*.md`, PR and issue bodies) are written for a first-time reader with no knowledge of this repository's history. Lead with the claim or outcome; define or link internal terms, roles, and stage codes at first use; do not open with corrections to earlier states the reader has never seen. Before writing or editing such a document, declare the intended reader and judge every sentence by its value to that reader.
+- In reader-facing prose, state each needed fact, value, scope, decision, and rule directly, with it as the sentence's subject and before any discussion link. Do not phrase an issue, PR, comment, or amendment as what sets, defines, or authorizes information the reader needs. A discussion link may follow only as the record of the stated fact or rule; documents whose purpose is tracking may link live plans and status.
 - Do not hard-wrap markdown prose mid-sentence at a column width; write each bullet, paragraph, and table cell as one logical line, breaking only at structural boundaries.
 
 ## Machine-Checked Conventions
@@ -105,14 +111,16 @@
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
 - `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
 - `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
-- `scripts/check_jaxtyping_annotations.py` enforces shaped-annotation and baseline rules.
+- `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.
+- `scripts/check_generator_sampling.py` rejects direct generator-consuming Torch draws and non-CPU or dynamic generator construction outside the shared randomness helper.
 - `scripts/check_config_defaults.py` enforces explicit-config construction.
 - `scripts/check_semantic_blank_lines.py` checks raise-block and compound-suite blank lines.
 - `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
 
 ### Documentation Checks
 
-- `scripts/check_model_readmes.py` enforces README and model-card contracts.
+- `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
 - `scripts/check_readme_badges.py` enforces README badge contracts.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
@@ -126,12 +134,9 @@
 - `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
-- `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; root-tooling checks use `uv sync --package design-generators --group dev` in an environment that excludes workspace-member distributions, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
-- The root project is a tooling coordinator with no runtime dependencies installed by default. Workspace-wide `transformers` and `diffusers` version floors are declared in root `[tool.uv].constraint-dependencies`; workspace members install their runtime dependencies through `uv run --package <name>` or `uv sync --all-packages`. The root `evaluation` extra is used only by `scripts/verify_evaluate_layout_metrics.py`.
+- The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
+- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and member tests selected from declared workspace dependencies, optional dependencies, and dependency groups for pull requests and merge queue entries; every non-Markdown change also selects `devharness`, non-Markdown changes outside member directories select all members with tests, and non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
+- Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
 - Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
-
-## CI Policy
-
-- Keep `uv-lock` local because this environment bakes global uv options into `uv.lock`; do not add `uv lock --check` or uv-lock to CI.

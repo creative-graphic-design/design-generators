@@ -326,7 +326,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
             num_inference_steps,
         )
         normalize_condition_type(condition_type)
-        self.prepare_generator(generator=generator, seed=seed, device=self.device)
+        self.prepare_generator(generator=generator, seed=seed)
         if font is None:
             font = ImageFont.load_default()
         effective_config = self.config

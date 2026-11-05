@@ -27,6 +27,8 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutFormer++
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2208.08037&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2208.08037)
@@ -46,9 +48,11 @@ This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autor
 
 LayoutFormer++ is a `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the original-implementation discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
+Public outputs omit generated elements whose labels cannot be mapped to the selected dataset, and one warning reports the number omitted. The original parser keeps these elements with error label 0 and its parsed box, which may be shifted by truncation; this package deliberately drops them because the public schema has no unknown-label category, so element-count and box metrics may differ from vendor results.
+
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, label_size, completion, refinement, relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -59,19 +63,19 @@ LayoutFormer++ is a `transformers` layout generator that models layout sequences
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 label | [`creative-graphic-design/layoutformerpp-rico25-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label) | not-published |
-| RICO25 label-size | [`creative-graphic-design/layoutformerpp-rico25-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label-size) | not-published |
-| RICO25 relation | [`creative-graphic-design/layoutformerpp-rico25-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-relation) | not-published |
-| RICO25 refinement | [`creative-graphic-design/layoutformerpp-rico25-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-refinement) | not-published |
-| RICO25 completion | [`creative-graphic-design/layoutformerpp-rico25-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-completion) | not-published |
-| RICO25 unconditional | [`creative-graphic-design/layoutformerpp-rico25-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-unconditional) | not-published |
-| PubLayNet label | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label) | not-published |
-| PubLayNet label-size | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size) | not-published |
-| PubLayNet relation | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation) | not-published |
-| PubLayNet refinement | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement) | not-published |
-| PubLayNet completion | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion) | not-published |
+| Checkpoint              | Hub ID                                                                                                                                                    | Status        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25 label            | [`creative-graphic-design/layoutformerpp-rico25-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label)                       | not-published |
+| RICO25 label-size       | [`creative-graphic-design/layoutformerpp-rico25-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label-size)             | not-published |
+| RICO25 relation         | [`creative-graphic-design/layoutformerpp-rico25-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-relation)                 | not-published |
+| RICO25 refinement       | [`creative-graphic-design/layoutformerpp-rico25-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-refinement)             | not-published |
+| RICO25 completion       | [`creative-graphic-design/layoutformerpp-rico25-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-completion)             | not-published |
+| RICO25 unconditional    | [`creative-graphic-design/layoutformerpp-rico25-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-unconditional)       | not-published |
+| PubLayNet label         | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label)                 | not-published |
+| PubLayNet label-size    | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size)       | not-published |
+| PubLayNet relation      | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation)           | not-published |
+| PubLayNet refinement    | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement)       | not-published |
+| PubLayNet completion    | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion)       | not-published |
 | PubLayNet unconditional | [`creative-graphic-design/layoutformerpp-publaynet-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-unconditional) | not-published |
 
 ## Uses
@@ -137,16 +141,16 @@ print(out.id2label)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 RICO25 public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens. PubLayNet COCO-style document boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+This package ports released behavior and exposes the package-local training path; current trained-checkpoint reproduction status is recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/TRAINING.md).
 
 #### Preprocessing
 
@@ -154,7 +158,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream training; staged S0-S4 reproduction passes for all twelve recipe families, and trained-checkpoint S5 reproduction is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -178,20 +182,20 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
-| --- | --- | --- | ---: | ---: | ---: | --- |
-| `rico_gen_t` | present | `ckpts/rico_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact original-implementation greedy loop; exact label-constrained loop |
-| `rico_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
-| `rico_gen_r` | present | `ckpts/rico_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact original-implementation top-k loop with relation input |
-| `rico_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation greedy loop |
-| `rico_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation top-k loop |
-| `rico_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation top-k loop |
-| `publaynet_gen_t` | present | `ckpts/publaynet_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact original-implementation greedy loop; exact label-constrained loop |
-| `publaynet_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
-| `publaynet_gen_r` | present | `ckpts/publaynet_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact original-implementation top-k loop with relation input |
-| `publaynet_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation greedy loop |
-| `publaynet_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation top-k loop |
-| `publaynet_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact original-implementation top-k loop |
+| Checkpoint             | Public checkpoint | Vocab source                                            | Tokenizer | Logits max abs | Logits max rel | Generation                                                                   |
+| ---------------------- | ----------------- | ------------------------------------------------------- | --------: | -------------: | -------------: | ---------------------------------------------------------------------------- |
+| `rico_gen_t`           | present           | `ckpts/rico_gen_t/vocab.json`                           |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-constrained loop      |
+| `rico_gen_ts`          | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
+| `rico_gen_r`           | present           | `ckpts/rico_gen_r/vocab.json`                           |     exact |            0.0 |            0.0 | exact original-implementation top-k loop with relation input                 |
+| `rico_refinement`      | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop                                    |
+| `rico_completion`      | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `rico_ugen`            | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `publaynet_gen_t`      | present           | `ckpts/publaynet_gen_t/vocab.json`                      |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-constrained loop      |
+| `publaynet_gen_ts`     | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop; exact label-size-constrained loop |
+| `publaynet_gen_r`      | present           | `ckpts/publaynet_gen_r/vocab.json`                      |     exact |            0.0 |            0.0 | exact original-implementation top-k loop with relation input                 |
+| `publaynet_refinement` | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation greedy loop                                    |
+| `publaynet_completion` | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
+| `publaynet_ugen`       | present           | synthetic task vocab; no task `vocab.json` is published |     exact |            0.0 |            0.0 | exact original-implementation top-k loop                                     |
 
 The substantive agreement-check sweep covers 28 checkpoint/check combinations: 12 checkpoint-logit checks, 12 checkpoint-generation checks, and 4 label-constrained generation checks. The separate `FileNotFoundError` loader test is not counted as an agreement case.
 
@@ -199,10 +203,9 @@ The substantive agreement-check sweep covers 28 checkpoint/check combinations: 1
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
-
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
+Training, conversion, and agreement-check costs depend on the selected recipe, checkpoint, and local hardware.
 
 ## Technical Specifications
 
@@ -236,3 +239,5 @@ Repository wrapper code is Apache-2.0. The original implementation is MIT licens
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

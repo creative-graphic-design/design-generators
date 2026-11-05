@@ -31,24 +31,21 @@ uv sync --package <package> --extra training --extra vendor
 List every training dataset and the exact source or local artifact layout used by
 the package-local and original-code runs.
 
-| Dataset | Source | Config or path |
-| --- | --- | --- |
+| Dataset     | Source                       | Config or path                     |
+| ----------- | ---------------------------- | ---------------------------------- |
 | `<dataset>` | `<dataset id or local path>` | `<config, split, or layout notes>` |
 
 ## Configs
 
 Training configs live under `models/<package>/configs/training`.
 
-| Config | Dataset | Seed mode | Purpose |
-| --- | --- | --- | --- |
+| Config          | Dataset     | Seed mode                    | Purpose     |
+| --------------- | ----------- | ---------------------------- | ----------- |
 | `<config>.yaml` | `<dataset>` | `<default or deterministic>` | `<purpose>` |
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size,
-accumulation, initialization, and recipe differences that affect reproduction.
-State observed environment constraints as verified setup, not as inherent
-package requirements.
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. State observed environment constraints as verified setup, not as inherent package requirements. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
 
 ## Seed Policy
 
@@ -58,25 +55,27 @@ describe evaluation-seed evidence as training-seed reproduction.
 
 ## Validation Stages
 
-| Stage | Scope | Purpose |
-| --- | --- | --- |
-| S0 | Static config and initialized state parity | `<summary>` |
-| S1 | Fixed-batch pre-optimizer trace parity | `<summary>` |
-| S2 | One optimizer-step parity | `<summary>` |
-| S3 | Short deterministic multi-batch run | `<summary>` |
-| S4 | Deterministic loader stream | `<summary>` |
-| S5 | Full-run statistical comparison | `<summary>` |
+| Stage | Scope                                      | Purpose     |
+| ----- | ------------------------------------------ | ----------- |
+| S0    | Static config and initialized state parity | `<summary>` |
+| S1    | Fixed-batch pre-optimizer trace parity     | `<summary>` |
+| S2    | One optimizer-step parity                  | `<summary>` |
+| S3    | Short deterministic multi-batch run        | `<summary>` |
+| S4    | Deterministic loader stream                | `<summary>` |
+| S5    | Full-run statistical comparison            | `<summary>` |
 
 ## Stage Evidence
 
-| Stage | Command | Artifact | Result |
-| --- | --- | --- | --- |
-| S0 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S1 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S2 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S3 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S4 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+Replace every placeholder in this reusable evidence table with a command, artifact, and result from the package. The table tracks static config (S0), fixed-batch trace (S1), one optimizer step (S2), multi-batch training (S3), loader stream (S4), and full-run comparison (S5), as defined in the training reproduction protocol. Follow the [checkpoint smoke rule](../training-reproduction.md#checkpoint-smoke-before-full-runs) for the smoke command, full-run configuration, checkpoint path, and SHA-256.
+
+| Stage | Command                                              | Checkpoint Smoke Command                        | Full-run Config                                     | Artifact                                                                                                                                                      | Result     | Checkpoint Path                                     | Checkpoint SHA-256       |
+| ----- | ---------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------- | ------------------------ |
+| S0    | `<command>`                                          | not required                                    | not required                                        | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S1    | `<command>`                                          | not required                                    | not required                                        | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S2    | `<command>`                                          | not required                                    | not required                                        | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S3    | `<multi-batch trajectory and loss-envelope command>` | `<bounded production checkpoint smoke command>` | not required                                        | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | `.cache/<package>/s3/checkpoints/<checkpoint>.ckpt` | `<64-character SHA-256>` |
+| S4    | `<command>`                                          | not required                                    | not required                                        | `<repo/cache-relative path or project issue/PR URL>`                                                                                                          | `<result>` | not required                                        | not required             |
+| S5    | `<command>`                                          | not required                                    | `models/<package>/configs/training/<full-run>.yaml` | `.cache/<package>/full-run/<dataset>/manifest.json; evaluation-path-parity: <path to comparison proving both evaluations used identical inputs and settings>` | `<result>` | not required                                        | not required             |
 
 ## Reproduction Results
 
@@ -93,10 +92,20 @@ Allowed `Status` values are:
 - `not-yet-run (<tracking ref>)`
 - `blocked (<reason>)`
 
-| Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
-| --- | --- | --- | --- | --- | --- | --- |
+| Dataset     | System   | Status                   | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | ------------------------ | -------------- | ----------------------- | ---------------- | ---------------------- |
 | `<dataset>` | original | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+
+### Comparison Scope
+
+Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
+
+| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
+| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
+| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 ## Regeneration Metadata
 

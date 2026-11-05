@@ -64,7 +64,10 @@ nav:
           - traingen-parity: api/libraries/traingen-parity.md
       - Models:
           - basnet: api/models/basnet.md
+          - canvas-vae: api/models/canvas-vae.md
+          - pixel-vae: api/models/pixel-vae.md
           - cgb-dm: api/models/cgb-dm.md
+          - collage-diffusion: api/models/collage-diffusion.md
           - coarse-to-fine: api/models/coarse-to-fine.md
           - dlt: api/models/dlt.md
           - ds-gan: api/models/ds-gan.md
@@ -79,18 +82,20 @@ nav:
           - layout-fid: api/models/layout-fid.md
           - layout-flow: api/models/layout-flow.md
           - layout-gpt: api/models/layout-gpt.md
-          - layoutdiffusion: api/models/layoutdiffusion.md
+          - layout-diffusion: api/models/layout-diffusion.md
           - layoutformerpp: api/models/layoutformerpp.md
           - layoutganpp: api/models/layoutganpp.md
           - layoutprompter: api/models/layoutprompter.md
-          - layoutvae: api/models/layoutvae.md
+          - layout-vae: api/models/layout-vae.md
           - ltnet: api/models/ltnet.md
           - parse-then-place: api/models/parse-then-place.md
           - posterllama: api/models/posterllama.md
           - posterllava: api/models/posterllava.md
           - postero: api/models/postero.md
+          - radm: api/models/radm.md
           - ralf: api/models/ralf.md
           - smarttext: api/models/smarttext.md
+          - structure-diffusion: api/models/structure-diffusion.md
 
 markdown_extensions:
   - admonition
@@ -98,6 +103,9 @@ markdown_extensions:
       emoji_generator: zensical.extensions.emoji.to_svg
       emoji_index: zensical.extensions.emoji.twemoji
   - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -122,3 +130,4 @@ plugins:
             members_order: source
             separate_signature: true
             show_signature_annotations: true
+            show_submodules: true

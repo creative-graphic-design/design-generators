@@ -61,7 +61,7 @@ print(normalize_condition_type("gen_t"))
 print(id2label_for_dataset("publaynet"))
 ```
 
-Use `laygen.modeling_outputs.LayoutGenerationOutput` for [`transformers`](https://huggingface.co/docs/transformers/index)-style code paths and schema-only utilities.
+Use `laygen.modeling_outputs.LayoutGenerationOutput` for [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style code paths and schema-only utilities.
 
 ```bash
 uv run --package laygen python
@@ -229,6 +229,8 @@ Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutpu
 - `laygen.pipelines.LayoutGenerationPipeline` owns the shared `transformers`-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
 - `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, model-card, and generator-resolution helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - `diffusers`-backed helpers stay behind the `diffusion` extra unless they specifically target `diffusers` pipeline outputs.
+
+`laygen` does not impose the [model framework](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#choosing-a-model-framework) or [module-name](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-package-module-names) conventions on downstream projects; projects that consume this library may opt in.
 
 ## Pointers
 

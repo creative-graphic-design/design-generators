@@ -25,6 +25,17 @@ class TrainingImportContract:
 
 CONTRACTS = (
     TrainingImportContract(
+        package_name="canvas_vae",
+        training_module="canvas_vae.training",
+        eager_exports=("CrossEpochBatchSampler", "KerasAdam"),
+        lightning_exports=("CanvasVAEDataModule", "CanvasVAETrainingModule"),
+        optional_roots=("lightning",),
+        training_leaf_modules=(
+            "canvas_vae.training.datamodule",
+            "canvas_vae.training.lightning_module",
+        ),
+    ),
+    TrainingImportContract(
         package_name="cgb_dm",
         training_module="cgb_dm.training",
         eager_exports=("CGBDMSeedMode",),
@@ -93,8 +104,8 @@ CONTRACTS = (
         ),
     ),
     TrainingImportContract(
-        package_name="layoutdiffusion",
-        training_module="layoutdiffusion.training",
+        package_name="layout_diffusion",
+        training_module="layout_diffusion.training",
         eager_exports=(
             "LayoutDiffusionDataset",
             "LayoutDiffusionProcessedDataset",
@@ -113,8 +124,8 @@ CONTRACTS = (
         ),
         optional_roots=("lightning", "datasets"),
         training_leaf_modules=(
-            "layoutdiffusion.training.datamodule",
-            "layoutdiffusion.training.lightning_module",
+            "layout_diffusion.training.datamodule",
+            "layout_diffusion.training.lightning_module",
         ),
     ),
 )

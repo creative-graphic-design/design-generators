@@ -12,11 +12,11 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import resolve_torch_generator
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.enums import normalize_enum_value
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.randomness import randn, resolve_torch_generator
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 
@@ -129,6 +129,10 @@ class LayoutGANPPModel(PreTrainedModel):
         )
         self.fc_out = nn.Linear(config.d_model, 4)
         self.post_init()
+
+    def _init_weights(self, module: nn.Module) -> None:
+        """Keep PyTorch constructor initialization during Transformers setup."""
+        del module
 
     def forward(
         self,
@@ -341,7 +345,5 @@ class LayoutGANPPModel(PreTrainedModel):
         device: torch.device,
         dtype: torch.dtype,
     ) -> Float[torch.Tensor, "batch elements latent"]:
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=device
-        )
-        return torch.randn(shape, generator=generator, device=device, dtype=dtype)
+        generator = resolve_torch_generator(generator=generator, seed=seed)
+        return randn(shape, generator=generator, device=device, dtype=dtype)

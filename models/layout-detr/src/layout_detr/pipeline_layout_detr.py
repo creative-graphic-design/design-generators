@@ -22,6 +22,7 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.common.randomness import randn
 
 from .configuration_layout_detr import BackgroundPreprocessing, LayoutDetrConfig
 from .modeling_layout_detr import LayoutDetrForConditionalGeneration
@@ -208,10 +209,9 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         runtime_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=device,
         )
         if latents is None:
-            latents = torch.randn(
+            latents = randn(
                 (batch, elements, self.config.z_dim),
                 generator=runtime_generator,
                 device=device,

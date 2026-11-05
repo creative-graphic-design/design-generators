@@ -19,7 +19,7 @@ model-index:
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
-          name: "RICO25"
+          name: "RICO13"
           config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
           split: "vendor parity fixture"
         metrics:
@@ -28,29 +28,31 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
+
 # Model Card for LayoutGAN++
 
 [![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)](https://doi.org/10.1145/3474085.3475497)
 ![venue](https://img.shields.io/static/v1?label=venue&message=ACM+MM+2021&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=AGPL-3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/magazine)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
+This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name. The package includes training infrastructure and measured S0-S4 staged evidence for the cached Magazine fixture; S5 full-run reproduction is not claimed and remains a separate decision for all datasets.
 
 ## Model Details
 
 ### Model Description
 
-LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO13, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: label.
 - **Language(s) (NLP):** not applicable.
 - **License:** agpl-3.0.
 
@@ -61,11 +63,11 @@ LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico) | not-published |
-| PubLayNet | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
-| Magazine | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine) | not-published |
+| Checkpoint | Hub ID                                                                                                                  | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO13     | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico)           | not-published |
+| PubLayNet  | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
+| Magazine   | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine)   | not-published |
 
 ## Uses
 
@@ -153,17 +155,17 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
-| Magazine | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine) | polygon-based train-only source |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
+| Magazine  | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine)   | polygon-based train-only source                          |
 
-The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...), not the 25-class RICO25 mapping used by most other layout packages in this repository. The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
+The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...). The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+This package ports released behavior and includes package-local training infrastructure. S0-S4 staged evidence is complete for the cached Magazine fixture; S5 full-run training and evaluation are not claimed.
 
 #### Preprocessing
 
@@ -171,7 +173,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream recipe represented by package-local configs; S0-S4 staged evidence is available for Magazine, while S5 full-run training is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -195,20 +197,19 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Compared artifact | Cases | Match criterion | Result |
-| --- | --- | ---: | --- | --- |
-| Rico | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
-| PubLayNet | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
-| Magazine | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 33, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
+| Dataset   | Compared artifact                                                       | Cases | Match criterion                                                       | Result |
+| --------- | ----------------------------------------------------------------------- | ----: | --------------------------------------------------------------------- | ------ |
+| Rico      | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)`  | passed |
+| PubLayNet | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)`  | passed |
+| Magazine  | Original-implementation `netG` fixture vs. converted `LayoutGANPPModel` |     1 | `(3, 33, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
-
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
+No S5 full-run model training is claimed by this package. Conversion, staged training checks, and agreement-check costs depend on the selected dataset and local hardware.
 
 ## Technical Specifications
 
@@ -245,3 +246,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
     doi = {10.1145/3474085.3475497}
 }
 ```
+
+<!-- --8<-- [end:card] -->

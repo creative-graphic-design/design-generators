@@ -28,12 +28,14 @@ def test_build_condition_modes():
     assert label.type == "c"
     assert label.mask[0, 0]
     assert not label.mask[0, 1]
+    assert label.mask[0, 5]
 
     label_size = build_condition(
         tokenizer, cond_type="label_size", bbox=bbox, labels=labels, mask=mask
     )
     assert label_size.type == "cwh"
     assert label_size.mask[0, 3]
+    assert label_size.mask[0, 5]
     completion = build_condition(
         tokenizer, cond_type="completion", bbox=bbox, labels=labels, mask=mask
     )

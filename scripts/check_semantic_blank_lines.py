@@ -19,12 +19,13 @@ accepts a same-file swap (one residual violation fixed and one added) when the
 file/rule count is unchanged; that is the granularity of this heuristic.
 
 The checker fails when the working baseline counts differ from the current scan.
-Once a count-format baseline exists in committed ``HEAD``, it also fails if a
-working count is added or increased relative to that commit. This permits only
-decreasing or removing residual counts and prevents hiding a new violation by
-appending it to the baseline. A missing or legacy location-format baseline in
-``HEAD`` is treated as an initial baseline, which permits the merge that first
-introduces this checker to establish counts for content inherited from main.
+During a merge, it compares counts against ``MERGE_HEAD``; otherwise it uses
+committed ``HEAD``. It fails if a working count is added or increased relative
+to that committed baseline. This permits only decreasing or removing residual
+counts and prevents hiding a new violation by appending it to the baseline. A
+missing or legacy location-format baseline is treated as an initial baseline,
+which permits the merge that first introduces this checker to establish counts
+for content inherited from main.
 An ``# Established rule: <rule>`` marker records that a rule has been
 introduced even after its residual count reaches zero. Established markers are
 also shrink-only: removing one relative to committed ``HEAD`` fails.
@@ -66,6 +67,7 @@ COMPOUND_STATEMENT_TYPES = (
 SCAN_GLOBS = (
     "models/*/src/**/*.py",
     "lib/*/src/**/*.py",
+    "tools/*/src/**/*.py",
     "scripts/**/*.py",
 )
 
@@ -405,13 +407,20 @@ def committed_baseline_state(
     root: Path,
 ) -> tuple[dict[tuple[str, str], int], set[str]] | None:
     """Return committed counts and markers, or ``None`` before count format."""
+    merge_head = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "MERGE_HEAD"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    revision = "MERGE_HEAD" if merge_head.returncode == 0 else "HEAD"
     result = subprocess.run(
         [
             "git",
             "-C",
             str(root),
             "show",
-            f"HEAD:{BASELINE_RELATIVE_PATH.as_posix()}",
+            f"{revision}:{BASELINE_RELATIVE_PATH.as_posix()}",
         ],
         capture_output=True,
         check=False,
@@ -493,7 +502,10 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
             )
 
     if increased_counts:
-        print("Baseline counts added or increased relative to HEAD:", file=sys.stderr)
+        print(
+            "Baseline counts added or increased relative to the committed baseline:",
+            file=sys.stderr,
+        )
         for path, rule, committed_count, current_count in increased_counts:
             print(
                 f"{path}\t{rule}\tHEAD={committed_count}\tcurrent={current_count}",

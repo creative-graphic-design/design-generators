@@ -17,6 +17,7 @@ from laygen.common import ConditionType
 from laygen.schedulers.continuous import (
     make_beta_schedule as make_continuous_beta_schedule,
 )
+from laygen.common.randomness import rand, randint, randn
 
 
 class CGBDMBetaSchedule(StrEnum):
@@ -175,7 +176,7 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
     ) -> Int[torch.Tensor, "batch"]:
         """Sample training timesteps."""
         high = int(t_max or self.num_train_timesteps - 1)
-        return torch.randint(0, high, (batch_size,), device=device, generator=generator)
+        return randint(0, high, (batch_size,), device=device, generator=generator)
 
     def add_noise(
         self,
@@ -205,9 +206,7 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         generator: torch.Generator | None = None,
     ) -> Float[torch.Tensor, "batch elements channels"]:
         """Create the initial DDIM sample."""
-        return torch.randn(
-            batch_size, seq_len, seq_dim, device=device, generator=generator
-        )
+        return randn(batch_size, seq_len, seq_dim, device=device, generator=generator)
 
     def condition_mask(
         self,
@@ -235,8 +234,8 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         if condition_type is ConditionType.completion:
             label_ids = layout[:, :, :num_labels].argmax(dim=-1)
             valid = label_ids != 0
-            rand = torch.rand(valid.shape, device=layout.device, generator=generator)
-            elem_mask = (rand <= completion_ratio) & valid
+            random_values = rand(valid.shape, device=layout.device, generator=generator)
+            elem_mask = (random_values <= completion_ratio) & valid
             return elem_mask.unsqueeze(-1).expand_as(layout)
 
         if condition_type is ConditionType.refinement:
@@ -259,7 +258,7 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         sqrt_one_minus = self.ddim_sqrt_one_minus_alphas[index].to(sample.device)
         pred_original = (sample - sqrt_one_minus * model_output) / alpha_t.sqrt()
         direction = (1.0 - alpha_prev - sigma_t**2).sqrt() * model_output
-        noise = sigma_t * torch.randn(
+        noise = sigma_t * randn(
             sample.shape,
             dtype=sample.dtype,
             device=sample.device,

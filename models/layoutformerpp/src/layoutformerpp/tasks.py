@@ -44,6 +44,10 @@ SUPPORTED_CONDITIONS: Final[frozenset[ConditionType]] = frozenset(
 SUPPORTED_DATASETS: Final[frozenset[DatasetName]] = frozenset(
     {DatasetName.rico25, DatasetName.publaynet}
 )
+DATASET_TO_CANONICAL_SLUG: Final[dict[DatasetName, str]] = {
+    DatasetName.rico25: "rico25",
+    DatasetName.publaynet: "publaynet",
+}
 DATASET_TO_VENDOR_SLUG: Final[dict[DatasetName, str]] = {
     DatasetName.rico25: "rico",
     DatasetName.publaynet: "publaynet",
@@ -60,7 +64,12 @@ def normalize_layoutformerpp_dataset(dataset: DatasetName | str) -> DatasetName:
 
 
 def layoutformerpp_dataset_slug(dataset: DatasetName | str) -> str:
-    """Return the dataset slug for a LayoutFormer++ dataset."""
+    """Return the canonical public dataset slug."""
+    return DATASET_TO_CANONICAL_SLUG[normalize_layoutformerpp_dataset(dataset)]
+
+
+def layoutformerpp_vendor_dataset_slug(dataset: DatasetName | str) -> str:
+    """Translate a canonical dataset name at an original-code boundary."""
     return DATASET_TO_VENDOR_SLUG[normalize_layoutformerpp_dataset(dataset)]
 
 

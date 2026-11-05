@@ -8,7 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-TARGET_DIRS = ("lib", "models", "scripts")
+from devharness.git import git_output
+
+TARGET_DIRS = ("lib", "models", "scripts", "tools")
 _DUPLICATE_START_RE = re.compile(r"^.+:\d+:\d+: R0801: Similar lines in \d+ files$")
 _MODULE_SPAN_RE = re.compile(r"^(==[^:\n]+):\[\d+:\d+\](.*)$")
 
@@ -40,17 +42,10 @@ def changed_python_targets(root: Path) -> list[str]:
     ]
     changed: set[str] = set()
     for command in commands:
-        result = subprocess.run(
-            command,
-            check=False,
-            cwd=root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        if result.returncode == 0:
+        output = git_output(root, command)
+        if output is not None:
             changed.update(
-                path for path in result.stdout.splitlines() if is_python_target(path)
+                path for path in output.splitlines() if is_python_target(path)
             )
     return sorted(changed)
 

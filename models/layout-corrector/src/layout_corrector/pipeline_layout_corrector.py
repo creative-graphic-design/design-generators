@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, Sequence, assert_never
+from typing import ClassVar, Self, Sequence, assert_never
 
 import numpy as np
 import torch
@@ -19,12 +19,12 @@ from layout_dm.conditioning import (
 from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
-from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.randomness import multinomial, resolve_torch_generator
 
 from .configuration_layout_corrector import CorrectorReconType
 from .modeling_layout_corrector import LayoutCorrectorModel
@@ -91,6 +91,27 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         self.corrector = corrector
         self.processor = processor or layout_dm.processor
         self.corrector.eval()
+
+    def to(
+        self,
+        *args: torch.device | str | torch.dtype | None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | str | None = None,
+        silence_dtype_warnings: bool = False,
+    ) -> Self:
+        """Move the nested LayoutDM pipeline and the corrector together."""
+        self.layout_dm.to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
+        return super().to(
+            *args,
+            dtype=dtype,
+            device=device,
+            silence_dtype_warnings=silence_dtype_warnings,
+        )
 
     @torch.no_grad()
     def __call__(
@@ -192,9 +213,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             <function...
         """
         _ = num_elements
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical != "unconditional":
@@ -364,26 +383,17 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                     model_log_prob, current, timestep_batch
                 )
                 model_log_prob[:, self.layout_dm.tokenizer.mask_token_id, :] = -70.0
-            if self.layout_dm.scheduler.token_mask is not None:
-                valid = self.layout_dm.scheduler.token_mask.to(
-                    model_log_prob.device
-                ).T.unsqueeze(0)
-                model_log_prob = model_log_prob.masked_fill(~valid, -70.0)
-            if condition is not None:
-                strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
-                strong_log_prob = index_to_log_onehot(
-                    condition.input_ids.to(model_log_prob.device),
-                    self.layout_dm.scheduler.vocab_size,
-                )
-                model_log_prob = torch.where(
-                    strong_mask, strong_log_prob, model_log_prob
-                )
-            x0_recon_ids = torch.multinomial(
-                (model_log_prob.permute(0, 2, 1) / sampling.temperature)
-                .softmax(dim=-1)
+            model_log_prob = self.layout_dm.scheduler.apply_condition(
+                model_log_prob, condition
+            )
+            x0_recon_ids = multinomial(
+                (model_log_prob / sampling.temperature)
+                .softmax(dim=1)
+                .permute(0, 2, 1)
                 .reshape(-1, model_log_prob.size(1)),
                 1,
                 generator=generator,
+                device=model_log_prob.device,
             ).reshape(model_log_prob.shape[0], model_log_prob.shape[-1])
             confidence = self.corrector.calc_confidence_score(
                 x0_recon_ids,
