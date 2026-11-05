@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .card import section
-from .constants import PROMPT_ONLY_SLUGS
+from .constants import NO_MODEL_WEIGHTS_SLUGS
 
 
 def assert_readme_reproducibility_link(path: Path, text: str) -> None:
@@ -48,7 +48,7 @@ def assert_reproducing_commands(path: Path, text: str) -> None:
         ("reference", "golden"),
         "pytest",
     ]
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         required_terms.extend([("prompt configuration", "save_pretrained"), "smoke"])
         if "convert checkpoints" in lower:
             raise AssertionError(
