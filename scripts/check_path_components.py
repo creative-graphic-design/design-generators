@@ -84,6 +84,7 @@ def _string_constant(node: ast.AST) -> str | None:
     """Return the value of a string literal expression."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
+
     return None
 
 
@@ -107,10 +108,13 @@ def _file_anchor_parent_count(
 
     if not isinstance(current, ast.Call) or len(current.args) != 1:
         return 0
+
     if not isinstance(current.args[0], ast.Name) or current.args[0].id != "__file__":
         return 0
+
     if not _is_path_constructor(current, class_aliases, module_aliases):
         return 0
+
     return count
 
 
@@ -217,6 +221,7 @@ def check_path_components(root: Path) -> int:
             f"{report.rule}: {report.expression}",
             file=sys.stderr,
         )
+
     return 1
 
 
