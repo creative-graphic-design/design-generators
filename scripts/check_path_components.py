@@ -88,6 +88,20 @@ def _string_constant(node: ast.AST) -> str | None:
     return None
 
 
+def _string_expression_has_path_separator(node: ast.AST) -> bool:
+    """Return whether a string literal or f-string segment has a separator."""
+    value = _string_constant(node)
+    if value is not None:
+        return _contains_path_separator(value)
+
+    return isinstance(node, ast.JoinedStr) and any(
+        isinstance(part, ast.Constant)
+        and isinstance(part.value, str)
+        and _contains_path_separator(part.value)
+        for part in node.values
+    )
+
+
 def _contains_path_separator(value: str) -> bool:
     """Return whether a string contains a path separator."""
     return "/" in value or "\\" in value
@@ -173,8 +187,7 @@ def check_file(root: Path, path: Path) -> list[Violation]:
         ):
             arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
             for argument in arguments:
-                value = _string_constant(argument)
-                if value is not None and _contains_path_separator(value):
+                if _string_expression_has_path_separator(argument):
                     reports.append(
                         Violation(
                             path.relative_to(root),
@@ -186,8 +199,7 @@ def check_file(root: Path, path: Path) -> list[Violation]:
                     )
 
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-            value = _string_constant(node.right)
-            if value is not None and _contains_path_separator(value):
+            if _string_expression_has_path_separator(node.right):
                 reports.append(
                     Violation(
                         path.relative_to(root),

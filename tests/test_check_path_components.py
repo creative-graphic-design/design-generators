@@ -3,6 +3,8 @@ import importlib.util
 from pathlib import Path
 import sys
 
+import pytest
+
 
 def load_checker() -> Callable[[Path], int]:
     """Load the Python path-component checker from the repository scripts."""
@@ -28,7 +30,9 @@ def write_source(root: Path, *parts: str, source: str) -> None:
     path.write_text(source, encoding="utf-8")
 
 
-def test_checker_rejects_path_constructor_and_operand_strings(tmp_path: Path) -> None:
+def test_checker_rejects_path_constructor_and_operand_strings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     write_source(
         tmp_path,
         "models",
@@ -45,9 +49,31 @@ def test_checker_rejects_path_constructor_and_operand_strings(tmp_path: Path) ->
     )
 
     assert check_path_components(tmp_path) == 1
+    stderr = capsys.readouterr().err
+    assert all(
+        f"models/example/src/paths.py:{line}:" in stderr for line in (2, 3, 4, 5)
+    )
 
 
-def test_checker_rejects_pathlib_module_aliases(tmp_path: Path) -> None:
+def test_checker_rejects_separator_bearing_f_string_operand(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_source(
+        tmp_path,
+        "models",
+        "example",
+        "src",
+        "paths.py",
+        source=('path = root / f"{dataset_name}-max{max_seq_length}/processed"\n'),
+    )
+
+    assert check_path_components(tmp_path) == 1
+    assert "models/example/src/paths.py:1:" in capsys.readouterr().err
+
+
+def test_checker_rejects_pathlib_module_aliases(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     write_source(
         tmp_path,
         "models",
@@ -62,9 +88,13 @@ def test_checker_rejects_pathlib_module_aliases(tmp_path: Path) -> None:
     )
 
     assert check_path_components(tmp_path) == 1
+    stderr = capsys.readouterr().err
+    assert "models/example/src/aliases.py:2:" in stderr
 
 
-def test_checker_rejects_repeated_file_anchor_parent_chains(tmp_path: Path) -> None:
+def test_checker_rejects_repeated_file_anchor_parent_chains(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     write_source(
         tmp_path,
         "models",
@@ -80,6 +110,8 @@ def test_checker_rejects_repeated_file_anchor_parent_chains(tmp_path: Path) -> N
     )
 
     assert check_path_components(tmp_path) == 1
+    stderr = capsys.readouterr().err
+    assert all(f"models/example/src/parents.py:{line}:" in stderr for line in (2, 3, 4))
 
 
 def test_checker_allows_componentwise_paths_and_single_parent(tmp_path: Path) -> None:
@@ -101,7 +133,9 @@ def test_checker_allows_componentwise_paths_and_single_parent(tmp_path: Path) ->
     assert check_path_components(tmp_path) == 0
 
 
-def test_checker_excludes_vendor_directories(tmp_path: Path) -> None:
+def test_checker_excludes_vendor_directories(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     write_source(
         tmp_path,
         "models",
@@ -121,3 +155,6 @@ def test_checker_excludes_vendor_directories(tmp_path: Path) -> None:
     )
 
     assert check_path_components(tmp_path) == 1
+    stderr = capsys.readouterr().err
+    assert "models/example/src/main.py:1:" in stderr
+    assert "models/example/src/vendor/copied.py:" not in stderr

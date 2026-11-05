@@ -88,7 +88,7 @@ repos:
 
       - id: path-components
         name: Python path components
-        entry: uv run --package design-generators scripts/check_path_components.py
+        entry: uv run --locked --package design-generators scripts/check_path_components.py
         language: system
         pass_filenames: false
 
