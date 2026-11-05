@@ -28,7 +28,7 @@ which permits the merge that first introduces this checker to establish counts
 for content inherited from main.
 An ``# Established rule: <rule>`` marker records that a rule has been
 introduced even after its residual count reaches zero. Established markers are
-also shrink-only: removing one relative to committed ``HEAD`` fails.
+also shrink-only: removing one relative to the committed baseline fails.
 When a new rule is introduced, its first count-format baseline is also allowed
 through the ``INTRODUCED_RULES`` exception below; later changes to that rule
 are ratcheted against its committed counts like every existing rule.
@@ -508,12 +508,16 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
         )
         for path, rule, committed_count, current_count in increased_counts:
             print(
-                f"{path}\t{rule}\tHEAD={committed_count}\tcurrent={current_count}",
+                f"{path}\t{rule}\tcommitted_baseline={committed_count}"
+                f"\tcurrent={current_count}",
                 file=sys.stderr,
             )
 
     if removed_established_rules:
-        print("Established rule markers removed relative to HEAD:", file=sys.stderr)
+        print(
+            "Established rule markers removed relative to the committed baseline:",
+            file=sys.stderr,
+        )
         for rule in removed_established_rules:
             print(f"# Established rule: {rule}", file=sys.stderr)
 

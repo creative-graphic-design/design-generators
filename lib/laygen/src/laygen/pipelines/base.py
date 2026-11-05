@@ -109,6 +109,15 @@ class TorchMovable(Protocol):
         """
 
 
+@runtime_checkable
+class TorchDeviceProvider(Protocol):
+    """Component protocol for objects that expose their current device."""
+
+    @property
+    def device(self) -> torch.device:
+        """Return the current torch device."""
+
+
 @dataclass(frozen=True)
 class PipelineComponentSpec:
     """Declarative loading and saving rule for one pipeline component.
@@ -259,9 +268,9 @@ class LayoutGenerationPipeline(ABC):
     def device(self) -> torch.device:
         """Return an accelerator device, then a component device or CPU."""
         devices = [
-            cast(torch.device, getattr(component, "device"))
+            component.device
             for component in self._pipeline_component_values()
-            if hasattr(component, "device")
+            if isinstance(component, TorchDeviceProvider)
         ]
         for device in devices:
             if device.type not in ("cpu", "meta"):
@@ -459,6 +468,7 @@ class LayoutGenerationPipeline(ABC):
             self.dtype = dtype
         if device is None and self.dtype is None:
             return self
+
         target_device = torch.device(device) if device is not None else None
         for component in self._pipeline_component_values():
             if isinstance(component, TorchMovable):
