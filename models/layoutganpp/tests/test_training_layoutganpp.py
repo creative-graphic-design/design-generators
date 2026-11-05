@@ -3,13 +3,12 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
 import pytest
 import torch
 import yaml
-from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -360,65 +359,110 @@ def test_production_entrypoint_writes_best_checkpoint_for_bounded_full_run(tmp_p
     assert f"iou={best_score:.6f}" in checkpoint_path.name
 
 
-def test_vendor_schedule_matches_iteration_and_validation_cadence():
-    datamodule = LayoutGANPPDataModule(
-        dataset_name="magazine",
-        batch_size=2,
-        num_workers=0,
-        synthetic_size=8,
-    )
-    trainer = SimpleNamespace(
-        datamodule=datamodule,
-        fit_loop=SimpleNamespace(
-            max_epochs=-1,
-            epoch_loop=SimpleNamespace(max_steps=-1),
-        ),
-        current_epoch=0,
-        check_val_every_n_epoch=1,
-        limit_train_batches=1.0,
-    )
-    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+class _ScheduleFixtureDataModule(LightningDataModule):
+    def __init__(self, *, train_size: int, batch_size: int) -> None:
+        super().__init__()
+        self.train_size = train_size
+        self.batch_size = batch_size
 
-    callback.on_fit_start(cast(Trainer, trainer), cast(LightningModule, None))
-    assert trainer.fit_loop.max_epochs == 50_000
-    assert trainer.fit_loop.epoch_loop.max_steps == -1
-    callback.on_validation_end(cast(Trainer, trainer), cast(LightningModule, None))
-    assert trainer.check_val_every_n_epoch == 2_501
-
-    trainer.current_epoch = 2_500
-    callback.on_validation_end(cast(Trainer, trainer), cast(LightningModule, None))
-    assert trainer.check_val_every_n_epoch == 5_001
+    def train_dataloader(self) -> DataLoader[tuple[torch.Tensor, ...]]:
+        return DataLoader(
+            TensorDataset(torch.zeros(self.train_size, 1)),
+            batch_size=self.batch_size,
+        )
 
 
-@pytest.mark.parametrize(
-    ("max_epochs", "limit_train_batches", "expected_max_epochs"),
-    [(1, 2.0, 1), (-1, 2.0, 1), (1, 1.0, 1), (0, 1.0, 0)],
-)
-def test_vendor_schedule_preserves_explicit_smoke_bounds(
-    max_epochs: int, limit_train_batches: float, expected_max_epochs: int
-):
-    datamodule = LayoutGANPPDataModule(
-        dataset_name="magazine",
-        batch_size=2,
-        num_workers=0,
-        synthetic_size=8,
-    )
-    trainer = SimpleNamespace(
-        datamodule=datamodule,
-        fit_loop=SimpleNamespace(
-            max_epochs=max_epochs,
-            epoch_loop=SimpleNamespace(max_steps=-1),
-        ),
-        current_epoch=0,
-        check_val_every_n_epoch=1,
+class _ScheduleFixtureModule(LightningModule):
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.ones(()))
+
+    def training_step(self, batch, batch_idx):
+        del batch_idx
+        return self.weight * batch[0].sum()
+
+    def configure_optimizers(self):
+        return torch.optim.SGD(self.parameters(), lr=0.0)
+
+
+class _StopBeforeTraining(Exception):
+    pass
+
+
+class _StopAfterSchedule(Callback):
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        del trainer, pl_module
+        raise _StopBeforeTraining
+
+
+class _CheckSmokeBounds(Callback):
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        del pl_module
+        assert trainer.fit_loop.max_epochs == 1
+
+
+def _schedule_test_trainer(
+    *,
+    max_epochs: int,
+    max_steps: int = -1,
+    limit_train_batches: int | float = 1.0,
+    callbacks: list[Callback] | None = None,
+) -> Trainer:
+    return Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=max_epochs,
+        max_steps=max_steps,
         limit_train_batches=limit_train_batches,
+        limit_val_batches=0,
+        callbacks=callbacks,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        num_sanity_val_steps=0,
     )
 
-    LayoutGANPPVendorSchedule(iterations=200_000).on_fit_start(
-        cast(Trainer, trainer), cast(LightningModule, None)
+
+def test_vendor_schedule_preserves_smoke_epoch_and_batch_limits():
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=1,
+        limit_train_batches=2,
+        callbacks=[callback, _CheckSmokeBounds()],
     )
 
-    assert trainer.fit_loop.max_epochs == expected_max_epochs
+    trainer.fit(
+        _ScheduleFixtureModule(),
+        datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+    )
+
+    assert trainer.fit_loop.max_epochs == 1
+    assert trainer.num_training_batches == 2
+    assert trainer.global_step == 2
+    assert trainer.current_epoch == 1
+
+
+def test_vendor_schedule_rejects_lightning_default_epoch_bound():
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_steps=-1,
+        limit_val_batches=0,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        num_sanity_val_steps=0,
+        callbacks=[callback, _StopAfterSchedule()],
+    )
+
+    with pytest.raises(ValueError, match="Lightning's default of 1000"):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+        )
 
 
 @pytest.mark.parametrize(
@@ -432,59 +476,55 @@ def test_vendor_schedule_preserves_explicit_smoke_bounds(
 def test_vendor_schedule_preserves_shipped_full_run_update_counts(
     dataset: str, train_size: int, batches_per_epoch: int, expected_updates: int
 ):
-    train_dataset = TensorDataset(torch.empty(train_size))
-    train_loader = DataLoader(train_dataset, batch_size=64)
+    datamodule = _ScheduleFixtureDataModule(train_size=train_size, batch_size=64)
+    train_loader = datamodule.train_dataloader()
     assert len(train_loader) == batches_per_epoch
-    datamodule = SimpleNamespace(train_dataloader=lambda: train_loader)
-    trainer = SimpleNamespace(
-        datamodule=datamodule,
-        fit_loop=SimpleNamespace(
-            max_epochs=-1,
-            epoch_loop=SimpleNamespace(max_steps=-1),
-        ),
-        current_epoch=0,
-        check_val_every_n_epoch=1,
-        limit_train_batches=1.0,
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=-1,
+        callbacks=[callback, _StopAfterSchedule()],
     )
 
-    LayoutGANPPVendorSchedule(iterations=200_000).on_fit_start(
-        cast(Trainer, trainer), cast(LightningModule, None)
-    )
+    with pytest.raises(_StopBeforeTraining):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=datamodule,
+        )
 
-    assert trainer.fit_loop.max_epochs * len(train_loader) == expected_updates, dataset
+    max_epochs = trainer.fit_loop.max_epochs
+    assert max_epochs is not None
+    assert max_epochs * len(train_loader) == expected_updates, dataset
 
 
 def test_vendor_schedule_rejects_nonpositive_iterations_before_fit():
     callback = LayoutGANPPVendorSchedule(iterations=0)
+    trainer = _schedule_test_trainer(max_epochs=-1)
 
     with pytest.raises(ValueError, match="iterations must be positive"):
-        callback.on_fit_start(cast(Trainer, None), cast(LightningModule, None))
+        callback.on_fit_start(trainer, cast(LightningModule, None))
 
 
 def test_vendor_schedule_preserves_bounded_diagnostic_step_limit():
-    datamodule = LayoutGANPPDataModule(
-        dataset_name="magazine",
-        batch_size=2,
-        num_workers=0,
-        synthetic_size=8,
-    )
-    trainer = SimpleNamespace(
-        datamodule=datamodule,
-        fit_loop=SimpleNamespace(
-            max_epochs=-1,
-            epoch_loop=SimpleNamespace(max_steps=1_500),
-        ),
-        current_epoch=0,
-        check_val_every_n_epoch=1,
-        limit_train_batches=1.0,
-    )
     callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=-1,
+        max_steps=1_500,
+        callbacks=[callback, _StopAfterSchedule()],
+    )
 
-    callback.on_fit_start(cast(Trainer, trainer), cast(LightningModule, None))
+    with pytest.raises(_StopBeforeTraining):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+        )
+
     assert trainer.fit_loop.max_epochs == -1
     assert trainer.fit_loop.epoch_loop.max_steps == 1_500
-    callback.on_validation_end(cast(Trainer, trainer), cast(LightningModule, None))
+    callback.on_validation_end(trainer, cast(LightningModule, None))
     assert trainer.check_val_every_n_epoch == 2_501
+    trainer.fit_loop.epoch_progress.current.completed = 2_500
+    callback.on_validation_end(trainer, cast(LightningModule, None))
+    assert trainer.check_val_every_n_epoch == 5_001
 
 
 def test_training_validation_maximum_iou_perfect_match():
