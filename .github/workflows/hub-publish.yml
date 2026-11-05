@@ -84,4 +84,4 @@ jobs:
             echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
             exit 1
           fi
-          uv run --package "$PACKAGE_NAME" python "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py"
+          uv run --package "$PACKAGE_NAME" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py"
