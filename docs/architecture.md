@@ -39,7 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Dependency environments
 
-A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings.
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. For pull requests and merge queue entries, the matrix selects test-bearing members from changed paths and transitive declared dependencies; any non-Markdown change outside a member directory selects all test-bearing members, while Markdown-only changes skip member tests. Non-Markdown main pushes, manual dispatches, and the daily scheduled run select the full member matrix. Selection follows declared `dependencies`, `optional-dependencies`, and dependency groups, always adds `devharness` for non-Markdown changes, and does not infer undeclared imports or shared test data.
 
 A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the root `evaluation` extra when they run `scripts/verify_evaluate_layout_metrics.py`. The root project installs no runtime dependencies by default; it owns the workspace-wide `transformers` and `diffusers` version floors and the `dev` and `docs` tooling groups, while workspace members own their runtime dependencies.
 
@@ -48,9 +48,11 @@ A root-tooling environment installs the root package and its tooling group with 
 | Workspace version policy | Root `[tool.uv].constraint-dependencies` | `transformers>=5.0.0` and `diffusers>=0.36.0`; members declare what they install and satisfy these ranges | The root coordinates workspace-wide `transformers` and `diffusers` versions without installing runtime packages itself. |
 | `evaluation` extra       | Root verifier                            | `scripts/verify_evaluate_layout_metrics.py` and its `evaluate.load` metrics                               | The verifier is root-owned, and its metrics require the evaluation runtime including explicit `opencv-python`.          |
 | `dev` group              | Root tooling                             | Root checks, tests, and pre-commit commands                                                               | Repository-wide development tooling is coordinated at the root.                                                         |
-| `docs` group             | Root tooling                             | `make setup` (`uv sync --all-packages --group docs`)                                                      | Documentation generation is a repository-wide root workflow.                                                            |
+| `docs` group             | Root tooling                             | `make setup` (`uv sync --all-packages --group docs --locked`)                                             | Documentation generation is a repository-wide root workflow.                                                            |
 
-A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
+A full-workspace environment installs all workspace members with `uv sync --all-packages --locked` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
+
+`make setup`, pre-commit's `uv run` hooks, and CI use `--locked`; the `uv-lock` hook runs `uv lock --check`. The workspace sets `exclude-newer = "7 days"` in the root `[tool.uv]` configuration, so repository commands use the same cutoff regardless of user-level uv settings; `UV_EXCLUDE_NEWER` and `--exclude-newer` still override the project setting, and a conflicting override such as `UV_EXCLUDE_NEWER=false` can make `uv lock --check` fail. After intentionally changing dependency metadata, run `uv lock` from the repository root, then review and commit the lockfile diff.
 
 Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, CLI behavior, and git or network access; migrated checker policies live under `devharness.checks` and use the `devharness check <name>` command surface. The migrated checks include `model-readmes` and `jaxtyping-annotations`. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers and is stdlib-only (`tools/devharness/pyproject.toml` declares `dependencies = []`), while one-consumer mechanics stay in the checker that uses them. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
 
@@ -136,7 +138,7 @@ Move a helper into a shared package when at least two packages need the same beh
 
 ## Dependency direction
 
-All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
+All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed. `posgen` declares `laygen` in its `test` dependency group because its tests import `laygen.common`. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
 
@@ -147,7 +149,7 @@ The Transformers-side shared layout output in `laygen.modeling_outputs` is based
 ```mermaid
 graph LR
     laygen["laygen"] --> model_packages["model packages"]
-    laygen -. "optional; currently unused" .-> posgen["posgen"]
+    laygen -. "test dependency" .-> posgen["posgen"]
     posgen --> poster_models["poster or content-aware model packages"]
 ```
 

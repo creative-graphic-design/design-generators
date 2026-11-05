@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
     EXPECTED_MODEL_NAMES,
+    IMAGE_GENERATION_CATEGORY,
     LINK_REQUIRED_DATASET_IDS,
     REPO_ROOT,
     ROOT_LIBRARY_BADGE_COLORS,
@@ -22,6 +23,7 @@ from .card import (
     markdown_link_spans,
     model_member_slugs,
     parse_model_type,
+    ModelType,
     semantic_badge_label,
     without_frontmatter_and_code,
     without_badges,
@@ -31,6 +33,16 @@ from .card import (
 def normalize_root_repo_link(link: str) -> str:
     """Normalize a root README repository link to a repository-relative path."""
     return link.removeprefix(ROOT_REPO_BLOB_URL)
+
+
+def _model_catalog_badge_values(model_type: ModelType) -> tuple[str, str]:
+    """Return the Task and Content badge messages for a model classification."""
+    category, task, conditioning = model_type
+    content = (
+        " + ".join(conditioning) if category == IMAGE_GENERATION_CATEGORY else category
+    )
+
+    return task, content
 
 
 def _assert_root_model_type_cells(
@@ -46,9 +58,11 @@ def _assert_root_model_type_cells(
             f"{path}: Models table package {slug} has no models/{slug}/README.md"
         )
 
-    expected_content, expected_task, _ = parse_model_type(
+    model_type = parse_model_type(
         model_readme, model_readme.read_text(encoding="utf-8")
     )
+    category, _, _ = model_type
+    expected_task, expected_content = _model_catalog_badge_values(model_type)
 
     task_badges = _static_badge_messages(task_cell, "task")
     if len(task_badges) != 1:
@@ -69,9 +83,12 @@ def _assert_root_model_type_cells(
         )
 
     if content_badges[0] != expected_content:
+        content_label = (
+            "conditioning" if category == IMAGE_GENERATION_CATEGORY else "content"
+        )
         raise AssertionError(
             f"{path}: Models table package {slug} Content cell {content_badges[0]!r} "
-            f"!= Model type content {expected_content!r}"
+            f"!= Model type {content_label} {expected_content!r}"
         )
 
 
@@ -245,7 +262,7 @@ def root_model_slugs(
     expected_header: Sequence[str],
     model_link_pattern: str,
     repository_root: Path,
-) -> set[str]:
+) -> list[str]:
     """Validate the root model table and return its model slugs."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
@@ -258,7 +275,7 @@ def root_model_slugs(
             f"{path}: Models table must use {', '.join(expected_header)}"
         )
 
-    slugs: set[str] = set()
+    slugs: list[str] = []
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
         if len(cells) != len(expected_header):
@@ -319,7 +336,7 @@ def root_model_slugs(
             )
 
         _assert_root_reproduction_cells(path, slug, checkpoint_cell, training_cell)
-        slugs.add(slug)
+        slugs.append(slug)
 
     return slugs
 
@@ -409,11 +426,28 @@ def assert_model_doc_sets() -> None:
             )
 
 
-def assert_root_models_table_matches_members(root_slugs: set[str], path: Path) -> None:
+def assert_root_models_table_matches_members(
+    root_slugs: Sequence[str], path: Path
+) -> None:
     """Require root README model rows to match workspace model members."""
+    seen_slugs: set[str] = set()
+    duplicate_slugs: set[str] = set()
+    for slug in root_slugs:
+        if slug in seen_slugs:
+            duplicate_slugs.add(slug)
+
+        seen_slugs.add(slug)
+
+    if duplicate_slugs:
+        raise AssertionError(
+            f"{path}: Models table contains duplicate model slugs: "
+            f"{sorted(duplicate_slugs)}"
+        )
+
+    root_slug_set = set(root_slugs)
     member_slugs = model_member_slugs()
-    missing = sorted(member_slugs - root_slugs)
-    extra = sorted(root_slugs - member_slugs)
+    missing = sorted(member_slugs - root_slug_set)
+    extra = sorted(root_slug_set - member_slugs)
     if missing or extra:
         raise AssertionError(
             f"{path}: Models table mismatch: missing={missing}, extra={extra}"
@@ -439,50 +473,70 @@ def assert_linked_first_reference_policy(path: Path) -> None:
 
 
 def assert_library_name_style(path: Path) -> None:
-    """Require reader-facing library names to use their annotated code forms."""
+    """Require a linked emoji form first and a plain code form afterward."""
     text = without_badges(
         without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     )
-    banned_names = {
-        "Transformers": "`🤗transformers`",
-        "Diffusers": "`🧨diffusers`",
-        "Pydantic AI": "`🤖pydantic-ai`",
-    }
-    for name, replacement in banned_names.items():
+    banned_names = ("Transformers", "Diffusers", "Pydantic AI")
+    for name in banned_names:
         match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
         if match:
             raise AssertionError(
-                f"{path}: use {replacement} instead of prose library name {name!r}"
+                f"{path}: use a code-form library name instead of prose name {name!r}"
             )
 
-    huggingface_mentions = re.findall(r"`🤗transformers`", text)
-    if text.count("🤗") != len(huggingface_mentions):
-        raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
-
-    diffusers_mentions = re.findall(r"`🧨diffusers`", text)
-    if text.count("🧨") != len(diffusers_mentions):
-        raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
-
-    pydantic_ai_mentions = re.findall(r"`🤖pydantic-ai`", text)
-    if text.count("🤖") != len(pydantic_ai_mentions):
-        raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
-
-    if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
-        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-
-    if re.search(r"🤗\s+pydantic-ai", text):
-        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-
-    required_code_spans = {
-        "transformers": "`🤗transformers`",
-        "diffusers": "`🧨diffusers`",
-        "pydantic-ai": "`🤖pydantic-ai`",
+    library_styles = {
+        "transformers": ("🤗", "https://huggingface.co/docs/transformers/index"),
+        "diffusers": ("🧨", "https://huggingface.co/docs/diffusers/index"),
+        "pydantic-ai": ("🤖", "https://ai.pydantic.dev/"),
     }
-    for library in ("transformers", "diffusers", "pydantic-ai"):
-        for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
-            if inline_code_span_at(text, match.start()) == required_code_spans[library]:
+    for library, (emoji, official_docs_url) in library_styles.items():
+        emoji_code = f"`{emoji}{library}`"
+        plain_code = f"`{library}`"
+        if text.count(emoji) != text.count(emoji_code):
+            raise AssertionError(
+                f"{path}: {emoji} must annotate a {library} library mention"
+            )
+
+        mentions: list[tuple[re.Match[str], str | None]] = []
+        for match in re.finditer(rf"(?<![/\w=-]){re.escape(library)}(?![/\w])", text):
+            code_span = inline_code_span_at(text, match.start())
+            if code_span is not None and code_span not in (emoji_code, plain_code):
+                if code_span.startswith(f"`{library}."):
+                    continue
+
                 continue
 
-            raise AssertionError(
-                f"{path}: use code-form {required_code_spans[library]} for library names"
-            )
+            mentions.append((match, code_span))
+
+        if not mentions:
+            continue
+
+        link_pattern = re.compile(r"\[(`[^`\n]+`)\]\(([^)\n]+)\)")
+        for index, (match, code_span) in enumerate(mentions):
+            if index == 0:
+                link = next(
+                    (
+                        candidate
+                        for candidate in link_pattern.finditer(text)
+                        if candidate.start() <= match.start() < candidate.end()
+                    ),
+                    None,
+                )
+                if (
+                    code_span != emoji_code
+                    or link is None
+                    or link.group(1) != emoji_code
+                    or link.group(2) != official_docs_url
+                ):
+                    raise AssertionError(
+                        f"{path}: first {library} mention must link {emoji_code} "
+                        f"to its official documentation at {official_docs_url}"
+                    )
+
+                continue
+
+            if code_span != plain_code:
+                raise AssertionError(
+                    f"{path}: later {library} mention must use {plain_code}"
+                )

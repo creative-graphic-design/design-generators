@@ -94,6 +94,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 
 ## Code and review safeguards
 
+- [ ] For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference`, following the model-conversion skill's Source Language rule; put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
 - [ ] Use `StrEnum` with `auto()` for closed string sets rather than bare `str`, `tuple[str, ...]`, or string-literal unions; type alias tables as `dict[SomeAliasEnum, SomeEnum]`, and use shared dataset and condition enums instead of local redefinitions.
 - [ ] Use `typing.assert_never` for exhaustive enum dispatch.
 - [ ] Annotate module constants with `Final[...]`, including tokens, thresholds, and paths.
@@ -110,7 +111,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 Run the checks for the changed scope once, then rerun affected checks if a fix changes their inputs. Record commands, results, and unavailable checks in the PR. Use the repository's [dependency environments](architecture.md#dependency-environments) for package, root-tooling, full-workspace, and documentation command selection.
 
 - Run affected member tests with `uv run --package <member> pytest`.
-- Run the full hook set with `uv run pre-commit run --all-files`.
-- Build the documentation site strictly with `uv run --group docs zensical build --strict -f mkdocs.yml`.
+- Run the full hook set with `uv run --locked pre-commit run --all-files`.
+- Build the documentation site strictly with `uv run --locked --group docs zensical build --strict -f mkdocs.yml`.
 
 Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. A coordinator reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.

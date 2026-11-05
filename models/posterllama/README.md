@@ -226,9 +226,7 @@ appropriate for CodeLLaMA/LLaMA-family 7B checkpoints.
 
 ### Software
 
-The normal package depends on `torch`, `transformers`, `huggingface-hub`,
-`laygen`, and `posgen`. The `vendor` extra isolates MiniGPT-style reference
-dependencies such as PEFT, Deepspeed, DINO/EVA helpers, and parity-only pins.
+The normal package depends on `torch`, [`🤗transformers`](https://huggingface.co/docs/transformers/index), `huggingface-hub`, `laygen`, and `posgen`. The `vendor` extra isolates MiniGPT-style reference dependencies such as PEFT, Deepspeed, DINO/EVA helpers, and parity-only pins.
 
 ## Citation
 
