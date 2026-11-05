@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&logo=python&logoColor=white)
 [![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
-![models](https://img.shields.io/static/v1?label=models&message=32&color=purple)
+![models](https://img.shields.io/static/v1?label=models&message=33&color=purple)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
