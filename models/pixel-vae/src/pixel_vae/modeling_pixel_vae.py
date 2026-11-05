@@ -229,13 +229,13 @@ class PixelVAEMobileNetV2(nn.Module):
 
         for block_id in range(17):
             prefix = "expanded_conv_" if block_id == 0 else f"block_{block_id}_"
+            residual = x
             expand_name = f"{prefix}expand"
             if expand_name in self.layers:
                 x = self._apply_conv(expand_name, x)
                 x = F.relu6(self.layers[f"{prefix}expand_BN"](x))
 
             depthwise_name = f"{prefix}depthwise"
-            residual = x
             stride = self._layer_strides[depthwise_name]
             x = self._apply_conv(depthwise_name, x)
             x = F.relu6(self.layers[f"{prefix}depthwise_BN"](x))
