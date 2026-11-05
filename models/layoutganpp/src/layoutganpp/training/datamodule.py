@@ -24,6 +24,7 @@ class LayoutGANPPDataModule(LightningDataModule):
         synthetic_size: int = 64,
         seed: int = 0,
         shuffle_train: bool = True,
+        pin_memory: bool = False,
     ) -> None:
         """Initialize the package-local training data module."""
         super().__init__()
@@ -34,6 +35,7 @@ class LayoutGANPPDataModule(LightningDataModule):
         self.synthetic_size = synthetic_size
         self.seed = seed
         self.shuffle_train = shuffle_train
+        self.pin_memory = pin_memory
 
     def setup(self, stage: str | None = None) -> None:
         """Create deterministic train, validation, and test datasets."""
@@ -69,6 +71,7 @@ class LayoutGANPPDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=self.shuffle_train,
             num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
             collate_fn=collate_layoutganpp,
             generator=resolve_torch_generator(seed=self.seed),
         )
@@ -82,6 +85,7 @@ class LayoutGANPPDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
             collate_fn=collate_layoutganpp,
         )
 
@@ -94,5 +98,6 @@ class LayoutGANPPDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
             collate_fn=collate_layoutganpp,
         )

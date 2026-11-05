@@ -1,10 +1,19 @@
 import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
 from typing import cast
 
 import pytest
 import torch
+import yaml
+from lightning.pytorch import Callback, LightningDataModule, LightningModule, Trainer
+from lightning.pytorch.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader, TensorDataset
 
 from layoutganpp.training.datamodule import LayoutGANPPDataModule
+from layoutganpp.training.callbacks import LayoutGANPPVendorSchedule
 from layoutganpp.training.dataset import (
     LayoutGANPPDataset,
     LayoutRow,
@@ -21,6 +30,7 @@ from layoutganpp.training.dataset import (
 from layoutganpp.training.lightning_module import LayoutGANPPTrainingModule
 from layoutganpp.training.modeling import LayoutGANPPDiscriminator, TransformerWithToken
 from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
+from layoutganpp.training.validation import compute_maximum_iou
 
 
 def _write_dataset_fixture(root):
@@ -138,6 +148,49 @@ def test_dataset_parsers_splits_and_collation(tmp_path):
         collate_layoutganpp([])
 
 
+def test_publaynet_validation_preserves_vendor_element_order(tmp_path):
+    root = tmp_path / "publaynet"
+    root.mkdir()
+    train = {
+        "categories": [{"id": 1, "name": "text"}, {"id": 2, "name": "title"}],
+        "images": [
+            {
+                "id": index,
+                "file_name": f"train-{index}.png",
+                "width": 100,
+                "height": 200,
+            }
+            for index in range(20)
+        ],
+        "annotations": [
+            annotation
+            for index in range(20)
+            for annotation in (
+                {
+                    "image_id": index,
+                    "category_id": 2,
+                    "bbox": [70, 10, 20, 20],
+                },
+                {
+                    "image_id": index,
+                    "category_id": 1,
+                    "bbox": [10, 10, 20, 20],
+                },
+            )
+        ],
+    }
+    validation = {
+        "categories": train["categories"],
+        "images": [{"id": 100, "file_name": "test.png", "width": 100, "height": 200}],
+        "annotations": [{"image_id": 100, "category_id": 1, "bbox": [10, 10, 20, 20]}],
+    }
+    (root / "train.json").write_text(json.dumps(train))
+    (root / "val.json").write_text(json.dumps(validation))
+
+    assert load_rows("publaynet", tmp_path, "val")[0].labels.tolist() == [1, 0]
+    assert load_rows("publaynet", tmp_path, "train")[0].labels.tolist() == [0, 1]
+
+
 def test_datamodule_builds_all_loaders():
     data_module = LayoutGANPPDataModule(
         dataset_name="magazine",
@@ -160,6 +213,331 @@ def test_datamodule_builds_all_loaders():
     assert train_batch["bbox"].shape[0] == 2
     assert val_batch["bbox"].shape[0] == 2
     assert test_batch["bbox"].shape[0] == 2
+
+
+def test_full_run_checkpoint_configs_select_best_maximum_iou(tmp_path):
+    configs = Path(__file__).parents[1] / "configs" / "training"
+    checkpoint_args = None
+    for dataset in ("magazine", "rico13", "publaynet"):
+        config = yaml.safe_load((configs / f"layoutganpp_{dataset}.yaml").read_text())
+        checkpoint = next(
+            callback
+            for callback in config["trainer"]["callbacks"]
+            if callback["class_path"] == "lightning.pytorch.callbacks.ModelCheckpoint"
+        )
+        assert checkpoint["init_args"]["monitor"] == "val_maximum_iou"
+        assert checkpoint["init_args"]["mode"] == "max"
+        assert checkpoint["init_args"]["save_top_k"] == 1
+        checkpoint_args = checkpoint["init_args"]
+
+    assert checkpoint_args is not None
+    checkpoint_args["dirpath"] = str(tmp_path)
+    checkpoint_callback = ModelCheckpoint(**checkpoint_args)
+
+    class ScoreModule(LightningModule):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor(0.0))
+            self.scores = (0.1, 0.8, 0.4)
+
+        def training_step(self, batch, batch_idx):
+            del batch, batch_idx
+            return self.weight.square()
+
+        def validation_step(self, batch, batch_idx):
+            del batch, batch_idx
+            self.log(
+                "val_maximum_iou",
+                self.scores[self.current_epoch],
+                on_step=False,
+                on_epoch=True,
+            )
+
+        def configure_optimizers(self):
+            return torch.optim.SGD(self.parameters(), lr=0.0)
+
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=3,
+        limit_train_batches=1,
+        limit_val_batches=1,
+        check_val_every_n_epoch=1,
+        num_sanity_val_steps=0,
+        logger=False,
+        callbacks=[checkpoint_callback],
+        enable_model_summary=False,
+        enable_progress_bar=False,
+    )
+    batch = [torch.ones(1)]
+    trainer.fit(ScoreModule(), train_dataloaders=batch, val_dataloaders=batch)
+
+    assert checkpoint_callback.best_model_score == pytest.approx(0.8)
+    assert "epoch=000001" in Path(checkpoint_callback.best_model_path).name
+
+
+def test_production_entrypoint_writes_best_checkpoint_for_bounded_full_run(tmp_path):
+    repository_root = Path(__file__).resolve().parents[3]
+    config_path = (
+        Path(__file__).parents[1] / "configs" / "training" / "layoutganpp_magazine.yaml"
+    )
+    config = yaml.safe_load(config_path.read_text())
+    checkpoint_dir = tmp_path / "checkpoints"
+    config["trainer"].update(
+        {
+            "accelerator": "cpu",
+            "devices": 1,
+            "max_epochs": 1,
+            "max_steps": 1,
+            "logger": False,
+            "enable_progress_bar": False,
+            "default_root_dir": str(tmp_path / "runs"),
+        }
+    )
+    config["model"]["init_args"].update(
+        {
+            "generator_d_model": 4,
+            "generator_nhead": 1,
+            "generator_num_layers": 1,
+            "discriminator_d_model": 4,
+            "discriminator_nhead": 1,
+            "discriminator_num_layers": 1,
+        }
+    )
+    config["data"]["init_args"].update(
+        {
+            "data_root": None,
+            "batch_size": 2,
+            "num_workers": 0,
+            "synthetic_size": 2,
+            "shuffle_train": False,
+        }
+    )
+    checkpoint_config = next(
+        callback
+        for callback in config["trainer"]["callbacks"]
+        if callback["class_path"] == "lightning.pytorch.callbacks.ModelCheckpoint"
+    )
+    checkpoint_config["init_args"]["dirpath"] = str(checkpoint_dir)
+    test_config_path = tmp_path / "layoutganpp_magazine.yaml"
+    test_config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+
+    traingen = shutil.which("traingen")
+    assert traingen is not None
+    environment = os.environ.copy()
+    environment["CUDA_VISIBLE_DEVICES"] = ""
+    result = subprocess.run(
+        [traingen, "fit", "--config", str(test_config_path)],
+        cwd=repository_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    checkpoints = list(checkpoint_dir.glob("*.ckpt"))
+    assert len(checkpoints) == 1
+    checkpoint_path = checkpoints[0]
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    optimizer_steps = [
+        {int(state["step"].item()) for state in optimizer_state["state"].values()}
+        for optimizer_state in checkpoint["optimizer_states"]
+    ]
+    assert optimizer_steps == [{1}, {1}]
+    generator_updates = next(iter(optimizer_steps[0]))
+    assert checkpoint["global_step"] == generator_updates
+
+    checkpoint_callback = next(
+        state
+        for state in checkpoint["callbacks"].values()
+        if state.get("best_model_path")
+    )
+    assert Path(checkpoint_callback["best_model_path"]) == checkpoint_path
+    best_score = float(checkpoint_callback["best_model_score"])
+    assert f"iou={best_score:.6f}" in checkpoint_path.name
+
+
+class _ScheduleFixtureDataModule(LightningDataModule):
+    def __init__(self, *, train_size: int, batch_size: int) -> None:
+        super().__init__()
+        self.train_size = train_size
+        self.batch_size = batch_size
+
+    def train_dataloader(self) -> DataLoader[tuple[torch.Tensor, ...]]:
+        return DataLoader(
+            TensorDataset(torch.zeros(self.train_size, 1)),
+            batch_size=self.batch_size,
+        )
+
+
+class _ScheduleFixtureModule(LightningModule):
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.ones(()))
+
+    def training_step(self, batch, batch_idx):
+        del batch_idx
+        return self.weight * batch[0].sum()
+
+    def configure_optimizers(self):
+        return torch.optim.SGD(self.parameters(), lr=0.0)
+
+
+class _StopBeforeTraining(Exception):
+    pass
+
+
+class _StopAfterSchedule(Callback):
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        del trainer, pl_module
+        raise _StopBeforeTraining
+
+
+class _CheckSmokeBounds(Callback):
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        del pl_module
+        assert trainer.fit_loop.max_epochs == 1
+
+
+def _schedule_test_trainer(
+    *,
+    max_epochs: int,
+    max_steps: int = -1,
+    limit_train_batches: int | float = 1.0,
+    callbacks: list[Callback] | None = None,
+) -> Trainer:
+    return Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=max_epochs,
+        max_steps=max_steps,
+        limit_train_batches=limit_train_batches,
+        limit_val_batches=0,
+        callbacks=callbacks,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        num_sanity_val_steps=0,
+    )
+
+
+def test_vendor_schedule_preserves_smoke_epoch_and_batch_limits():
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=1,
+        limit_train_batches=2,
+        callbacks=[callback, _CheckSmokeBounds()],
+    )
+
+    trainer.fit(
+        _ScheduleFixtureModule(),
+        datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+    )
+
+    assert trainer.fit_loop.max_epochs == 1
+    assert trainer.num_training_batches == 2
+    assert trainer.global_step == 2
+    assert trainer.current_epoch == 1
+
+
+def test_vendor_schedule_rejects_lightning_default_epoch_bound():
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_steps=-1,
+        limit_val_batches=0,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        num_sanity_val_steps=0,
+        callbacks=[callback, _StopAfterSchedule()],
+    )
+
+    with pytest.raises(ValueError, match="Lightning's default of 1000"):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+        )
+
+
+@pytest.mark.parametrize(
+    ("dataset", "train_size", "batches_per_epoch", "expected_updates"),
+    [
+        ("magazine", 3_331, 53, 203_679),
+        ("rico13", 32_585, 510, 200_430),
+        ("publaynet", 160_549, 2_509, 200_720),
+    ],
+)
+def test_vendor_schedule_preserves_shipped_full_run_update_counts(
+    dataset: str, train_size: int, batches_per_epoch: int, expected_updates: int
+):
+    datamodule = _ScheduleFixtureDataModule(train_size=train_size, batch_size=64)
+    train_loader = datamodule.train_dataloader()
+    assert len(train_loader) == batches_per_epoch
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=-1,
+        callbacks=[callback, _StopAfterSchedule()],
+    )
+
+    with pytest.raises(_StopBeforeTraining):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=datamodule,
+        )
+
+    max_epochs = trainer.fit_loop.max_epochs
+    assert max_epochs is not None
+    assert max_epochs * len(train_loader) == expected_updates, dataset
+
+
+def test_vendor_schedule_rejects_nonpositive_iterations_before_fit():
+    callback = LayoutGANPPVendorSchedule(iterations=0)
+    trainer = _schedule_test_trainer(max_epochs=-1)
+
+    with pytest.raises(ValueError, match="iterations must be positive"):
+        callback.on_fit_start(trainer, cast(LightningModule, None))
+
+
+def test_vendor_schedule_preserves_bounded_diagnostic_step_limit():
+    callback = LayoutGANPPVendorSchedule(iterations=200_000)
+    trainer = _schedule_test_trainer(
+        max_epochs=-1,
+        max_steps=1_500,
+        callbacks=[callback, _StopAfterSchedule()],
+    )
+
+    with pytest.raises(_StopBeforeTraining):
+        trainer.fit(
+            _ScheduleFixtureModule(),
+            datamodule=_ScheduleFixtureDataModule(train_size=8, batch_size=2),
+        )
+
+    assert trainer.fit_loop.max_epochs == -1
+    assert trainer.fit_loop.epoch_loop.max_steps == 1_500
+    callback.on_validation_end(trainer, cast(LightningModule, None))
+    assert trainer.check_val_every_n_epoch == 2_501
+    trainer.fit_loop.epoch_progress.current.completed = 2_500
+    callback.on_validation_end(trainer, cast(LightningModule, None))
+    assert trainer.check_val_every_n_epoch == 5_001
+
+
+def test_training_validation_maximum_iou_perfect_match():
+    boxes = torch.tensor([[0.5, 0.5, 0.4, 0.4]]).numpy()
+    labels = torch.tensor([1]).numpy()
+
+    assert compute_maximum_iou([(boxes, labels)], [(boxes, labels)]) == pytest.approx(
+        1.0
+    )
+    shifted = torch.tensor([[0.6, 0.5, 0.4, 0.4]]).numpy()
+    assert compute_maximum_iou([(boxes, labels)], [(shifted, labels)]) == pytest.approx(
+        0.6
+    )
 
 
 def test_training_models_and_step_trace():

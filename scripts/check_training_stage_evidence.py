@@ -726,7 +726,12 @@ def manifest_config_matches(
     except (KeyError, OSError, TypeError, json.JSONDecodeError):
         return False
 
-    return isinstance(manifest_config, str) and manifest_config == full_run_config
+    if isinstance(manifest_config, str):
+        return manifest_config == full_run_config
+
+    return isinstance(manifest_config, dict) and (
+        manifest_config.get("shipped_source") == full_run_config
+    )
 
 
 def callback_checkpoint_filename_matches(
