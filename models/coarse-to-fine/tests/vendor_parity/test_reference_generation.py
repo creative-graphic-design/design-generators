@@ -15,13 +15,17 @@ pytestmark = pytest.mark.vendor_parity
     [
         (
             "rico25",
-            Path(".cache/coarse-to-fine/converted/rico25"),
-            Path(".cache/coarse-to-fine/reference/rico25/reference.pt"),
+            Path(".cache") / "coarse-to-fine" / "converted" / "rico25",
+            Path(".cache") / "coarse-to-fine" / "reference" / "rico25" / "reference.pt",
         ),
         (
             "publaynet",
-            Path(".cache/coarse-to-fine/converted/publaynet"),
-            Path(".cache/coarse-to-fine/reference/publaynet/reference.pt"),
+            Path(".cache") / "coarse-to-fine" / "converted" / "publaynet",
+            Path(".cache")
+            / "coarse-to-fine"
+            / "reference"
+            / "publaynet"
+            / "reference.pt",
         ),
     ],
 )
