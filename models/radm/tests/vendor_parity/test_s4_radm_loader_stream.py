@@ -84,6 +84,10 @@ def _feature_inventory(
     }
 
 
+def _count_valid_text_nonzero(features: torch.Tensor, mask: torch.Tensor) -> int:
+    return int(torch.count_nonzero(features[mask.squeeze(-1)]))
+
+
 def _runtime_metadata(device: str) -> dict[str, object]:
     if not torch.cuda.is_available():
         raise RuntimeError("PARITY_REQUIRE=1 S4 requires CUDA")
@@ -126,9 +130,9 @@ def _aligned_sample(
     package_boxes = package["boxes_xyxy"].detach().cpu()
     package_features = package["text_features"].detach().cpu()
     package_mask = package["text_mask"].detach().cpu().bool()
-    source_valid_nonzero_count = int(torch.count_nonzero(source_features[source_mask]))
-    package_valid_nonzero_count = int(
-        torch.count_nonzero(package_features[package_mask])
+    source_valid_nonzero_count = _count_valid_text_nonzero(source_features, source_mask)
+    package_valid_nonzero_count = _count_valid_text_nonzero(
+        package_features, package_mask
     )
     source_height, source_width = source_image.shape[-2:]
     package_height, package_width = package_image.shape[-2:]
@@ -669,6 +673,16 @@ def test_s4_aligned_train_mapper_fixture_matches_vendor() -> None:
     aligned_train_sample = report["aligned_train_sample"]
     assert isinstance(aligned_train_sample, dict)
     _assert_aligned_train_mapper_oracle(cast(dict[str, object], aligned_train_sample))
+
+
+def test_count_valid_text_nonzero_handles_feature_mask_shape() -> None:
+    features = torch.zeros(20, 768)
+    features[0, :2] = 1
+    features[1, 0] = 1
+    mask = torch.zeros(20, 1, dtype=torch.bool)
+    mask[0] = True
+
+    assert _count_valid_text_nonzero(features, mask) == 2
 
 
 def test_s4_radm_loader_stream_parity() -> None:

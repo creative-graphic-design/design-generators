@@ -6,22 +6,30 @@ from typing import Literal, TypedDict
 
 
 class CGLS5ConfigIdentity(TypedDict):
+    """Repository config path and content digest used by a CGL training run."""
+
     path: str
     sha256: str
 
 
 class CGLS5DataRoot(TypedDict):
+    """Visible alias and canonical target of the CGL data root."""
+
     alias: str
     target: str
 
 
 class CGLS5CheckpointRule(TypedDict):
+    """Checkpoint selection rule and the expected terminal checkpoint path."""
+
     type: Literal["top_k_val_loss", "final_iteration"]
     checkpoint: str
     filename: str
 
 
 class CGLS5LaunchManifest(TypedDict):
+    """Identity, runtime, data, and artifact record for one CGL training launch."""
+
     source_commit: str
     vendor_gitlink_commit: str
     vendor_checkout_commit: str

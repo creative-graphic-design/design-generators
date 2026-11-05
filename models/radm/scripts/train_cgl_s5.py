@@ -216,7 +216,7 @@ def configuration_path(arm: str) -> Path:
 def terminal_checkpoint_path(arm: str, output_dir: Path) -> Path:
     """Return the terminal checkpoint path expected from the selected arm."""
     if arm == "package":
-        return output_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+        return output_dir / "checkpoints" / f"epoch=0-step={STEPS}.ckpt"
     if arm == "original":
         return output_dir / "model_final.pth"
     raise ValueError(f"unsupported CGL S5 arm: {arm}")

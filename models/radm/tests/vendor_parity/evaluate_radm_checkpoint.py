@@ -67,6 +67,10 @@ def validate_terminal_checkpoint(
     if not isinstance(output_root, str) or not output_root:
         raise RuntimeError("manifest has no output_root")
     resolved_run_dir = Path(output_root).resolve()
+    resolved_manifest_dir = manifest_path.resolve().parent
+    if resolved_run_dir != resolved_manifest_dir:
+        raise RuntimeError("manifest output_root does not match the manifest directory")
+
     resolved_checkpoint = checkpoint_path.resolve()
     if not resolved_checkpoint.is_relative_to(resolved_run_dir):
         raise RuntimeError("checkpoint is outside the manifest output_root")

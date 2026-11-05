@@ -5,24 +5,27 @@ import inspect
 import os
 from copy import deepcopy
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 import runpy
 import subprocess
 import sys
 import tempfile
-from types import FunctionType
+from types import FunctionType, SimpleNamespace
 from typing import cast
 
 import pytest
 import torch
 import yaml
-from lightning.pytorch import Trainer
+from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
+from torch.utils.data import DataLoader, Dataset
 
 from radm.training.config import effective_radm_config
-from radm.training.datamodule import RADMDataModule
+from radm.training.datamodule import RADMAspectRatioBatchSampler, RADMDataModule
 from radm.training.data_paths import validate_dot_free_data_root
+from radm.training.dataset import RADMCOCODataset
 
 
 def _launcher() -> dict[str, object]:
@@ -45,6 +48,83 @@ def _write_dataset(root: Path, *, empty_split: str | None = None) -> None:
         )
         if split != empty_split:
             (feature_root / "image_feats.pth").write_bytes(b"features")
+
+
+class _TinyAspectRatioDataset(Dataset[torch.Tensor]):
+    def __init__(self, size: int) -> None:
+        self.images = [{"width": 10.0, "height": 10.0} for _ in range(size)]
+
+    def __len__(self) -> int:
+        return len(self.images)
+
+    def __getitem__(self, index: int) -> torch.Tensor:
+        return torch.tensor([float(index)])
+
+
+class _TinyCheckpointModule(LightningModule):
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.tensor(1.0))
+
+    def training_step(self, batch: torch.Tensor, _batch_idx: int) -> torch.Tensor:
+        loss = (self.weight - batch.mean()) ** 2
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch: torch.Tensor, _batch_idx: int) -> None:
+        self.log("val_loss", self.weight.detach().square())
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        return torch.optim.SGD(self.parameters(), lr=0.01)
+
+
+def _train_tiny_checkpoint(checkpoint_dir: Path, recipe: dict[str, object]) -> Path:
+    trainer_config = cast(dict[str, object], recipe["trainer"])
+    data_args = cast(
+        dict[str, object], cast(dict[str, object], recipe["data"])["init_args"]
+    )
+    batch_size = cast(int, data_args["batch_size"])
+    effective = replace(effective_radm_config(), max_iter=2)
+    dataset = _TinyAspectRatioDataset(batch_size)
+    train_loader = DataLoader(
+        dataset,
+        batch_sampler=RADMAspectRatioBatchSampler(
+            cast(RADMCOCODataset, dataset),
+            batch_size=batch_size,
+            seed=effective.seed,
+            max_batches=effective.max_iter,
+        ),
+    )
+    assert len(train_loader) == effective.max_iter
+    callback_config = cast(list[dict[str, object]], trainer_config["callbacks"])[0]
+    callback_args = cast(dict[str, object], callback_config["init_args"])
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=checkpoint_dir,
+        monitor=cast(str, callback_args["monitor"]),
+        mode=cast(str, callback_args["mode"]),
+        save_top_k=cast(int, callback_args["save_top_k"]),
+        save_last=cast(bool, callback_args["save_last"]),
+    )
+    validation_loader = DataLoader(dataset, batch_size=batch_size)
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_steps=effective.max_iter,
+        check_val_every_n_epoch=cast(int, trainer_config["check_val_every_n_epoch"]),
+        num_sanity_val_steps=0,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[checkpoint_callback],
+    )
+    trainer.fit(
+        _TinyCheckpointModule(),
+        train_dataloaders=train_loader,
+        val_dataloaders=validation_loader,
+    )
+    expected_path = checkpoint_dir / "epoch=0-step=2.ckpt"
+    assert checkpoint_callback.best_model_path == str(expected_path)
+    return expected_path
 
 
 def test_dot_free_data_root_makes_relative_alias_absolute_without_resolving(
@@ -283,6 +363,10 @@ def test_s5_launcher_writes_manifest_before_training(
 ) -> None:
     launcher = _launcher()
     main = cast(Callable[[], None], launcher["main"])
+    launcher_globals = cast(FunctionType, main).__globals__
+    monkeypatch.setitem(launcher_globals, "STEPS", 2)
+    steps = int(launcher_globals["STEPS"])
+    checkpoint_name = f"epoch=0-step={steps}.ckpt"
     output_dir = tmp_path / "package-run"
     manifest_path = output_dir / "manifest.json"
     source_commit = "a" * 40
@@ -314,7 +398,8 @@ def test_s5_launcher_writes_manifest_before_training(
 
         vendor_root = Path(cast(str, launcher["VENDOR_ROOT"]))
 
-        def source_git(command: list[str], **kwargs: object) -> str:
+        def source_git(command: list[str], *, text: bool) -> str:
+            assert text
             repository = Path(command[2])
             args = command[3:]
             if args == ["status", "--porcelain", "--untracked-files=all"]:
@@ -325,7 +410,6 @@ def test_s5_launcher_writes_manifest_before_training(
                 return f"160000 commit {gitlink_commit}\tvendor/radm"
             raise AssertionError(command)
 
-        monkeypatch.setattr(subprocess, "check_output", source_git)
         monkeypatch.setitem(
             cast(FunctionType, launcher["main"]).__globals__,
             "runtime_metadata",
@@ -342,8 +426,17 @@ def test_s5_launcher_writes_manifest_before_training(
         launched: list[list[str]] = []
 
         def capture_training(
-            command: list[str], **kwargs: object
+            command: list[str],
+            *,
+            cwd: Path,
+            env: dict[str, str] | None,
+            check: bool,
         ) -> subprocess.CompletedProcess[bytes]:
+            assert command[0] == "traingen"
+            assert cwd == launcher["ROOT"]
+            assert env is None
+            assert check
+
             manifest = json.loads(
                 (output_dir / "manifest.json").read_text(encoding="utf-8")
             )
@@ -365,14 +458,12 @@ def test_s5_launcher_writes_manifest_before_training(
             )
             assert manifest["config"]["sha256"]
             assert manifest["arm"] == "package"
-            assert manifest["checkpoint_rule"]["filename"] == "epoch=0-step=250000.ckpt"
+            assert manifest["max_steps"] == steps
+            assert manifest["checkpoint_rule"]["filename"] == checkpoint_name
             assert manifest["checkpoint_rule"]["checkpoint"] == str(
-                output_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+                output_dir / "checkpoints" / checkpoint_name
             )
-            assert any(
-                "epoch=0-step=250000.ckpt" in arg
-                for arg in manifest["evaluator_command"]
-            )
+            assert any(checkpoint_name in arg for arg in manifest["evaluator_command"])
             assert manifest["text_feature_inventory"] == {
                 "train": {"annotation_images": 1, "matching_text_features": 1},
                 "test": {"annotation_images": 1, "matching_text_features": 1},
@@ -386,14 +477,31 @@ def test_s5_launcher_writes_manifest_before_training(
             assert str(data_alias) in manifest["evaluator_command"]
             assert datetime.fromisoformat(manifest["launched_at"]).tzinfo is not None
             if checkpoint_present:
-                (output_dir / "checkpoints").mkdir()
-                torch.save(
-                    {"global_step": 250000},
-                    output_dir / "checkpoints" / "epoch=0-step=250000.ckpt",
+                recipe = cast(
+                    dict[str, object],
+                    yaml.safe_load(
+                        (
+                            Path(__file__).parents[3]
+                            / "models/radm/configs/training/radm_cgl.yaml"
+                        ).read_text(encoding="utf-8")
+                    ),
                 )
+                checkpoint_path = _train_tiny_checkpoint(
+                    output_dir / "checkpoints", recipe
+                )
+                assert checkpoint_path.name == checkpoint_name
+                checkpoint_payload = torch.load(
+                    checkpoint_path, map_location="cpu", weights_only=False
+                )
+                assert checkpoint_payload["global_step"] == steps
+                assert "radm_s5_identity" not in checkpoint_payload
             return subprocess.CompletedProcess(command, 0)
 
-        monkeypatch.setattr(subprocess, "run", capture_training)
+        monkeypatch.setitem(
+            launcher_globals,
+            "subprocess",
+            SimpleNamespace(check_output=source_git, run=capture_training),
+        )
 
         if checkpoint_present:
             main()
@@ -409,28 +517,39 @@ def test_s5_launcher_writes_manifest_before_training(
                 Callable[..., dict[str, object]],
                 evaluator["validate_terminal_checkpoint"],
             )
-            checkpoint_path = output_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+            checkpoint_path = output_dir / "checkpoints" / checkpoint_name
             monkeypatch.chdir(repo_root)
-            validation = validate(checkpoint_path, manifest_path, seed=1)
-            assert validation["global_step"] == 250000
+            validation = validate(
+                checkpoint_path, manifest_path, seed=1, expected_steps=steps
+            )
+            assert validation["global_step"] == steps
             assert validation["training_seed"] == 1
 
             with pytest.raises(RuntimeError, match="training_seed"):
-                validate(checkpoint_path, manifest_path, seed=2)
+                validate(checkpoint_path, manifest_path, seed=2, expected_steps=steps)
 
             outside_checkpoint = tmp_path / "outside.ckpt"
-            torch.save({"global_step": 250000}, outside_checkpoint)
+            torch.save({"global_step": steps}, outside_checkpoint)
             with pytest.raises(RuntimeError, match="outside the manifest output_root"):
-                validate(outside_checkpoint, manifest_path, seed=1)
+                validate(
+                    outside_checkpoint, manifest_path, seed=1, expected_steps=steps
+                )
 
-            torch.save({"global_step": 249999}, checkpoint_path)
-            with pytest.raises(RuntimeError, match="global_step=249999"):
-                validate(checkpoint_path, manifest_path, seed=1)
-            torch.save({"global_step": 250000}, checkpoint_path)
+            checkpoint_bytes = checkpoint_path.read_bytes()
+            torch.save({"global_step": steps - 1}, checkpoint_path)
+            with pytest.raises(RuntimeError, match=f"global_step={steps - 1}"):
+                validate(checkpoint_path, manifest_path, seed=1, expected_steps=steps)
+            checkpoint_path.write_bytes(checkpoint_bytes)
 
             original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             for section, field, value, message in (
                 (None, "arm", "original", "manifest arm"),
+                (
+                    None,
+                    "output_root",
+                    str(output_dir.parent),
+                    "manifest output_root",
+                ),
                 ("config", "path", "other.yaml", "manifest config path"),
                 ("config", "sha256", "0" * 64, "manifest config digest"),
                 (
@@ -450,7 +569,12 @@ def test_s5_launcher_writes_manifest_before_training(
                     json.dumps(mismatched_manifest), encoding="utf-8"
                 )
                 with pytest.raises(RuntimeError, match=message):
-                    validate(checkpoint_path, manifest_path, seed=1)
+                    validate(
+                        checkpoint_path,
+                        manifest_path,
+                        seed=1,
+                        expected_steps=steps,
+                    )
             manifest_path.write_text(json.dumps(original_manifest), encoding="utf-8")
         else:
             with pytest.raises(
