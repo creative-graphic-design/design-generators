@@ -122,11 +122,13 @@ The retained CGL diagnosis uses checkpoints from an invalid training stream, and
 
 ### Comparison Scope
 
-| Dataset | System   | Evaluator                                                                     | Test split                         | Checkpoint-selection rule                                                                                      | Sample count                                                                                 |
-| ------- | -------- | ----------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| CGL     | original | `vendor/radm/train_net.py --eval-only --resume` with `vendor/radm/metrics.py` | CGL test split                     | Matching terminal `model_final.pth` from each retained original run                                            | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
-| CGL     | package  | Fixed equivalent evaluator with `vendor/radm/metrics.py`                      | CGL test split                     | Top-k terminal `checkpoints/epoch=0-step=250000.ckpt` with launch-manifest seed, config, step, and path checks | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
-| CGL-v2  | both     | Not run; outside approved S5 scope                                            | Not run; outside approved S5 scope | Not run; outside approved S5 scope                                                                             | Not run; outside approved S5 scope                                                           |
+| Dataset | System   | Evaluator                                                                     | Test split                         | Checkpoint-selection rule                                                                                                                    | Sample count                                                                                 |
+| ------- | -------- | ----------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| CGL     | original | `vendor/radm/train_net.py --eval-only --resume` with `vendor/radm/metrics.py` | CGL test split                     | Matching terminal `model_final.pth` from each retained original run                                                                          | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
+| CGL     | package  | Fixed equivalent evaluator with `vendor/radm/metrics.py`                      | CGL test split                     | Top-k terminal `checkpoints/epoch=0-step=250000.ckpt` with launch-manifest arm, config, seed, steps, checkpoint-rule, and output-root checks | `1,035` layouts per evaluation seed; one inference step; class threshold `0.25`; NMS `0.15`. |
+| CGL-v2  | both     | Not run; outside approved S5 scope                                            | Not run; outside approved S5 scope | Not run; outside approved S5 scope                                                                                                           | Not run; outside approved S5 scope                                                           |
+
+The CGL [`train_dataloader`](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/src/radm/training/datamodule.py#L171-L188) exposes `effective.max_iter` batches per epoch; the shipped recipe provides at least 250,000 batches, so its first scheduled validation occurs at the end of that epoch and Lightning's default `{epoch}-{step}` filename is `epoch=0-step=250000.ckpt`.
 
 The original and package evaluator commands are recorded in the regenerated manifest and evaluation-path parity artifact. The historical comparison used no source text features and is superseded pending a rerun. The current evaluator reads test text features; both paths use no test-time flip, fixed `800/1333` resizing, original-input-frame boxes, and evaluation seed `1` for the shared-weight check.
 
@@ -220,7 +222,7 @@ for SEED in 1 2 3; do
 done
 ```
 
-Terminal evaluation checks the manifest training seed, shipped package config path and SHA-256, and `max_steps`; it also requires the resolved checkpoint path to be under `output_root` and the checkpoint `global_step` to be `250,000`. It trusts these manifest fields, including `output_root`, and does not read checkpoint identity metadata.
+Package terminal evaluation requires a `package` launch manifest whose training seed, config path and SHA-256, max steps, and checkpoint-rule path match the evaluated run. It also requires the resolved checkpoint to be under the manifest's `output_root` and its `global_step` to be `250,000`; these manifest values, including `output_root`, are trusted.
 
 ## References and deviations
 

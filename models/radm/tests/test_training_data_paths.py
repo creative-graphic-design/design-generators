@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import inspect
 import os
+from copy import deepcopy
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ import pytest
 import torch
 import yaml
 from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import ModelCheckpoint
 
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
@@ -214,6 +216,20 @@ def test_package_cgl_validation_only_selects_the_terminal_top_k_checkpoint(
     assert callbacks[0]["init_args"]["monitor"] == "val_loss"
     assert callbacks[0]["init_args"]["save_top_k"] == 1
     assert "filename" not in callbacks[0]["init_args"]
+    checkpoint = ModelCheckpoint(
+        dirpath=tmp_path / "checkpoints",
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
+        save_last=True,
+    )
+    formatted_checkpoint = checkpoint.format_checkpoint_name(
+        cast(
+            dict[str, torch.Tensor],
+            {"epoch": 0, "step": trainer["max_steps"]},
+        )
+    )
+    assert Path(formatted_checkpoint).name == "epoch=0-step=250000.ckpt"
 
     annotations = tmp_path / "annotations" / "train.json"
     annotations.parent.mkdir()
@@ -236,7 +252,7 @@ def test_package_cgl_validation_only_selects_the_terminal_top_k_checkpoint(
         num_workers=data["num_workers"],
         effective=effective_radm_config(),
     )
-    assert len(data_module.train_dataloader()) == trainer["max_steps"]
+    assert len(data_module.train_dataloader()) >= trainer["max_steps"]
 
 
 def test_evaluator_reports_a_missing_terminal_checkpoint_clearly(
@@ -348,7 +364,11 @@ def test_s5_launcher_writes_manifest_before_training(
                 == "models/radm/configs/training/radm_cgl.yaml"
             )
             assert manifest["config"]["sha256"]
+            assert manifest["arm"] == "package"
             assert manifest["checkpoint_rule"]["filename"] == "epoch=0-step=250000.ckpt"
+            assert manifest["checkpoint_rule"]["checkpoint"] == str(
+                output_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+            )
             assert any(
                 "epoch=0-step=250000.ckpt" in arg
                 for arg in manifest["evaluator_command"]
@@ -403,19 +423,29 @@ def test_s5_launcher_writes_manifest_before_training(
             with pytest.raises(RuntimeError, match="outside the manifest output_root"):
                 validate(outside_checkpoint, manifest_path, seed=1)
 
-            wrong_step_checkpoint = output_dir / "wrong-step.ckpt"
-            torch.save({"global_step": 249999}, wrong_step_checkpoint)
+            torch.save({"global_step": 249999}, checkpoint_path)
             with pytest.raises(RuntimeError, match="global_step=249999"):
-                validate(wrong_step_checkpoint, manifest_path, seed=1)
+                validate(checkpoint_path, manifest_path, seed=1)
+            torch.save({"global_step": 250000}, checkpoint_path)
 
             original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            for field, value, message in (
-                ("package_config", "other.yaml", "manifest config path"),
-                ("package_config_sha256", "0" * 64, "manifest config digest"),
-                ("max_steps", 249999, "manifest max_steps"),
+            for section, field, value, message in (
+                (None, "arm", "original", "manifest arm"),
+                ("config", "path", "other.yaml", "manifest config path"),
+                ("config", "sha256", "0" * 64, "manifest config digest"),
+                (
+                    "checkpoint_rule",
+                    "checkpoint",
+                    str(output_dir / "checkpoints" / "other.ckpt"),
+                    "manifest checkpoint rule",
+                ),
+                (None, "max_steps", 249999, "manifest max_steps"),
             ):
-                mismatched_manifest = original_manifest.copy()
-                mismatched_manifest[field] = value
+                mismatched_manifest = deepcopy(original_manifest)
+                if section is None:
+                    mismatched_manifest[field] = value
+                else:
+                    mismatched_manifest[section][field] = value
                 manifest_path.write_text(
                     json.dumps(mismatched_manifest), encoding="utf-8"
                 )

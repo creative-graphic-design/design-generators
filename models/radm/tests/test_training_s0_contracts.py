@@ -467,6 +467,24 @@ def test_s0_roi_pooler_uses_detectron2_canonical_fpn_levels() -> None:
     assert levels.tolist() == [[0, 1, 2, 3]]
 
 
+def test_s0_roi_pooler_448_pixel_boundary_matches_detectron2() -> None:
+    poolers = pytest.importorskip("detectron2.modeling.poolers")
+    structures = pytest.importorskip("detectron2.structures")
+    normalized_box = torch.tensor(
+        [[0.0, 0.0, 447.99999170 / 800.0, 447.99999170 / 800.0]],
+        dtype=torch.float64,
+    )
+    pixel_boxes = (normalized_box.float() * 800.0).reshape(1, 1, 4)
+
+    package_levels = RADMProposalHead._assign_pooler_levels(pixel_boxes).flatten()
+    reference_levels = poolers.assign_boxes_to_levels(
+        [structures.Boxes(pixel_boxes[0])], 2, 5, 224, 4
+    )
+
+    assert pixel_boxes[0, 0, 2].item() == 448.0
+    assert torch.equal(package_levels, reference_levels)
+
+
 def test_roi_index_put_uses_contiguous_layout_for_training_and_inference() -> None:
     config = RADMConfig(
         num_classes=2,

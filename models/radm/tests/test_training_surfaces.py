@@ -419,6 +419,86 @@ def test_optimizer_scheduler_parity_and_training_module_paths(
     assert configured["lr_scheduler"]["interval"] == "step"
 
 
+def test_training_rois_use_float32_boxes_before_pixel_scaling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lightning_module = pytest.importorskip("radm.training.lightning_module")
+    config = RADMConfig(
+        num_classes=4,
+        num_proposals=1,
+        hidden_dim=8,
+        text_feature_dim=4,
+        num_heads=1,
+        backbone_depth=18,
+        with_vtram=False,
+        with_gram=False,
+        deep_supervision=False,
+    )
+    effective = replace(
+        effective_radm_config(),
+        num_proposals=1,
+        hidden_dim=8,
+        text_feature_dim=4,
+        num_heads=1,
+        backbone_depth=18,
+        with_vtram=False,
+        with_gram=False,
+        deep_supervision=False,
+        ota_k=1,
+    )
+    model = RADMDenoiser(config=config)
+    normalized_boxes = torch.tensor(
+        [[0.0, 0.0, 447.99999170 / 800.0, 447.99999170 / 800.0]],
+        dtype=torch.float64,
+    )
+    monkeypatch.setattr(
+        model,
+        "prepare_diffusion_concat",
+        lambda _boxes: (
+            normalized_boxes,
+            torch.zeros_like(normalized_boxes),
+            torch.tensor([3]),
+        ),
+    )
+
+    def zero_backbone(images: torch.Tensor) -> dict[str, torch.Tensor]:
+        return {
+            name: images.new_zeros(images.shape[0], 256, 1, 1)
+            for name in ("p2", "p3", "p4", "p5")
+        }
+
+    monkeypatch.setattr(model.backbone, "forward", zero_backbone)
+    roi_boxes: list[torch.Tensor] = []
+    original_roi_features = model.head._roi_features
+
+    def capture_roi_boxes(
+        features: dict[str, torch.Tensor], boxes: torch.Tensor
+    ) -> torch.Tensor:
+        roi_boxes.append(boxes.detach().clone())
+        return original_roi_features(features, boxes)
+
+    monkeypatch.setattr(model.head, "_roi_features", capture_roi_boxes)
+    module = lightning_module.RADMTrainingModule(model=model, effective=effective)
+    monkeypatch.setattr(module, "log", lambda *args, **kwargs: None)
+    scale = torch.full((1, 4), 800.0, dtype=torch.float64)
+    batch = {
+        "boxes_xyxy": torch.tensor([[[0.2, 0.2, 0.3, 0.3]]]),
+        "mask": torch.tensor([[True]]),
+        "labels": torch.tensor([[0]]),
+        "image_scales": scale.float(),
+        "forward_image_scales": scale,
+        "images": torch.zeros(1, 3, 32, 32),
+        "text_features": torch.zeros(1, 1, 4),
+        "text_mask": torch.ones(1, 1, 1, dtype=torch.bool),
+    }
+
+    assert module.training_step(batch, 0).isfinite()
+    assert len(roi_boxes) == 1
+    assert roi_boxes[0].dtype == torch.float32
+    assert torch.equal(roi_boxes[0], torch.tensor([[[0.0, 0.0, 448.0, 448.0]]]))
+    assert model.head._assign_pooler_levels(roi_boxes[0]).tolist() == [[3]]
+
+
 def test_training_module_rejects_missing_model_and_ema() -> None:
     lightning_module = pytest.importorskip("radm.training.lightning_module")
     effective = effective_radm_config()

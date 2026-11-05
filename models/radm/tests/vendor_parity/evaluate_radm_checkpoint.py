@@ -15,8 +15,10 @@ from radm.evaluation import evaluate_checkpoint
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
 from radm.training.data_paths import validate_dot_free_data_root
+from radm.training.launch_manifest import CGLS5LaunchManifest
 
 
+ROOT = Path(__file__).resolve().parents[4]
 EXPECTED_STEPS = 250000
 DEFAULT_CONFIG = Path("models") / "radm" / "configs" / "training" / "radm_cgl.yaml"
 
@@ -42,13 +44,21 @@ def validate_terminal_checkpoint(
         raise RuntimeError(f"terminal checkpoint is missing: {checkpoint_path}")
 
     config_sha256 = sha256(config_path)
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_manifest, dict):
+        raise RuntimeError("launch manifest must be a JSON object")
+    manifest = cast(CGLS5LaunchManifest, raw_manifest)
+    if manifest.get("arm") != "package":
+        raise RuntimeError("manifest arm does not match the package evaluator")
     if manifest.get("training_seed") != seed:
         raise RuntimeError("manifest training_seed does not match the evaluator seed")
-    manifest_config = manifest.get("package_config")
-    if manifest_config != config_path.as_posix():
+    manifest_config = manifest.get("config")
+    if not isinstance(manifest_config, dict):
+        raise RuntimeError("manifest has no config identity")
+    expected_config_path = config_path.resolve().relative_to(ROOT).as_posix()
+    if manifest_config.get("path") != expected_config_path:
         raise RuntimeError("manifest config path does not match the S5 recipe")
-    if manifest.get("package_config_sha256") != config_sha256:
+    if manifest_config.get("sha256") != config_sha256:
         raise RuntimeError("manifest config digest does not match the S5 recipe")
     if manifest.get("max_steps") != expected_steps:
         raise RuntimeError("manifest max_steps does not match the S5 recipe")
@@ -61,6 +71,17 @@ def validate_terminal_checkpoint(
     if not resolved_checkpoint.is_relative_to(resolved_run_dir):
         raise RuntimeError("checkpoint is outside the manifest output_root")
 
+    checkpoint_rule = manifest.get("checkpoint_rule")
+    if not isinstance(checkpoint_rule, dict):
+        raise RuntimeError("manifest has no checkpoint rule")
+    manifest_checkpoint = checkpoint_rule.get("checkpoint")
+    if not isinstance(manifest_checkpoint, str) or (
+        Path(manifest_checkpoint).resolve() != resolved_checkpoint
+    ):
+        raise RuntimeError(
+            "checkpoint path does not match the manifest checkpoint rule"
+        )
+
     payload = torch.load(checkpoint_path, map_location="meta", weights_only=False)
     global_step = int(payload.get("global_step", -1))
     if global_step != expected_steps:
@@ -68,10 +89,12 @@ def validate_terminal_checkpoint(
             f"checkpoint global_step={global_step}, expected {expected_steps}"
         )
     return {
+        "arm": "package",
         "global_step": global_step,
         "training_seed": seed,
-        "config_path": config_path.as_posix(),
+        "config_path": expected_config_path,
         "config_sha256": config_sha256,
+        "checkpoint": str(resolved_checkpoint),
     }
 
 

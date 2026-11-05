@@ -163,10 +163,11 @@ class RADMTrainingModule(LightningModule):
                 }
             )
 
-        diffusion_input = torch.stack(diffused_boxes)
-        diffusion_input_absolute = (
-            diffusion_input * batch["forward_image_scales"][:, None, :]
-        )
+        # Match the reference's float32 proposal rounding before pixel scaling.
+        diffusion_input = torch.stack(diffused_boxes).to(dtype=torch.float32)
+        diffusion_input_absolute = diffusion_input * batch["forward_image_scales"][
+            :, None, :
+        ].to(dtype=diffusion_input.dtype)
         noise = torch.stack(noises)
         timestep_batch = torch.cat(timesteps)
         output = self(

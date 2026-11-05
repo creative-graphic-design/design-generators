@@ -16,6 +16,7 @@ import torch
 import yaml
 
 from radm.training.data_paths import validate_dot_free_data_root
+from radm.training.launch_manifest import CGLS5LaunchManifest
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -438,14 +439,14 @@ def main() -> None:
     vendor_compatibility = vendor_compatibility_metadata(args.arm)
     if vendor_compatibility is not None:
         artifacts[vendor_compatibility["module"]] = vendor_compatibility["sha256"]
-    manifest = {
-        **source_provenance,
+    manifest: CGLS5LaunchManifest = {
+        "source_commit": source_provenance["source_commit"],
+        "vendor_gitlink_commit": source_provenance["vendor_gitlink_commit"],
+        "vendor_checkout_commit": source_provenance["vendor_checkout_commit"],
         "arm": args.arm,
         "training_seed": args.seed,
         "runtime": runtime,
         "config": {"path": config_relative_path, "sha256": config_sha256},
-        "package_config": CONFIG.relative_to(ROOT).as_posix(),
-        "package_config_sha256": sha256_file(CONFIG),
         "max_steps": STEPS,
         "output_root": str(output_dir),
         "data_root": {"alias": data_root, "target": str(data_root_target)},

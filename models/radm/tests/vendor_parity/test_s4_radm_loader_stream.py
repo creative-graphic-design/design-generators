@@ -126,6 +126,10 @@ def _aligned_sample(
     package_boxes = package["boxes_xyxy"].detach().cpu()
     package_features = package["text_features"].detach().cpu()
     package_mask = package["text_mask"].detach().cpu().bool()
+    source_valid_nonzero_count = int(torch.count_nonzero(source_features[source_mask]))
+    package_valid_nonzero_count = int(
+        torch.count_nonzero(package_features[package_mask])
+    )
     source_height, source_width = source_image.shape[-2:]
     package_height, package_width = package_image.shape[-2:]
     package_image_scale = package["image_size_xyxy"].detach().cpu()
@@ -180,6 +184,8 @@ def _aligned_sample(
         "text_mask_equal": torch.equal(source_mask, package_mask),
         "source_text_valid_count": int(source_mask.sum()),
         "package_text_valid_count": int(package_mask.sum()),
+        "source_valid_text_nonzero_count": source_valid_nonzero_count,
+        "package_valid_text_nonzero_count": package_valid_nonzero_count,
         "source_image_size": [int(source_height), int(source_width)],
         "package_image_size": [
             int(package_height),
@@ -217,6 +223,14 @@ def _assert_aligned_train_mapper_oracle(sample: dict[str, object]) -> None:
         sample, ensure_ascii=False, indent=2
     )
     assert source_text_valid_count > 0, json.dumps(sample, ensure_ascii=False, indent=2)
+    for key in (
+        "source_valid_text_nonzero_count",
+        "package_valid_text_nonzero_count",
+    ):
+        value = sample[key]
+        assert isinstance(value, int) and value > 0, json.dumps(
+            sample, ensure_ascii=False, indent=2
+        )
 
 
 def _rng_state() -> tuple[object, object, torch.Tensor]:
@@ -703,6 +717,14 @@ def test_s4_radm_loader_stream_parity() -> None:
         aligned_test_sample["package_text_valid_count"]
         == aligned_test_sample["source_text_valid_count"]
     ), json.dumps(aligned_test_sample, ensure_ascii=False, indent=2)
+    for key in (
+        "source_valid_text_nonzero_count",
+        "package_valid_text_nonzero_count",
+    ):
+        value = aligned_test_sample[key]
+        assert isinstance(value, int) and value > 0, json.dumps(
+            aligned_test_sample, ensure_ascii=False, indent=2
+        )
     output_box_frame = aligned_test_sample["output_box_frame"]
     assert isinstance(output_box_frame, dict)
     output_box_frame = cast(dict[str, object], output_box_frame)
