@@ -1,4 +1,4 @@
-"""Tests for documentation-page frontmatter and API coverage."""
+"""Tests for documentation-page metadata, API stub structure, and coverage."""
 
 from __future__ import annotations
 
@@ -30,6 +30,21 @@ def _nav_files(
             yield from _nav_files(child, (*parents, title))
 
 
+def _src_import_name(member: Path) -> str:
+    source = member / "src"
+    assert source.is_dir(), f"{source}: missing source directory"
+    import_names = {
+        entry.name if entry.is_dir() else entry.stem
+        for entry in source.iterdir()
+        if (entry.is_dir() and (entry / "__init__.py").is_file())
+        or (entry.is_file() and entry.suffix == ".py" and entry.name != "__init__.py")
+    }
+    assert len(import_names) == 1, (
+        f"{source}: expected one import name, found {sorted(import_names)}"
+    )
+    return next(iter(import_names))
+
+
 def test_docs_markdown_pages_have_icon_and_tags_frontmatter() -> None:
     for path in sorted((REPO_ROOT / "docs").rglob("*.md")):
         relative = path.relative_to(REPO_ROOT / "docs")
@@ -57,9 +72,7 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
                     continue
 
                 group = "libraries" if package_root == "lib" else "models"
-                members[(group, member.name)] = tomllib.loads(
-                    (member / "pyproject.toml").read_text(encoding="utf-8")
-                )["project"]["name"].replace("-", "_")
+                members[(group, member.name)] = _src_import_name(member)
     nav = yaml.safe_load((REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8"))["nav"]
     api_nav = next(item["API Reference"] for item in nav if "API Reference" in item)
     nav_files = list(_nav_files(api_nav, ("API Reference",)))
@@ -76,22 +89,57 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
         )
         group = stub.parent.name
         assert (group, stub.stem) in members, f"{stub.stem}: orphan API stub (orphan)"
+    mkdocs_config = yaml.safe_load(
+        (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    )
+    mkdocstrings_plugin = next(
+        plugin["mkdocstrings"]
+        for plugin in mkdocs_config["plugins"]
+        if isinstance(plugin, dict) and "mkdocstrings" in plugin
+    )
+    python_options = mkdocstrings_plugin["handlers"]["python"].get("options", {})
+    show_submodules_globally = python_options.get("show_submodules") is True
+    api_stub_violations: list[str] = []
     for (group, slug), import_name in members.items():
         stub = REPO_ROOT / "docs/api" / group / f"{slug}.md"
         assert stub.is_file(), f"{slug}: missing API stub (stub)"
         text = stub.read_text(encoding="utf-8")
-        assert f"::: {import_name}" in text, f"{slug}: missing directive (directive)"
+        frontmatter = FRONTMATTER_RE.match(text)
+        assert frontmatter is not None, f"{slug}: missing YAML frontmatter"
         readme = f"{'lib' if group == 'libraries' else 'models'}/{slug}/README.md"
-        snippet = (
+        readme_reference = (
             f'--8<-- "{readme}:card"' if group == "models" else f'--8<-- "{readme}"'
         )
-        assert text.count(snippet) == 1, (
-            f"{slug}: README must be included once (readme)"
+        canonical_body = (
+            f"\n{readme_reference}\n\n## API Reference\n\n::: {import_name}\n"
         )
+        expected_body = (
+            canonical_body
+            if show_submodules_globally
+            else (
+                f"{canonical_body.rstrip()}\n"
+                "    options:\n"
+                "        show_submodules: true\n"
+            )
+        )
+        if text[frontmatter.end() :] != expected_body:
+            api_stub_violations.append(
+                f"{stub.relative_to(REPO_ROOT)}: body does not match "
+                "the global show_submodules setting"
+            )
         expected = f"api/{group}/{slug}.md"
         matches = [parents for path, parents in nav_files if path == expected]
         assert len(matches) == 1, f"{slug}: missing or duplicate nav entry (nav)"
         assert matches[0][-2] == group.title(), f"{slug}: wrong API nav group (nav)"
+
+    if not show_submodules_globally:
+        api_stub_violations.append(
+            "mkdocs.yml: Python handler options must set show_submodules: true"
+        )
+
+    assert not api_stub_violations, (
+        "API reference contract violations:\n- " + "\n- ".join(api_stub_violations)
+    )
 
 
 def test_data_source_registry_matches_package_metadata() -> None:
