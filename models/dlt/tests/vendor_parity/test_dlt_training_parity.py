@@ -49,7 +49,7 @@ def tiny_training_module() -> DLTTrainingModule:
 def _load_vendor_modules():
     pytest.importorskip("labml_nn")
     pytest.importorskip("cv2")
-    vendor_root = Path(__file__).resolve().parents[4] / "vendor/dlt/dlt"
+    vendor_root = Path(__file__).resolve().parents[4] / "vendor" / "dlt" / "dlt"
     sys.path.insert(0, str(vendor_root))
     importlib.invalidate_caches()
     return (
