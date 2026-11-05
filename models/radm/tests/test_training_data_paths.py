@@ -14,6 +14,7 @@ from types import FunctionType
 from typing import cast
 
 import pytest
+import torch
 import yaml
 from lightning.pytorch import Trainer
 
@@ -267,6 +268,7 @@ def test_s5_launcher_writes_manifest_before_training(
     launcher = _launcher()
     main = cast(Callable[[], None], launcher["main"])
     output_dir = tmp_path / "package-run"
+    manifest_path = output_dir / "manifest.json"
     source_commit = "a" * 40
     with tempfile.TemporaryDirectory(prefix="radm-cgl-", dir="/tmp") as data_dir:
         data_parent = Path(data_dir)
@@ -365,13 +367,61 @@ def test_s5_launcher_writes_manifest_before_training(
             assert datetime.fromisoformat(manifest["launched_at"]).tzinfo is not None
             if checkpoint_present:
                 (output_dir / "checkpoints").mkdir()
-                (output_dir / "checkpoints" / "epoch=0-step=250000.ckpt").touch()
+                torch.save(
+                    {"global_step": 250000},
+                    output_dir / "checkpoints" / "epoch=0-step=250000.ckpt",
+                )
             return subprocess.CompletedProcess(command, 0)
 
         monkeypatch.setattr(subprocess, "run", capture_training)
 
         if checkpoint_present:
             main()
+            repo_root = Path(__file__).parents[3]
+            evaluator = runpy.run_path(
+                str(
+                    repo_root
+                    / "models/radm/tests/vendor_parity/evaluate_radm_checkpoint.py"
+                ),
+                run_name="radm_manifest_validation_test",
+            )
+            validate = cast(
+                Callable[..., dict[str, object]],
+                evaluator["validate_terminal_checkpoint"],
+            )
+            checkpoint_path = output_dir / "checkpoints" / "epoch=0-step=250000.ckpt"
+            monkeypatch.chdir(repo_root)
+            validation = validate(checkpoint_path, manifest_path, seed=1)
+            assert validation["global_step"] == 250000
+            assert validation["training_seed"] == 1
+
+            with pytest.raises(RuntimeError, match="training_seed"):
+                validate(checkpoint_path, manifest_path, seed=2)
+
+            outside_checkpoint = tmp_path / "outside.ckpt"
+            torch.save({"global_step": 250000}, outside_checkpoint)
+            with pytest.raises(RuntimeError, match="outside the manifest output_root"):
+                validate(outside_checkpoint, manifest_path, seed=1)
+
+            wrong_step_checkpoint = output_dir / "wrong-step.ckpt"
+            torch.save({"global_step": 249999}, wrong_step_checkpoint)
+            with pytest.raises(RuntimeError, match="global_step=249999"):
+                validate(wrong_step_checkpoint, manifest_path, seed=1)
+
+            original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for field, value, message in (
+                ("package_config", "other.yaml", "manifest config path"),
+                ("package_config_sha256", "0" * 64, "manifest config digest"),
+                ("max_steps", 249999, "manifest max_steps"),
+            ):
+                mismatched_manifest = original_manifest.copy()
+                mismatched_manifest[field] = value
+                manifest_path.write_text(
+                    json.dumps(mismatched_manifest), encoding="utf-8"
+                )
+                with pytest.raises(RuntimeError, match=message):
+                    validate(checkpoint_path, manifest_path, seed=1)
+            manifest_path.write_text(json.dumps(original_manifest), encoding="utf-8")
         else:
             with pytest.raises(
                 SystemExit, match="training completed without the terminal checkpoint"
