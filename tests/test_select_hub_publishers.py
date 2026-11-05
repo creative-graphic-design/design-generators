@@ -11,6 +11,7 @@ import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = REPOSITORY_ROOT / "scripts" / "select_hub_publishers.py"
+WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "hub-publish.yml"
 LOADER = SourceFileLoader("select_hub_publishers", str(SELECTOR_PATH))
 SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 assert SPEC is not None
@@ -102,6 +103,95 @@ def test_changed_paths_reads_null_delimited_git_output(
     assert SELECTOR._changed_paths("base", "head") == ["models/example/README.md"]
 
 
+@pytest.mark.parametrize(
+    ("newer_commits", "expected"),
+    [(b"", True), (b"newer-package-commit\n", False)],
+)
+def test_freshness_check_rejects_newer_main_commits_for_the_package(
+    monkeypatch: pytest.MonkeyPatch,
+    newer_commits: bytes,
+    expected: bool,
+) -> None:
+    def fake_git_log(
+        command: list[str], *, check: bool, stdout: int, text: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert command == [
+            "git",
+            "log",
+            "--first-parent",
+            "--format=%H",
+            "event-revision..origin/main",
+            "--",
+            "models/collage-diffusion",
+        ]
+        assert check is True
+        assert stdout == subprocess.PIPE
+        assert text is True
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            newer_commits.decode("ascii"),
+        )
+
+    monkeypatch.setattr(SELECTOR.subprocess, "run", fake_git_log)
+
+    assert (
+        SELECTOR.is_package_change_current_on_main(
+            Path("models") / "collage-diffusion", "event-revision", "origin/main"
+        )
+        is expected
+    )
+
+
+def test_main_serializes_package_freshness(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        SELECTOR,
+        "is_package_change_current_on_main",
+        lambda package_directory, event_revision, main_ref: False,
+    )
+
+    assert (
+        SELECTOR.main(
+            [
+                "--check-freshness",
+                "--package-directory",
+                "models/collage-diffusion",
+                "--event-revision",
+                "event-revision",
+            ]
+        )
+        == 0
+    )
+
+    assert json.loads(capsys.readouterr().out) == {"is_current": False}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--check-freshness"],
+        [
+            "--check-freshness",
+            "--package-directory",
+            "models/collage-diffusion",
+            "--event-revision",
+            "event-revision",
+            "--base",
+            "base",
+            "--head",
+            "head",
+        ],
+        ["--package-directory", "models/collage-diffusion"],
+    ],
+)
+def test_main_rejects_invalid_freshness_arguments(arguments: list[str]) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        SELECTOR.main(arguments)
+
+
 def test_main_serializes_selected_packages(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -127,3 +217,14 @@ def test_main_serializes_selected_packages(
 def test_main_requires_base_and_head_together() -> None:
     with pytest.raises(SystemExit, match="2"):
         SELECTOR.main(["--base", "base"])
+
+
+def test_workflow_serializes_publication_and_gates_stale_jobs() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "group: hub-publish-" + "$" + "{{ matrix.package }}" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "git fetch --no-tags origin main:refs/remotes/origin/main" in workflow
+    assert "--check-freshness" in workflow
+    assert workflow.count("if: steps.freshness.outputs.publish == 'true'") == 3

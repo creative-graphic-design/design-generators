@@ -25,6 +25,14 @@ README_SOURCE = PACKAGE_ROOT / "README.md"
 HUB_REPOSITORY_ID = "creative-graphic-design/collage-diffusion"
 UPLOAD_ALLOW_PATTERNS = ("README.md", "pipeline.py")
 SOURCE_ASSET_PREFIX = "source-assets/"
+PLANNED_HUB_BADGE = (
+    "![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only"
+    "&color=orange&style=flat-square&logo=huggingface&logoColor=white)"
+)
+PUBLISHED_HUB_BADGE = (
+    "![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only"
+    "&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)"
+)
 ARCHIVE_URL_MARKER = "/archive/main.zip"
 ARCHIVE_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 LAYGEN_REQUIREMENT_PATTERN = re.compile(
@@ -67,6 +75,7 @@ def prepare_upload_files(
         raise ValueError("package README must document both archive installs once")
 
     card_text = card_text.replace(ARCHIVE_URL_MARKER, f"/archive/{revision}.zip")
+    card_text = card_text.replace(PLANNED_HUB_BADGE, PUBLISHED_HUB_BADGE, 1)
     return {"README.md": card_text.encode("utf-8"), "pipeline.py": pipeline_source}
 
 
@@ -162,6 +171,21 @@ def _source_asset_files(api: HfApi, *, revision: str) -> set[str]:
     }
 
 
+def verify_hub_write_access(api: HfApi) -> None:
+    """Fail before upload when the token cannot write to this model repository."""
+    try:
+        api.auth_check(
+            repo_id=HUB_REPOSITORY_ID,
+            repo_type="model",
+            write=True,
+        )
+    except Exception as error:
+        raise RuntimeError(
+            f"Could not verify HF_TOKEN content-write access to {HUB_REPOSITORY_ID}. "
+            "Add this repository to the Hugging Face fine-grained token with write permission."
+        ) from error
+
+
 def _verify_uploaded_files(
     api: HfApi,
     files: dict[str, bytes],
@@ -224,7 +248,9 @@ def publish(*, token: str, revision: str) -> None:
 
     files = _read_source_files(revision)
     api = HfApi(token=token)
-    source_assets_before = _source_asset_files(api, revision="main")
+    verify_hub_write_access(api)
+    parent_commit = api.model_info(HUB_REPOSITORY_ID, revision="main").sha
+    source_assets_before = _source_asset_files(api, revision=parent_commit)
     if not source_assets_before:
         raise RuntimeError("the existing Hub repository has no source-assets files")
 
@@ -238,6 +264,7 @@ def publish(*, token: str, revision: str) -> None:
             folder_path=str(staging_directory),
             allow_patterns=list(UPLOAD_ALLOW_PATTERNS),
             commit_message=f"Publish Collage Diffusion pipeline at {revision[:12]}",
+            parent_commit=parent_commit,
         )
 
     published_revision = commit_info.oid

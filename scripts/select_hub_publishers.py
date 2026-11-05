@@ -90,11 +90,72 @@ def _changed_paths(base: str, head: str) -> list[str]:
     return [os.fsdecode(path) for path in result.stdout.split(b"\0") if path]
 
 
+def is_package_change_current_on_main(
+    package_directory: Path, event_revision: str, main_ref: str
+) -> bool:
+    """Return whether main has any newer commit that changes this package."""
+    result = subprocess.run(
+        [
+            "git",
+            "log",
+            "--first-parent",
+            "--format=%H",
+            f"{event_revision}..{main_ref}",
+            "--",
+            package_directory.as_posix(),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    return not result.stdout.strip()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", help="base commit for changed-package selection")
     parser.add_argument("--head", help="head commit for changed-package selection")
+    parser.add_argument(
+        "--check-freshness",
+        action="store_true",
+        help="check whether main has a newer commit that changes one package",
+    )
+    parser.add_argument("--package-directory", type=Path)
+    parser.add_argument("--event-revision")
+    parser.add_argument("--main-ref", default="origin/main")
     args = parser.parse_args(argv)
+
+    if args.check_freshness:
+        if args.package_directory is None or args.event_revision is None:
+            parser.error(
+                "--check-freshness requires --package-directory and --event-revision"
+            )
+        if args.base is not None or args.head is not None:
+            parser.error("--check-freshness cannot be combined with --base or --head")
+
+        print(
+            json.dumps(
+                {
+                    "is_current": is_package_change_current_on_main(
+                        args.package_directory,
+                        args.event_revision,
+                        args.main_ref,
+                    )
+                },
+                separators=(",", ":"),
+            )
+        )
+        return 0
+
+    if (
+        args.package_directory is not None
+        or args.event_revision is not None
+        or args.main_ref != "origin/main"
+    ):
+        parser.error(
+            "--package-directory, --event-revision, and --main-ref require --check-freshness"
+        )
+
     if (args.base is None) != (args.head is None):
         parser.error("--base and --head must be provided together")
 

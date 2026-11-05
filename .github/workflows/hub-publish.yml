@@ -49,6 +49,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.discover.outputs.has_publishers == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: hub-publish-${{ matrix.package }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.publisher_matrix) }}
@@ -58,23 +61,48 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
+      - name: Skip publication when main has a newer package change
+        id: freshness
+        env:
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          freshness_result="$(python scripts/select_hub_publishers.py \
+            --check-freshness \
+            --package-directory "$PACKAGE_DIRECTORY" \
+            --event-revision "$EVENT_SHA" \
+            --main-ref origin/main)"
+          is_current="$(python -c 'import json, sys; print("true" if json.loads(sys.argv[1])["is_current"] else "false")' "$freshness_result")"
+          if [ "$is_current" = "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping stale publication for $PACKAGE_DIRECTORY; a newer main commit changed this package."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v8.3.2
+        if: steps.freshness.outputs.publish == 'true'
         with:
           enable-cache: true
 
       - name: Install package environment
+        if: steps.freshness.outputs.publish == 'true'
         env:
           PACKAGE_NAME: ${{ matrix.package }}
         run: uv sync --package "$PACKAGE_NAME" --frozen
 
       - name: Publish package to Hugging Face
+        if: steps.freshness.outputs.publish == 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           PACKAGE_DIRECTORY: ${{ matrix.directory }}
@@ -84,4 +112,4 @@ jobs:
             echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
             exit 1
           fi
-          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=0.24,<2" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py" --revision "$GITHUB_SHA"
+          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=1.5.0,<2" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py" --revision "$GITHUB_SHA"
