@@ -140,7 +140,7 @@ data. Data provenance and the CGL-v2 license remain unresolved; see
 
 ### Training Procedure
 
-Phase 1 ships the member-scoped LightningCLI entry surface and captured effective recipe under `configs/training`. The model predicts four classes while the five-entry CGL vocabulary is preserved explicitly in the captured class mapping. Source-generated S0-S2 evidence is accepted, S3 records the synchronized and natural trajectory checks, and S4 records the mapper oracle plus the passing full-stream comparison. S5 remains blocked pending retraining with the corrected stream; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
+The CGL LightningCLI recipe predicts four classes while preserving the five-entry source vocabulary in its captured class mapping. It initializes ResNet-50 from Detectron2’s torchvision ImageNet checkpoint, which the Model Zoo lists under [CC BY-SA 3.0](https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md#imagenet-pretrained-models). The three-seed, 1,500-step production runs verify the configured training path only. The 250,000-step CGL S5 retrain has not been rerun, so no trained-checkpoint reproduction is claimed; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Evaluation
 
@@ -160,10 +160,10 @@ Metrics are exact scheduler/timestep agreement, exact tensor equality where the 
 
 ### Parity Results
 
-| Dataset         | Compared path                                                  | Cases | Assertion                                                                                                                              |
-| --------------- | -------------------------------------------------------------- | ----: | -------------------------------------------------------------------------------------------------------------------------------------- |
-| CGL             | original Detectron2 RADM path vs. converted `🧨diffusers` path |     0 | not run; vendor parity is not verified, and the recorded evaluation-path artifact is diagnosis evidence, not an accepted parity result |
-| Synthetic smoke | randomly initialized RADM pipeline save/load                   |     1 | schema smoke only, no original-code parity claim                                                                                       |
+| Dataset         | Compared path                                                | Cases | Assertion                                                                                                                              |
+| --------------- | ------------------------------------------------------------ | ----: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| CGL             | original Detectron2 RADM path vs. converted `diffusers` path |     0 | not run; vendor parity is not verified, and the recorded evaluation-path artifact is diagnosis evidence, not an accepted parity result |
+| Synthetic smoke | randomly initialized RADM pipeline save/load                 |     1 | schema smoke only, no original-code parity claim                                                                                       |
 
 No accepted original-code inference parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
 
@@ -185,7 +185,7 @@ No model weights are included. Conversion, reference generation, and parity cost
 
 ### Model Architecture and Objective
 
-RADM samples proposal boxes and denoises them with relation-aware image and text conditioning. The package-level runtime keeps the image/text feature processor, proposal scheduler, denoiser, and postprocessing separate so converted artifacts can load through `🧨diffusers` component folders.
+RADM samples proposal boxes and denoises them with relation-aware image and text conditioning. The package-level runtime keeps the image/text feature processor, proposal scheduler, denoiser, and postprocessing separate so converted artifacts can load through `diffusers` component folders.
 
 ### Compute Infrastructure
 

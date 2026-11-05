@@ -47,6 +47,10 @@
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
+- Join a target word to a common method type with a hyphen, such as `layout-dm`, `layout-diffusion`, and `layout-vae`.
+- Keep established model names together, such as `layoutformerpp`, `posterllama`, `layoutganpp`, and `housegan`.
+- Use hyphens in model directory and distribution names and underscores in Python import names, such as `models/layout-dm` → `layout-dm` → `layout_dm`.
+- Serialize the current package name in `model_type`; do not retain aliases for prior package names after a rename.
 
 ### Class Design And Code Style
 
@@ -56,6 +60,7 @@
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
 - Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
+- For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference` (see [Source Language](.agents/skills/design-generators-model-conversion/SKILL.md#source-language)); put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
 - Source-code prose (docstrings, comments, and user-visible messages) does not use the training-reproduction stage codes S0-S5; state what the stage checks in plain words. The codes belong to `TRAINING.md` and the scripts that check it.
 
 ## Tracking
@@ -115,6 +120,7 @@
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
 - `scripts/check_readme_badges.py` enforces README badge contracts.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
@@ -129,7 +135,7 @@
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
-- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests.
+- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and member tests selected from declared workspace dependencies, optional dependencies, and dependency groups for pull requests and merge queue entries; every non-Markdown change also selects `devharness`, non-Markdown changes outside member directories select all members with tests, and non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.

@@ -56,7 +56,7 @@ model-index:
 This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
 <!-- Include the literature method name, conference or journal if known, and a stable paper URL. -->
-<!-- Link the framework name to its official documentation, for example [`🧨diffusers`](https://huggingface.co/docs/diffusers/index). -->
+<!-- Link each library's first prose mention to its official documentation using the emoji code form; use the plain code form on later mentions. Examples: [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/). -->
 
 ## Model Details
 
@@ -64,12 +64,13 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 <longer description of what the converted checkpoint does and what package loads it>
 
-<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is `🤗transformers` or `🧨diffusers` style. -->
+<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is `transformers` or `diffusers` style. -->
 
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
-- **Model type:** <content-agnostic|content-aware>; task: <task-agnostic|task-aware|single-task|evaluation|saliency>; conditioning: <canonical values in conventions order>.
+<!-- Choose the category-specific task, conditioning, pipeline_tag, and model-index task values from [the model catalog conventions](https://github.com/creative-graphic-design/design-generators/blob/main/docs/conventions.md#model-catalog-classification). -->
+- **Model type:** <category>; task: <category-specific task>; conditioning: <canonical values in conventions order>.
 - **Language(s) (NLP):** <not-applicable-or-language-list>
 - **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
