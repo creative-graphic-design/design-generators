@@ -1662,10 +1662,12 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
 
 def test_library_pip_install_contract_accepts_source_archive() -> None:
     fence = chr(96) * 3
+    archive_url = (
+        "https://github.com/creative-graphic-design/design-generators/archive/main.zip"
+    )
     section = (
         "Install directly from this repository.\n\n" + fence + "bash\npip install "
-        '"laygen @ https://github.com/creative-graphic-design/design-generators/'
-        'archive/main.zip#subdirectory=lib/laygen"\n' + fence
+        f'"laygen @ {archive_url}#subdirectory=lib/laygen"\n' + fence
     )
 
     install.assert_pip_install_snippet(
@@ -1678,14 +1680,14 @@ def test_library_pip_install_contract_accepts_source_archive() -> None:
 
 def test_model_install_contract_accepts_source_archives() -> None:
     fence = chr(96) * 3
+    archive_url = (
+        "https://github.com/creative-graphic-design/design-generators/archive/main.zip"
+    )
     text = (
         "# Model Card for Collage Diffusion\n\n"
         "## How to Get Started with the Model\n\n" + fence + "bash\npip install \\\n"
-        '  "laygen @ https://github.com/creative-graphic-design/'
-        'design-generators/archive/main.zip#subdirectory=lib/laygen" \\\n'
-        '  "collage-diffusion @ https://github.com/creative-graphic-design/'
-        "design-generators/archive/main.zip"
-        '#subdirectory=models/collage-diffusion"\n'
+        f'  "laygen @ {archive_url}#subdirectory=lib/laygen" \\\n'
+        f'  "collage-diffusion @ {archive_url}#subdirectory=models/collage-diffusion"\n'
         + fence
         + "\n\n## Training Details\n"
     )
