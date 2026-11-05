@@ -81,6 +81,9 @@ def test_training_stage_order_is_strict() -> None:
         RalfTrainingStage.s4,
         RalfTrainingStage.s5,
     )
+    assert tuple(stage.value for stage in RalfTrainingStage) == tuple(
+        stage.name for stage in RalfTrainingStage
+    )
 
 
 def test_training_image_normalization_and_channel_adaptation() -> None:

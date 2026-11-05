@@ -36,6 +36,7 @@ from ralf import RalfConfig, RalfForConditionalLayoutGeneration
 from ralf.configuration_ralf import RalfDatasetName
 from ralf.modeling_ralf import RalfRelationshipTable, RalfTaskPreprocessor
 from ralf.retrieval import RalfRetrievedBatch
+from ralf.training import RalfTrainingStage
 from ralf.training.datamodule import (
     RalfDataModule,
     RalfSampleValue,
@@ -57,7 +58,15 @@ from training_reference import (
 )
 
 ROOT = Path(__file__).parents[4]
-DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
+RUNNABLE_STAGES = tuple(
+    stage for stage in RalfTrainingStage if stage is not RalfTrainingStage.s5
+)
+DEFAULT_STEPS: dict[RalfTrainingStage, int] = {
+    RalfTrainingStage.s1: 1,
+    RalfTrainingStage.s2: 1,
+    RalfTrainingStage.s3: 4,
+    RalfTrainingStage.s4: 8,
+}
 ConditionType = Literal[
     "unconditional", "label", "label_size", "completion", "refinement", "relation"
 ]
@@ -264,7 +273,9 @@ class _NaturalEnvelope(TypedDict):
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--stage", choices=("S0", "S1", "S2", "S3", "S4"), required=True
+        "--stage",
+        choices=tuple(stage.name.upper() for stage in RUNNABLE_STAGES),
+        required=True,
     )
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
@@ -284,7 +295,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--steps", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=1)
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.stage = RalfTrainingStage[args.stage.lower()]
+    return args
 
 
 def _condition_type(condition: str) -> tuple[ConditionType, str]:
@@ -3373,25 +3386,27 @@ def main() -> int:
     source_gate = _source_gate_metadata()
     device = _device()
     config, data, context = _load_context(args)
-    if args.stage == "S0":
+    if args.stage is RalfTrainingStage.s0:
         result = _s0(args, config, data, context, device)
-    elif args.stage == "S1":
+    elif args.stage is RalfTrainingStage.s1:
         result = _s1(args, config, context, device)
-    elif args.stage == "S2":
+    elif args.stage is RalfTrainingStage.s2:
         result = _s2(args, config, context, device)
-    elif args.stage == "S3":
+    elif args.stage is RalfTrainingStage.s3:
         result = _s3(
             args, config, data, device, args.steps or DEFAULT_STEPS[args.stage]
         )
-    else:
+    elif args.stage is RalfTrainingStage.s4:
         result = _s4(
             args, config, data, context, args.steps or DEFAULT_STEPS[args.stage]
         )
+    else:
+        raise ValueError(f"unsupported training stage: {args.stage}")
     candidate = _candidate_metadata()
     vendor = _vendor_metadata()
     result.update(
         {
-            "stage": args.stage,
+            "stage": args.stage.name.upper(),
             "dataset": args.dataset,
             "condition": args.condition,
             "command": " ".join(sys.argv),

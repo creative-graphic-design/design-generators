@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 
 
 class RalfTrainingStage(StrEnum):
     """Ordered training reproduction stages."""
 
-    s0 = "S0"
-    s1 = "S1"
-    s2 = "S2"
-    s3 = "S3"
-    s4 = "S4"
-    s5 = "S5"
+    s0 = auto()
+    s1 = auto()
+    s2 = auto()
+    s3 = auto()
+    s4 = auto()
+    s5 = auto()

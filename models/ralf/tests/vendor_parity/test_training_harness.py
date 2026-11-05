@@ -6,6 +6,7 @@ import gc
 import inspect
 import json
 import os
+import sys
 import weakref
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ from lightning.pytorch import LightningModule, Trainer
 
 import run_training_stages as stages
 from ralf import RalfForConditionalLayoutGeneration
+from ralf.training import RalfTrainingStage
 from ralf.training.datamodule import RalfTrainingBatch
 from ralf.training.lightning_module import _ConditionKwargs
 from run_training_stages import (
@@ -57,6 +59,35 @@ def _cuda_runtime_usable() -> bool:
     except RuntimeError:
         return False
     return True
+
+
+def test_stage_cli_and_default_steps_use_enum_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    stage = RalfTrainingStage.s3
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_training_stages.py",
+            "--stage",
+            stage.name.upper(),
+            "--cache-dir",
+            str(tmp_path),
+            "--output",
+            str(tmp_path / "stage.json"),
+        ],
+    )
+
+    args = stages._parse_args()
+
+    assert args.stage is stage
+    assert stages.DEFAULT_STEPS == {
+        RalfTrainingStage.s1: 1,
+        RalfTrainingStage.s2: 1,
+        RalfTrainingStage.s3: 4,
+        RalfTrainingStage.s4: 8,
+    }
 
 
 @pytest.mark.skipif(
