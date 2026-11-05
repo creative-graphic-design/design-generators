@@ -1022,33 +1022,52 @@ Package training reproduction is achieved with training-seed n=3.
     }
 
 
-def test_pre_rule_s5_claim_passes_with_full_run_checkpoint(tmp_path: Path) -> None:
+def test_pre_rule_full_run_checkpoint_passes_with_unreachable_source_commit(
+    tmp_path: Path,
+) -> None:
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
     manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
-    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
-    manifest_data["artifacts"] = {}
-    manifest.write_text(json.dumps(manifest_data), encoding="utf-8")
-    config = tmp_path / "models/layout-dm/configs/training/full.yaml"
-    config.write_text(
-        config.read_text(encoding="utf-8").replace(
-            "filename: best", "filename: changed"
-        ),
+    source_commit = json.loads(manifest.read_text(encoding="utf-8"))["source_commit"]
+    manifest.unlink()
+    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    original = training_md.read_text(encoding="utf-8")
+    unreachable_commit = "f" * 40
+    updated = original.replace(
+        f"source_commit={source_commit}", f"source_commit={unreachable_commit}"
+    )
+    assert updated != original
+    training_md.write_text(
+        updated,
         encoding="utf-8",
     )
 
     assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
 
 
-def test_pre_rule_s5_claim_passes_without_local_manifest(tmp_path: Path) -> None:
+def test_pre_rule_full_run_checkpoint_requires_smoke_command_to_be_not_required(
+    tmp_path: Path,
+) -> None:
     write_full_run_checkpoint_evidence(
         tmp_path, "layout-dm", "2026-10-26T14:07:59+09:00"
     )
-    manifest = tmp_path / ".cache/pkg/full-run/manifest.json"
-    manifest.unlink()
+    training_md = tmp_path / "models/layout-dm/TRAINING.md"
+    original = training_md.read_text(encoding="utf-8")
+    updated = original.replace(
+        "| S3 | `uv run pytest s3-trajectory` | `not required` |",
+        "| S3 | `uv run pytest s3-trajectory` | `not recorded` |",
+    )
+    assert updated != original
+    training_md.write_text(
+        updated,
+        encoding="utf-8",
+    )
 
-    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == set()
+    assert check_training_stage_evidence.checkpoint_gate_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS3\t"
+        + check_training_stage_evidence.CHECKPOINT_SMOKE_VIOLATION
+    }
 
 
 def test_pre_rule_s5_claim_accepts_the_default_model_checkpoint(tmp_path: Path) -> None:

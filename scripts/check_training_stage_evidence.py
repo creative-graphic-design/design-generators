@@ -662,34 +662,13 @@ def checkpoint_record_matches_full_run_config(
     ):
         return False
 
-    if source_commit is None:
-        if not (root / config_path).is_file() or not is_tracked_file(root, config_path):
-            return False
+    if not (root / config_path).is_file() or not is_tracked_file(root, config_path):
+        return False
 
-        try:
-            config_text = (root / config_path).read_text(encoding="utf-8")
-        except OSError:
-            return False
-    else:
-        if re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", source_commit) is None:
-            return False
-
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(root),
-                "show",
-                f"{source_commit}:{config_path.as_posix()}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            return False
-
-        config_text = result.stdout
+    try:
+        config_text = (root / config_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
 
     return callback_checkpoint_filename_matches(config_text, Path(checkpoint_path).name)
 
@@ -702,6 +681,9 @@ def is_pre_rule_full_run_checkpoint(
 ) -> bool:
     """Return whether a pre-rule run records its own top-k checkpoint."""
     if evidence is None or full_run_evidence is None:
+        return False
+
+    if unquote_cell(evidence.checkpoint_smoke_command) != "not required":
         return False
 
     stage_three_launches = MANIFEST_LAUNCHED_AT_RE.findall(evidence.result)
