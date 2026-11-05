@@ -478,7 +478,7 @@ def test_s0_roi_pooler_448_pixel_boundary_matches_detectron2() -> None:
 
     package_levels = RADMProposalHead._assign_pooler_levels(pixel_boxes).flatten()
     reference_levels = poolers.assign_boxes_to_levels(
-        [structures.Boxes((normalized_box * 800.0)[0])], 2, 5, 224, 4
+        [structures.Boxes(normalized_box * 800.0)], 2, 5, 224, 4
     )
 
     assert pixel_boxes[0, 0, 2].item() == 448.0

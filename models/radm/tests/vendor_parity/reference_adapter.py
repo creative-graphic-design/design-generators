@@ -6,6 +6,7 @@ import contextlib
 import importlib
 import inspect
 import json
+import runpy
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -502,10 +503,14 @@ def _legacy_pillow_compat() -> Iterator[None]:
 
     had_linear = hasattr(Image, "LINEAR")
     if not had_linear:
-        resampling = getattr(Image, "Resampling", None)
-        if resampling is None:
-            raise RuntimeError("Pillow has neither Image.LINEAR nor Image.Resampling")
-        setattr(Image, "LINEAR", resampling.BILINEAR)
+        compatibility_module = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "vendor_compat"
+            / "sitecustomize.py"
+        )
+        runpy.run_path(str(compatibility_module))
+
     try:
         yield
     finally:
