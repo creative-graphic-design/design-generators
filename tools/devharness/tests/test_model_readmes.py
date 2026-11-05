@@ -1504,6 +1504,19 @@ def test_library_name_style_accepts_linked_first_and_plain_later_mentions(
     root_readme.assert_library_name_style(readme)
 
 
+def test_library_name_style_ignores_tilde_fenced_code(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "~~~~text\n`🧨diffusers`\n~~~\n`diffusers`\n```\n~~~~~\n"
+        "~~~text\n`🧨diffusers` and `diffusers`\n~~~\n"
+        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), "
+        "then `diffusers`.",
+        encoding="utf-8",
+    )
+
+    root_readme.assert_library_name_style(readme)
+
+
 def test_library_name_style_requires_link_on_first_mention(tmp_path: Path) -> None:
     readme = tmp_path / "README.md"
     readme.write_text("This package uses `diffusers` for inference.", encoding="utf-8")
