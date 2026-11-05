@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -62,12 +63,21 @@ def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
     readme_text = PUBLISHER.README_SOURCE.read_text(encoding="utf-8")
     files = PUBLISHER.prepare_upload_files(b"pipeline", readme_text, REVISION)
     card = files["README.md"].decode("utf-8")
-    laygen_requirement = (
-        "laygen @ https://github.com/creative-graphic-design/design-generators/"
-        f"archive/{REVISION}.zip#subdirectory=lib/laygen"
+    url_pattern = re.compile(
+        r'(?m)^\s*"laygen @ (?P<url>https://[^"\s]+)"(?:\s*\\)?\s*$'
+    )
+    readme_urls = url_pattern.findall(readme_text)
+    card_urls = url_pattern.findall(card)
+    expected_archive = (
+        "https://github.com/creative-graphic-design/design-generators/archive"
     )
 
-    assert card.count(laygen_requirement) == 1
+    assert len(readme_urls) == 1
+    assert readme_urls[0] == f"{expected_archive}/main.zip#subdirectory=lib/laygen"
+    assert len(card_urls) == 1
+    assert card_urls[0] == (
+        f"{expected_archive}/{REVISION}.zip#subdirectory=lib/laygen"
+    )
 
 
 def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
