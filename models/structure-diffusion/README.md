@@ -36,7 +36,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), a training-free text-to-image method from ICLR 2023. It parses a prompt into noun phrases, encodes the full prompt and each phrase, then combines cross-attention keys and values to improve object and attribute binding. The [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline uses the [Stable Diffusion 1.4 checkpoint](https://huggingface.co/CompVis/stable-diffusion-v1-4).
 
@@ -62,10 +62,10 @@ This package implements [StructureDiffusion](https://arxiv.org/abs/2212.05032), 
 
 ## Supported Checkpoints
 
-| Checkpoint                           | Hub ID                                        | Status                                                                        |
-| ------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| Stable Diffusion v1.4                | `CompVis/stable-diffusion-v1-4`               | Public base checkpoint; load directly with `from_pretrained`.                 |
-| Structure Diffusion package artifact | `creative-graphic-design/structure-diffusion` | Planned; publication is separate and no weights are uploaded by this package. |
+| Checkpoint                           | Hub ID                                        | Status                                                                         |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------ |
+| Stable Diffusion v1.4                | `CompVis/stable-diffusion-v1-4`               | Gated base checkpoint; load with `from_pretrained` after access is approved.   |
+| Structure Diffusion package artifact | `creative-graphic-design/structure-diffusion` | Published code only; this package does not upload Structure Diffusion weights. |
 
 ## Uses
 
@@ -91,26 +91,30 @@ Inspect generated images before downstream use, and record the checkpoint revisi
 
 ## How to Get Started with the Model
 
-Install the package from this repository and download the parser models before the first inference:
+Install the package from this repository archive and download the English parser models before the first inference:
 
 ```bash
-pip install "structure-diffusion @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/structure-diffusion"
+pip install "structure-diffusion @ https://github.com/creative-graphic-design/design-generators/archive/main.zip#subdirectory=models/structure-diffusion"
 python -c "import stanza; stanza.download('en', processors='tokenize,pos,constituency')"
 ```
+
+[`CompVis/stable-diffusion-v1-4`](https://huggingface.co/CompVis/stable-diffusion-v1-4) is a gated model. Request access and accept its CreativeML OpenRAIL-M terms on the model page before downloading its weights. Set `HF_TOKEN_FILE` to a private file containing a token that can access the checkpoint.
 
 ```python
 import os
 from pathlib import Path
 
 import torch
-from structure_diffusion import StructureDiffusionPipeline
+from diffusers import DiffusionPipeline
 
 token = Path(os.environ["HF_TOKEN_FILE"]).read_text().strip()
-pipe = StructureDiffusionPipeline.from_pretrained(
+pipe = DiffusionPipeline.from_pretrained(
     "CompVis/stable-diffusion-v1-4",
     revision="133a221b8aa7292a167afc5127cb63fb5005638b",
+    custom_pipeline="creative-graphic-design/structure-diffusion",
     torch_dtype=torch.float32,
     token=token,
+    trust_remote_code=True,
 )
 pipe.to("cpu")
 result = pipe(
@@ -129,7 +133,7 @@ print("image size: {}x{}".format(image.size[0], image.size[1]))
 image size: 512x512
 ```
 
-Set HF_TOKEN_FILE to a private file containing a Hugging Face token after accepting the checkpoint's access terms. The optional scene-graph parser is available through the scene-graph extra. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
+The default constituency parser needs the English Stanza model assets downloaded separately with the command above. The optional scene-graph parser is available through the scene-graph extra and requires its spaCy English model. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/structure-diffusion/REPRODUCING.md) for local testing and CPU comparison instructions.
 
 ## Examples
 

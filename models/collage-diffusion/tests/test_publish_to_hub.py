@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import SimpleNamespace
@@ -81,40 +82,6 @@ def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
     )
 
 
-def test_staging_contains_only_the_explicit_upload_files(tmp_path: Path) -> None:
-    files = {"README.md": b"card", "pipeline.py": b"pipeline"}
-
-    PUBLISHER.write_upload_staging(tmp_path, files)
-
-    assert {path.name for path in tmp_path.iterdir()} == {
-        "README.md",
-        "pipeline.py",
-    }
-    assert not (tmp_path / "source-assets").exists()
-
-
-def test_staging_rejects_unapproved_files(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="only README.md and pipeline.py"):
-        PUBLISHER.write_upload_staging(
-            tmp_path,
-            {
-                "README.md": b"card",
-                "pipeline.py": b"pipeline",
-                "source-assets/data.bin": b"",
-            },
-        )
-
-
-def test_staging_rejects_nonempty_directory(tmp_path: Path) -> None:
-    (tmp_path / "source-assets").mkdir()
-
-    with pytest.raises(ValueError, match="must be empty"):
-        PUBLISHER.write_upload_staging(
-            tmp_path,
-            {"README.md": b"card", "pipeline.py": b"pipeline"},
-        )
-
-
 def test_card_generation_requires_a_full_commit_sha() -> None:
     with pytest.raises(ValueError, match="full lowercase 40-character commit SHA"):
         PUBLISHER.prepare_upload_files(b"pipeline", README, "main")
@@ -142,7 +109,10 @@ def test_write_access_failure_names_the_repository() -> None:
         match="Could not verify HF_TOKEN content-write access to "
         "creative-graphic-design/collage-diffusion",
     ):
-        PUBLISHER.verify_hub_write_access(UnscopedTokenApi())
+        PUBLISHER.hub_publishing.verify_hub_write_access(
+            UnscopedTokenApi(),
+            repo_id=PUBLISHER.HUB_REPOSITORY_ID,
+        )
 
 
 def test_publish_stops_before_upload_when_token_is_not_scoped_for_write(
@@ -180,12 +150,18 @@ def test_publish_stops_before_upload_when_token_is_not_scoped_for_write(
         PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
 
 
-def test_publish_uses_the_hub_main_commit_as_upload_parent(
+def test_publish_uses_parent_commit_and_calls_hub_readback(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     parent_commit = "b" * 40
     uploaded_commit = "c" * 40
+    readback_bytes = b"read back from the Hub"
+    readback_path = tmp_path / "readback.bin"
+    readback_path.write_bytes(readback_bytes)
+    download_arguments: list[dict[str, str]] = []
     upload_arguments: dict[str, object] = {}
+    hub_upload_arguments: dict[str, object] = {}
     source_asset_revisions: list[str] = []
 
     class ScopedTokenApi:
@@ -207,13 +183,35 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
             return SimpleNamespace(sha=parent_commit)
 
         def upload_folder(self, **kwargs: object) -> SimpleNamespace:
-            upload_arguments.update(kwargs)
+            hub_upload_arguments.update(kwargs)
             return SimpleNamespace(oid=uploaded_commit)
+
+    def hf_hub_download(
+        *,
+        repo_id: str,
+        filename: str,
+        repo_type: str,
+        revision: str,
+        token: str,
+    ) -> str:
+        download_arguments.append(
+            {
+                "repo_id": repo_id,
+                "filename": filename,
+                "repo_type": repo_type,
+                "revision": revision,
+                "token": token,
+            }
+        )
+        return str(readback_path)
 
     monkeypatch.setitem(
         sys.modules,
         "huggingface_hub",
-        SimpleNamespace(HfApi=ScopedTokenApi),
+        SimpleNamespace(
+            HfApi=ScopedTokenApi,
+            hf_hub_download=hf_hub_download,
+        ),
     )
     monkeypatch.setattr(
         PUBLISHER,
@@ -226,15 +224,74 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
         return {"source-assets/original.txt"}
 
     monkeypatch.setattr(PUBLISHER, "_source_asset_files", source_assets)
+
+    def upload_and_verify(
+        api: object,
+        *,
+        repo_id: str,
+        files: dict[str, bytes],
+        allow_patterns: tuple[str, ...],
+        parent_commit: str,
+        commit_message: str,
+        staging_prefix: str,
+        upload_folder: Callable[
+            [PUBLISHER.hub_publishing.HubUploadRequest],
+            PUBLISHER.hub_publishing.HubCommitInfo,
+        ],
+        read_file: Callable[[str, str], bytes],
+    ) -> str:
+        upload_arguments.update(
+            {
+                "repo_id": repo_id,
+                "files": files,
+                "allow_patterns": allow_patterns,
+                "parent_commit": parent_commit,
+                "commit_message": commit_message,
+                "staging_prefix": staging_prefix,
+                "read_file": read_file,
+            }
+        )
+        upload_folder(
+            PUBLISHER.hub_publishing.HubUploadRequest(
+                repo_id=repo_id,
+                folder_path=str(tmp_path),
+                allow_patterns=allow_patterns,
+                commit_message=commit_message,
+                parent_commit=parent_commit,
+            )
+        )
+        upload_arguments["readback_bytes"] = read_file("README.md", uploaded_commit)
+        return uploaded_commit
+
     monkeypatch.setattr(
-        PUBLISHER,
-        "_verify_uploaded_files",
-        lambda api, files, *, revision: None,
+        PUBLISHER.hub_publishing,
+        "upload_and_verify",
+        upload_and_verify,
     )
 
     PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
 
     assert upload_arguments["parent_commit"] == parent_commit
+    assert upload_arguments["allow_patterns"] == PUBLISHER.UPLOAD_ALLOW_PATTERNS
+    assert upload_arguments["readback_bytes"] == readback_bytes
+    assert hub_upload_arguments == {
+        "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+        "repo_type": "model",
+        "folder_path": str(tmp_path),
+        "allow_patterns": list(PUBLISHER.UPLOAD_ALLOW_PATTERNS),
+        "commit_message": "Publish Collage Diffusion pipeline at aaaaaaaaaaaa",
+        "parent_commit": parent_commit,
+        "run_as_future": False,
+    }
+    assert download_arguments == [
+        {
+            "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+            "filename": "README.md",
+            "repo_type": "model",
+            "revision": uploaded_commit,
+            "token": "fine-grained-token",
+        }
+    ]
     assert source_asset_revisions == [parent_commit, uploaded_commit]
 
 
