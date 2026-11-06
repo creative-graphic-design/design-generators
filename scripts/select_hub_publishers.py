@@ -7,53 +7,12 @@ import argparse
 import json
 import os
 import subprocess
-import tomllib
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
+from devharness.hub_publishers import HubPublisher, discover_publishers
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-PUBLISHER_PATH = Path("scripts") / "publish_to_hub.py"
-
-
-@dataclass(frozen=True)
-class HubPublisher:
-    """A model package with its own Hugging Face publication procedure."""
-
-    package: str
-    directory: Path
-
-
-def discover_publishers(repository_root: Path) -> list[HubPublisher]:
-    """Return model packages that contain the package-local publisher script."""
-    models_directory = repository_root / "models"
-    publishers: list[HubPublisher] = []
-
-    for package_directory in sorted(models_directory.iterdir()):
-        if not package_directory.is_dir():
-            continue
-
-        if not (package_directory / "pyproject.toml").is_file():
-            continue
-
-        if not (package_directory / PUBLISHER_PATH).is_file():
-            continue
-
-        pyproject = tomllib.loads((package_directory / "pyproject.toml").read_text())
-        package_name = pyproject.get("project", {}).get("name")
-        if not isinstance(package_name, str):
-            raise TypeError(
-                f"{package_directory / 'pyproject.toml'} must define project.name"
-            )
-
-        publishers.append(
-            HubPublisher(
-                package=package_name,
-                directory=Path("models") / package_directory.name,
-            )
-        )
-
-    return publishers
 
 
 def select_publishers(

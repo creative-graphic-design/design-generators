@@ -26,14 +26,6 @@ README_SOURCE = PACKAGE_ROOT / "README.md"
 HUB_REPOSITORY_ID = "creative-graphic-design/collage-diffusion"
 UPLOAD_ALLOW_PATTERNS = ("README.md", "pipeline.py")
 SOURCE_ASSET_PREFIX = "source-assets/"
-PLANNED_HUB_BADGE = (
-    "![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only"
-    "&color=orange&style=flat-square&logo=huggingface&logoColor=white)"
-)
-PUBLISHED_HUB_BADGE = (
-    "![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only"
-    "&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)"
-)
 ARCHIVE_URL_MARKER = "/archive/main.zip"
 ARCHIVE_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
@@ -72,7 +64,6 @@ def prepare_upload_files(
         raise ValueError("package README must document both archive installs once")
 
     card_text = card_text.replace(ARCHIVE_URL_MARKER, f"/archive/{revision}.zip")
-    card_text = card_text.replace(PLANNED_HUB_BADGE, PUBLISHED_HUB_BADGE, 1)
     return {"README.md": card_text.encode("utf-8"), "pipeline.py": pipeline_source}
 
 

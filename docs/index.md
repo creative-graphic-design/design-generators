@@ -7,6 +7,10 @@ tags:
 
 # design-generators
 
+<p align="center">
+  <img src="assets/teaser.svg" alt="Creative Graphic Design Generators teaser" width="100%">
+</p>
+
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Highlights
