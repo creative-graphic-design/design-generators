@@ -109,6 +109,18 @@ def publish(*, token: str, revision: str) -> None:
     if not source_assets_before:
         raise RuntimeError("the existing Hub repository has no source-assets files")
 
+    def read_hub_file(filename: str, published_revision: str) -> bytes:
+        from huggingface_hub import hf_hub_download
+
+        downloaded_path = hf_hub_download(
+            repo_id=HUB_REPOSITORY_ID,
+            filename=filename,
+            repo_type="model",
+            revision=published_revision,
+            token=token,
+        )
+        return Path(downloaded_path).read_bytes()
+
     published_revision = hub_publishing.upload_and_verify(
         api,
         repo_id=HUB_REPOSITORY_ID,
@@ -117,6 +129,7 @@ def publish(*, token: str, revision: str) -> None:
         parent_commit=parent_commit,
         commit_message=f"Publish Collage Diffusion pipeline at {revision[:12]}",
         staging_prefix="collage-hub-publish-",
+        read_file=read_hub_file,
     )
     source_assets_after = _source_asset_files(api, revision=published_revision)
     if source_assets_after != source_assets_before:

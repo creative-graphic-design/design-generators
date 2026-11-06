@@ -79,6 +79,19 @@ def publish(*, token: str, revision: str) -> None:
     api = HfApi(token=token)
     hub_publishing.verify_hub_write_access(api, repo_id=HUB_REPOSITORY_ID)
     parent_commit = hub_publishing.get_parent_commit(api, repo_id=HUB_REPOSITORY_ID)
+
+    def read_hub_file(filename: str, published_revision: str) -> bytes:
+        from huggingface_hub import hf_hub_download
+
+        downloaded_path = hf_hub_download(
+            repo_id=HUB_REPOSITORY_ID,
+            filename=filename,
+            repo_type="model",
+            revision=published_revision,
+            token=token,
+        )
+        return Path(downloaded_path).read_bytes()
+
     published_revision = hub_publishing.upload_and_verify(
         api,
         repo_id=HUB_REPOSITORY_ID,
@@ -87,6 +100,7 @@ def publish(*, token: str, revision: str) -> None:
         parent_commit=parent_commit,
         commit_message=f"Publish Structure Diffusion pipeline at {revision[:12]}",
         staging_prefix="structure-diffusion-hub-publish-",
+        read_file=read_hub_file,
     )
 
     print(

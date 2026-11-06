@@ -132,13 +132,10 @@ def test_parent_commit_requires_a_hub_main_sha() -> None:
         )
 
 
-def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
+def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes() -> None:
     upload_arguments: dict[str, object] = {}
     uploaded_files: dict[str, bytes] = {}
-    download_files: dict[str, Path] = {}
+    readback_files: list[str] = []
 
     class ScopedTokenApi:
         token = "fine-grained-token"
@@ -163,30 +160,10 @@ def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes(
             assert revision == PUBLISHED_COMMIT
             return list(uploaded_files)
 
-    def hf_hub_download(
-        *,
-        repo_id: str,
-        filename: str,
-        repo_type: str,
-        revision: str,
-        token: str,
-    ) -> str:
-        assert repo_id == REPOSITORY_ID
-        assert repo_type == "model"
+    def read_hub_file(filename: str, revision: str) -> bytes:
         assert revision == PUBLISHED_COMMIT
-        assert token == "fine-grained-token"
-        download_path = download_files.setdefault(
-            filename,
-            tmp_path / filename,
-        )
-        download_path.write_bytes(uploaded_files[filename])
-        return str(download_path)
-
-    monkeypatch.setitem(
-        sys.modules,
-        "huggingface_hub",
-        SimpleNamespace(hf_hub_download=hf_hub_download),
-    )
+        readback_files.append(filename)
+        return uploaded_files[filename]
 
     published_commit = hub_publishing.upload_and_verify(
         ScopedTokenApi(),
@@ -196,6 +173,7 @@ def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes(
         parent_commit=PARENT_COMMIT,
         commit_message="Publish Structure Diffusion pipeline",
         staging_prefix="structure-diffusion-hub-publish-",
+        read_file=read_hub_file,
     )
 
     assert published_commit == PUBLISHED_COMMIT
@@ -203,3 +181,30 @@ def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes(
     assert upload_arguments["parent_commit"] == PARENT_COMMIT
     assert upload_arguments["allow_patterns"] == list(ALLOW_PATTERNS)
     assert uploaded_files == FILES
+    assert readback_files == list(FILES)
+
+
+def test_uploaded_file_readback_rejects_different_bytes() -> None:
+    class UploadedFilesApi:
+        def list_repo_files(
+            self,
+            repo_id: str,
+            *,
+            repo_type: str,
+            revision: str,
+        ) -> list[str]:
+            assert repo_id == REPOSITORY_ID
+            assert repo_type == "model"
+            assert revision == PUBLISHED_COMMIT
+            return list(FILES)
+
+    with pytest.raises(
+        RuntimeError, match="read-back differs from the staged README.md"
+    ):
+        hub_publishing.verify_uploaded_files(
+            UploadedFilesApi(),
+            REPOSITORY_ID,
+            FILES,
+            revision=PUBLISHED_COMMIT,
+            read_file=lambda filename, revision: b"different bytes",
+        )

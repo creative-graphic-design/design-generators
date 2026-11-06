@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import SimpleNamespace
@@ -218,6 +219,7 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
         parent_commit: str,
         commit_message: str,
         staging_prefix: str,
+        read_file: Callable[[str, str], bytes],
     ) -> str:
         upload_arguments.update(
             {
@@ -227,6 +229,7 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
                 "parent_commit": parent_commit,
                 "commit_message": commit_message,
                 "staging_prefix": staging_prefix,
+                "read_file": read_file,
             }
         )
         return uploaded_commit
@@ -241,6 +244,7 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
 
     assert upload_arguments["parent_commit"] == parent_commit
     assert upload_arguments["allow_patterns"] == PUBLISHER.UPLOAD_ALLOW_PATTERNS
+    assert callable(upload_arguments["read_file"])
     assert source_asset_revisions == [parent_commit, uploaded_commit]
 
 

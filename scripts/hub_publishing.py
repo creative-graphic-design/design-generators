@@ -2,13 +2,56 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Literal, Protocol
 
-if TYPE_CHECKING:
-    from huggingface_hub import HfApi
+
+class HubModelInfo(Protocol):
+    """Fields needed from a Hugging Face model repository revision."""
+
+    sha: str | None
+
+
+class HubCommitInfo(Protocol):
+    """Fields needed from a Hugging Face upload commit."""
+
+    oid: str
+
+
+class HubApi(Protocol):
+    """Hugging Face API operations used by the shared publisher."""
+
+    def auth_check(
+        self,
+        *,
+        repo_id: str,
+        repo_type: Literal["model"],
+        write: bool,
+    ) -> None: ...
+
+    def model_info(self, repo_id: str, *, revision: str) -> HubModelInfo: ...
+
+    def list_repo_files(
+        self,
+        repo_id: str,
+        *,
+        repo_type: Literal["model"],
+        revision: str,
+    ) -> list[str]: ...
+
+    def upload_folder(
+        self,
+        *,
+        repo_id: str,
+        repo_type: Literal["model"],
+        folder_path: str,
+        allow_patterns: list[str],
+        commit_message: str,
+        parent_commit: str,
+    ) -> HubCommitInfo: ...
 
 
 def verify_source_revision(repository_root: Path, revision: str) -> None:
@@ -27,7 +70,7 @@ def verify_source_revision(repository_root: Path, revision: str) -> None:
         )
 
 
-def verify_hub_write_access(api: HfApi, *, repo_id: str) -> None:
+def verify_hub_write_access(api: HubApi, *, repo_id: str) -> None:
     """Fail before reading or uploading Hub content when the token lacks write access."""
     try:
         api.auth_check(repo_id=repo_id, repo_type="model", write=True)
@@ -38,7 +81,7 @@ def verify_hub_write_access(api: HfApi, *, repo_id: str) -> None:
         ) from error
 
 
-def get_parent_commit(api: HfApi, *, repo_id: str) -> str:
+def get_parent_commit(api: HubApi, *, repo_id: str) -> str:
     """Read the current Hub main revision to use as the upload parent."""
     parent_commit = api.model_info(repo_id, revision="main").sha
     if parent_commit is None:
@@ -70,15 +113,14 @@ def write_upload_staging(
 
 
 def verify_uploaded_files(
-    api: HfApi,
+    api: HubApi,
     repo_id: str,
     files: dict[str, bytes],
     *,
     revision: str,
+    read_file: Callable[[str, str], bytes],
 ) -> None:
     """Read each uploaded file from the Hub and compare its exact bytes."""
-    from huggingface_hub import hf_hub_download
-
     repository_files = set(
         api.list_repo_files(repo_id, repo_type="model", revision=revision)
     )
@@ -87,20 +129,13 @@ def verify_uploaded_files(
         raise RuntimeError(f"Hub publication is missing files: {sorted(missing_files)}")
 
     for filename, expected_data in files.items():
-        downloaded_path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            repo_type="model",
-            revision=revision,
-            token=api.token,
-        )
-        downloaded_data = Path(downloaded_path).read_bytes()
+        downloaded_data = read_file(filename, revision)
         if downloaded_data != expected_data:
             raise RuntimeError(f"Hub read-back differs from the staged {filename}")
 
 
 def upload_and_verify(
-    api: HfApi,
+    api: HubApi,
     *,
     repo_id: str,
     files: dict[str, bytes],
@@ -108,6 +143,7 @@ def upload_and_verify(
     parent_commit: str,
     commit_message: str,
     staging_prefix: str,
+    read_file: Callable[[str, str], bytes],
 ) -> str:
     """Upload the exact allowlisted files on a known parent and verify their bytes."""
     with tempfile.TemporaryDirectory(prefix=staging_prefix) as temp_directory:
@@ -132,5 +168,6 @@ def upload_and_verify(
         repo_id,
         files,
         revision=published_revision,
+        read_file=read_file,
     )
     return published_revision
