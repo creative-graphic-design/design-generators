@@ -6,12 +6,17 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import tempfile
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from huggingface_hub import HfApi
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from scripts import hub_publishing  # noqa: E402
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PIPELINE_SOURCE = (
@@ -91,106 +96,27 @@ def _source_asset_files(api: HfApi, *, revision: str) -> set[str]:
     }
 
 
-def verify_hub_write_access(api: HfApi) -> None:
-    """Fail before upload when the token cannot write to this model repository."""
-    try:
-        api.auth_check(
-            repo_id=HUB_REPOSITORY_ID,
-            repo_type="model",
-            write=True,
-        )
-    except Exception as error:
-        raise RuntimeError(
-            f"Could not verify HF_TOKEN content-write access to {HUB_REPOSITORY_ID}. "
-            "Add this repository to the Hugging Face fine-grained token with write permission."
-        ) from error
-
-
-def _verify_uploaded_files(
-    api: HfApi,
-    files: dict[str, bytes],
-    *,
-    revision: str,
-) -> None:
-    from huggingface_hub import hf_hub_download
-
-    repository_files = set(
-        api.list_repo_files(
-            HUB_REPOSITORY_ID,
-            repo_type="model",
-            revision=revision,
-        )
-    )
-    missing_files = set(files) - repository_files
-    if missing_files:
-        raise RuntimeError(f"Hub publication is missing files: {sorted(missing_files)}")
-
-    for filename, expected_data in files.items():
-        downloaded_path = hf_hub_download(
-            repo_id=HUB_REPOSITORY_ID,
-            filename=filename,
-            repo_type="model",
-            revision=revision,
-            token=api.token,
-        )
-        downloaded_data = Path(downloaded_path).read_bytes()
-        if downloaded_data != expected_data:
-            raise RuntimeError(f"Hub read-back differs from the staged {filename}")
-
-
-def write_upload_staging(staging_directory: Path, files: dict[str, bytes]) -> None:
-    """Write only the two explicitly allowed files into an empty staging directory."""
-    if set(files) != set(UPLOAD_ALLOW_PATTERNS):
-        raise ValueError(
-            "Hub staging input must contain only README.md and pipeline.py"
-        )
-
-    if any(staging_directory.iterdir()):
-        raise ValueError("Hub staging directory must be empty")
-
-    for filename, contents in files.items():
-        (staging_directory / filename).write_bytes(contents)
-
-    staged_files = {path.name for path in staging_directory.iterdir()}
-    if staged_files != set(UPLOAD_ALLOW_PATTERNS):
-        raise RuntimeError(f"unexpected files in Hub staging directory: {staged_files}")
-
-
 def publish(*, token: str, revision: str) -> None:
     """Upload the two declared files and verify them without touching other paths."""
     from huggingface_hub import HfApi
 
     files = _read_source_files(revision)
     api = HfApi(token=token)
-    verify_hub_write_access(api)
-    parent_commit = api.model_info(HUB_REPOSITORY_ID, revision="main").sha
-    if parent_commit is None:
-        raise RuntimeError(
-            f"Hub repository {HUB_REPOSITORY_ID} main revision has no commit SHA"
-        )
+    hub_publishing.verify_hub_write_access(api, repo_id=HUB_REPOSITORY_ID)
+    parent_commit = hub_publishing.get_parent_commit(api, repo_id=HUB_REPOSITORY_ID)
 
     source_assets_before = _source_asset_files(api, revision=parent_commit)
     if not source_assets_before:
         raise RuntimeError("the existing Hub repository has no source-assets files")
 
-    with tempfile.TemporaryDirectory(prefix="collage-hub-publish-") as temp_directory:
-        staging_directory = Path(temp_directory)
-        write_upload_staging(staging_directory, files)
-
-        commit_info = api.upload_folder(
-            repo_id=HUB_REPOSITORY_ID,
-            repo_type="model",
-            folder_path=str(staging_directory),
-            allow_patterns=list(UPLOAD_ALLOW_PATTERNS),
-            commit_message=f"Publish Collage Diffusion pipeline at {revision[:12]}",
-            parent_commit=parent_commit,
-        )
-
-    published_revision = commit_info.oid
-    _verify_uploaded_files(
+    published_revision = hub_publishing.upload_and_verify(
         api,
-        files,
-        revision=published_revision,
+        repo_id=HUB_REPOSITORY_ID,
+        files=files,
+        allow_patterns=UPLOAD_ALLOW_PATTERNS,
+        parent_commit=parent_commit,
+        commit_message=f"Publish Collage Diffusion pipeline at {revision[:12]}",
+        staging_prefix="collage-hub-publish-",
     )
     source_assets_after = _source_asset_files(api, revision=published_revision)
     if source_assets_after != source_assets_before:
@@ -219,6 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.revision:
         parser.error("--revision or GITHUB_SHA is required")
+    if not ARCHIVE_REVISION_PATTERN.fullmatch(args.revision):
+        parser.error("--revision must be a full lowercase 40-character commit SHA")
+
+    hub_publishing.verify_source_revision(REPOSITORY_ROOT, args.revision)
 
     if args.dry_run:
         files = _read_source_files(args.revision)
@@ -227,9 +157,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Hub target: {HUB_REPOSITORY_ID}")
         print("Hub write: skipped (--dry-run)")
         return 0
-
-    if not ARCHIVE_REVISION_PATTERN.fullmatch(args.revision):
-        parser.error("--revision must be a full lowercase 40-character commit SHA")
 
     token = os.environ.get("HF_TOKEN", "")
     if not token:
