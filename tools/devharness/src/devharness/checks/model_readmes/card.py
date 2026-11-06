@@ -1290,6 +1290,7 @@ def _is_cpu_placement_call(call: ast.Call) -> bool:
                 continue
 
             return True
+
     return False
 
 
