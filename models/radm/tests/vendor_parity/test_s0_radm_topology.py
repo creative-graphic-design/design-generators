@@ -173,7 +173,7 @@ def _initialization_source(package_key: str) -> str:
 
 def test_s0_radm_topology() -> None:
     """Compare a real original graph with the package graph before step traces."""
-    adapter = RADMReferenceAdapter(vendor_root=Path("vendor/radm"), device="cpu")
+    adapter = RADMReferenceAdapter(vendor_root=Path("vendor") / "radm", device="cpu")
     state: ReferenceTrainingState | None = None
     try:
         state = adapter.build_initialized_state()
@@ -222,7 +222,7 @@ def test_s0_radm_topology() -> None:
 
 def test_s0_radm_init_scheme_matches_vendor() -> None:
     """Compare every mapped parameter's executed initialization scheme."""
-    adapter = RADMReferenceAdapter(vendor_root=Path("vendor/radm"), device="cpu")
+    adapter = RADMReferenceAdapter(vendor_root=Path("vendor") / "radm", device="cpu")
 
     def build() -> tuple[ReferenceTrainingState, RADMDenoiser]:
         state = adapter.build_initialized_state()

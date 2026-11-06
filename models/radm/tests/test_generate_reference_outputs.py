@@ -15,7 +15,9 @@ def test_reference_metadata_generator_accepts_documented_cache_paths(
 ) -> None:
     repository = Path(__file__).parents[3]
     script = runpy.run_path(
-        str(repository / "models/radm/scripts/generate_reference_outputs.py"),
+        str(
+            repository / "models" / "radm" / "scripts" / "generate_reference_outputs.py"
+        ),
         run_name="radm_reference_outputs_test",
     )
     dataset_root = tmp_path / ".cache" / "radm" / "data" / "cgl"

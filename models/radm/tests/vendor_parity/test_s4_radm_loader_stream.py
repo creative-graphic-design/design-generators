@@ -651,7 +651,12 @@ def _run_s4(*, include_full_training_stream: bool = True) -> dict[str, object]:
         ).strip(),
         "effective_config_sha256": hashlib.sha256(
             (
-                ROOT / "models/radm/configs/training/effective_radm_config.yaml"
+                ROOT
+                / "models"
+                / "radm"
+                / "configs"
+                / "training"
+                / "effective_radm_config.yaml"
             ).read_bytes()
         ).hexdigest(),
         "runtime": runtime,

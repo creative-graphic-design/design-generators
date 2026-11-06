@@ -31,7 +31,7 @@ from radm.training.dataset import RADMCOCODataset
 def _launcher() -> dict[str, object]:
     root = Path(__file__).parents[3]
     return runpy.run_path(
-        str(root / "models/radm/scripts/train_cgl_s5.py"),
+        str(root / "models" / "radm" / "scripts" / "train_cgl_s5.py"),
         run_name="radm_cgl_s5_test",
     )
 
@@ -262,7 +262,7 @@ def test_package_cgl_validation_only_selects_the_terminal_top_k_checkpoint(
 ) -> None:
     root = Path(__file__).parents[3]
     recipe = yaml.safe_load(
-        (root / "models/radm/configs/training/radm_cgl.yaml").read_text(
+        (root / "models" / "radm" / "configs" / "training" / "radm_cgl.yaml").read_text(
             encoding="utf-8"
         )
     )
@@ -340,7 +340,14 @@ def test_evaluator_reports_a_missing_terminal_checkpoint_clearly(
 ) -> None:
     root = Path(__file__).parents[3]
     evaluator = runpy.run_path(
-        str(root / "models/radm/tests/vendor_parity/evaluate_radm_checkpoint.py"),
+        str(
+            root
+            / "models"
+            / "radm"
+            / "tests"
+            / "vendor_parity"
+            / "evaluate_radm_checkpoint.py"
+        ),
         run_name="radm_evaluator_missing_checkpoint_test",
     )
     validate = cast(
@@ -482,7 +489,11 @@ def test_s5_launcher_writes_manifest_before_training(
                     yaml.safe_load(
                         (
                             Path(__file__).parents[3]
-                            / "models/radm/configs/training/radm_cgl.yaml"
+                            / "models"
+                            / "radm"
+                            / "configs"
+                            / "training"
+                            / "radm_cgl.yaml"
                         ).read_text(encoding="utf-8")
                     ),
                 )
@@ -509,7 +520,11 @@ def test_s5_launcher_writes_manifest_before_training(
             evaluator = runpy.run_path(
                 str(
                     repo_root
-                    / "models/radm/tests/vendor_parity/evaluate_radm_checkpoint.py"
+                    / "models"
+                    / "radm"
+                    / "tests"
+                    / "vendor_parity"
+                    / "evaluate_radm_checkpoint.py"
                 ),
                 run_name="radm_manifest_validation_test",
             )
