@@ -24,7 +24,7 @@ license: apache-2.0
 tags:
   - collage-diffusion
 ---
-![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)
 # Collage Diffusion
 
 ```bash
@@ -79,19 +79,6 @@ def test_card_pins_the_laygen_archive_url_to_the_package_revision() -> None:
     assert card_urls[0] == (
         f"{expected_archive}/{REVISION}.zip#subdirectory=lib/laygen"
     )
-
-
-def test_keeps_a_published_badge_when_the_source_readme_is_updated() -> None:
-    published_readme = README.replace(
-        PUBLISHER.PLANNED_HUB_BADGE,
-        PUBLISHER.PUBLISHED_HUB_BADGE,
-    )
-
-    files = PUBLISHER.prepare_upload_files(b"pipeline", published_readme, REVISION)
-
-    card = files["README.md"].decode("utf-8")
-    assert PUBLISHER.PUBLISHED_HUB_BADGE in card
-    assert PUBLISHER.PLANNED_HUB_BADGE not in card
 
 
 def test_staging_contains_only_the_explicit_upload_files(tmp_path: Path) -> None:

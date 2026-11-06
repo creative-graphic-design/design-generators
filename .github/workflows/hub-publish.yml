@@ -31,6 +31,7 @@ jobs:
       - name: Select changed model packages with publisher scripts
         id: select
         env:
+          PYTHONPATH: tools/devharness/src
           BASE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
         run: |
@@ -72,6 +73,7 @@ jobs:
       - name: Skip publication when main has a newer package change
         id: freshness
         env:
+          PYTHONPATH: tools/devharness/src
           PACKAGE_DIRECTORY: ${{ matrix.directory }}
           EVENT_SHA: ${{ github.sha }}
         run: |

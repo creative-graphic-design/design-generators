@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from devharness.hub_publishers import (
+    HUB_BADGE_COLORS,
+    assert_hub_badge_matches_publisher,
+    discover_publishers,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BADGE_RE = re.compile(
@@ -405,6 +410,9 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
             return "lightgrey"
 
     if label == "hub":
+        if message in HUB_BADGE_COLORS:
+            return HUB_BADGE_COLORS[message]
+
         return "lightgrey" if message == "n/a" else "orange"
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
 
@@ -582,6 +590,23 @@ def _assert_badge_links() -> None:
                 )
 
 
+def _assert_hub_badge_status() -> None:
+    publisher_directories = {
+        publisher.directory.name for publisher in discover_publishers(REPO_ROOT)
+    }
+    for path in sorted((REPO_ROOT / "models").glob("*/README.md")):
+        messages = [
+            badge.message
+            for badge in _iter_badges(path)
+            if badge.label == "hub" and badge.message is not None
+        ]
+        assert_hub_badge_matches_publisher(
+            path.parent.name,
+            messages,
+            publisher_directories,
+        )
+
+
 def _assert_prefix(path: Path, expected: list[str]) -> None:
     labels = _badge_labels(path)
     if labels[: len(expected)] != expected:
@@ -625,6 +650,7 @@ def check() -> None:
     _assert_prefix(REPO_ROOT / "lib" / "posgen" / "README.md", POSGEN_ORDER)
     for path in sorted((REPO_ROOT / "models").glob("*/README.md")):
         _assert_model_order(path)
+    _assert_hub_badge_status()
     _assert_badge_links()
 
 
