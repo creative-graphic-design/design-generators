@@ -18,7 +18,8 @@ sys.modules[LOADER.name] = PUBLISHER
 LOADER.exec_module(PUBLISHER)
 
 REVISION = "a" * 40
-ARCHIVE_URL = "https://github.com/creative-graphic-design/design-generators/archive"
+REPOSITORY_URL = "https://github.com/creative-graphic-design/design-generators"
+ARCHIVE_URL = f"{REPOSITORY_URL}/archive"
 
 
 def prepare_source_files() -> dict[str, bytes]:
