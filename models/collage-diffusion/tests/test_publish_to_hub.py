@@ -161,6 +161,7 @@ def test_publish_uses_parent_commit_and_calls_hub_readback(
     readback_path.write_bytes(readback_bytes)
     download_arguments: list[dict[str, str]] = []
     upload_arguments: dict[str, object] = {}
+    hub_upload_arguments: dict[str, object] = {}
     source_asset_revisions: list[str] = []
 
     class ScopedTokenApi:
@@ -182,7 +183,7 @@ def test_publish_uses_parent_commit_and_calls_hub_readback(
             return SimpleNamespace(sha=parent_commit)
 
         def upload_folder(self, **kwargs: object) -> SimpleNamespace:
-            upload_arguments.update(kwargs)
+            hub_upload_arguments.update(kwargs)
             return SimpleNamespace(oid=uploaded_commit)
 
     def hf_hub_download(
@@ -233,6 +234,10 @@ def test_publish_uses_parent_commit_and_calls_hub_readback(
         parent_commit: str,
         commit_message: str,
         staging_prefix: str,
+        upload_folder: Callable[
+            [PUBLISHER.hub_publishing.HubUploadRequest],
+            PUBLISHER.hub_publishing.HubCommitInfo,
+        ],
         read_file: Callable[[str, str], bytes],
     ) -> str:
         upload_arguments.update(
@@ -245,6 +250,15 @@ def test_publish_uses_parent_commit_and_calls_hub_readback(
                 "staging_prefix": staging_prefix,
                 "read_file": read_file,
             }
+        )
+        upload_folder(
+            PUBLISHER.hub_publishing.HubUploadRequest(
+                repo_id=repo_id,
+                folder_path=str(tmp_path),
+                allow_patterns=allow_patterns,
+                commit_message=commit_message,
+                parent_commit=parent_commit,
+            )
         )
         upload_arguments["readback_bytes"] = read_file("README.md", uploaded_commit)
         return uploaded_commit
@@ -260,6 +274,15 @@ def test_publish_uses_parent_commit_and_calls_hub_readback(
     assert upload_arguments["parent_commit"] == parent_commit
     assert upload_arguments["allow_patterns"] == PUBLISHER.UPLOAD_ALLOW_PATTERNS
     assert upload_arguments["readback_bytes"] == readback_bytes
+    assert hub_upload_arguments == {
+        "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+        "repo_type": "model",
+        "folder_path": str(tmp_path),
+        "allow_patterns": list(PUBLISHER.UPLOAD_ALLOW_PATTERNS),
+        "commit_message": "Publish Collage Diffusion pipeline at aaaaaaaaaaaa",
+        "parent_commit": parent_commit,
+        "run_as_future": False,
+    }
     assert download_arguments == [
         {
             "repo_id": PUBLISHER.HUB_REPOSITORY_ID,

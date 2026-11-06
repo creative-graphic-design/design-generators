@@ -160,26 +160,46 @@ def test_upload_uses_parent_commit_allowlist_and_reads_back_bytes() -> None:
             assert revision == PUBLISHED_COMMIT
             return list(uploaded_files)
 
+    api = ScopedTokenApi()
+
+    def upload_staging_directory(
+        request: hub_publishing.HubUploadRequest,
+    ) -> hub_publishing.HubCommitInfo:
+        return api.upload_folder(
+            repo_id=request.repo_id,
+            repo_type="model",
+            folder_path=request.folder_path,
+            allow_patterns=list(request.allow_patterns),
+            commit_message=request.commit_message,
+            parent_commit=request.parent_commit,
+            run_as_future=False,
+        )
+
     def read_hub_file(filename: str, revision: str) -> bytes:
         assert revision == PUBLISHED_COMMIT
         readback_files.append(filename)
         return uploaded_files[filename]
 
     published_commit = hub_publishing.upload_and_verify(
-        ScopedTokenApi(),
+        api,
         repo_id=REPOSITORY_ID,
         files=FILES,
         allow_patterns=ALLOW_PATTERNS,
         parent_commit=PARENT_COMMIT,
         commit_message="Publish Structure Diffusion pipeline",
         staging_prefix="structure-diffusion-hub-publish-",
+        upload_folder=upload_staging_directory,
         read_file=read_hub_file,
     )
 
     assert published_commit == PUBLISHED_COMMIT
     assert upload_arguments["repo_id"] == REPOSITORY_ID
+    assert upload_arguments["repo_type"] == "model"
+    assert upload_arguments["folder_path"]
+    assert upload_arguments["commit_message"] == "Publish Structure Diffusion pipeline"
     assert upload_arguments["parent_commit"] == PARENT_COMMIT
     assert upload_arguments["allow_patterns"] == list(ALLOW_PATTERNS)
+    assert upload_arguments["run_as_future"] is False
     assert uploaded_files == FILES
     assert readback_files == list(FILES)
 

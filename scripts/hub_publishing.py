@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 import subprocess
 import tempfile
 from pathlib import Path
@@ -42,16 +43,16 @@ class HubApi(Protocol):
         revision: str,
     ) -> list[str]: ...
 
-    def upload_folder(
-        self,
-        *,
-        repo_id: str,
-        repo_type: Literal["model"],
-        folder_path: str,
-        allow_patterns: list[str],
-        commit_message: str,
-        parent_commit: str,
-    ) -> HubCommitInfo: ...
+
+@dataclass(frozen=True)
+class HubUploadRequest:
+    """Exact Hub folder-upload inputs passed to the client adapter."""
+
+    repo_id: str
+    folder_path: str
+    allow_patterns: tuple[str, ...]
+    commit_message: str
+    parent_commit: str
 
 
 def verify_source_revision(repository_root: Path, revision: str) -> None:
@@ -143,6 +144,7 @@ def upload_and_verify(
     parent_commit: str,
     commit_message: str,
     staging_prefix: str,
+    upload_folder: Callable[[HubUploadRequest], HubCommitInfo],
     read_file: Callable[[str, str], bytes],
 ) -> str:
     """Upload the exact allowlisted files on a known parent and verify their bytes."""
@@ -153,13 +155,14 @@ def upload_and_verify(
             files,
             allow_patterns=allow_patterns,
         )
-        commit_info = api.upload_folder(
-            repo_id=repo_id,
-            repo_type="model",
-            folder_path=str(staging_directory),
-            allow_patterns=list(allow_patterns),
-            commit_message=commit_message,
-            parent_commit=parent_commit,
+        commit_info = upload_folder(
+            HubUploadRequest(
+                repo_id=repo_id,
+                folder_path=str(staging_directory),
+                allow_patterns=allow_patterns,
+                commit_message=commit_message,
+                parent_commit=parent_commit,
+            )
         )
 
     published_revision = commit_info.oid

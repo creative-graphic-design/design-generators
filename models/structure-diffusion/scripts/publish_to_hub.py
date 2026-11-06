@@ -92,6 +92,19 @@ def publish(*, token: str, revision: str) -> None:
         )
         return Path(downloaded_path).read_bytes()
 
+    def upload_staging_directory(
+        request: hub_publishing.HubUploadRequest,
+    ) -> hub_publishing.HubCommitInfo:
+        return api.upload_folder(
+            repo_id=request.repo_id,
+            repo_type="model",
+            folder_path=request.folder_path,
+            allow_patterns=list(request.allow_patterns),
+            commit_message=request.commit_message,
+            parent_commit=request.parent_commit,
+            run_as_future=False,
+        )
+
     published_revision = hub_publishing.upload_and_verify(
         api,
         repo_id=HUB_REPOSITORY_ID,
@@ -100,6 +113,7 @@ def publish(*, token: str, revision: str) -> None:
         parent_commit=parent_commit,
         commit_message=f"Publish Structure Diffusion pipeline at {revision[:12]}",
         staging_prefix="structure-diffusion-hub-publish-",
+        upload_folder=upload_staging_directory,
         read_file=read_hub_file,
     )
 
