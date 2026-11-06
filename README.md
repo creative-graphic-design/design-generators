@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/teaser.svg" alt="Creative Graphic Design Generators teaser" width="100%">
+  <img src="docs/assets/teaser.svg" alt="Creative Graphic Design Generators teaser" width="100%">
 </p>
 
 # design-generators
