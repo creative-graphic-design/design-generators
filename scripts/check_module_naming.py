@@ -58,6 +58,7 @@ ALLOWLIST_CATEGORIES = {
         "labels.py",
         "masking.py",
         "relation_schema.py",
+        "relation_restriction.py",
         "retrieval.py",
         "sampling.py",
         "serialization.py",
