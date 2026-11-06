@@ -138,7 +138,8 @@
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - The Lint job runs `uv lock --check`; its pre-commit step uses `SKIP=uv-lock,pytest-models,vulture,ty,duplicate-code`.
-- The `Duplicate Code` job uses root-tooling dependencies and runs on merge queue, main pushes, manual dispatches, and the daily schedule.
+- The `Duplicate Code` job uses root-tooling dependencies to compare changed Python files with `origin/main` on merge queue and manual dispatches targeting non-main branches.
+- Main pushes, scheduled runs, and manual dispatches targeting `main` have no changed targets, so `Duplicate Code` skips them. `Dead Code` continues full-repository scans on those events.
 - Pull requests and merge queue entries run `ty`, root tests, generated API pages, strict Zensical, and selected member tests.
 - Member tests follow declared workspace dependencies, optional dependencies, and dependency groups; every non-Markdown change also selects `devharness`.
 - Non-Markdown changes outside member directories select all members with tests; non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.

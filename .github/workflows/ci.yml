@@ -157,10 +157,11 @@ jobs:
         env:
           # The lock check already ran as a separate step above.
           #
-          # duplicate-code takes about 10 minutes in PR Lint and runs as its
-          # own job on merge queue, main pushes, manual dispatches, and schedules.
+          # duplicate-code takes about 10 minutes in PR Lint and runs on merge
+          # queue or manual dispatches from non-main branches.
           # pytest-models duplicates the coverage-enforcing member matrix, and
-          # vulture runs in the dedicated Dead Code job on those events.
+          # vulture runs in Dead Code on merge queue, main pushes, manual
+          # dispatches, and scheduled runs.
           SKIP: uv-lock,pytest-models,vulture,ty,duplicate-code
         run: uv run --locked pre-commit run --all-files
 
@@ -192,7 +193,7 @@ jobs:
 
   duplicate-code:
     name: Duplicate Code
-    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: github.event_name == 'merge_group' || (github.event_name == 'workflow_dispatch' && github.ref_type == 'branch' && github.ref != 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -483,7 +484,6 @@ jobs:
       - changes
       - lint
       - dead-code
-      - duplicate-code
       - typecheck
       - discover-test-members
       - test-root-tooling
