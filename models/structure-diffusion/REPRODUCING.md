@@ -38,7 +38,7 @@ The default comparison uses the constituency parser. Scene-graph parser installa
 
 ## 3. Run repository and package checks
 
-The repository pre-commit command skips the lockfile writer, aggregate member tests, and Vulture, which CI runs in separate jobs. The member test command enforces the package's 90% coverage floor.
+The repository pre-commit command skips the lockfile writer, aggregate member tests, and Vulture; its duplicate-code hook remains available to run locally. CI runs Vulture in the separate Dead Code job and duplicate-code in the separate Duplicate Code job on merge queue and manual dispatches from non-main branches. Duplicate Code compares changed Python files with `origin/main`. Main pushes, scheduled runs, and dispatches to `main` have no targets. Dead Code continues full-repository checks on those events. The member test command enforces the package's 90% coverage floor.
 
 ```bash
 SKIP=uv-lock,pytest-models,vulture .venv/bin/pre-commit run --all-files
