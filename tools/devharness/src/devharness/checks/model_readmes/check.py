@@ -11,6 +11,10 @@ from devharness.baselines import (
     read_entry_baseline,
     write_entry_baseline,
 )
+from devharness.hub_publishers import (
+    assert_hub_badge_matches_publisher,
+    discover_publishers,
+)
 
 from . import card, citation, install, parity, reproducing, root_readme
 from .card import model_member_count
@@ -62,6 +66,9 @@ def assert_model_readme_usage_baseline() -> None:
 
 def check() -> None:
     """Run every model README policy check in scan order."""
+    publisher_directories = {
+        publisher.directory.name for publisher in discover_publishers(REPO_ROOT)
+    }
     root_readme.assert_model_doc_sets()
 
     root_readme.assert_root_model_badge_count(
@@ -91,6 +98,11 @@ def check() -> None:
 
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
+        assert_hub_badge_matches_publisher(
+            path.parent.name,
+            card.badge_messages(text, "hub"),
+            publisher_directories,
+        )
         card.assert_frontmatter(path, text)
         card.assert_expected_frontmatter(path, text)
         card.assert_runtime_contract(path, text)

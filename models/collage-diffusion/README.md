@@ -23,7 +23,7 @@ base_model: "sd2-community/stable-diffusion-2-1-base"
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=image-to-image&color=purple&style=flat-square)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=planned-code-only&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)
 
 This package exposes Collage Diffusion as a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline that harmonizes text-described RGBA layers into a single image.
 
