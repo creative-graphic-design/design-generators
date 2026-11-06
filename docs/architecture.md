@@ -47,6 +47,8 @@ A member-scoped environment installs one selected workspace package with `uv syn
 
 A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the root `evaluation` extra when they run `scripts/verify_evaluate_layout_metrics.py`. The root project installs no runtime dependencies by default; it owns the workspace-wide `transformers` and `diffusers` version floors and the `dev` and `docs` tooling groups, while workspace members own their runtime dependencies.
 
+The `Duplicate Code` CI job uses the root-tooling environment to run Pylint and `devharness`. `devharness` is stdlib-only; the job scans Python files in `lib/`, `models/`, `scripts/`, and `tools/` without installing every workspace member.
+
 | Surface                  | Owner                                    | Consumer or contract                                                                                      | Why root owns it                                                                                                        |
 | ------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Workspace version policy | Root `[tool.uv].constraint-dependencies` | `transformers>=5.0.0` and `diffusers>=0.36.0`; members declare what they install and satisfy these ranges | The root coordinates workspace-wide `transformers` and `diffusers` versions without installing runtime packages itself. |

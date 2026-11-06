@@ -30,8 +30,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         if: github.event_name == 'pull_request'
@@ -62,6 +60,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
+          # The checker compares changed files with origin/main.
           fetch-depth: 0
 
       - name: Set up Python
@@ -155,10 +154,11 @@ jobs:
         env:
           # The lock check already ran as a separate step above.
           #
+          # duplicate-code takes about 10 minutes in PR Lint and runs as its
+          # own job on merge queue, main pushes, manual dispatches, and schedules.
           # pytest-models duplicates the coverage-enforcing member matrix, and
-          # vulture runs as the dedicated Dead Code job below on merge queue,
-          # main pushes, manual dispatches, and scheduled runs.
-          SKIP: uv-lock,pytest-models,vulture,ty
+          # vulture runs in the dedicated Dead Code job on those events.
+          SKIP: uv-lock,pytest-models,vulture,ty,duplicate-code
         run: uv run --locked pre-commit run --all-files
 
   dead-code:
@@ -186,6 +186,35 @@ jobs:
 
       - name: Run vulture
         run: uv run --locked --package design-generators vulture
+
+  duplicate-code:
+    name: Duplicate Code
+    if: github.event_name == 'merge_group' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # The checker compares changed files with origin/main.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install root tooling dependencies
+        run: uv sync --package design-generators --group dev --locked
+
+      - name: Run duplicate-code check
+        run: uv run --locked --package design-generators scripts/check_duplicate_code.py
 
   typecheck:
     name: Typecheck
@@ -451,6 +480,7 @@ jobs:
       - changes
       - lint
       - dead-code
+      - duplicate-code
       - typecheck
       - discover-test-members
       - test-root-tooling
