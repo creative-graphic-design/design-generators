@@ -3,8 +3,10 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -98,6 +100,113 @@ def test_card_generation_requires_a_full_commit_sha() -> None:
             readme_text=PUBLISHER.README_SOURCE.read_text(encoding="utf-8"),
             revision="main",
         )
+
+
+def test_publish_calls_hub_readback_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    parent_commit = "b" * 40
+    uploaded_commit = "c" * 40
+    readback_bytes = b"read back from the Hub"
+    readback_path = tmp_path / "readback.bin"
+    readback_path.write_bytes(readback_bytes)
+    download_arguments: list[dict[str, str]] = []
+    upload_arguments: dict[str, object] = {}
+
+    class ScopedTokenApi:
+        def __init__(self, *, token: str) -> None:
+            assert token == "fine-grained-token"
+
+        def auth_check(self, **kwargs: str | bool) -> None:
+            assert kwargs == {
+                "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+                "repo_type": "model",
+                "write": True,
+            }
+
+        def model_info(self, repo_id: str, *, revision: str) -> SimpleNamespace:
+            assert repo_id == PUBLISHER.HUB_REPOSITORY_ID
+            assert revision == "main"
+            return SimpleNamespace(sha=parent_commit)
+
+    def hf_hub_download(
+        *,
+        repo_id: str,
+        filename: str,
+        repo_type: str,
+        revision: str,
+        token: str,
+    ) -> str:
+        download_arguments.append(
+            {
+                "repo_id": repo_id,
+                "filename": filename,
+                "repo_type": repo_type,
+                "revision": revision,
+                "token": token,
+            }
+        )
+        return str(readback_path)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        SimpleNamespace(
+            HfApi=ScopedTokenApi,
+            hf_hub_download=hf_hub_download,
+        ),
+    )
+    monkeypatch.setattr(
+        PUBLISHER,
+        "_read_source_files",
+        lambda revision: {"README.md": b"card", "pipeline.py": b"pipeline"},
+    )
+
+    def upload_and_verify(
+        api: object,
+        *,
+        repo_id: str,
+        files: dict[str, bytes],
+        allow_patterns: tuple[str, ...],
+        parent_commit: str,
+        commit_message: str,
+        staging_prefix: str,
+        read_file: Callable[[str, str], bytes],
+    ) -> str:
+        upload_arguments.update(
+            {
+                "repo_id": repo_id,
+                "files": files,
+                "allow_patterns": allow_patterns,
+                "parent_commit": parent_commit,
+                "commit_message": commit_message,
+                "staging_prefix": staging_prefix,
+                "readback_bytes": read_file("README.md", uploaded_commit),
+            }
+        )
+        return uploaded_commit
+
+    monkeypatch.setattr(
+        PUBLISHER.hub_publishing,
+        "upload_and_verify",
+        upload_and_verify,
+    )
+
+    PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
+
+    assert upload_arguments["repo_id"] == PUBLISHER.HUB_REPOSITORY_ID
+    assert upload_arguments["parent_commit"] == parent_commit
+    assert upload_arguments["readback_bytes"] == readback_bytes
+    assert download_arguments == [
+        {
+            "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+            "filename": "README.md",
+            "repo_type": "model",
+            "revision": uploaded_commit,
+            "token": "fine-grained-token",
+        }
+    ]
 
 
 def test_dry_run_lists_exact_hub_files_without_publishing(

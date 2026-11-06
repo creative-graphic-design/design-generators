@@ -150,11 +150,16 @@ def test_publish_stops_before_upload_when_token_is_not_scoped_for_write(
         PUBLISHER.publish(token="fine-grained-token", revision=REVISION)
 
 
-def test_publish_uses_the_hub_main_commit_as_upload_parent(
+def test_publish_uses_parent_commit_and_calls_hub_readback(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     parent_commit = "b" * 40
     uploaded_commit = "c" * 40
+    readback_bytes = b"read back from the Hub"
+    readback_path = tmp_path / "readback.bin"
+    readback_path.write_bytes(readback_bytes)
+    download_arguments: list[dict[str, str]] = []
     upload_arguments: dict[str, object] = {}
     source_asset_revisions: list[str] = []
 
@@ -180,10 +185,32 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
             upload_arguments.update(kwargs)
             return SimpleNamespace(oid=uploaded_commit)
 
+    def hf_hub_download(
+        *,
+        repo_id: str,
+        filename: str,
+        repo_type: str,
+        revision: str,
+        token: str,
+    ) -> str:
+        download_arguments.append(
+            {
+                "repo_id": repo_id,
+                "filename": filename,
+                "repo_type": repo_type,
+                "revision": revision,
+                "token": token,
+            }
+        )
+        return str(readback_path)
+
     monkeypatch.setitem(
         sys.modules,
         "huggingface_hub",
-        SimpleNamespace(HfApi=ScopedTokenApi),
+        SimpleNamespace(
+            HfApi=ScopedTokenApi,
+            hf_hub_download=hf_hub_download,
+        ),
     )
     monkeypatch.setattr(
         PUBLISHER,
@@ -219,6 +246,7 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
                 "read_file": read_file,
             }
         )
+        upload_arguments["readback_bytes"] = read_file("README.md", uploaded_commit)
         return uploaded_commit
 
     monkeypatch.setattr(
@@ -231,7 +259,16 @@ def test_publish_uses_the_hub_main_commit_as_upload_parent(
 
     assert upload_arguments["parent_commit"] == parent_commit
     assert upload_arguments["allow_patterns"] == PUBLISHER.UPLOAD_ALLOW_PATTERNS
-    assert callable(upload_arguments["read_file"])
+    assert upload_arguments["readback_bytes"] == readback_bytes
+    assert download_arguments == [
+        {
+            "repo_id": PUBLISHER.HUB_REPOSITORY_ID,
+            "filename": "README.md",
+            "repo_type": "model",
+            "revision": uploaded_commit,
+            "token": "fine-grained-token",
+        }
+    ]
     assert source_asset_revisions == [parent_commit, uploaded_commit]
 
 
