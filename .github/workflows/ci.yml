@@ -30,6 +30,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # The issue-reference checker compares the PR base and head commits.
+          fetch-depth: 0
 
       - name: Set up Python
         if: github.event_name == 'pull_request'
