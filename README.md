@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/teaser.svg" alt="Creative Graphic Design Generators teaser" width="100%">
+</p>
+
 # design-generators
 
 [![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
