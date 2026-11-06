@@ -228,3 +228,4 @@ def test_workflow_serializes_publication_and_gates_stale_jobs() -> None:
     assert "git fetch --no-tags origin main:refs/remotes/origin/main" in workflow
     assert "--check-freshness" in workflow
     assert workflow.count("if: steps.freshness.outputs.publish == 'true'") == 3
+    assert workflow.count("PYTHONPATH: tools/devharness/src") == 2

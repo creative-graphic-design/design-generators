@@ -89,6 +89,7 @@
 - Track publication separately from local serialization and parity verification.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
 - Hub publishing runs after the package merge through the main-push workflow and remains separate from the per-issue close condition.
+- A model README's Hub badge follows publisher presence: packages with `scripts/publish_to_hub.py` use the matching `published-*` value. Packages without it retain their planned or other pre-publication value. `devharness check model-readmes` and `scripts/check_readme_badges.py` enforce this rule through shared publisher discovery; see [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for the value mapping.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
@@ -121,9 +122,9 @@
 
 ### Documentation Checks
 
-- `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
 - `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
-- `scripts/check_readme_badges.py` enforces README badge contracts.
+- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
 - `scripts/check_training_doc_template.py` enforces training-document structure.
