@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -1153,6 +1154,166 @@ def assert_code_fences_tagged(path: Path, text: str) -> None:
 
     if in_fence:
         raise AssertionError(f"{path}: unterminated code fence")
+
+
+def _python_code_fences(text: str) -> list[tuple[int, str]]:
+    fences: list[tuple[int, str]] = []
+    opening_fence: str | None = None
+    language = ""
+    fence_start = 0
+    code_lines: list[str] = []
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if opening_fence is None:
+            opening = _FENCE_OPENING_RE.match(line)
+            if opening is None:
+                continue
+
+            opening_fence = opening.group("fence")
+            info = opening.group("info").strip()
+            language = info.split(maxsplit=1)[0].casefold() if info else ""
+            fence_start = line_number
+            code_lines = []
+            continue
+
+        closing = _FENCE_CLOSING_RE.match(line)
+        if closing is None or closing.group("fence")[0] != opening_fence[0]:
+            code_lines.append(line)
+            continue
+
+        closing_fence = closing.group("fence")
+        if len(closing_fence) < len(opening_fence):
+            code_lines.append(line)
+            continue
+
+        if language in {"python", "py"}:
+            fences.append((fence_start, "\n".join(code_lines)))
+
+        opening_fence = None
+        language = ""
+
+    if opening_fence is not None and language in {"python", "py"}:
+        fences.append((fence_start, "\n".join(code_lines)))
+
+    return fences
+
+
+def _qualified_name(expression: ast.expr) -> str | None:
+    if isinstance(expression, ast.Name):
+        return expression.id
+
+    if isinstance(expression, ast.Attribute):
+        prefix = _qualified_name(expression.value)
+        if prefix is None:
+            return None
+
+        return f"{prefix}.{expression.attr}"
+
+    return None
+
+
+def _is_cpu_device(expression: ast.expr) -> bool:
+    if (
+        isinstance(expression, ast.Constant)
+        and isinstance(expression.value, str)
+        and (
+            expression.value.casefold() == "cpu"
+            or expression.value.casefold().startswith("cpu:")
+        )
+    ):
+        return True
+
+    if (
+        isinstance(expression, ast.Call)
+        and _qualified_name(expression.func) == "torch.device"
+    ):
+        if expression.args and _is_cpu_device(expression.args[0]):
+            return True
+
+        return any(
+            keyword.arg == "type" and _is_cpu_device(keyword.value)
+            for keyword in expression.keywords
+        )
+
+    if isinstance(expression, ast.Dict):
+        return any(
+            value is not None and _is_cpu_device(value) for value in expression.values
+        )
+
+    if isinstance(expression, ast.Starred):
+        return _is_cpu_device(expression.value)
+
+    if isinstance(expression, (ast.List, ast.Set, ast.Tuple)):
+        return any(_is_cpu_device(element) for element in expression.elts)
+
+    return False
+
+
+def _is_cpu_device_keyword_mapping(expression: ast.expr) -> bool:
+    if not isinstance(expression, ast.Dict):
+        return False
+
+    return any(
+        isinstance(key, ast.Constant)
+        and key.value in {"device", "device_map"}
+        and value is not None
+        and _is_cpu_device(value)
+        for key, value in zip(expression.keys, expression.values, strict=True)
+    )
+
+
+def _is_allowed_cpu_generator_device(call: ast.Call, keyword: ast.keyword) -> bool:
+    return (
+        _qualified_name(call.func) == "torch.Generator"
+        and keyword.arg == "device"
+        and isinstance(keyword.value, ast.Constant)
+        and keyword.value.value == "cpu"
+    )
+
+
+def _is_cpu_placement_call(call: ast.Call) -> bool:
+    if isinstance(call.func, ast.Attribute):
+        if call.func.attr == "cpu":
+            return True
+
+        if call.func.attr == "to" and any(
+            _is_cpu_device(argument) for argument in call.args
+        ):
+            return True
+
+    for keyword in call.keywords:
+        if keyword.arg is None and _is_cpu_device_keyword_mapping(keyword.value):
+            return True
+
+        if keyword.arg in {"device", "device_map"} and _is_cpu_device(keyword.value):
+            if _is_allowed_cpu_generator_device(call, keyword):
+                continue
+
+            return True
+    return False
+
+
+def assert_no_cpu_placement(path: Path, text: str) -> None:
+    """Reject CPU placement in Python fences, except for CPU generators."""
+    for fence_start, code in _python_code_fences(text):
+        normalized_code = re.sub(
+            r"<[A-Za-z_][A-Za-z0-9_-]*>", "template_placeholder", code
+        )
+        try:
+            syntax_tree = ast.parse(normalized_code)
+        except SyntaxError as exc:
+            line_number = fence_start + (exc.lineno or 1)
+            raise AssertionError(
+                f"{path}: cannot inspect invalid Python code at line {line_number}"
+            ) from exc
+
+        for node in ast.walk(syntax_tree):
+            if isinstance(node, ast.Call) and _is_cpu_placement_call(node):
+                line_number = fence_start + node.lineno
+                raise AssertionError(
+                    f"{path}: CPU placement in Python code at line {line_number} "
+                    "is prohibited; use CUDA for inference"
+                )
 
 
 def usage_output_violation(path: Path, text: str) -> str | None:

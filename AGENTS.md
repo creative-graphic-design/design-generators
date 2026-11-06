@@ -123,6 +123,7 @@
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
+- `devharness check model-readmes` rejects pipeline/model CPU placement in README, REPRODUCING, templates, and model-card Python fences; it allows `torch.Generator(device="cpu")`.
 - `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
 - `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
 - `scripts/check_readme_links.py` enforces repository-relative README links.

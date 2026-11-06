@@ -116,7 +116,7 @@ pipe = DiffusionPipeline.from_pretrained(
     token=token,
     trust_remote_code=True,
 )
-pipe.to("cpu")
+pipe.to("cuda")
 result = pipe(
     "A red car and a white sheep",
     parser_type="constituency",
@@ -210,7 +210,7 @@ baseline = StableDiffusionPipeline.from_pretrained(
     torch_dtype=torch.float32,
     token=token,
 )
-baseline.to("cpu")
+baseline.to("cuda")
 for slug, prompt in EXAMPLES:
     for seed in SEEDS:
         image = baseline(
@@ -231,7 +231,7 @@ structured = StructureDiffusionPipeline.from_pretrained(
     torch_dtype=torch.float32,
     token=token,
 )
-structured.to("cpu")
+structured.to("cuda")
 for slug, prompt in EXAMPLES:
     for seed in SEEDS:
         image = structured(

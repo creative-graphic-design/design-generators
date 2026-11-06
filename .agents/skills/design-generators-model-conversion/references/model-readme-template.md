@@ -143,12 +143,15 @@ uv sync --package <member-name>
 uv run --package <member-name> python
 ```
 
+<!-- Place inference pipelines on CUDA with `.to("cuda")`; do not place them on CPU. -->
+
 ```python
 from <package_name> import <PipelineOrModelClass>
 
 pipe = <PipelineOrModelClass>.from_pretrained(
     ".cache/<slug>/converted/<local-checkpoint-dir>",
 )
+pipe.to("cuda")
 # After Hub publication: from_pretrained("creative-graphic-design/<hub-repo-id>")
 out = pipe(batch_size=1, seed=0)
 
