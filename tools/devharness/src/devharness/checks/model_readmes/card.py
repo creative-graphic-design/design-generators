@@ -1269,7 +1269,11 @@ def assert_no_cpu_placement(path: Path, text: str) -> None:
                     f"{path}: CPU placement with .cpu() at line {line_number} "
                     "is prohibited"
                 )
-            elif _is_cpu_string_literal(node) and id(node) not in allowed_cpu_literals:
+            elif (
+                isinstance(node, ast.Constant)
+                and _is_cpu_string_literal(node)
+                and id(node) not in allowed_cpu_literals
+            ):
                 line_number = fence_start + node.lineno
                 raise AssertionError(
                     f"{path}: CPU placement string in Python code at line "
