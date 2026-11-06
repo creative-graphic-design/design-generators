@@ -143,7 +143,7 @@ uv sync --package <member-name>
 uv run --package <member-name> python
 ```
 
-<!-- Place inference pipelines on CUDA with `.to("cuda")`; do not place them on CPU. -->
+<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. -->
 
 ```python
 from <package_name> import <PipelineOrModelClass>

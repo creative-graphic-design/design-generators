@@ -122,8 +122,9 @@ from layousyn import LayouSynPipeline
 path = ".cache/layousyn/converted"
 # After Hub publication: from_pretrained("creative-graphic-design/layousyn-grit")
 pipe = LayouSynPipeline.from_pretrained(path)
+pipe.to("cuda")
 
-inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cpu")
+inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cuda")
 out = pipe(
     prompt="a person sitting on a bench",
     labels=[["person", "bench"]],

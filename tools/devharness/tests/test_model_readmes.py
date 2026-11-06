@@ -184,6 +184,11 @@ def test_model_readme_usage_output_contract(text: str, message: str | None) -> N
         'Pipeline.from_pretrained("checkpoint", **{"device": "cpu"})',
         'torch.Generator(device=torch.device("cpu"))',
         'torch.Generator(device="cpu:0")',
+        'device = "cpu"; pipe.to(device)',
+        'device = torch.device("cpu"); pipe.to(device)',
+        'device = "cpu"; Pipeline.from_pretrained("checkpoint", device=device)',
+        'device = "cpu"; pipe.to(**{"device": device})',
+        'device = "cpu"; torch.Generator(device=device)',
     ],
 )
 def test_model_readme_python_fences_reject_cpu_placement(snippet: str) -> None:
@@ -206,7 +211,6 @@ pipe.to("cpu")
 ```python
 pipe.to("cuda")
 generator = torch.Generator(device="cpu").manual_seed(0)
-Pipeline.from_pretrained("checkpoint", device_map="cuda")
 ```
 """
 
@@ -214,7 +218,13 @@ Pipeline.from_pretrained("checkpoint", device_map="cuda")
 
 
 def test_model_readme_template_python_fence_rejects_cpu_placement() -> None:
-    path = Path(".agents") / "skills" / "model-readme-template.md"
+    path = (
+        Path(".agents")
+        / "skills"
+        / "design-generators-model-conversion"
+        / "references"
+        / "model-readme-template.md"
+    )
     text = '```python\nfrom <package_name> import Pipeline\npipe.to("cpu")\n```\n'
 
     with pytest.raises(AssertionError, match=r"CPU placement.*line 3"):

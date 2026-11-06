@@ -1212,90 +1212,39 @@ def _qualified_name(expression: ast.expr) -> str | None:
     return None
 
 
-def _is_cpu_device(expression: ast.expr) -> bool:
-    if (
+def _is_cpu_string_literal(expression: ast.AST) -> bool:
+    return (
         isinstance(expression, ast.Constant)
         and isinstance(expression.value, str)
         and (
             expression.value.casefold() == "cpu"
             or expression.value.casefold().startswith("cpu:")
         )
-    ):
-        return True
-
-    if (
-        isinstance(expression, ast.Call)
-        and _qualified_name(expression.func) == "torch.device"
-    ):
-        if expression.args and _is_cpu_device(expression.args[0]):
-            return True
-
-        return any(
-            keyword.arg == "type" and _is_cpu_device(keyword.value)
-            for keyword in expression.keywords
-        )
-
-    if isinstance(expression, ast.Dict):
-        return any(
-            value is not None and _is_cpu_device(value) for value in expression.values
-        )
-
-    if isinstance(expression, ast.Starred):
-        return _is_cpu_device(expression.value)
-
-    if isinstance(expression, (ast.List, ast.Set, ast.Tuple)):
-        return any(_is_cpu_device(element) for element in expression.elts)
-
-    return False
-
-
-def _is_cpu_device_keyword_mapping(expression: ast.expr) -> bool:
-    if not isinstance(expression, ast.Dict):
-        return False
-
-    return any(
-        isinstance(key, ast.Constant)
-        and key.value in {"device", "device_map"}
-        and value is not None
-        and _is_cpu_device(value)
-        for key, value in zip(expression.keys, expression.values, strict=True)
     )
 
 
-def _is_allowed_cpu_generator_device(call: ast.Call, keyword: ast.keyword) -> bool:
-    return (
-        _qualified_name(call.func) == "torch.Generator"
-        and keyword.arg == "device"
-        and isinstance(keyword.value, ast.Constant)
-        and keyword.value.value == "cpu"
-    )
-
-
-def _is_cpu_placement_call(call: ast.Call) -> bool:
-    if isinstance(call.func, ast.Attribute):
-        if call.func.attr == "cpu":
-            return True
-
-        if call.func.attr == "to" and any(
-            _is_cpu_device(argument) for argument in call.args
+def _allowed_cpu_generator_literals(tree: ast.Module) -> set[int]:
+    allowed_literals: set[int] = set()
+    for call in ast.walk(tree):
+        if (
+            not isinstance(call, ast.Call)
+            or _qualified_name(call.func) != "torch.Generator"
         ):
-            return True
+            continue
 
-    for keyword in call.keywords:
-        if keyword.arg is None and _is_cpu_device_keyword_mapping(keyword.value):
-            return True
+        for keyword in call.keywords:
+            if (
+                keyword.arg == "device"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value == "cpu"
+            ):
+                allowed_literals.add(id(keyword.value))
 
-        if keyword.arg in {"device", "device_map"} and _is_cpu_device(keyword.value):
-            if _is_allowed_cpu_generator_device(call, keyword):
-                continue
-
-            return True
-
-    return False
+    return allowed_literals
 
 
 def assert_no_cpu_placement(path: Path, text: str) -> None:
-    """Reject CPU placement in Python fences, except for CPU generators."""
+    """Reject CPU string literals and .cpu() calls in Python fences."""
     for fence_start, code in _python_code_fences(text):
         normalized_code = re.sub(
             r"<[A-Za-z_][A-Za-z0-9_-]*>", "template_placeholder", code
@@ -1308,12 +1257,24 @@ def assert_no_cpu_placement(path: Path, text: str) -> None:
                 f"{path}: cannot inspect invalid Python code at line {line_number}"
             ) from exc
 
+        allowed_cpu_literals = _allowed_cpu_generator_literals(syntax_tree)
         for node in ast.walk(syntax_tree):
-            if isinstance(node, ast.Call) and _is_cpu_placement_call(node):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "cpu"
+            ):
                 line_number = fence_start + node.lineno
                 raise AssertionError(
-                    f"{path}: CPU placement in Python code at line {line_number} "
-                    "is prohibited; use CUDA for inference"
+                    f"{path}: CPU placement with .cpu() at line {line_number} "
+                    "is prohibited"
+                )
+            elif _is_cpu_string_literal(node) and id(node) not in allowed_cpu_literals:
+                line_number = fence_start + node.lineno
+                raise AssertionError(
+                    f"{path}: CPU placement string in Python code at line "
+                    f"{line_number} is prohibited; only a direct "
+                    'torch.Generator(device="cpu") literal is allowed'
                 )
 
 
