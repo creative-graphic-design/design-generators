@@ -8,9 +8,10 @@ import fcntl
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
@@ -77,7 +78,10 @@ JSONValue: TypeAlias = (
 def read_data_root() -> Path:
     environment_file = Path(os.environ["LAYOUTFORMERPP_DATA_ROOT_ENV_FILE"])
     value = read_data_root_value(environment_file)
-    return Path(value).expanduser().resolve(strict=True)
+    try:
+        return Path(value).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise RuntimeError("configured data root is unavailable") from None
 
 
 def read_data_root_value(environment_file: Path) -> str:
@@ -133,6 +137,21 @@ def config_path(family: str) -> Path:
         / "training"
         / f"publaynet_{family}.yaml"
     )
+
+
+def validate_campaign_root(campaign_rel: str, campaign_root: Path) -> Path:
+    campaign_path = Path(campaign_rel)
+    if (
+        campaign_path.is_absolute()
+        or ".." in campaign_path.parts
+        or not campaign_path.parts
+    ):
+        raise RuntimeError("campaign path must be repository-relative")
+    resolved_root = campaign_root.expanduser().resolve()
+    expected_root = (REPOSITORY / campaign_path).resolve()
+    if resolved_root != expected_root:
+        raise RuntimeError("CAMPAIGN_ROOT does not match CAMPAIGN_REL")
+    return resolved_root
 
 
 def build_argv(
@@ -334,6 +353,7 @@ def build_environment(
     seed: int,
     arm: str,
     gpu_index: int,
+    gpu_uuid: str,
     data_root: Path,
     environment_file: Path,
     package_environment: Path,
@@ -342,7 +362,7 @@ def build_environment(
     environment = dict(base)
     environment.update(
         {
-            "CUDA_VISIBLE_DEVICES": str(gpu_index),
+            "CUDA_VISIBLE_DEVICES": gpu_uuid,
             "LAYOUTFORMERPP_DATA_ROOT_ENV_FILE": str(environment_file),
             "LAYOUTFORMERPP_TRAIN_SEED": str(seed),
             "PACKAGE_ENV": str(package_environment),
@@ -394,8 +414,66 @@ def pin_pair_gpu(pair_path: Path, family: str, seed: int, device_name: str) -> N
     temporary.replace(pair_path)
 
 
+def pin_pair_gpu_exclusively(
+    pair_path: Path, family: str, seed: int, device_name: str
+) -> None:
+    pair_path.parent.mkdir(parents=True, exist_ok=True)
+    with (pair_path.parent / ".gpu-type.lock").open("a", encoding="utf-8") as lock:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeError("campaign is pinning this GPU pair") from error
+        try:
+            pin_pair_gpu(pair_path, family, seed, device_name)
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def stage_original_checkpoint(vendor_output: Path) -> dict[str, JSONValue]:
+    try:
+        best_epoch = int((vendor_output / "best_epoch").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise RuntimeError(
+            "vendor best-epoch checkpoint selection is unavailable"
+        ) from None
+    source = vendor_output / f"epoch_{best_epoch}_checkpoint.pth.tar"
+    staged = vendor_output / "s5_checkpoint.pth.tar"
+    if not source.is_file():
+        raise RuntimeError("selected vendor checkpoint is unavailable")
+    source_hash = sha256(source)
+    shutil.copy2(source, staged)
+    if sha256(staged) != source_hash:
+        raise RuntimeError("staged vendor checkpoint hash mismatch")
+    return {
+        "source": source.name,
+        "staged_as": staged.name,
+        "sha256": source_hash,
+    }
+
+
+def record_failure(
+    track_directory: Path,
+    manifest_path: Path,
+    manifest: dict[str, JSONValue],
+    secrets: tuple[str, ...],
+    *,
+    training_started: bool,
+    phase: str,
+    exit_code: int,
+) -> None:
+    manifest["status"] = "failed" if training_started else "failed_before_training"
+    manifest["failure_phase"] = phase
+    manifest["exit_code"] = exit_code
+    write_manifest(manifest_path, manifest, secrets)
+    (track_directory / "exit-code.txt").write_text(f"{exit_code}\n", encoding="utf-8")
+
+
 def run(
-    command: list[str], cwd: Path, environment: dict[str, str], secrets: tuple[str, ...]
+    command: list[str],
+    cwd: Path,
+    environment: dict[str, str],
+    secrets: tuple[str, ...],
+    on_start: Callable[[], None],
 ) -> int:
     process = subprocess.Popen(
         command,
@@ -405,6 +483,7 @@ def run(
         stderr=subprocess.STDOUT,
         bufsize=0,
     )
+    on_start()
     if process.stdout is None:
         raise RuntimeError("training output stream unavailable")
     stream_redacted(
@@ -419,12 +498,6 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
     if seed not in range(3) or gpu_index < 0:
         raise RuntimeError("seed or physical GPU index is out of range")
     campaign_path = Path(campaign_rel)
-    if (
-        campaign_path.is_absolute()
-        or ".." in campaign_path.parts
-        or not campaign_path.parts
-    ):
-        raise RuntimeError("campaign path must be repository-relative")
 
     package_environment = Path(os.environ["PACKAGE_ENV"]).expanduser().resolve()
     if (
@@ -432,7 +505,9 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
         != (package_environment / "bin" / "python").resolve()
     ):
         raise RuntimeError("launcher must run in the configured package environment")
-    campaign_root = Path(os.environ["CAMPAIGN_ROOT"]).expanduser().resolve()
+    campaign_root = validate_campaign_root(
+        campaign_rel, Path(os.environ["CAMPAIGN_ROOT"])
+    )
     environment_file = (
         Path(os.environ["LAYOUTFORMERPP_DATA_ROOT_ENV_FILE"])
         .expanduser()
@@ -467,16 +542,17 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
 
     with ExitStack() as locks:
         lock_file(locks, campaign_root / f".gpu-{gpu_index}.lock")
-        device_name, _ = gpu_info(gpu_index)
+        device_name, gpu_uuid = gpu_info(gpu_index)
         pair_directory = track_directory.parent
         pair_directory.mkdir(parents=True, exist_ok=True)
         if track_directory.exists():
             raise RuntimeError("track output already exists")
-        lock_file(locks, pair_directory / ".gpu-type.lock")
-        pin_pair_gpu(pair_directory / "gpu-type.json", family, seed, device_name)
+        pin_pair_gpu_exclusively(
+            pair_directory / "gpu-type.json", family, seed, device_name
+        )
         track_directory.mkdir()
         manifest_path = track_directory / "launch_manifest.json"
-        manifest = {
+        manifest: dict[str, JSONValue] = {
             "status": "prepared",
             "created_at": datetime.now().astimezone().isoformat(),
             "source_commit": source_commit,
@@ -497,29 +573,68 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
             "commands": [safe_argument(command, secrets) for command in commands],
         }
         write_manifest(manifest_path, manifest, secrets)
-        for command in commands:
-            write_command_log(sys.stdout, command, secrets)
-            environment = build_environment(
-                os.environ,
-                seed=seed,
-                arm=arm,
-                gpu_index=gpu_index,
-                data_root=data_root,
-                environment_file=environment_file,
-                package_environment=package_environment,
-                track_directory=track_directory,
-            )
-            cwd = REPOSITORY if arm == "package" else VENDOR_SOURCE
-            checked_device_name, _ = gpu_info(gpu_index)
-            if checked_device_name != device_name:
-                raise RuntimeError("selected GPU type changed before launch")
-            exit_code = run(command, cwd, environment, secrets)
-            if exit_code:
-                (track_directory / "exit-code.txt").write_text(
-                    f"{exit_code}\n", encoding="utf-8"
+        training_started = False
+        phase = "training"
+        try:
+            for command in commands:
+                if arm == "original" and command[2] == "test":
+                    phase = "checkpoint_selection"
+                    manifest["selected_checkpoint"] = stage_original_checkpoint(
+                        track_directory / "vendor-output"
+                    )
+                    write_manifest(manifest_path, manifest, secrets)
+                    phase = "test"
+                write_command_log(sys.stdout, command, secrets)
+                environment = build_environment(
+                    os.environ,
+                    seed=seed,
+                    arm=arm,
+                    gpu_index=gpu_index,
+                    gpu_uuid=gpu_uuid,
+                    data_root=data_root,
+                    environment_file=environment_file,
+                    package_environment=package_environment,
+                    track_directory=track_directory,
                 )
-                return exit_code
-        (track_directory / "exit-code.txt").write_text("0\n", encoding="utf-8")
+                cwd = REPOSITORY if arm == "package" else VENDOR_SOURCE
+                checked_device_name, checked_gpu_uuid = gpu_info(gpu_index)
+                if checked_device_name != device_name or checked_gpu_uuid != gpu_uuid:
+                    raise RuntimeError("selected GPU changed before launch")
+                manifest["status"] = "running"
+                write_manifest(manifest_path, manifest, secrets)
+
+                def mark_started() -> None:
+                    nonlocal training_started
+                    training_started = True
+
+                exit_code = run(command, cwd, environment, secrets, mark_started)
+                if exit_code:
+                    record_failure(
+                        track_directory,
+                        manifest_path,
+                        manifest,
+                        secrets,
+                        training_started=training_started,
+                        phase=phase,
+                        exit_code=exit_code,
+                    )
+                    return exit_code
+                phase = "checkpoint_selection" if arm == "original" else "training"
+            manifest["status"] = "complete"
+            manifest["exit_code"] = 0
+            write_manifest(manifest_path, manifest, secrets)
+            (track_directory / "exit-code.txt").write_text("0\n", encoding="utf-8")
+        except Exception:
+            record_failure(
+                track_directory,
+                manifest_path,
+                manifest,
+                secrets,
+                training_started=training_started,
+                phase=phase,
+                exit_code=1,
+            )
+            raise
     return 0
 
 
