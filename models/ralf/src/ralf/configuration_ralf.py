@@ -1,9 +1,7 @@
 """Configuration for RALF checkpoints."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping, Sequence
-from typing import Final, Literal
+from typing import Final, Literal, cast
 
 from transformers import PretrainedConfig
 
@@ -39,6 +37,13 @@ RalfConfigValue = (
     | dict[str, "RalfConfigValue"]
 )
 RalfConfigMetadata = Mapping[str, RalfConfigValue]
+
+RALF_RUNTIME_PATH_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "resnet_weights_path",
+        "fidnet_weights_path",
+    }
+)
 
 DEFAULT_VAR_ORDER: Final[tuple[RalfLayoutVariable, ...]] = (
     "label",
@@ -88,6 +93,8 @@ class RalfConfig(PretrainedConfig):
         relation_size: Maximum number of relation constraints.
         image_channels: Number of image channels consumed by the model.
         image_size: Optional `(height, width)` resize target.
+        resnet_weights_path: Optional local initial image-backbone weights.
+        fidnet_weights_path: Optional local initial layout-encoder weights.
         sort_order: Processor sort order metadata.
         retrieval_metadata: Retrieval-cache metadata for conversion/parity.
         original_config: Original config serialized as plain data.
@@ -126,6 +133,8 @@ class RalfConfig(PretrainedConfig):
         relation_size: int = 10,
         image_channels: int = 4,
         image_size: tuple[int, int] | list[int] | None = None,
+        resnet_weights_path: str | None = None,
+        fidnet_weights_path: str | None = None,
         sort_order: Sequence[str] = ("label", "lexicographic"),
         retrieval_metadata: RalfConfigMetadata | None = None,
         original_config: RalfConfigMetadata | None = None,
@@ -171,6 +180,8 @@ class RalfConfig(PretrainedConfig):
         self.relation_size = int(relation_size)
         self.image_channels = int(image_channels)
         self.image_size = tuple(image_size) if image_size is not None else None
+        self.resnet_weights_path = resnet_weights_path
+        self.fidnet_weights_path = fidnet_weights_path
         self.sort_order = tuple(sort_order)
         self.retrieval_metadata = dict(retrieval_metadata or {})
         self.original_config = dict(original_config or original_hydra_config or {})
@@ -195,6 +206,14 @@ class RalfConfig(PretrainedConfig):
         self.eos_token_id = eos_token_id
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def to_dict(self) -> dict[str, RalfConfigValue]:
+        """Return portable configuration data without local initialization paths."""
+        output = cast(dict[str, RalfConfigValue], super().to_dict())
+        for key in RALF_RUNTIME_PATH_KEYS:
+            output.pop(key, None)
+
+        return output
 
     @property
     def num_bbox_tokens(self) -> int:

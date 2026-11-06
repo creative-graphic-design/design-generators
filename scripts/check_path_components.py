@@ -19,7 +19,9 @@ PATH_CLASS_NAMES = frozenset(
         "PureWindowsPath",
     }
 )
-EXCLUDED_DIRECTORY_NAMES = frozenset({".git", ".venv", "__pycache__", "vendor"})
+EXCLUDED_DIRECTORY_NAMES = frozenset(
+    {".cache", ".git", ".venv", "__pycache__", "vendor"}
+)
 
 
 @dataclass(frozen=True)

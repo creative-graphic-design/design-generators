@@ -158,3 +158,11 @@ def test_checker_excludes_vendor_directories(
     stderr = capsys.readouterr().err
     assert "models/example/src/main.py:1:" in stderr
     assert "models/example/src/vendor/copied.py:" not in stderr
+
+
+def test_checker_excludes_cache_directories_with_non_utf8_files(tmp_path: Path) -> None:
+    cached_source = tmp_path / ".cache" / "runtime" / "joblib" / "test.py"
+    cached_source.parent.mkdir(parents=True)
+    cached_source.write_bytes(b"\xa4")
+
+    assert check_path_components(tmp_path) == 0
