@@ -131,6 +131,7 @@ def check() -> None:
     for path in README_LINK_CONTRACTS:
         root_readme.assert_linked_first_reference_policy(path)
         root_readme.assert_library_name_style(path)
+        card.assert_no_cpu_placement(path, path.read_text(encoding="utf-8"))
 
     for member_dir in LIB_MEMBER_DIRS:
         path = member_dir / "README.md"
