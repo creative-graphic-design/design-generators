@@ -26,7 +26,7 @@ from traingen.optim import KerasAdam
 
 repo_root = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(repo_root / "vendor" / "canvas-vae" / "src" / "pixel-vae"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from vendor_parity.lockstep_control import (  # noqa: E402
