@@ -1,0 +1,59 @@
+seed_everything: 0
+trainer:
+  accelerator: auto
+  devices: 1
+  precision: 32-true
+  max_epochs: 250
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  default_root_dir: .cache/pixel-vae/training-runs/crello
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val_reconstruction
+        mode: min
+        save_top_k: 1
+        save_last: false
+        save_weights_only: true
+        filename: best
+        auto_insert_metric_name: false
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        # Keep one fixed-name top-k file outside the synchronized directory.
+        monitor: null
+        save_top_k: 1
+        save_last: false
+        save_weights_only: false
+        every_n_epochs: 1
+        filename: epoch=latest
+        auto_insert_metric_name: false
+        enable_version_counter: false
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        # The step score rises each epoch, so this full checkpoint is always current.
+        monitor: step
+        mode: max
+        save_top_k: 1
+        save_last: false
+        save_weights_only: false
+        every_n_epochs: 1
+        filename: last
+        auto_insert_metric_name: false
+        enable_version_counter: false
+    - class_path: pixel_vae.training.PixelVAEEpochTimingCallback
+model:
+  class_path: pixel_vae.training.PixelVAETrainingModule
+  init_args:
+    latent_dim: 256
+    kl_weight: 100.0
+    l2_weight: 1.0e-06
+    learning_rate: 0.0001
+data:
+  class_path: pixel_vae.training.PixelVAEDataModule
+  init_args:
+    data_dir: .cache/pixel-vae/data/crello-image
+    batch_size: 64
+    num_workers: 6
+    pin_memory: true
+    sampler_start_epoch: 0
+    sampler_start_global_step: 0
