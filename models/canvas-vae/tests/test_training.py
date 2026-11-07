@@ -63,6 +63,92 @@ def test_clip_is_per_tensor():
     torch.testing.assert_close(large.grad, torch.tensor([0.6, 0.8]))
 
 
+def test_foreach_clipping_and_keras_adam_match_per_parameter_reference_bitwise():
+    generator = torch.Generator().manual_seed(746)
+    shapes = [(2, 3), (4,), ()]
+    actual = [nn.Parameter(torch.randn(shape, generator=generator)) for shape in shapes]
+    reference = [nn.Parameter(param.detach().clone()) for param in actual]
+    learning_rate, betas, epsilon, max_norm = 0.003, (0.85, 0.97), 2e-7, 1.0
+    optimizer = KerasAdam(actual, lr=learning_rate, betas=betas, eps=epsilon)
+    reference_steps = [0 for _ in reference]
+    reference_exp_avg = [torch.zeros_like(param) for param in reference]
+    reference_exp_avg_sq = [torch.zeros_like(param) for param in reference]
+
+    def assert_bitwise_equal(actual_tensor, expected_tensor, label):
+        difference = (actual_tensor - expected_tensor).abs()
+        assert torch.equal(actual_tensor, expected_tensor), (
+            f"{label}: max abs difference={float(difference.max())}"
+        )
+
+    for update in range(3):
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            if update == 1 and index == 2:
+                param.grad = reference_param.grad = None
+                continue
+
+            scale = (0.25, 1.0, 10.0)[index]
+            gradient = torch.randn(param.shape, generator=generator) * scale
+            param.grad = gradient.clone()
+            reference_param.grad = gradient.clone()
+
+        clip_gradients_by_norm(actual, max_norm)
+        for param in reference:
+            if param.grad is None:
+                continue
+
+            norm = param.grad.square().sum().sqrt()
+            clip = torch.tensor(max_norm, dtype=norm.dtype, device=norm.device)
+            param.grad.copy_(param.grad * clip / torch.maximum(norm, clip))
+
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            if param.grad is not None:
+                assert_bitwise_equal(
+                    param.grad, reference_param.grad, f"clipped gradient {index}"
+                )
+
+        optimizer.step()
+        with torch.no_grad():
+            for index, param in enumerate(reference):
+                if param.grad is None:
+                    continue
+
+                reference_steps[index] += 1
+                step = torch.tensor(
+                    float(reference_steps[index]),
+                    dtype=param.dtype,
+                    device=param.device,
+                )
+                beta1_power = torch.pow(
+                    torch.tensor(betas[0], dtype=param.dtype, device=param.device), step
+                )
+                beta2_power = torch.pow(
+                    torch.tensor(betas[1], dtype=param.dtype, device=param.device), step
+                )
+                lr = torch.tensor(learning_rate, dtype=param.dtype, device=param.device)
+                alpha = lr * torch.sqrt(1 - beta2_power) / (1 - beta1_power)
+                grad = param.grad
+                exp_avg = reference_exp_avg[index]
+                exp_avg_sq = reference_exp_avg_sq[index]
+                exp_avg.add_((grad - exp_avg) * (1 - betas[0]))
+                exp_avg_sq.add_((grad.square() - exp_avg_sq) * (1 - betas[1]))
+                param.sub_((exp_avg * alpha) / (exp_avg_sq.sqrt() + epsilon))
+
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            assert_bitwise_equal(param, reference_param, f"parameter {index}")
+            state = optimizer.state[param]
+            assert state["step"] == reference_steps[index]
+            assert_bitwise_equal(
+                state["exp_avg"],
+                reference_exp_avg[index],
+                f"first moment {index}",
+            )
+            assert_bitwise_equal(
+                state["exp_avg_sq"],
+                reference_exp_avg_sq[index],
+                f"second moment {index}",
+            )
+
+
 def test_l2_penalty_covers_dense_and_embedding_only():
     model = nn.Sequential(nn.Embedding(2, 2), nn.Linear(2, 1), nn.LayerNorm(1))
     for param in model.parameters():
