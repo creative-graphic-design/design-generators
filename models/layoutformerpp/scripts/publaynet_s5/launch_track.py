@@ -10,9 +10,11 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
+import time
 import zipfile
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
@@ -487,12 +489,14 @@ def validate_checkpoint_pruning(enabled: bool, arm: str, device_name: str) -> No
         raise RuntimeError("checkpoint pruning is limited to original A100 tracks")
 
 
-def best_epoch(vendor_output: Path) -> int | None:
+def read_best_epoch(vendor_output: Path) -> tuple[bool, int | None]:
     try:
-        epoch = int((vendor_output / "best_epoch").read_text(encoding="utf-8"))
+        value = int((vendor_output / "best_epoch").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return False, None
     except (OSError, ValueError):
-        return None
-    return epoch
+        return True, None
+    return True, value
 
 
 def complete_checkpoint(path: Path, observed: dict[Path, tuple[int, int]]) -> bool:
@@ -530,16 +534,17 @@ def prune_vendor_checkpoints(
     if not checkpoint_epochs or any(epoch >= epochs for epoch in checkpoint_epochs):
         return []
 
-    selected_best = best_epoch(vendor_output)
-    if selected_best is None or not 0 <= selected_best < epochs:
+    has_best_epoch, selected_best = read_best_epoch(vendor_output)
+    if has_best_epoch and (selected_best is None or not 0 <= selected_best < epochs):
         return []
     newest = max(checkpoint_epochs)
     keep = {
-        selected_best,
         newest,
         epochs - 1,
         *(epoch for epoch in range(epochs) if (epoch + 1) % eval_interval == 0),
     }
+    if selected_best is not None:
+        keep.add(selected_best)
     deleted: list[str] = []
     for epoch, path in sorted(checkpoint_epochs.items()):
         successor = checkpoint_epochs.get(epoch + 1)
@@ -549,7 +554,10 @@ def prune_vendor_checkpoints(
         successor_complete = complete_checkpoint(successor, observed)
         if not candidate_complete or not successor_complete:
             continue
-        if best_epoch(vendor_output) == epoch:
+        has_best_epoch, current_best = read_best_epoch(vendor_output)
+        if has_best_epoch and (current_best is None or not 0 <= current_best < epochs):
+            return deleted
+        if current_best == epoch:
             continue
         try:
             before = path.stat()
@@ -589,12 +597,43 @@ def record_failure(
     training_started: bool,
     phase: str,
     exit_code: int,
+    reason: str | None = None,
 ) -> None:
     manifest["status"] = "failed" if training_started else "failed_before_training"
     manifest["failure_phase"] = phase
     manifest["exit_code"] = exit_code
+    if reason is not None:
+        manifest["failure_reason"] = reason
     write_manifest(manifest_path, manifest, secrets)
     (track_directory / "exit-code.txt").write_text(f"{exit_code}\n", encoding="utf-8")
+
+
+class CheckpointPruningError(RuntimeError):
+    def __init__(self, error: Exception, secrets: tuple[str, ...]) -> None:
+        self.reason = redact_text(f"{type(error).__name__}: {error}", secrets)
+        super().__init__(f"vendor checkpoint pruning failed: {self.reason}")
+
+
+def stop_process_group(process: subprocess.Popen[bytes]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.05)
+
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
 
 
 def run(
@@ -613,6 +652,7 @@ def run(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         bufsize=0,
+        start_new_session=checkpoint_pruning is not None,
     )
     on_start()
     if process.stdout is None:
@@ -633,12 +673,15 @@ def run(
         )
 
     def monitor() -> None:
-        while not pruning_stop.wait(10):
+        while not pruning_stop.is_set():
             try:
                 prune()
             except Exception as error:
                 pruning_errors.append(error)
                 pruning_stop.set()
+                stop_process_group(process)
+                return
+            if pruning_stop.wait(10):
                 return
 
     pruner = None
@@ -657,10 +700,14 @@ def run(
         if pruner is not None:
             pruner.join()
     if pruning_errors:
-        raise RuntimeError("vendor checkpoint pruning failed") from pruning_errors[0]
+        error = pruning_errors[0]
+        raise CheckpointPruningError(error, secrets) from error
     if checkpoint_pruning is not None and exit_code == 0:
-        prune()
-        prune()
+        try:
+            prune()
+            prune()
+        except Exception as error:
+            raise CheckpointPruningError(error, secrets) from error
     return exit_code
 
 
@@ -828,15 +875,24 @@ def launch(
             manifest["exit_code"] = 0
             write_manifest(manifest_path, manifest, secrets)
             (track_directory / "exit-code.txt").write_text("0\n", encoding="utf-8")
-        except Exception:
+        except Exception as error:
+            failure_phase = (
+                "checkpoint_pruning"
+                if isinstance(error, CheckpointPruningError)
+                else phase
+            )
+            failure_reason = (
+                error.reason if isinstance(error, CheckpointPruningError) else None
+            )
             record_failure(
                 track_directory,
                 manifest_path,
                 manifest,
                 secrets,
                 training_started=training_started,
-                phase=phase,
+                phase=failure_phase,
                 exit_code=1,
+                reason=failure_reason,
             )
             raise
     return 0

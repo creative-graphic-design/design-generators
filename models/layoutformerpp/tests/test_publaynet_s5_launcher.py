@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import hashlib
 import json
+import shlex
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -269,6 +271,37 @@ def test_pruning_keeps_evaluation_final_best_and_newest_checkpoints(
     } == protected_files
 
 
+def test_pruning_runs_before_best_epoch_exists(tmp_path: Path) -> None:
+    output = tmp_path / "vendor-output"
+    output.mkdir()
+    for epoch in range(6):
+        _write_checkpoint(output / f"epoch_{epoch}_checkpoint.pth.tar")
+
+    deleted = _prune_twice(output, epochs=8, eval_interval=2)
+
+    assert deleted == [
+        "epoch_0_checkpoint.pth.tar",
+        "epoch_2_checkpoint.pth.tar",
+        "epoch_4_checkpoint.pth.tar",
+    ]
+    assert sorted(path.name for path in output.glob("epoch_*_checkpoint.pth.tar")) == [
+        "epoch_1_checkpoint.pth.tar",
+        "epoch_3_checkpoint.pth.tar",
+        "epoch_5_checkpoint.pth.tar",
+    ]
+
+
+def test_pruning_skips_an_unparseable_best_epoch(tmp_path: Path) -> None:
+    output = tmp_path / "vendor-output"
+    output.mkdir()
+    for epoch in range(3):
+        _write_checkpoint(output / f"epoch_{epoch}_checkpoint.pth.tar")
+    (output / "best_epoch").write_text("", encoding="utf-8")
+
+    assert _prune_twice(output, epochs=8, eval_interval=8) == []
+    assert len(list(output.glob("epoch_*_checkpoint.pth.tar"))) == 3
+
+
 def test_pruning_tracks_best_epoch_changes_during_training(tmp_path: Path) -> None:
     output = tmp_path / "vendor-output"
     output.mkdir()
@@ -286,6 +319,131 @@ def test_pruning_tracks_best_epoch_changes_during_training(tmp_path: Path) -> No
 
     assert deleted == ["epoch_0_checkpoint.pth.tar", "epoch_1_checkpoint.pth.tar"]
     assert (output / "epoch_2_checkpoint.pth.tar").is_file()
+
+
+def test_pruning_error_stops_process_group_and_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    python_executable = sys.executable
+    marker = tmp_path / "vendor"
+    ready = Path(f"{marker}.ready")
+    parent_ready = Path(f"{marker}.parent-ready")
+    stopped = Path(f"{marker}.stopped")
+    child_code = "\n".join(
+        (
+            "import signal, sys, time",
+            "from pathlib import Path",
+            "marker = Path(sys.argv[1])",
+            "def stop(signum, frame):",
+            "    marker.with_suffix('.stopped').write_text('stopped')",
+            "    raise SystemExit(0)",
+            "signal.signal(signal.SIGTERM, stop)",
+            "marker.with_suffix('.ready').write_text('ready')",
+            "time.sleep(120)",
+        )
+    )
+    parent_code = "\n".join(
+        (
+            "import subprocess, sys, time",
+            "from pathlib import Path",
+            "marker = Path(sys.argv[1])",
+            "subprocess.Popen([sys.executable, '-c', sys.argv[2], str(marker)])",
+            "while not marker.with_suffix('.ready').exists(): time.sleep(0.01)",
+            "marker.with_suffix('.parent-ready').write_text('ready')",
+            "time.sleep(120)",
+        )
+    )
+    vendor_script = tmp_path / "vendor.sh"
+    vendor_script.write_text(
+        shlex.join([python_executable, "-c", parent_code, str(marker), child_code])
+        + "\n",
+        encoding="utf-8",
+    )
+    package_environment = tmp_path / "runtime"
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    environment_file = tmp_path / "data-root.env"
+    environment_file.write_text(
+        f"LAYOUTFORMERPP_DATA_ROOT={data_root}\n", encoding="utf-8"
+    )
+    campaign_root = tmp_path / "campaign"
+    monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.setattr(
+        launch_track.sys, "executable", str(package_environment / "bin/python")
+    )
+    monkeypatch.setattr(
+        launch_track,
+        "validate_campaign_root",
+        lambda campaign_rel, root: campaign_root,
+    )
+    monkeypatch.setattr(launch_track, "verify_splits", lambda _: {})
+    monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
+    monkeypatch.setattr(
+        launch_track, "vendor_commit", lambda: launch_track.EXPECTED_VENDOR_COMMIT
+    )
+    monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
+    monkeypatch.setattr(launch_track, "current_commit", lambda: "test-commit")
+    monkeypatch.setattr(launch_track, "vendor_training_schedule", lambda _: (200, 50))
+    monkeypatch.setattr(
+        launch_track,
+        "build_argv",
+        lambda *args: [["bash", str(vendor_script), "train"]],
+    )
+    monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("NVIDIA A100", "GPU-test"))
+    monkeypatch.setattr(launch_track, "write_command_log", lambda *args: None)
+    monkeypatch.setattr(
+        launch_track,
+        "prune_vendor_checkpoints",
+        lambda *args, **kwargs: _raise_after_child_starts(parent_ready),
+    )
+    monkeypatch.setattr(
+        launch_track,
+        "stream_redacted",
+        lambda source, destination, secrets: source.read(),
+    )
+
+    monkeypatch.setattr(
+        launch_track,
+        "build_environment",
+        lambda base, **kwargs: dict(base),
+    )
+    monkeypatch.setattr(
+        launch_track, "sha256", lambda _: launch_track.CONFIG_SHA256["label"]
+    )
+
+    with pytest.raises(
+        launch_track.CheckpointPruningError, match="simulated pruning failure"
+    ):
+        launch_track.launch(
+            ".cache/pruning-test",
+            "label",
+            0,
+            "original",
+            0,
+            prune_vendor_checkpoints=True,
+        )
+
+    track_directory = campaign_root / "label" / "seed-0" / "original"
+    manifest_path = track_directory / "launch_manifest.json"
+
+    recorded = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert recorded["failure_phase"] == "checkpoint_pruning"
+    assert recorded["failure_reason"] == "OSError: simulated pruning failure"
+    assert recorded["exit_code"] == 1
+    assert parent_ready.is_file()
+    assert ready.is_file()
+    assert stopped.is_file()
+
+
+def _raise_after_child_starts(parent_ready: Path) -> None:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not parent_ready.is_file():
+        time.sleep(0.01)
+    if not parent_ready.is_file():
+        raise AssertionError("vendor process did not start its child")
+    raise OSError("simulated pruning failure")
 
 
 def test_partial_newest_checkpoint_does_not_authorize_deletion(
