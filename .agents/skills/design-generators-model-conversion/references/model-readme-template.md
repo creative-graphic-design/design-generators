@@ -143,12 +143,15 @@ uv sync --package <member-name>
 uv run --package <member-name> python
 ```
 
+<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments. -->
+
 ```python
 from <package_name> import <PipelineOrModelClass>
 
 pipe = <PipelineOrModelClass>.from_pretrained(
     ".cache/<slug>/converted/<local-checkpoint-dir>",
 )
+pipe.to("cuda")
 # After Hub publication: from_pretrained("creative-graphic-design/<hub-repo-id>")
 out = pipe(batch_size=1, seed=0)
 
