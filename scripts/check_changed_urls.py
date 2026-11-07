@@ -20,7 +20,8 @@ URL_RE = re.compile(r"https?://[^\s<>'\"\\]+")
 VCS_GIT_REVISION_RE = re.compile(
     r"^(?P<repo>https?://[^\s<>'\"\\]+?\.git)@(?P<revision>[^/?#]+)(?:[?#].*)?$"
 )
-TRAILING_PUNCTUATION = ".,;:!?"
+TRAILING_PUNCTUATION = ".,;:!?`"
+
 TRANSIENT_STATUS_MIN = 500
 HARD_FAIL_STATUSES = {404, 410}
 DEFAULT_TIMEOUT_SECONDS = 5.0
