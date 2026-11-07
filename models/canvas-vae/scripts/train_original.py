@@ -77,13 +77,17 @@ def main() -> None:
 
     tf.keras.utils.set_random_seed(args.seed)
 
+    from canvas_vae.run_metadata import write_run_metadata
+
+    write_run_metadata(args.job_dir / "run-metadata.json", "tensorflow")
+
     from canvasvae.main import parse_args
     from canvasvae.train import train_and_evaluate
 
     if os.environ.get("CANVAS_VAE_S4_TRAIN_STREAM") == "1":
         from canvasvae.data import DataSpec
 
-        from canvas_vae.training.update_trace import (
+        from canvas_vae.update_trace import (
             install_tensorflow_s4_train_stream,
         )
 
@@ -93,7 +97,7 @@ def main() -> None:
     if trace_path:
         from canvasvae.models.vae import VAE
 
-        from canvas_vae.training.update_trace import install_tensorflow_training_trace
+        from canvas_vae.update_trace import install_tensorflow_training_trace
 
         install_tensorflow_training_trace(VAE, trace_path, args.seed)
 

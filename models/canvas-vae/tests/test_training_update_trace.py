@@ -1,18 +1,23 @@
 import json
+import threading
+from types import SimpleNamespace
+from typing import cast
 
 import lightning.pytorch as L
 import numpy as np
 import pytest
+import canvas_vae.update_trace as update_trace
 import torch
 from torch.utils.data import DataLoader, Dataset
 
 from canvas_vae.training.update_trace import (
     TRACE_BATCH_FIELDS,
     TrainingUpdateTrace,
-    TrainingUpdateTraceCallback,
     _batch_sha256,
     install_tensorflow_s4_train_stream,
 )
+from canvas_vae.training.lightning_update_trace import TrainingUpdateTraceCallback
+from canvas_vae.data import CrelloBatch
 
 
 def _batch() -> dict[str, np.ndarray]:
@@ -78,8 +83,20 @@ def test_update_trace_records_consecutive_objectives_and_batch_hashes(tmp_path):
 def test_package_callback_records_training_batches(tmp_path, monkeypatch):
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
     path = tmp_path / "package.jsonl"
+    freeze = tmp_path / "pip-freeze.txt"
+    freeze.write_text("torch==2.13.0+cu126\n", encoding="utf-8")
+    monkeypatch.setenv("CANVAS_VAE_PIP_FREEZE_FILE", str(freeze))
     monkeypatch.setenv("CANVAS_VAE_UPDATE_TRACE", str(path))
     monkeypatch.setenv("CANVAS_VAE_UPDATE_TRACE_SEED", "3")
+    main_thread_id = threading.get_ident()
+    hash_thread_ids = []
+    original_batch_sha256 = update_trace._batch_sha256
+
+    def track_hash_thread(batch):
+        hash_thread_ids.append(threading.get_ident())
+        return original_batch_sha256(batch)
+
+    monkeypatch.setattr(update_trace, "_batch_sha256", track_hash_thread)
 
     class TinyTrainingModule(L.LightningModule):
         def __init__(self):
@@ -129,6 +146,7 @@ def test_package_callback_records_training_batches(tmp_path, monkeypatch):
         limit_train_batches=2,
         limit_val_batches=0,
         num_sanity_val_steps=0,
+        default_root_dir=tmp_path / "trainer",
         logger=False,
         enable_checkpointing=False,
         enable_model_summary=False,
@@ -144,6 +162,35 @@ def test_package_callback_records_training_batches(tmp_path, monkeypatch):
     assert [row["update"] for row in rows[1:]] == [1, 2]
     assert [row["batch_sha256"] for row in rows[1:]] == expected_hashes
     assert all(np.isfinite(row["objective"]) for row in rows[1:])
+    assert len(hash_thread_ids) == 2
+    assert all(thread_id != main_thread_id for thread_id in hash_thread_ids)
+    assert (tmp_path / "trainer" / "run-metadata.json").is_file()
+
+
+def test_package_callback_without_trace_still_writes_stack(tmp_path, monkeypatch):
+    freeze = tmp_path / "pip-freeze.txt"
+    freeze.write_text("torch==2.13.0+cu126\n", encoding="utf-8")
+    monkeypatch.setenv("CANVAS_VAE_PIP_FREEZE_FILE", str(freeze))
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    monkeypatch.delenv("CANVAS_VAE_UPDATE_TRACE", raising=False)
+    callback = TrainingUpdateTraceCallback()
+    trainer = cast(
+        L.Trainer,
+        SimpleNamespace(
+            default_root_dir=tmp_path / "trainer",
+            accumulate_grad_batches=1,
+            optimizers=[object()],
+            global_step=0,
+        ),
+    )
+    pl_module = cast(L.LightningModule, object())
+
+    callback.on_fit_start(trainer, pl_module)
+    callback.on_train_batch_end(trainer, pl_module, None, cast(CrelloBatch, {}), 0)
+    callback.on_fit_end(trainer, pl_module)
+    callback.on_exception(trainer, pl_module, RuntimeError("expected close"))
+
+    assert (tmp_path / "trainer" / "run-metadata.json").is_file()
 
 
 def test_original_callback_records_training_batches(tmp_path):

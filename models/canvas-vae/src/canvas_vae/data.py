@@ -18,6 +18,12 @@ import numpy as np
 from jaxtyping import Bool, Float, Int
 from transformers import BatchFeature
 
+from .crello_schema import (
+    CRELLO_CONTEXT_FIELDS,
+    CRELLO_SEQUENCE_FIELDS as CRELLO_SEQUENCE_FIELDS,
+    CrelloContextField as CrelloContextField,
+)
+
 if TYPE_CHECKING:
     import torch
 
@@ -42,34 +48,7 @@ CRELLO_IMAGE_TYPES: Final[frozenset[str]] = frozenset(
     ("imageElement", "maskElement", "svgElement")
 )
 CRELLO_SPLITS: Final[tuple[str, ...]] = ("train", "val", "test")
-CrelloContextField = Literal[
-    "length",
-    "group",
-    "format",
-    "canvas_width",
-    "canvas_height",
-    "category",
-]
 _GeometryField = Literal["left", "top", "width", "height"]
-
-CRELLO_CONTEXT_FIELDS: Final[tuple[CrelloContextField, ...]] = (
-    "length",
-    "group",
-    "format",
-    "canvas_width",
-    "canvas_height",
-    "category",
-)
-CRELLO_SEQUENCE_FIELDS: Final[tuple[str, ...]] = (
-    "type",
-    "left",
-    "top",
-    "width",
-    "height",
-    "opacity",
-    "color",
-    "image_embedding",
-)
 _STRING_LOOKUP_FIELDS: Final[tuple[str, ...]] = ("group", "format", "category", "type")
 _INTEGER_LOOKUP_FIELDS: Final[tuple[str, ...]] = ("canvas_width", "canvas_height")
 _GEOMETRY_FIELDS: Final[tuple[_GeometryField, ...]] = ("left", "top", "width", "height")
