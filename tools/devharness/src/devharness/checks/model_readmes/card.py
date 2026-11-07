@@ -1223,18 +1223,23 @@ def _is_cpu_string_literal(expression: ast.AST) -> bool:
     )
 
 
-def _allowed_cpu_generator_literals(tree: ast.Module) -> set[int]:
+def _allowed_cpu_literals(tree: ast.Module) -> set[int]:
     allowed_literals: set[int] = set()
     for call in ast.walk(tree):
-        if (
-            not isinstance(call, ast.Call)
-            or _qualified_name(call.func) != "torch.Generator"
-        ):
+        if not isinstance(call, ast.Call):
+            continue
+
+        function_name = _qualified_name(call.func)
+        if function_name == "torch.Generator":
+            allowed_keyword = "device"
+        elif function_name == "torch.load":
+            allowed_keyword = "map_location"
+        else:
             continue
 
         for keyword in call.keywords:
             if (
-                keyword.arg == "device"
+                keyword.arg == allowed_keyword
                 and isinstance(keyword.value, ast.Constant)
                 and keyword.value.value == "cpu"
             ):
@@ -1257,7 +1262,7 @@ def assert_no_cpu_placement(path: Path, text: str) -> None:
                 f"{path}: cannot inspect invalid Python code at line {line_number}"
             ) from exc
 
-        allowed_cpu_literals = _allowed_cpu_generator_literals(syntax_tree)
+        allowed_cpu_literals = _allowed_cpu_literals(syntax_tree)
         for node in ast.walk(syntax_tree):
             if (
                 isinstance(node, ast.Call)
@@ -1276,9 +1281,10 @@ def assert_no_cpu_placement(path: Path, text: str) -> None:
             ):
                 line_number = fence_start + node.lineno
                 raise AssertionError(
-                    f"{path}: CPU placement string in Python code at line "
-                    f"{line_number} is prohibited; only a direct "
-                    'torch.Generator(device="cpu") literal is allowed'
+                    f"{path}: CPU string literal in Python code at line "
+                    f"{line_number} is prohibited here; only direct "
+                    'torch.Generator(device="cpu") and '
+                    'torch.load(..., map_location="cpu") arguments are allowed'
                 )
 
 

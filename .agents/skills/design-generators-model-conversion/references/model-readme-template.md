@@ -143,7 +143,7 @@ uv sync --package <member-name>
 uv run --package <member-name> python
 ```
 
-<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. -->
+<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments. -->
 
 ```python
 from <package_name> import <PipelineOrModelClass>

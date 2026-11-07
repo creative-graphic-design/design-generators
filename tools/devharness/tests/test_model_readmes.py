@@ -181,7 +181,11 @@ def test_model_readme_usage_output_contract(text: str, message: str | None) -> N
         'Pipeline.from_pretrained("checkpoint", device=torch.device("cpu"))',
         'Pipeline.from_pretrained("checkpoint", device_map="cpu")',
         'Pipeline.from_pretrained("checkpoint", device_map={"": "cpu"})',
+        'Pipeline.from_pretrained("checkpoint", map_location="cpu")',
         'Pipeline.from_pretrained("checkpoint", **{"device": "cpu"})',
+        'torch.load("checkpoint", map_location="CPU")',
+        'torch.load("checkpoint", map_location={"": "cpu"})',
+        'torch.load("checkpoint", **{"map_location": "cpu"})',
         'torch.Generator(device=torch.device("cpu"))',
         'torch.Generator(device="cpu:0")',
         'device = "cpu"; pipe.to(device)',
@@ -195,11 +199,13 @@ def test_model_readme_python_fences_reject_cpu_placement(snippet: str) -> None:
     path = Path("models") / "synthetic" / "README.md"
     text = f"```python\n{snippet}\n```\n"
 
-    with pytest.raises(AssertionError, match=r"CPU placement.*line 2"):
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 2"
+    ):
         card.assert_no_cpu_placement(path, text)
 
 
-def test_model_readme_python_fences_allow_cpu_generator_and_cuda_examples() -> None:
+def test_model_readme_python_fences_allow_cpu_generator_and_map_location() -> None:
     path = Path("models") / "synthetic" / "README.md"
     text = """
 Prose may mention `.to("cpu")` without showing it as runnable code.
@@ -211,6 +217,7 @@ pipe.to("cpu")
 ```python
 pipe.to("cuda")
 generator = torch.Generator(device="cpu").manual_seed(0)
+inputs = torch.load("checkpoint", map_location="cpu")
 ```
 """
 
@@ -227,7 +234,9 @@ def test_model_readme_template_python_fence_rejects_cpu_placement() -> None:
     )
     text = '```python\nfrom <package_name> import Pipeline\npipe.to("cpu")\n```\n'
 
-    with pytest.raises(AssertionError, match=r"CPU placement.*line 3"):
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 3"
+    ):
         card.assert_no_cpu_placement(path, text)
 
 
@@ -235,7 +244,9 @@ def test_model_readme_python_fence_rejects_unterminated_cpu_example() -> None:
     path = Path("models") / "synthetic" / "README.md"
     text = '```python\npipe.to("cpu")\n'
 
-    with pytest.raises(AssertionError, match=r"CPU placement.*line 2"):
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 2"
+    ):
         card.assert_no_cpu_placement(path, text)
 
 

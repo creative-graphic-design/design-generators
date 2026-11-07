@@ -124,7 +124,7 @@ path = ".cache/layousyn/converted"
 pipe = LayouSynPipeline.from_pretrained(path)
 pipe.to("cuda")
 
-inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cuda")
+inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cpu")
 out = pipe(
     prompt="a person sitting on a bench",
     labels=[["person", "bench"]],
