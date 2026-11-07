@@ -45,7 +45,7 @@ class PixelVAEEpochTimingCallback(L.Callback):
     ) -> None:
         """Set and record the source-order index before each training epoch."""
         del pl_module
-        datamodule = cast(PixelVAEDataModule, trainer.datamodule)
+        datamodule = cast(PixelVAEDataModule, getattr(trainer, "datamodule"))
         sampler = datamodule.samplers["train"]
         raw_steps_per_epoch = trainer.num_training_batches
         if (
@@ -101,6 +101,7 @@ class PixelVAEEpochTimingCallback(L.Callback):
         }
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, sort_keys=True) + "\n")
+
         self._sampler_epoch = None
 
 
