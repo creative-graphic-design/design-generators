@@ -16,7 +16,7 @@
 #   PIXELVAE_CPU_FIXTURE_PREP=1 only prepares a tiny fixture before packaging.
 # @option --hub-input NAME=URI Durable input; source, data_tar, attribution, resume, and best are supported.
 # @example
-#   bash run_crello_training_segment.sh --hub-input source=https://github.com/creative-graphic-design/design-generators/archive/<sha>.tar.gz --hub-input data_tar=hf://<owner>/<repo>/<file>.tar
+#   bash run_crello_training_segment.sh --hub-input 'source=<commit-pinned source archive URI>' --hub-input 'data_tar=<data archive URI>'
 
 set -Eeuo pipefail
 
@@ -474,6 +474,7 @@ if [[ "$start_epoch" == 0 || "$run_lockstep" == 1 ]]; then
     fi
 
     vendor_commit=bc1e2072ba3a253f1b099e8b0c604f6051e787da
+    vendor_repository_url='https://github.com/CyberAgentAILab/canvas-vae'
     vendor_dir="$repo_dir/vendor/canvas-vae"
     vendor_model="$vendor_dir/src/pixel-vae/pixelvae/model.py"
     if [[ ! -f "$vendor_model" ]]; then
@@ -487,7 +488,7 @@ if [[ "$start_epoch" == 0 || "$run_lockstep" == 1 ]]; then
         mkdir -p "$vendor_dir"
         run_logged curl --fail --silent --show-error --location --retry 3 \
             --output "$vendor_archive" \
-            "https://github.com/CyberAgentAILab/canvas-vae/archive/${vendor_commit}.tar.gz"
+            "$vendor_repository_url/archive/${vendor_commit}.tar.gz"
         run_logged tar -xzf "$vendor_archive" --strip-components=1 -C "$vendor_dir"
     fi
 
