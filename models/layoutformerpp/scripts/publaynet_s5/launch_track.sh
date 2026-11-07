@@ -7,13 +7,15 @@
 # @arg $3 training seed.
 # @arg $4 arm: original or package.
 # @arg $5 physical GPU index.
+# @option --prune-vendor-checkpoints Prune old checkpoints on an original A100 track.
 # @example
 #   bash models/layoutformerpp/scripts/publaynet_s5/launch_track.sh "$CAMPAIGN_REL" label 0 package "$GPU_INDEX"
+#   bash models/layoutformerpp/scripts/publaynet_s5/launch_track.sh "$CAMPAIGN_REL" label 0 original "$GPU_INDEX" --prune-vendor-checkpoints
 
 set -euo pipefail
 
-if [[ $# -ne 5 ]]; then
-    printf 'usage: launch_track.sh CAMPAIGN_REL FAMILY SEED ARM GPU_INDEX\n' >&2
+if [[ $# -lt 5 || $# -gt 6 ]]; then
+    printf 'usage: launch_track.sh CAMPAIGN_REL FAMILY SEED ARM GPU_INDEX [--prune-vendor-checkpoints]\n' >&2
     exit 2
 fi
 

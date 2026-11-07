@@ -4,6 +4,7 @@ import io
 import hashlib
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ import pytest
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[1] / "scripts" / "publaynet_s5"
 sys.path.insert(0, str(SCRIPT_DIRECTORY))
 
+import launch_track  # noqa: E402
 from launch_track import (  # noqa: E402
     DATA_ROOT_MARKER,
     FAMILIES,
@@ -21,13 +23,17 @@ from launch_track import (  # noqa: E402
     build_argv,
     build_environment,
     config_path,
+    parse_args,
     pin_pair_gpu_exclusively,
+    prune_vendor_checkpoints,
     read_data_root,
     read_data_root_value,
     record_failure,
     stage_original_checkpoint,
     stream_redacted,
     validate_campaign_root,
+    validate_checkpoint_pruning,
+    vendor_training_schedule,
     write_command_log,
     write_manifest,
 )
@@ -191,3 +197,147 @@ def test_missing_data_root_error_does_not_reveal_root(
         read_data_root()
 
     assert str(secret_root) not in str(error.value)
+
+
+def _write_checkpoint(path: Path, *, complete: bool = True) -> None:
+    if complete:
+        with zipfile.ZipFile(path, "w") as checkpoint:
+            checkpoint.writestr("weights", b"checkpoint data")
+        return
+
+    path.write_bytes(b"partial checkpoint")
+
+
+def _prune_twice(
+    output: Path,
+    *,
+    epochs: int,
+    eval_interval: int,
+    observed: dict[Path, tuple[int, int]] | None = None,
+) -> list[str]:
+    observations = {} if observed is None else observed
+    ledger = output.parent / "pruning.jsonl"
+    deleted: list[str] = []
+    for _ in range(2):
+        deleted.extend(
+            prune_vendor_checkpoints(
+                output,
+                epochs=epochs,
+                eval_interval=eval_interval,
+                ledger_path=ledger,
+                observed=observations,
+            )
+        )
+    return deleted
+
+
+def test_pruning_keeps_evaluation_final_best_and_newest_checkpoints(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "vendor-output"
+    output.mkdir()
+    for epoch in range(5):
+        _write_checkpoint(output / f"epoch_{epoch}_checkpoint.pth.tar")
+    best_epoch = output / "best_epoch"
+    best_epoch.write_text("2\n", encoding="utf-8")
+    protected_files = {
+        name: name.encode()
+        for name in ("checkpoint.pth.tar", "model_best.pth.tar", "training.log")
+    }
+    for name, contents in protected_files.items():
+        (output / name).write_bytes(contents)
+    original_bytes = (output / "epoch_0_checkpoint.pth.tar").read_bytes()
+
+    deleted = _prune_twice(output, epochs=5, eval_interval=2)
+
+    assert deleted == ["epoch_0_checkpoint.pth.tar"]
+    assert sorted(path.name for path in output.glob("epoch_*_checkpoint.pth.tar")) == [
+        "epoch_1_checkpoint.pth.tar",
+        "epoch_2_checkpoint.pth.tar",
+        "epoch_3_checkpoint.pth.tar",
+        "epoch_4_checkpoint.pth.tar",
+    ]
+    entry = json.loads((tmp_path / "pruning.jsonl").read_text(encoding="utf-8"))
+    assert entry == {
+        "filename": "epoch_0_checkpoint.pth.tar",
+        "sha256": hashlib.sha256(original_bytes).hexdigest(),
+        "size_bytes": len(original_bytes),
+    }
+    assert best_epoch.read_text(encoding="utf-8") == "2\n"
+    assert {
+        name: (output / name).read_bytes() for name in protected_files
+    } == protected_files
+
+
+def test_pruning_tracks_best_epoch_changes_during_training(tmp_path: Path) -> None:
+    output = tmp_path / "vendor-output"
+    output.mkdir()
+    for epoch in range(3):
+        _write_checkpoint(output / f"epoch_{epoch}_checkpoint.pth.tar")
+    best_epoch = output / "best_epoch"
+    best_epoch.write_text("1\n", encoding="utf-8")
+    observed: dict[Path, tuple[int, int]] = {}
+
+    deleted = _prune_twice(output, epochs=8, eval_interval=8, observed=observed)
+    _write_checkpoint(output / "epoch_3_checkpoint.pth.tar")
+    best_epoch.write_text("2\n", encoding="utf-8")
+
+    deleted.extend(_prune_twice(output, epochs=8, eval_interval=8, observed=observed))
+
+    assert deleted == ["epoch_0_checkpoint.pth.tar", "epoch_1_checkpoint.pth.tar"]
+    assert (output / "epoch_2_checkpoint.pth.tar").is_file()
+
+
+def test_partial_newest_checkpoint_does_not_authorize_deletion(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "vendor-output"
+    output.mkdir()
+    _write_checkpoint(output / "epoch_0_checkpoint.pth.tar")
+    _write_checkpoint(output / "epoch_1_checkpoint.pth.tar")
+    _write_checkpoint(output / "epoch_2_checkpoint.pth.tar", complete=False)
+    (output / "best_epoch").write_text("0\n", encoding="utf-8")
+
+    deleted = _prune_twice(output, epochs=4, eval_interval=4)
+
+    assert deleted == []
+    assert (output / "epoch_1_checkpoint.pth.tar").is_file()
+    assert (output / "epoch_2_checkpoint.pth.tar").is_file()
+
+
+def test_checkpoint_pruning_is_off_by_default_and_a100_original_only() -> None:
+    arguments = parse_args([".cache/campaign", "label", "0", "original", "4"])
+    assert not arguments.prune_vendor_checkpoints
+
+    enabled_arguments = parse_args(
+        [
+            ".cache/campaign",
+            "label",
+            "0",
+            "original",
+            "4",
+            "--prune-vendor-checkpoints",
+        ]
+    )
+    assert enabled_arguments.prune_vendor_checkpoints
+    validate_checkpoint_pruning(True, "original", "NVIDIA A100-SXM4-80GB")
+    with pytest.raises(RuntimeError, match="original A100 tracks"):
+        validate_checkpoint_pruning(True, "package", "NVIDIA A100-SXM4-80GB")
+    with pytest.raises(RuntimeError, match="original A100 tracks"):
+        validate_checkpoint_pruning(True, "original", "Tesla V100-SXM2-32GB")
+
+
+def test_vendor_checkpoint_schedule_comes_from_each_training_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vendor_source = tmp_path / "vendor" / "src"
+    scripts = vendor_source / "scripts"
+    scripts.mkdir(parents=True)
+    for script_name in VENDOR_SCRIPTS.values():
+        (scripts / script_name).write_text(
+            "python main.py \\\n--epoch 7 \\\n--eval_interval 3\n",
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(launch_track, "VENDOR_SOURCE", vendor_source)
+
+    assert {vendor_training_schedule(family) for family in FAMILIES} == {(7, 3)}

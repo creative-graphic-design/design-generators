@@ -7,10 +7,13 @@ import csv
 import fcntl
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
+import threading
+import zipfile
 from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from datetime import datetime
@@ -451,6 +454,132 @@ def stage_original_checkpoint(vendor_output: Path) -> dict[str, JSONValue]:
     }
 
 
+def vendor_training_schedule(family: str) -> tuple[int, int]:
+    script = VENDOR_SOURCE / "scripts" / VENDOR_SCRIPTS[family]
+    tokens = shlex.split(
+        script.read_text(encoding="utf-8").replace("\\\n", " "), comments=True
+    )
+    values: list[int] = []
+    for option in ("--epoch", "--eval_interval"):
+        matches = [
+            tokens[index + 1]
+            for index, token in enumerate(tokens[:-1])
+            if token == option
+        ]
+        if len(matches) != 1:
+            raise RuntimeError("vendor training schedule arguments are unavailable")
+        try:
+            value = int(matches[0])
+        except ValueError:
+            raise RuntimeError(
+                "vendor training schedule arguments are invalid"
+            ) from None
+        if value < 1:
+            raise RuntimeError("vendor training schedule arguments are invalid")
+        values.append(value)
+    return values[0], values[1]
+
+
+def validate_checkpoint_pruning(enabled: bool, arm: str, device_name: str) -> None:
+    if not enabled:
+        return
+    if arm != "original" or "a100" not in device_name.casefold():
+        raise RuntimeError("checkpoint pruning is limited to original A100 tracks")
+
+
+def best_epoch(vendor_output: Path) -> int | None:
+    try:
+        epoch = int((vendor_output / "best_epoch").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return epoch
+
+
+def complete_checkpoint(path: Path, observed: dict[Path, tuple[int, int]]) -> bool:
+    try:
+        stat = path.stat()
+    except OSError:
+        return False
+    signature = (stat.st_size, stat.st_mtime_ns)
+    if stat.st_size == 0 or observed.get(path) != signature:
+        observed[path] = signature
+        return False
+    try:
+        with zipfile.ZipFile(path) as checkpoint:
+            return bool(checkpoint.infolist())
+    except (OSError, EOFError, zipfile.BadZipFile):
+        return False
+
+
+def prune_vendor_checkpoints(
+    vendor_output: Path,
+    *,
+    epochs: int,
+    eval_interval: int,
+    ledger_path: Path,
+    observed: dict[Path, tuple[int, int]],
+) -> list[str]:
+    if epochs < 1 or eval_interval < 1:
+        raise ValueError("vendor epoch count and evaluation interval must be positive")
+
+    checkpoint_epochs: dict[int, Path] = {}
+    for path in vendor_output.glob("epoch_*_checkpoint.pth.tar"):
+        match = re.fullmatch(r"epoch_(\d+)_checkpoint\.pth\.tar", path.name)
+        if match is not None:
+            checkpoint_epochs[int(match.group(1))] = path
+    if not checkpoint_epochs or any(epoch >= epochs for epoch in checkpoint_epochs):
+        return []
+
+    selected_best = best_epoch(vendor_output)
+    if selected_best is None or not 0 <= selected_best < epochs:
+        return []
+    newest = max(checkpoint_epochs)
+    keep = {
+        selected_best,
+        newest,
+        epochs - 1,
+        *(epoch for epoch in range(epochs) if (epoch + 1) % eval_interval == 0),
+    }
+    deleted: list[str] = []
+    for epoch, path in sorted(checkpoint_epochs.items()):
+        successor = checkpoint_epochs.get(epoch + 1)
+        if epoch in keep or successor is None:
+            continue
+        candidate_complete = complete_checkpoint(path, observed)
+        successor_complete = complete_checkpoint(successor, observed)
+        if not candidate_complete or not successor_complete:
+            continue
+        if best_epoch(vendor_output) == epoch:
+            continue
+        try:
+            before = path.stat()
+            digest = sha256(path)
+            after = path.stat()
+        except OSError:
+            continue
+        if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+            continue
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        with ledger_path.open("a", encoding="utf-8") as ledger:
+            ledger.write(
+                json.dumps(
+                    {
+                        "filename": path.name,
+                        "size_bytes": before.st_size,
+                        "sha256": digest,
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+            ledger.flush()
+            os.fsync(ledger.fileno())
+        path.unlink()
+        observed.pop(path, None)
+        deleted.append(path.name)
+    return deleted
+
+
 def record_failure(
     track_directory: Path,
     manifest_path: Path,
@@ -474,6 +603,8 @@ def run(
     environment: dict[str, str],
     secrets: tuple[str, ...],
     on_start: Callable[[], None],
+    *,
+    checkpoint_pruning: tuple[Path, int, int, Path] | None = None,
 ) -> int:
     process = subprocess.Popen(
         command,
@@ -486,15 +617,66 @@ def run(
     on_start()
     if process.stdout is None:
         raise RuntimeError("training output stream unavailable")
-    stream_redacted(
-        cast(BinaryIO, process.stdout), cast(BinaryIO, sys.stdout.buffer), secrets
-    )
-    return process.wait()
+    pruning_stop = threading.Event()
+    pruning_errors: list[Exception] = []
+    observed: dict[Path, tuple[int, int]] = {}
+
+    def prune() -> None:
+        assert checkpoint_pruning is not None
+        output, epochs, eval_interval, ledger = checkpoint_pruning
+        prune_vendor_checkpoints(
+            output,
+            epochs=epochs,
+            eval_interval=eval_interval,
+            ledger_path=ledger,
+            observed=observed,
+        )
+
+    def monitor() -> None:
+        while not pruning_stop.wait(10):
+            try:
+                prune()
+            except Exception as error:
+                pruning_errors.append(error)
+                pruning_stop.set()
+                return
+
+    pruner = None
+    if checkpoint_pruning is not None:
+        pruner = threading.Thread(
+            target=monitor, name="vendor-checkpoint-pruner", daemon=True
+        )
+        pruner.start()
+    try:
+        stream_redacted(
+            cast(BinaryIO, process.stdout), cast(BinaryIO, sys.stdout.buffer), secrets
+        )
+        exit_code = process.wait()
+    finally:
+        pruning_stop.set()
+        if pruner is not None:
+            pruner.join()
+    if pruning_errors:
+        raise RuntimeError("vendor checkpoint pruning failed") from pruning_errors[0]
+    if checkpoint_pruning is not None and exit_code == 0:
+        prune()
+        prune()
+    return exit_code
 
 
-def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) -> int:
+def launch(
+    campaign_rel: str,
+    family: str,
+    seed: int,
+    arm: str,
+    gpu_index: int,
+    *,
+    prune_vendor_checkpoints: bool = False,
+) -> int:
     if family not in FAMILIES or arm not in ("original", "package"):
         raise RuntimeError("unsupported family or arm")
+    if prune_vendor_checkpoints and arm != "original":
+        raise RuntimeError("checkpoint pruning is limited to original A100 tracks")
     if seed not in range(3) or gpu_index < 0:
         raise RuntimeError("seed or physical GPU index is out of range")
     campaign_path = Path(campaign_rel)
@@ -539,10 +721,12 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
         str(environment_file),
     )
     commands = build_argv(family, seed, arm, track_directory, package_environment)
+    schedule = vendor_training_schedule(family) if prune_vendor_checkpoints else None
 
     with ExitStack() as locks:
         lock_file(locks, campaign_root / f".gpu-{gpu_index}.lock")
         device_name, gpu_uuid = gpu_info(gpu_index)
+        validate_checkpoint_pruning(prune_vendor_checkpoints, arm, device_name)
         pair_directory = track_directory.parent
         pair_directory.mkdir(parents=True, exist_ok=True)
         if track_directory.exists():
@@ -562,6 +746,11 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
             "family": family,
             "training_seed": seed,
             "arm": arm,
+            "vendor_checkpoint_pruning": {
+                "enabled": prune_vendor_checkpoints,
+                "epoch_count": schedule[0] if schedule is not None else None,
+                "eval_interval": schedule[1] if schedule is not None else None,
+            },
             "physical_gpu_index": gpu_index,
             "gpu_type": device_name,
             "config": config.relative_to(REPOSITORY).as_posix(),
@@ -607,7 +796,22 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
                     nonlocal training_started
                     training_started = True
 
-                exit_code = run(command, cwd, environment, secrets, mark_started)
+                checkpoint_pruning = None
+                if schedule is not None and command[2] == "train":
+                    checkpoint_pruning = (
+                        track_directory / "vendor-output",
+                        schedule[0],
+                        schedule[1],
+                        track_directory / "vendor-checkpoint-pruning.jsonl",
+                    )
+                exit_code = run(
+                    command,
+                    cwd,
+                    environment,
+                    secrets,
+                    mark_started,
+                    checkpoint_pruning=checkpoint_pruning,
+                )
                 if exit_code:
                     record_failure(
                         track_directory,
@@ -638,17 +842,31 @@ def launch(campaign_rel: str, family: str, seed: int, arm: str, gpu_index: int) 
     return 0
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_rel")
     parser.add_argument("family", choices=tuple(FAMILIES))
     parser.add_argument("seed", type=int)
     parser.add_argument("arm", choices=("original", "package"))
     parser.add_argument("gpu_index", type=int)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--prune-vendor-checkpoints",
+        action="store_true",
+        help="prune old vendor checkpoints on an A100 original track",
+    )
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    args = parse_args()
     try:
         return launch(
-            args.campaign_rel, args.family, args.seed, args.arm, args.gpu_index
+            args.campaign_rel,
+            args.family,
+            args.seed,
+            args.arm,
+            args.gpu_index,
+            prune_vendor_checkpoints=args.prune_vendor_checkpoints,
         )
     except Exception as error:
         secrets = []
