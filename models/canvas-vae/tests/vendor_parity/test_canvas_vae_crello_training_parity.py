@@ -23,7 +23,7 @@ REPORT_DIR = Path(
         "CANVAS_VAE_REFERENCE_DIR", ".cache/canvas-vae/reference/crello-model"
     )
 )
-SCRIPT = Path("models/canvas-vae/scripts/compare_crello_training.py")
+SCRIPT = Path("models") / "canvas-vae" / "scripts" / "compare_crello_training.py"
 
 
 def _require_inputs(*paths: Path) -> None:

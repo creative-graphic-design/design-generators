@@ -16,7 +16,7 @@ QUEUE_SPEC.loader.exec_module(QUEUE)
 def test_queue_launch_forwards_hub_repository() -> None:
     repository = "example-owner/test-artifacts"
     manifest_path = QUEUE.DEFAULT_MANIFEST
-    parity_path = QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
+    parity_path = QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["source_commit"] = "a" * 40
     manifest["queue_status"] = "ready"
@@ -34,7 +34,11 @@ def test_queue_launch_forwards_hub_repository() -> None:
 def test_crello_template_defines_three_seeds_per_system() -> None:
     path = (
         QUEUE.REPOSITORY_ROOT
-        / "models/canvas-vae/configs/training/s5_crello_launch_manifest.template.json"
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "s5_crello_launch_manifest.template.json"
     )
     raw_manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest = QUEUE.load_manifest(path)
@@ -56,7 +60,11 @@ def test_crello_template_defines_three_seeds_per_system() -> None:
 def test_crello_launch_requires_runtime_hub_prefixes() -> None:
     path = (
         QUEUE.REPOSITORY_ROOT
-        / "models/canvas-vae/configs/training/s5_crello_launch_manifest.template.json"
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "s5_crello_launch_manifest.template.json"
     )
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["source_commit"] = "a" * 40
@@ -70,7 +78,7 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
     manifest["evaluation_path_parity"] = {
         "path": "models/canvas-vae/TRAINING.md",
         "sha256": QUEUE.sha256_file(
-            QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
+            QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
         ),
     }
     manifest["cpu_rehearsal"] = {
@@ -78,7 +86,7 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
         "source_commit": "a" * 40,
         "artifact_path": "models/canvas-vae/TRAINING.md",
         "sha256": QUEUE.sha256_file(
-            QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
+            QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
         ),
     }
     for run in manifest["runs"]:
@@ -110,7 +118,11 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
 def test_crello_launch_stays_blocked_until_cpu_rehearsal_passes() -> None:
     path = (
         QUEUE.REPOSITORY_ROOT
-        / "models/canvas-vae/configs/training/s5_crello_launch_manifest.template.json"
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "s5_crello_launch_manifest.template.json"
     )
     manifest = QUEUE.load_manifest(path)
     manifest["source_commit"] = "a" * 40
@@ -119,7 +131,7 @@ def test_crello_launch_stays_blocked_until_cpu_rehearsal_passes() -> None:
     manifest["evaluation_path_parity"] = {
         "path": "models/canvas-vae/TRAINING.md",
         "sha256": QUEUE.sha256_file(
-            QUEUE.REPOSITORY_ROOT / "models/canvas-vae/TRAINING.md"
+            QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
         ),
     }
 
@@ -130,7 +142,11 @@ def test_crello_launch_stays_blocked_until_cpu_rehearsal_passes() -> None:
 def test_crello_cpu_runtime_smoke_does_not_claim_production_gates() -> None:
     path = (
         QUEUE.REPOSITORY_ROOT
-        / "models/canvas-vae/configs/training/s5_crello_launch_manifest.template.json"
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "s5_crello_launch_manifest.template.json"
     )
     manifest = QUEUE.load_manifest(path)
     pinned = "a" * 40

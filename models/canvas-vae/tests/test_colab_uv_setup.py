@@ -150,7 +150,7 @@ def test_shared_setup_checks_out_submodules_and_syncs_requested_extras(
         "--group",
         "docs",
         "python",
-        str(repo_path / "models/canvas-vae/scripts/check_colab_nccl.py"),
+        str(repo_path / "models" / "canvas-vae" / "scripts" / "check_colab_nccl.py"),
         "--repo-dir",
         str(repo_path),
         "--expected-environment",

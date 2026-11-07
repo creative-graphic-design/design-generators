@@ -63,7 +63,8 @@ def main() -> None:
     )
     args = parser.parse_args()
     data_dir = (
-        args.data_dir or Path(".cache/canvas-vae/original/data") / args.dataset_name
+        args.data_dir
+        or Path(".cache") / "canvas-vae" / "original" / "data" / args.dataset_name
     )
     logging.basicConfig(level=logging.INFO)
     from generate_vendor_reference import disable_tensorflow_tf32, import_original

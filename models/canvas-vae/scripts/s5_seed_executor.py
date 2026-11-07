@@ -33,8 +33,12 @@ RUN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 HUB_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 LOCKSTEP_PROBE_STEPS = 300
 LOCKSTEP_LOSS_RELATIVE_LIMIT = 1e-3
-LOCKSTEP_PROBE_SCRIPT = Path(
-    "models/canvas-vae/tests/vendor_parity/crello_lockstep_probe.py"
+LOCKSTEP_PROBE_SCRIPT = (
+    Path("models")
+    / "canvas-vae"
+    / "tests"
+    / "vendor_parity"
+    / "crello_lockstep_probe.py"
 )
 TRAINING_UV_ENVIRONMENT = "/content/canvas-vae-training-env"
 POSTPROCESS_UV_ENVIRONMENT = "/content/canvas-vae-postprocess-env"

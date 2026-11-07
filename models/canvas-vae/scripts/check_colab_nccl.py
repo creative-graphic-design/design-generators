@@ -12,8 +12,8 @@ from importlib import metadata
 from pathlib import Path, PurePosixPath
 
 
-NCCL_LIBRARY = PurePosixPath("nvidia/nccl/lib/libnccl.so.2")
-NCCL_RECORD_ROOT = PurePosixPath("nvidia/nccl")
+NCCL_LIBRARY = PurePosixPath("nvidia") / "nccl" / "lib" / "libnccl.so.2"
+NCCL_RECORD_ROOT = PurePosixPath("nvidia") / "nccl"
 
 
 def normalize_distribution_name(name: str) -> str:

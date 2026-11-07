@@ -46,7 +46,7 @@ def test_nccl_environment_requires_only_cu13() -> None:
 
 
 def test_nccl_record_paths_have_one_distribution_owner() -> None:
-    library = PurePosixPath("nvidia/nccl/lib/libnccl.so.2")
+    library = PurePosixPath("nvidia") / "nccl" / "lib" / "libnccl.so.2"
     CHECKER.verify_unique_nvidia_nccl_records([("nvidia-nccl-cu13", [library])])
 
     distributions: Iterable[tuple[str, Iterable[PurePosixPath]]] = [

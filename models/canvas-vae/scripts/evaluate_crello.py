@@ -33,13 +33,13 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/crello/package-run-1"),
+        default=Path(".cache") / "canvas-vae" / "crello" / "package-run-1",
         help="Prepared Crello split directory (default: %(default)s).",
     )
     parser.add_argument(
         "--fixture-dir",
         type=Path,
-        default=Path(".cache/canvas-vae/crello/fixture"),
+        default=Path(".cache") / "canvas-vae" / "crello" / "fixture",
         help="Verified embedding fixture directory (default: %(default)s).",
     )
     parser.add_argument(

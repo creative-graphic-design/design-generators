@@ -19,8 +19,8 @@ SPEC.loader.exec_module(TRAIN_ORIGINAL)
 def test_original_adapter_passes_crello_document_dataset_and_paths() -> None:
     arguments = TRAIN_ORIGINAL.build_trainer_arguments(
         "crello-document",
-        Path("data/crello-document"),
-        Path("jobs/crello-seed1"),
+        Path("data") / "crello-document",
+        Path("jobs") / "crello-seed1",
         ["--batch-size", "1024", "--num-epochs", "500"],
     )
 
