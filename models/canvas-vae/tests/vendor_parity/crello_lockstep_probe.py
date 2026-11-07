@@ -45,8 +45,18 @@ def _write_summary(path: Path, payload: dict[str, ProbeJson]) -> None:
     )
 
 
+def _configure_device_visibility(device: Literal["cpu", "cuda"]) -> None:
+    if device == "cpu":
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        return
+
+    visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
+    if len(visible_devices) != 1 or not visible_devices[0].strip():
+        raise RuntimeError("CUDA lockstep probe requires exactly one selected device")
+
+
 def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0" if config.device == "cuda" else ""
+    _configure_device_visibility(config.device)
     os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
     os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 

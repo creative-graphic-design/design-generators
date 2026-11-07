@@ -163,6 +163,7 @@ class CanvasVAECrelloDataModule(L.LightningDataModule):
         batch_size: Number of documents per batch.
         num_workers: Data-loader worker processes.
         seed: Seed of the training stream; defaults to the global Torch seed.
+        use_s4_train_stream: Replay the canonical training order checked by the loader parity test.
     """
 
     def __init__(
@@ -172,6 +173,7 @@ class CanvasVAECrelloDataModule(L.LightningDataModule):
         batch_size: int = 1024,
         num_workers: int = 0,
         seed: int | None = None,
+        use_s4_train_stream: bool = False,
     ) -> None:
         """Store loader settings."""
         super().__init__()
@@ -180,6 +182,7 @@ class CanvasVAECrelloDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.seed = seed
+        self.use_s4_train_stream = use_s4_train_stream
         self.splits: dict[CrelloSplit, CrelloLayoutDataset] = {}
         self.processor: CrelloProcessor | None = None
         self.train_sampler: CrossEpochBatchSampler | None = None
@@ -208,10 +211,15 @@ class CanvasVAECrelloDataModule(L.LightningDataModule):
             split: CrelloLayoutDataset(documents[split]) for split in CrelloSplit
         }
         seed = torch.initial_seed() if self.seed is None else self.seed
+        train_size = len(self.splits[CrelloSplit.train])
         self.train_sampler = CrossEpochBatchSampler(
-            len(self.splits[CrelloSplit.train]),
+            train_size,
             self.batch_size,
             torch.Generator().manual_seed(seed),
+            ordered_indices=list(range(train_size))
+            if self.use_s4_train_stream
+            else None,
+            repeat_ordered_indices=self.use_s4_train_stream,
         )
 
     def _loader(

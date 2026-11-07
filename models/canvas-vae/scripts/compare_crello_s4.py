@@ -196,7 +196,7 @@ def _assert_batch_equal(
         if actual_array.dtype != expected_array.dtype or not np.array_equal(
             actual_array, expected_array
         ):
-            raise ValueError(f"exact S4 field mismatch: {name}")
+            raise ValueError(f"exact field mismatch: {name}")
 
 
 def _assert_replay_equal(first: BatchFeature, second: BatchFeature) -> None:
@@ -409,7 +409,7 @@ def main() -> None:
 
             lengths = np.asarray([len(row["elements"]) for row in package_rows])
             if not np.array_equal(actual["num_elements"].numpy(), lengths):
-                raise ValueError(f"exact S4 element counts differ for {split}")
+                raise ValueError(f"exact element counts differ for {split}")
 
             type_ids = expected["type"].numpy()[..., 0]
             element_mask = np.arange(type_ids.shape[1])[None, :] < lengths[:, None]
@@ -419,10 +419,10 @@ def main() -> None:
             ):
                 mask = type_loss_masks[field][type_ids] & element_mask
                 if not np.array_equal(actual[key].numpy(), mask):
-                    raise ValueError(f"exact S4 mask mismatch: {key} in {split}")
+                    raise ValueError(f"exact mask mismatch: {key} in {split}")
 
             if not np.array_equal(actual["element_mask"].numpy(), element_mask):
-                raise ValueError(f"exact S4 mask mismatch: element_mask in {split}")
+                raise ValueError(f"exact mask mismatch: element_mask in {split}")
 
         summary["splits"][split] = {
             "documents": len(documents),

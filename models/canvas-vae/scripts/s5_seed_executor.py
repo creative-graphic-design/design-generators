@@ -125,7 +125,7 @@ def validate_lockstep_probe_inputs(value: JsonValue) -> JsonObject:
 
 def validate_training_attribution_reference(value: JsonValue) -> JsonObject:
     if not isinstance(value, dict):
-        raise ExecutorError("Crello S5 needs a hashed training attribution artifact")
+        raise ExecutorError("Crello training needs a hashed attribution artifact")
     prefix = value.get("prefix")
     revision = value.get("revision")
     filename = value.get("filename")
@@ -149,7 +149,7 @@ def validate_training_attribution_reference(value: JsonValue) -> JsonObject:
         or not isinstance(sha256, str)
         or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
     ):
-        raise ExecutorError("Crello S5 training attribution reference is incomplete")
+        raise ExecutorError("Crello training attribution reference is incomplete")
 
     return cast(JsonObject, value)
 
@@ -258,7 +258,7 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
         or rehearsal.get("source_commit") != pinned_commit
     ):
         raise ExecutorError(
-            "Crello S5 dispatch requires a same-environment CPU rehearsal for the pinned commit"
+            "Crello training dispatch requires a same-environment CPU rehearsal for the pinned commit"
         )
     rehearsal_path = rehearsal.get("artifact_path")
     rehearsal_sha256 = rehearsal.get("sha256")
@@ -827,7 +827,9 @@ def record_smoke_exit_code(
     try:
         result_path.relative_to(REPOSITORY_ROOT / ".cache" / "canvas-vae" / "s5")
     except ValueError as error:
-        raise ExecutorError("smoke result path must stay under the S5 cache") from error
+        raise ExecutorError(
+            "smoke result path must stay under the training cache"
+        ) from error
     result = load_json(result_path)
     session_exit_codes = result.get("session_exit_codes")
     if not isinstance(session_exit_codes, dict):
@@ -971,11 +973,11 @@ def validate_original_document_counts(
         )
         or count_data != original_counts
     ):
-        raise SystemExit("Crello S5 original document counts differ from their manifest")
+        raise SystemExit("Crello original document counts differ from their manifest")
     for split in ("train", "val", "test"):
         if record_counts.get(split) != original_counts[split]:
             raise SystemExit(
-                f"Crello S5 original {split} record count differs from manifest"
+                f"Crello original {split} record count differs from manifest"
             )
 
     return original_counts
@@ -1029,7 +1031,7 @@ if config["download_inputs"]:
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
                 digest.update(chunk)
         if digest.hexdigest() != archive["sha256"]:
-            raise SystemExit("Crello S5 input archive SHA-256 mismatch")
+            raise SystemExit("Crello input archive SHA-256 mismatch")
         paths = config["dataset_paths"]
         package_data = repository / paths["package_data_dir"]
         package_fixture = repository / paths["package_fixture_dir"]
@@ -1059,7 +1061,7 @@ if config["download_inputs"]:
                         or not (member.isfile() or member.isdir())
                         or member.name in seen
                         or not any(path == root or root in path.parents for root in allowed_roots)):
-                    raise SystemExit("Crello S5 archive contains an unsafe member")
+                    raise SystemExit("Crello archive contains an unsafe member")
                 seen.add(member.name)
             bundle.extractall(repository, members=members)
         required = [
@@ -1079,13 +1081,13 @@ if config["download_inputs"]:
         for split in ("train", "val", "test"):
             required.extend((package_data / f"{split}.jsonl",))
             if not list(original_data.glob(f"{split}-*.tfrecord")):
-                raise SystemExit(f"Crello S5 archive is missing original {split} records")
+                raise SystemExit(f"Crello archive is missing original {split} records")
         missing = [str(path) for path in required if not path.is_file()]
         if missing:
-            raise SystemExit("Crello S5 archive is missing required inputs: " + ", ".join(missing))
+            raise SystemExit("Crello archive is missing required inputs: " + ", ".join(missing))
         package_counts = {"train": 18768, "val": 2315, "test": 2278}
         if json.loads((package_data / "count.json").read_text()) != package_counts:
-            raise SystemExit("Crello S5 package document counts differ")
+            raise SystemExit("Crello package document counts differ")
         original_data_manifest = json.loads(
             (original_data / "crello-s5-manifest.json").read_text()
         )
@@ -1094,7 +1096,7 @@ if config["download_inputs"]:
             original_data_manifest["source_archive_sha256"]
             != data["source_archive_sha256"]
         ):
-            raise SystemExit("Crello S5 materialized records use unexpected source data")
+            raise SystemExit("Crello materialized records use unexpected source data")
 
         def tfrecord_record_count(path):
             count = 0
@@ -1125,14 +1127,14 @@ if config["download_inputs"]:
             (package_data / "crello-manifest.json").read_text()
         )["document_stage_image_ids_first_occurrence"]
         if len(canonical_ids) != 114007:
-            raise SystemExit("Crello S5 canonical visual-element count differs")
+            raise SystemExit("Crello canonical visual-element count differs")
         fixture_manifests = []
         for fixture in (package_fixture, original_fixture):
             manifest_path = fixture / "manifest.json"
             if hashlib.sha256(manifest_path.read_bytes()).hexdigest() != (
                 fixture / "manifest.sha256"
             ).read_text().strip():
-                raise SystemExit(f"Crello S5 fixture manifest hash differs: {fixture}")
+                raise SystemExit(f"Crello fixture manifest hash differs: {fixture}")
             fixture_manifest = json.loads(manifest_path.read_text())
             array_path = fixture / "posterior_means.npy"
             array_hash = file_sha256(array_path)
@@ -1145,7 +1147,7 @@ if config["download_inputs"]:
                 or fixture_manifest["source_archive_sha256"]
                 != data["source_archive_sha256"]
             ):
-                raise SystemExit(f"Crello S5 fixture does not match its encoder data: {fixture}")
+                raise SystemExit(f"Crello fixture does not match its encoder data: {fixture}")
             fixture_manifests.append(fixture_manifest)
         if (
             fixture_manifests[0]["source_archive_sha256"]
@@ -1155,7 +1157,7 @@ if config["download_inputs"]:
             or original_data_manifest["original_embedding_array_sha256"]
             != file_sha256(original_fixture / "posterior_means.npy")
         ):
-            raise SystemExit("Crello S5 data and encoder caches have inconsistent hashes")
+            raise SystemExit("Crello data and encoder caches have inconsistent hashes")
 
         probe_inputs = config.get("lockstep_probe_inputs")
         if probe_inputs is not None:
@@ -2228,7 +2230,9 @@ def execute_run(
         raise ExecutorError("manifest source_commit must be finalized")
     verify_local_source(pinned)
     if manifest.get("queue_status") != "ready":
-        raise ExecutorError("manifest queue_status is not ready; refusing S5 dispatch")
+        raise ExecutorError(
+            "manifest queue_status is not ready; refusing training dispatch"
+        )
     config_digest = manifest.get("config_sha256")
     if not isinstance(config_digest, str) or not re.fullmatch(
         r"[0-9a-f]{64}", config_digest
@@ -2721,7 +2725,9 @@ def execute_cpu_smoke(
 
     raw_runs = base_manifest.get("runs")
     if not isinstance(raw_runs, list):
-        raise ExecutorError("S5 manifest does not define its source run templates")
+        raise ExecutorError(
+            "training manifest does not define its source run templates"
+        )
     package_template = next(
         (
             run
@@ -2740,7 +2746,7 @@ def execute_cpu_smoke(
     )
     if package_template is None or original_template is None:
         raise ExecutorError(
-            "S5 manifest must define package and original run templates"
+            "training manifest must define package and original run templates"
         )
 
     smoke_id = uuid.uuid4().hex[:8]
@@ -2765,7 +2771,7 @@ def execute_cpu_smoke(
 
     raw_runtime_plan = base_manifest.get("runtime_plan")
     if not isinstance(raw_runtime_plan, dict):
-        raise ExecutorError("S5 manifest runtime_plan must be an object")
+        raise ExecutorError("training manifest runtime_plan must be an object")
     runtime_plan = dict(raw_runtime_plan)
     runtime_root = "${S5_RUNTIME_ROOT}"
     runtime_plan.update(

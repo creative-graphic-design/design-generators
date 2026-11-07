@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 
@@ -78,6 +79,23 @@ def main() -> None:
 
     from canvasvae.main import parse_args
     from canvasvae.train import train_and_evaluate
+
+    if os.environ.get("CANVAS_VAE_S4_TRAIN_STREAM") == "1":
+        from canvasvae.data import DataSpec
+
+        from canvas_vae.training.update_trace import (
+            install_tensorflow_s4_train_stream,
+        )
+
+        install_tensorflow_s4_train_stream(DataSpec)
+
+    trace_path = os.environ.get("CANVAS_VAE_UPDATE_TRACE")
+    if trace_path:
+        from canvasvae.models.vae import VAE
+
+        from canvas_vae.training.update_trace import install_tensorflow_training_trace
+
+        install_tensorflow_training_trace(VAE, trace_path, args.seed)
 
     original = parse_args(
         build_trainer_arguments(

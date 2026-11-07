@@ -20,6 +20,7 @@ trainer:
       init_args:
         save_top_k: 1
         save_last: true
+    - class_path: canvas_vae.training.update_trace.TrainingUpdateTraceCallback
 model:
   class_path: canvas_vae.training.CanvasVAECrelloTrainingModule
   init_args:

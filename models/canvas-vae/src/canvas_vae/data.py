@@ -9,6 +9,7 @@ import tempfile
 import urllib.request
 import zipfile
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final, Literal, TypedDict, cast, overload
@@ -279,12 +280,15 @@ def load_crello_vocabularies(data_dir: str | Path) -> dict[str, list[str | int]]
     """Build final lookup vocabularies with the source Keras ordering."""
     counts = json.loads((Path(data_dir) / "vocabulary.json").read_text("utf-8"))
     vocabularies: dict[str, list[str | int]] = {"length": list(range(1, 51))}
-    for field in ("group", "format", "category", *_INTEGER_LOOKUP_FIELDS):
-        values = _vocabulary_values(counts[field])
-        if field in _STRING_LOOKUP_FIELDS:
-            vocabularies[field] = ["", *(str(value) for value in values if value != "")]
+    for field_name in ("group", "format", "category", *_INTEGER_LOOKUP_FIELDS):
+        values = _vocabulary_values(counts[field_name])
+        if field_name in _STRING_LOOKUP_FIELDS:
+            vocabularies[field_name] = [
+                "",
+                *(str(value) for value in values if value != ""),
+            ]
         else:
-            vocabularies[field] = [int(value) for value in values]
+            vocabularies[field_name] = [int(value) for value in values]
 
     vocabularies["type"] = [
         "",
@@ -445,23 +449,23 @@ def load_embedding_fixture(
     return {key: values[index] for index, key in enumerate(ids)}
 
 
+@dataclass
 class CrelloProcessor:
     """Encode Crello documents and construct the source type-conditioned masks."""
 
-    def __init__(
-        self,
-        vocabularies: Mapping[str, Sequence[str | int]],
-        embeddings: Mapping[str, Float[np.ndarray, "256"]],
-    ) -> None:
-        """Store final source-order vocabularies and the verified image fixture."""
+    vocabularies: Mapping[str, Sequence[str | int]]
+    embeddings: Mapping[str, Float[np.ndarray, "256"]]
+    lookups: dict[str, dict[str | int, int]] = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Build lookup tables once the caller supplies vocabularies."""
         self.vocabularies = {
-            field: list(values) for field, values in vocabularies.items()
+            name: list(values) for name, values in self.vocabularies.items()
         }
         self.lookups = {
-            field: {value: index for index, value in enumerate(values)}
-            for field, values in self.vocabularies.items()
+            name: {value: index for index, value in enumerate(values)}
+            for name, values in self.vocabularies.items()
         }
-        self.embeddings = embeddings
 
     def __call__(self, documents: Sequence[CrelloDocument]) -> BatchFeature:
         """Process a document batch and pad every field to its longest row."""
@@ -508,9 +512,12 @@ class CrelloProcessor:
             "color_mask": color_mask,
             "image_embedding_mask": image_embedding_mask,
         }
-        for field in CRELLO_CONTEXT_FIELDS:
-            result[field] = torch.tensor(
-                [self._lookup(field, row["context"][field]) for row in documents],
+        for field_name in CRELLO_CONTEXT_FIELDS:
+            result[field_name] = torch.tensor(
+                [
+                    self._lookup(field_name, row["context"][field_name])
+                    for row in documents
+                ],
                 dtype=torch.int64,
             ).unsqueeze(-1)
 
@@ -519,9 +526,9 @@ class CrelloProcessor:
                 field_tensors["type"][batch_index, element_index, 0] = self._lookup(
                     "type", element["type"]
                 )
-                for field in _GEOMETRY_FIELDS:
-                    field_tensors[field][batch_index, element_index, 0] = (
-                        self._discretize(field, element[field])
+                for field_name in _GEOMETRY_FIELDS:
+                    field_tensors[field_name][batch_index, element_index, 0] = (
+                        self._discretize(field_name, element[field_name])
                     )
 
                 field_tensors["opacity"][batch_index, element_index, 0] = (

@@ -1360,6 +1360,23 @@ def test_crello_data_module_loads_fixture_and_serves_canonical_splits(tmp_path):
     ]
 
 
+def test_crello_data_module_repeats_the_s4_checked_train_order(tmp_path):
+    data_dir, fixture_dir = write_prepared_data(tmp_path, documents_per_split=3)
+    data = CanvasVAECrelloDataModule(
+        data_dir=str(data_dir),
+        fixture_dir=str(fixture_dir),
+        batch_size=2,
+        seed=0,
+        use_s4_train_stream=True,
+    )
+    data.setup()
+
+    batches = list(data.train_dataloader()) + list(data.train_dataloader())
+    assert [
+        document_id for batch in batches for document_id in batch["document_id"]
+    ] == [document_id("train", index) for index in (0, 1, 2, 0, 1, 2, 0, 1)]
+
+
 def test_crello_training_step_uses_keras_adam_and_per_tensor_clipping(tmp_path):
     data_dir, fixture_dir = write_prepared_data(tmp_path)
     data = CanvasVAECrelloDataModule(

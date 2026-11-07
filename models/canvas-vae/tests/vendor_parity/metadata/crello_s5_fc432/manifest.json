@@ -1,258 +1,176 @@
 {
+  "artifacts": {
+    ".cache/canvas-vae/full-run/crello/evaluation_path_parity.receipt.json": "fe4495c1944670d65cf63ddfc75ff8e9a55872c8789ffab7450e9be11ba9e1c7",
+    ".cache/canvas-vae/s5-path-a/inputs/cache/manifest.json": "769f372cf7baca6805c3e2a0e4c605ba7c0b47cc490acee62e736fbb45ec42f6",
+    ".cache/canvas-vae/s5-path-a/inputs/cache/posterior_means.npy": "fc432517afc2732c0b1ff218e3b0064800ce3f27349b2d96777cb5b08be7ed1a",
+    ".cache/canvas-vae/s5-path-a/inputs/materialization-regenerated-report.json": "6797fd531fd0672387c4b8cd149d3b95d52f91e73d63072070d7265d6f2aa5c2",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/count.json": "182113575a1859b6201f29493f55cf855df029f60a134d673015c99b305a10ec",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/crello-s5-manifest.json": "64de0c39b1a6d8a5e3e99a2b79b620927642ec29719ac1aaa94d0a772d5b6f5b",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/test-00000-of-00001.tfrecord": "a882a457f70c24aad67e255e7b571677888405e86bae1af83c40d70e59a7e5e9",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/train-00000-of-00001.tfrecord": "43b6b65bfa79afa9e69162178f3ec129567b61c6a7a46be9a180e160c20c82ad",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/val-00000-of-00001.tfrecord": "28a955bbb649be48f647a426785b3716772e870f1c5407b0a74ce504c8c08e26",
+    ".cache/canvas-vae/s5-path-a/inputs/original-data/vocabulary.json": "8de58ba39fd3f86d9f19deadaf5c3b9aceadc57b3bd2b45dc33b2072bf7629de",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/count.json": "182113575a1859b6201f29493f55cf855df029f60a134d673015c99b305a10ec",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/crello-manifest.json": "6452c2af371d3967d7f60674f66e68fb7afaf02a37197c8fe861e4983f62ab41",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/test.jsonl": "ed93ac59db5929e22ecb0be7897619504262f9e2fbe7cf854d7b18c781e8d714",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/train.jsonl": "0af994f38b7d4848c77baf8d637a2c83e55501744e9be7e51b67bf29e1b3b1d2",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/val.jsonl": "23cc314f0e349506898a0c5bd599e53a5846002258d29228e7b1cabe3329b0ee",
+    ".cache/canvas-vae/s5-path-a/inputs/package-data/vocabulary.json": "8de58ba39fd3f86d9f19deadaf5c3b9aceadc57b3bd2b45dc33b2072bf7629de",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed0.json": "d91cbdf59f912d1ddc5b7434ea8a00a2de438369396c70ddbb8f42df6d3cea01",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed1.json": "9427fe37173386f5114324997c4bfc3cb0efcd3743ff95efa732858d3f99e7b7",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed2.json": "d001683615336b4923f3f8472f024049d5bc128302981e3d8b15eeebe476a898",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed0.json": "3ffac0ac7b61733eca4adf6ec2441f6168b9cf28909b29a5842cde3a935869f1",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed1.json": "77dce916748821cfd3a0ef801a7ff4f5e3497c0da2c2cc4c4e69d6ea5bee7995",
+    ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed2.json": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
+    ".cache/canvas-vae/training-runs/crello/lightning_logs/version_1/checkpoints/best.ckpt": "2e6c11d65f8ae5ede5f6304e2046481f9bfd297b7c74861f44feb9c5a565b378",
+    "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "249e34ef2ccc8f3ab512db681286c1583e8f4629b9f7f933d9791ea05a322bea"
+  },
   "cache": {
     "array_file": "posterior_means.npy",
     "array_sha256": "fc432517afc2732c0b1ff218e3b0064800ce3f27349b2d96777cb5b08be7ed1a",
     "dtype": "little-endian float32",
-    "encoder_state_sha256": "287eff97f187a685359a555a4fe7920daea2090eef890adf9097de4dd7a0fc52",
     "manifest_sha256": "769f372cf7baca6805c3e2a0e4c605ba7c0b47cc490acee62e736fbb45ec42f6",
-    "prepared_crello_manifest_sha256": "6452c2af371d3967d7f60674f66e68fb7afaf02a37197c8fe861e4983f62ab41",
-    "producer": "Original TensorFlow PixelVAE, seed-0 initialization, untrained weights",
-    "scope": "The original and package CanvasVAE training runs and evaluations used this same full-size cache and the same prepared Crello splits.",
+    "producer": "original TensorFlow PixelVAE with seed-0 initialization and untrained weights",
     "shape": [
       114007,
       256
     ]
   },
-  "checkpoint_rule": "Evaluate the final CanvasVAE training checkpoint for each seed: original final epoch 500; package last.ckpt epoch 499, global_step 9500. The PixelVAE encoder used to create the shared cache came from its final last.ckpt, but that PixelVAE was untrained.",
-  "claim": "CanvasVAE training reproduction on identical full-size PixelVAE embeddings; not end-to-end PixelVAE-to-CanvasVAE reproduction.",
-  "commands": {
-    "evaluation": "uv run --frozen --no-sync --project \"${SOURCE_TREE}\" --package canvas-vae --extra training --directory \"${SOURCE_TREE}/models/canvas-vae\" python -m scripts.evaluate_crello --checkpoint \"${MODEL_DIR}\" --data-dir \"${DATA_DIR}\" --fixture-dir \"${CACHE_DIR}\" --seeds 0 1 2 --batch-size 1024 --device cpu --output \"${RESULT_PATH}\" --expected-test-documents 2278",
-    "original_training": "uv run --package canvas-vae --extra vendor models/canvas-vae/scripts/train_original.py --dataset-name crello-document --data-dir \"${ORIGINAL_TFRECORDS}\" --job-dir \"${OUTPUT_DIR}\" --seed \"${SEED}\" -- --num-epochs 500 --batch-size 1024",
-    "package_training_inner_command": "CUDA_VISIBLE_DEVICES=\"${GPU}\" NVIDIA_TF32_OVERRIDE=0 UV_PROJECT_ENVIRONMENT=\"${ENV_DIR}\" uv run --frozen --no-sync --project \"${SOURCE_TREE}\" --package canvas-vae --extra training traingen fit --config models/canvas-vae/configs/training/canvas_vae_crello.yaml --seed_everything=\"${SEED}\" --trainer.accelerator=gpu --trainer.devices=1 --trainer.precision=32-true --trainer.max_epochs=500 --trainer.default_root_dir=\"${OUTPUT_DIR}\" --model.init_args.data_dir=\"${DATA_DIR}\" --model.init_args.fixture_dir=\"${CACHE_DIR}\" --data.init_args.data_dir=\"${DATA_DIR}\" --data.init_args.fixture_dir=\"${CACHE_DIR}\"",
-    "package_wrapper_invocation": "bash run_canvasvae_seed.server.sh full \"${SEED}\" \"${GPU}\" \"${OUTPUT_DIR}\" \"${DATA_DIR}\" \"${CACHE_DIR}\""
-  },
+  "checkpoint_rule": "For each system, evaluate the validation-selected top-k checkpoint: original best.ckpt and package epoch=499-step=9500.ckpt. Do not evaluate last.ckpt.",
+  "claim": "CanvasVAE training comparison on identical fixed PixelVAE embeddings; it does not reproduce PixelVAE training or end-to-end PixelVAE-to-CanvasVAE training.",
   "comparison": {
-    "criterion": "Range overlap for each metric and |package mean - original mean| <= 2 * pooled sample SD.",
-    "metrics": {
-      "KL": {
-        "absolute_mean_difference": 0.011033508501660183,
-        "decision": "pass",
-        "intersection": [
-          0.6738537947,
-          0.6751674811045328
-        ],
-        "original_range": [
-          0.6738537947,
-          0.6981518069903055
-        ],
-        "package_range": [
-          0.6693014105161031,
-          0.6751674811045328
-        ],
-        "two_pooled_sd": 0.01962244698018606
-      },
-      "Sgen": {
-        "absolute_mean_difference": 0.0035364826666666183,
-        "decision": "pass",
-        "intersection": [
-          0.906618396,
-          0.910565873
-        ],
-        "original_range": [
-          0.906618396,
-          0.913015584
-        ],
-        "package_range": [
-          0.903869887,
-          0.910565873
-        ],
-        "two_pooled_sd": 0.006796289227960558
-      },
-      "Sreconst": {
-        "absolute_mean_difference": 0.0008802874539090011,
-        "decision": "pass",
-        "intersection": [
-          0.8700132361622208,
-          0.8708619075034981
-        ],
-        "original_range": [
-          0.8700132361622208,
-          0.8720323866
-        ],
-        "package_range": [
-          0.869219504499561,
-          0.8708619075034981
-        ],
-        "two_pooled_sd": 0.0018935668179107209
-      },
-      "layout_mIoU": {
-        "absolute_mean_difference": 0.007264480828912068,
-        "decision": "pass",
-        "intersection": [
-          0.49049406244212646,
-          0.49593274231224965
-        ],
-        "original_range": [
-          0.49049406244212646,
-          0.4981364785
-        ],
-        "package_range": [
-          0.47031012410338874,
-          0.49593274231224965
-        ],
-        "two_pooled_sd": 0.020587671801682
-      }
-    },
-    "rounding": "Tables in TRAINING.md use nine decimal places; source values are preserved here.",
-    "seed_scope": "training-seed n=3 per system; Sgen is the mean of three generation-seed values per training seed."
+    "decision_rule": "For each primary metric, original and package three-seed ranges must overlap and the absolute difference in means must be no greater than twice the pooled sample standard deviation; all three must pass. Otherwise the outcome is CHECK.",
+    "decision_rule_scope": "Apply only to the replacement S5 evaluation; historical comparisons and the required pre-S5 checks are not judged by this rule.",
+    "primary_metrics": [
+      "Sreconst",
+      "layout mIoU",
+      "Sgen"
+    ],
+    "secondary_metrics": [
+      "KL"
+    ],
+    "status": "pending"
   },
   "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
-  "config_sha256": "9551326d06c971d3ad368e2264c9833c8788bb7f69a8c48a0c44c3d0db986066",
+  "config_sha256": "249e34ef2ccc8f3ab512db681286c1583e8f4629b9f7f933d9791ea05a322bea",
+  "dataset": "crello",
   "evaluation": {
-    "evaluation_path_parity_receipt": ".cache/canvas-vae/full-run/crello/evaluation_path_parity_r5.receipt.json",
-    "evaluation_path_parity_sha256": "fe4495c1944670d65cf63ddfc75ff4e9a55872c8789ffab7450e9be11ba9e1c7",
+    "evaluation_path_parity": {
+      "categorical_mismatches": 0,
+      "documents": 2278,
+      "receipt": ".cache/canvas-vae/full-run/crello/evaluation_path_parity.receipt.json",
+      "receipt_sha256": "fe4495c1944670d65cf63ddfc75ff8e9a55872c8789ffab7450e9be11ba9e1c7",
+      "status": "passed"
+    },
     "generation_seeds": [
       0,
       1,
       2
     ],
-    "sgen_aggregation": "Arithmetic mean of random_total across generation seeds 0, 1, and 2 for each training seed.",
+    "sgen_aggregation": "mean random_total over generation seeds 0, 1, and 2 per training seed",
     "test_documents": 2278
   },
-  "existing_rico_evidence": {
-    "manifest_path": ".cache/canvas-vae/full-run/rico/manifest.json",
-    "manifest_sha256": "b52d889bfc1b950237a19a512a8501b2aaac49c9b438e6f46c0cfcc8e9bcad61",
-    "result_path": ".cache/canvas-vae/full-run/rico/s5_statistical_comparison.v2.json",
-    "result_sha256": "35f43f18c5bef9ed40c0e58b1eeba6ff0dbdb0b8d542a925aa4c9a4b70664cd6"
-  },
-  "launched_at": "2026-11-06T22:59:26+09:00",
-  "runs": {
+  "evaluator_command": "uv run --locked --package canvas-vae --extra training models/canvas-vae/scripts/evaluate_crello.py --checkpoint \"${MODEL_DIR}\" --data-dir \"${DATA_DIR}\" --fixture-dir \"${CACHE_DIR}\" --seeds 0 1 2 --batch-size 1024 --device cpu --output \"${RESULT_PATH}\" --expected-test-documents 2278",
+  "historical_reference": {
+    "accepted_original_evaluations_reused": true,
+    "note": "The accepted original evaluations were reused only for the historical reference table; their hashes are recorded below, and they will not be reused for the pending both-arm S5 comparison.",
     "original": [
       {
-        "checkpoint_rule": "final epoch 500",
-        "evaluation_json_sha256": "d91cbdf59f912d1ddc5b7434ea8a00a2de438369396c70ddbb8f42df6d3cea01",
-        "metrics": {
-          "KL": 0.6757645607,
-          "Sgen": 0.910512368,
-          "Sreconst": 0.8720323866,
-          "layout_mIoU": 0.4923010065
-        },
-        "model_safetensors_sha256": "052f14c9f99658723fc0e38d2ad9f10cead57f9b54380a640fc2d96391ecfc41",
+        "evaluated_model_sha256": "052f14c9f99658723fc0e38d2ad9f10cead57f9b54380a640fc2d96391ecfc41",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed0.json",
+        "evaluation_sha256": "d91cbdf59f912d1ddc5b7434ea8a00a2de438369396c70ddbb8f42df6d3cea01",
         "seed": 0,
         "source_commit": "2e91f2e1497cbec52e9bb3608df3ed0dded618f2"
       },
       {
-        "checkpoint_rule": "final epoch 500",
-        "evaluation_json_sha256": "9427fe37173386f5114324997c4bfc3cb0efcd3743ff95efa732858d3f99e7b7",
-        "metrics": {
-          "KL": 0.6981518069903055,
-          "Sgen": 0.906618396,
-          "Sreconst": 0.8700132361622208,
-          "layout_mIoU": 0.49049406244212646
-        },
-        "model_safetensors_sha256": "9c1dbf66da5cbe035fd0369a7a1acdb9d67fce9a48446a9f96946cc636db48c9",
+        "evaluated_model_sha256": "9c1dbf66da5cbe035fd0369a7a1acdb9d67fce9a48446a9f96946cc636db48c9",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed1.json",
+        "evaluation_sha256": "9427fe37173386f5114324997c4bfc3cb0efcd3743ff95efa732858d3f99e7b7",
         "seed": 1,
         "source_commit": "2e91f2e1497cbec52e9bb3608df3ed0dded618f2"
       },
       {
-        "checkpoint_rule": "final epoch 500",
-        "evaluation_json_sha256": "d001683615336b4923f3f8472f024049d5bc128302981e3d8b15eeebe476a898",
-        "metrics": {
-          "KL": 0.6738537947,
-          "Sgen": 0.913015584,
-          "Sreconst": 0.8712242736,
-          "layout_mIoU": 0.4981364785
-        },
-        "model_safetensors_sha256": "e41dac8ed310a476b88a7f4844805b94545147b6e897ed6a5e31ba4c27b2fd2b",
+        "evaluated_model_sha256": "e41dac8ed310a476b88a7f4844805b94545147b6e897ed6a5e31ba4c27b2fd2b",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/original-seed2.json",
+        "evaluation_sha256": "d001683615336b4923f3f8472f024049d5bc128302981e3d8b15eeebe476a898",
         "seed": 2,
         "source_commit": "2e91f2e1497cbec52e9bb3608df3ed0dded618f2"
       }
     ],
     "package": [
       {
-        "checkpoint_epoch": 499,
+        "checkpoint_file": "epoch=499-step=9500.ckpt",
         "checkpoint_sha256": "cb317fe06deda91d3bcc3ec31d201fda5f3088a05e99b2f8f0f5a2b42b765ce7",
-        "evaluation_json_sha256": "3ffac0ac7b61733eca4adf6ec2441f6168b9cf28909b29a5842cde3a935869f1",
-        "final_checkpoint": "lightning_logs/version_0/checkpoints/last.ckpt",
-        "global_step": 9500,
-        "gpu": 4,
-        "launch_manifest_sha256": "e97f97ebc1b70dc008f5eb7619b6536b5e0057b2b8b929eabafbbaada903f18d",
-        "metrics": {
-          "KL": 0.6751674811045328,
-          "Sgen": 0.90510114,
-          "Sreconst": 0.8705476219974347,
-          "layout_mIoU": 0.49593274231224965
-        },
-        "metrics_csv_sha256": "10d0cc39c156becaab47fa0a096869d0b7989fdb2571bd2199e270b60461a4fd",
-        "model_safetensors_sha256": "49f04fed0a44aa92152812b25f93b7629715282a3497e4c01f722d7a2a6064b3",
-        "pid": 47870,
+        "checkpoint_state_dict_sha256": "275d8c14dbd59ac16c923a867aef1926ff69624c6151c905738d78458a45930a",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed0.json",
+        "evaluation_sha256": "3ffac0ac7b61733eca4adf6ec2441f6168b9cf28909b29a5842cde3a935869f1",
         "seed": 0,
-        "started_at": "2026-11-06T22:59:26+09:00"
+        "source_commit": "d3f15b072c17cef14bacfe29a120e8e1b18e1fbc"
       },
       {
-        "checkpoint_epoch": 499,
+        "checkpoint_file": "epoch=499-step=9500.ckpt",
         "checkpoint_sha256": "ad357b3b3a90764265a016b63b31f78dd1219532b78085dbbefc829bfdf9d75e",
-        "evaluation_json_sha256": "77dce916748821cfd3a0ef801a7ff4f5e3497c0da2c2cc4c4e69d6ea5bee7995",
-        "final_checkpoint": "lightning_logs/version_0/checkpoints/last.ckpt",
-        "global_step": 9500,
-        "gpu": 7,
-        "launch_manifest_sha256": "00a08bfe073d94d136cd408343035532ef06972bb20eecd29b25233ed205d3b0",
-        "metrics": {
-          "KL": 0.6693014105161031,
-          "Sgen": 0.903869887,
-          "Sreconst": 0.869219504499561,
-          "layout_mIoU": 0.47031012410338874
-        },
-        "metrics_csv_sha256": "7a626dd5f280a071d62e726f1446a8539930f6ba5dd526d228e2f44342253cba",
-        "model_safetensors_sha256": "083f80fa5baf7792d27c73f3d2676d42a843fce0232ac510851b0f78d7157c8d",
-        "pid": 47959,
+        "checkpoint_state_dict_sha256": "eb80144933dc7578db9c2fc8636d71c50a03c481de9787b2717426cd97501776",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed1.json",
+        "evaluation_sha256": "77dce916748821cfd3a0ef801a7ff4f5e3497c0da2c2cc4c4e69d6ea5bee7995",
         "seed": 1,
-        "started_at": "2026-11-06T22:59:29+09:00"
+        "source_commit": "d3f15b072c17cef14bacfe29a120e8e1b18e1fbc"
       },
       {
-        "checkpoint_epoch": 499,
+        "checkpoint_file": "epoch=499-step=9500.ckpt",
         "checkpoint_sha256": "5188f4d6ffd8f244bc54304911f462aab6486fcf03352668691e327e6196ff66",
-        "evaluation_json_sha256": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
-        "final_checkpoint": "lightning_logs/version_0/checkpoints/last.ckpt",
-        "global_step": 9500,
-        "gpu": 0,
-        "launch_manifest_sha256": "69f57432e957dbca45dfcd94273d7e7eeb3bce9d430ca3a0668b89795440e73b",
-        "metrics": {
-          "KL": 0.6702007452646891,
-          "Sgen": 0.910565873,
-          "Sreconst": 0.8708619075034981,
-          "layout_mIoU": 0.4928952385397518
-        },
-        "metrics_csv_sha256": "12064131df2c7a6f20980294a89f3062e5d7156247a8a2321097565520e5972d",
-        "model_safetensors_sha256": "e0161c5661f647dbbc5be0d28f86f45550459d51eedc2462151f32ca566a1632",
-        "pid": 48107,
+        "checkpoint_state_dict_sha256": "6cf51a1c2533cdef015cd470d1f8164cfb608262e1a4acaed14ecf6ab591367f",
+        "evaluation": ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed2.json",
+        "evaluation_sha256": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
         "seed": 2,
-        "started_at": "2026-11-06T22:59:32+09:00"
+        "source_commit": "d3f15b072c17cef14bacfe29a120e8e1b18e1fbc"
       }
-    ]
+    ],
+    "status": "reference only"
   },
-  "runtime": {
-    "locked_torch_cuda_build": "2.13.0+cu130",
-    "original_gpu": "A100",
-    "package_gpu": "Tesla V100-SXM2-32GB",
-    "package_gpu_indices_by_seed": {
-      "0": 4,
-      "1": 7,
-      "2": 0
+  "prepared_data": {
+    "documents_checked": 23361,
+    "embedding_vectors_checked": 249914,
+    "fc432_vector_mismatches": 0,
+    "materialization_wall_seconds": 29.357,
+    "original_data_manifest_sha256": "64de0c39b1a6d8a5e3e99a2b79b620927642ec29719ac1aaa94d0a772d5b6f5b",
+    "package_manifest_sha256": "6452c2af371d3967d7f60674f66e68fb7afaf02a37197c8fe861e4983f62ab41",
+    "tfrecords_regenerated": true
+  },
+  "prerequisite_status": {
+    "gpu_bound_check": "pending",
+    "production_path_loss_envelope": "pending",
+    "real_scale_gpu_lockstep": "pending"
+  },
+  "schema_version": 2,
+  "source_commit_mappings": [
+    {
+      "equivalent_head_commit": "8960f054bb87552d3e12abf591d6f4775d1f0f98",
+      "prior_commit": "d3f15b072c17cef14bacfe29a120e8e1b18e1fbc"
     },
-    "package_gpu_sharing": "Each package run shared its assigned GPU with one concurrent PubLayNet process.",
-    "pip_freeze_sha256": "e8bf1db18e5dfaebefda04c2ad86a208a1b457e90ded9a1d17e3488e43ae51ff",
-    "server_wrapper_sha256": "8403b908eb49b6964c338dbf3cfe9ab5788eb12fd1271aaae1968ec8e48d2f91",
-    "torch": "2.13.0+cu126",
-    "torch_cuda_build_deviation_reason": "The server driver could not initialize the locked CUDA 13.0 wheel; only the Torch CUDA build changed."
-  },
-  "schema_version": 1,
-  "source_commit": "d3f15b072c17cef14bacfe29a120e8e1b18e1fbc",
+    {
+      "equivalent_head_commit": "0fc888aa6abcd8fb6804efe5a4e7b39e2aa2375f",
+      "prior_commit": "2e91f2e1497cbec52e9bb3608df3ed0dded618f2"
+    },
+    {
+      "equivalent_head_commit": "633c987c4780e9f48c98c905f90f46ff61de0ec9",
+      "prior_commit": "6ed7e58780fe1f69e62e1bf284f156508458bb31"
+    }
+  ],
   "superseded_comparison": {
-    "comparison_record_sha256": "3d35f0328ab6997a31ffadc851975daa0529704e666449b9b59cd3bb28000f3e",
     "original_cache_sha256": "fc432517afc2732c0b1ff218e3b0064800ce3f27349b2d96777cb5b08be7ed1a",
-    "original_evaluation_json_sha256": [
+    "original_evaluation_sha256": [
       "d91cbdf59f912d1ddc5b7434ea8a00a2de438369396c70ddbb8f42df6d3cea01",
       "9427fe37173386f5114324997c4bfc3cb0efcd3743ff95efa732858d3f99e7b7",
       "d001683615336b4923f3f8472f024049d5bc128302981e3d8b15eeebe476a898"
     ],
     "package_cache_sha256": "33f1d1757bc8ae1a6e46d0dd8bd1230c21b133d881a65dfcf1f012ff9738bb3e",
-    "package_evaluation_json_sha256": [
+    "package_evaluation_sha256": [
       "10e2122de22c8e953abd9f3b110c5ba6f36e63de431807a51db16fea59a8b8cf",
       "6373d6cc28f03fa4f2396ce40a3f8a5fa9453c31374e77f70cfc85b38053fb0d",
       "653faebcc9f4713b725fdeb9b1a9f1d5bdfaccc256f589d6160f590f4eec26c4"
     ],
-    "reason": "The original arm used the fc432 cache, while the earlier package arm used embeddings from the trained package PixelVAE cache; the unequal input cache makes that comparison non-like-for-like.",
-    "result": "Superseded: the previous package/original metric ranges did not intersect; they are not evidence against the fixed-cache CanvasVAE claim."
+    "reason": "The original and package arms used caches produced by different PixelVAE encoders, mixing CanvasVAE differences with independent encoder differences.",
+    "status": "superseded"
   }
 }

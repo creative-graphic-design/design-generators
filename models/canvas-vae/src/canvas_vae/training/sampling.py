@@ -37,17 +37,24 @@ class CrossEpochBatchSampler(Sampler[list[int]]):
         generator: torch.Generator,
         *,
         ordered_indices: Sequence[int] | None = None,
+        repeat_ordered_indices: bool = False,
     ) -> None:
         """Store the stream configuration."""
         self.num_records = num_records
         self.batch_size = batch_size
         self.generator = generator
+        if repeat_ordered_indices and (
+            ordered_indices is None or len(ordered_indices) == 0
+        ):
+            raise ValueError("a repeated ordered stream needs ordered indices")
+
         if ordered_indices is not None and any(
             index < 0 or index >= num_records for index in ordered_indices
         ):
             raise ValueError("ordered indices must refer to records in the dataset")
 
         self._ordered_indices = ordered_indices
+        self._repeat_ordered_indices = repeat_ordered_indices
         self._ordered_position = 0
         self.buffer: list[int] = []
 
@@ -60,6 +67,19 @@ class CrossEpochBatchSampler(Sampler[list[int]]):
         for _ in range(len(self)):
             if self._ordered_indices is not None:
                 start = self._ordered_position
+                if self._repeat_ordered_indices:
+                    batch = [
+                        self._ordered_indices[
+                            (start + offset) % len(self._ordered_indices)
+                        ]
+                        for offset in range(self.batch_size)
+                    ]
+                    self._ordered_position = (start + self.batch_size) % len(
+                        self._ordered_indices
+                    )
+                    yield batch
+                    continue
+
                 stop = start + self.batch_size
                 if stop > len(self._ordered_indices):
                     raise RuntimeError(

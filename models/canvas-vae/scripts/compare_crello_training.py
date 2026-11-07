@@ -2725,7 +2725,7 @@ def _run_s0(
     report_path = report_dir / "s0.json"
     _write_json(report_path, report)
     if errors:
-        raise AssertionError(f"S0 checks failed; report written to {report_path}")
+        raise AssertionError(f"Static checks failed; report written to {report_path}")
 
     return report
 
@@ -2875,7 +2875,7 @@ def _calibrate(
         )
         if child_missing_diagnostics:
             static_errors.append(
-                f"calibration process {batch_index} is missing S2 tensor diagnostics: "
+                f"calibration process {batch_index} is missing gradient tensor diagnostics: "
                 + ", ".join(sorted(child_missing_diagnostics))
             )
         child_s3_diagnostics = cast(
@@ -2887,7 +2887,7 @@ def _calibrate(
         )
         if child_missing_s3_diagnostics:
             static_errors.append(
-                f"calibration process {batch_index} is missing S3 tensor diagnostics: "
+                f"calibration process {batch_index} is missing update tensor diagnostics: "
                 + ", ".join(sorted(child_missing_s3_diagnostics))
             )
         child_digests = cast(list[str], child["batch_digests"])
@@ -2968,14 +2968,14 @@ def _calibrate(
     missing_s2_diagnostics = set(S2_DIAGNOSTIC_GROUPS) - set(largest_s2_diagnostics)
     if missing_s2_diagnostics:
         static_errors.append(
-            "calibration is missing S2 tensor diagnostics: "
+            "calibration is missing gradient tensor diagnostics: "
             + ", ".join(sorted(missing_s2_diagnostics))
         )
     largest_s3_diagnostics = _largest_s2_tensor_diagnostics(s3_tensor_diagnostics)
     missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(largest_s3_diagnostics)
     if missing_s3_diagnostics:
         static_errors.append(
-            "calibration is missing S3 tensor diagnostics: "
+            "calibration is missing update tensor diagnostics: "
             + ", ".join(sorted(missing_s3_diagnostics))
         )
 
@@ -3168,7 +3168,7 @@ def _heldout(
         )
         if child_missing_diagnostics:
             static_errors.append(
-                f"held-out process {batch_index} is missing S2 tensor diagnostics: "
+                f"held-out process {batch_index} is missing gradient tensor diagnostics: "
                 + ", ".join(sorted(child_missing_diagnostics))
             )
         child_s3_diagnostics = cast(
@@ -3180,7 +3180,7 @@ def _heldout(
         )
         if child_missing_s3_diagnostics:
             static_errors.append(
-                f"held-out process {batch_index} is missing S3 tensor diagnostics: "
+                f"held-out process {batch_index} is missing update tensor diagnostics: "
                 + ", ".join(sorted(child_missing_s3_diagnostics))
             )
         child_digests = cast(list[str], child["batch_digests"])
@@ -3242,14 +3242,14 @@ def _heldout(
     missing_s2_diagnostics = set(S2_DIAGNOSTIC_GROUPS) - set(largest_s2_diagnostics)
     if missing_s2_diagnostics:
         static_errors.append(
-            "held-out run is missing S2 tensor diagnostics: "
+            "held-out run is missing gradient tensor diagnostics: "
             + ", ".join(sorted(missing_s2_diagnostics))
         )
     largest_s3_diagnostics = _largest_s2_tensor_diagnostics(s3_tensor_diagnostics)
     missing_s3_diagnostics = set(S3_DIAGNOSTIC_GROUPS) - set(largest_s3_diagnostics)
     if missing_s3_diagnostics:
         static_errors.append(
-            "held-out run is missing S3 tensor diagnostics: "
+            "held-out run is missing update tensor diagnostics: "
             + ", ".join(sorted(missing_s3_diagnostics))
         )
 

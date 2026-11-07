@@ -95,6 +95,31 @@ def test_cross_epoch_sampler_default_order_matches_random_stream():
     assert list(sampler) + list(sampler) == expected
 
 
+def test_cross_epoch_sampler_repeats_the_s4_order_across_batches():
+    sampler = CrossEpochBatchSampler(
+        5,
+        2,
+        torch.Generator().manual_seed(0),
+        ordered_indices=list(range(5)),
+        repeat_ordered_indices=True,
+    )
+
+    assert list(sampler) == [[0, 1], [2, 3], [4, 0]]
+    assert list(sampler) == [[1, 2], [3, 4], [0, 1]]
+
+
+@pytest.mark.parametrize("ordered_indices", [None, []])
+def test_cross_epoch_sampler_requires_order_to_repeat(ordered_indices):
+    with pytest.raises(ValueError, match="repeated ordered stream"):
+        CrossEpochBatchSampler(
+            5,
+            2,
+            torch.Generator().manual_seed(0),
+            ordered_indices=ordered_indices,
+            repeat_ordered_indices=True,
+        )
+
+
 def test_rico_scale_stream_constants():
     assert len(CrossEpochBatchSampler(45222, 1024, torch.Generator())) == 45
     batches = wrapping_batches(5584, 1024)

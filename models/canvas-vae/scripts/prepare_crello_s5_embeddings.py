@@ -235,7 +235,9 @@ def materialize_original_records(
 
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     if output_dir.exists():
-        raise FileExistsError(f"refusing to overwrite original S5 data: {output_dir}")
+        raise FileExistsError(
+            f"refusing to overwrite original prepared data: {output_dir}"
+        )
 
     with tempfile.TemporaryDirectory(
         dir=output_dir.parent, prefix=f".{output_dir.name}."
