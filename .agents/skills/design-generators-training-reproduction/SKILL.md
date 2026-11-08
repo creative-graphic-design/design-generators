@@ -51,6 +51,7 @@ Run `uv run --package design-generators scripts/check_training_stage_evidence.py
 - Use one explicitly selected GPU for CUDA parity or training runs.
 - Label seed scope exactly, such as `training-seed n=3` or `evaluation-seed n=3`.
 - State dataset coverage per dataset; do not imply full reproduction when only a subset has S5 evidence.
+- For each recorded training behavior, state what the run did, how current code behaves, and the test that verifies the current behavior.
 
 ## PR Rules
 
