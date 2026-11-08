@@ -279,6 +279,7 @@ class PixelVAEDataModule(L.LightningDataModule):
             )
             for split, dataset in datasets.items()
         }
+        self.samplers["train"].set_epoch(self.sampler_start_epoch)
 
     def _index_unique_records(
         self, record_paths: Sequence[Path], record_count: int

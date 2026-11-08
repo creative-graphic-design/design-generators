@@ -169,7 +169,7 @@ class PixelVAETrainingModule(L.LightningModule):
     ) -> None:
         """Log source validation reconstruction for best-checkpoint selection."""
         del batch_idx
-        output = self.model(batch["pixel_values"], sample=True)
+        output = self.model(batch["pixel_values"], sample=False)
         assert output.reconstruction_loss is not None
         self.log(
             "val_reconstruction",

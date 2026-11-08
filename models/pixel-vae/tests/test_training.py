@@ -427,7 +427,7 @@ def test_training_module_uses_model_losses_and_keras_adam(
     optimizer = module.configure_optimizers()
 
     assert loss.item() == 1.0
-    assert fake_model.sample_values == [True, True]
+    assert fake_model.sample_values == [True, False]
     assert set(logged) == {
         "train_loss",
         "train_reconstruction",
@@ -629,6 +629,80 @@ def test_epoch_timing_callback_reconstructs_sampler_epoch_across_resume(
     assert [record["epoch"] for record in records] == [11, 12]
     assert [record["sampler_epoch"] for record in records] == [10, 11]
     assert [record["lightning_epoch"] for record in records] == [12, 14]
+
+
+@pytest.mark.training
+def test_trainer_resume_starts_with_the_configured_sampler_epoch(
+    tmp_path: Path,
+) -> None:
+    images = [_png(value) for value in range(1, 7)]
+    data_dir = _prepared_data_dir(
+        tmp_path,
+        {"train": len(images), "val": 2},
+        train_images=images,
+    )
+
+    np.random.seed(0)
+    expected_data = PixelVAEDataModule(str(data_dir), batch_size=2)
+    expected_data.setup("fit")
+    expected_data.samplers["train"].set_epoch(1)
+    expected = [index + 1 for index in expected_data.samplers["train"]]
+
+    class BatchOrderModule(L.LightningModule):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = nn.Parameter(torch.zeros(()))
+            self.seen: list[int] = []
+
+        def training_step(self, batch: BatchFeature, batch_idx: int) -> torch.Tensor:
+            del batch_idx
+            pixels = cast(torch.Tensor, batch["pixel_values"])
+            self.seen.extend((pixels[:, 0, 0, 0] * 255).round().int().tolist())
+            return self.weight.square()
+
+        def configure_optimizers(self) -> torch.optim.Optimizer:
+            return torch.optim.SGD(self.parameters(), lr=0.1)
+
+    def make_trainer(max_epochs: int, root: Path) -> L.Trainer:
+        return L.Trainer(
+            accelerator="cpu",
+            devices=1,
+            max_epochs=max_epochs,
+            logger=False,
+            enable_progress_bar=False,
+            enable_model_summary=False,
+            enable_checkpointing=False,
+            limit_val_batches=0,
+            callbacks=[PixelVAEEpochTimingCallback()],
+            default_root_dir=str(root),
+        )
+
+    np.random.seed(0)
+    first_data = PixelVAEDataModule(str(data_dir), batch_size=2, num_workers=2)
+    first_data.setup("fit")
+    first_trainer = make_trainer(1, tmp_path / "first")
+    first_trainer.fit(BatchOrderModule(), datamodule=first_data)
+    checkpoint_path = tmp_path / "resume.ckpt"
+    first_trainer.save_checkpoint(checkpoint_path)
+
+    np.random.seed(0)
+    resumed_data = PixelVAEDataModule(
+        str(data_dir),
+        batch_size=2,
+        num_workers=2,
+        sampler_start_epoch=1,
+        sampler_start_global_step=3,
+    )
+    resumed_data.setup("fit")
+    resumed_module = BatchOrderModule()
+    resumed_trainer = make_trainer(2, tmp_path / "resumed")
+    resumed_trainer.fit(
+        resumed_module,
+        datamodule=resumed_data,
+        ckpt_path=checkpoint_path,
+    )
+
+    assert resumed_module.seen == expected
 
 
 @pytest.mark.training
