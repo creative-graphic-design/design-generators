@@ -5,7 +5,8 @@
 # @description
 #   Production runs are invoked through colab-gpu-run, use 10 epochs first,
 #   then at most 68 epochs per segment. Segment boundaries are enforced with
-#   max_steps; max_epochs stays fixed at 250 across every resume. At the
+#   max_steps; max_epochs=-1 lets absolute step targets end every segment
+#   despite restored epoch-counter offsets. At the
 #   measured rate, 68 epochs plus 30 minutes of setup and a 10% reserve fit
 #   within 9.5 hours. Run the 300-step lockstep only on the first production
 #   segment. After changing the training path, update the pinned attribution
@@ -557,8 +558,8 @@ fit_args=(
     --config "$training_config"
     "--trainer.accelerator=$accelerator"
     --trainer.devices=1
-    # Segment boundaries use max_steps; keep Lightning's total-run limit fixed.
-    --trainer.max_epochs=250
+    # Segment boundaries use the absolute step target; epoch counters shift on resume.
+    --trainer.max_epochs=-1
     "--trainer.max_steps=$target_global_step"
     "--trainer.default_root_dir=$run_dir"
     --trainer.logger=false

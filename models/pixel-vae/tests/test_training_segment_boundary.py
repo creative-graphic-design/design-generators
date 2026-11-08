@@ -19,3 +19,34 @@ def test_production_segment_accepts_shortened_end_epoch() -> None:
             check=False,
         )
         assert (result.returncode == 0) is accepted
+
+
+def test_segment_trainer_args_use_absolute_step_limit_without_epoch_cap() -> None:
+    runner = Path(__file__).parents[1] / "scripts" / "run_crello_training_segment.sh"
+    script = runner.read_text(encoding="utf-8")
+    fit_args = script.split("fit_args=(", maxsplit=1)[1].split("\n)", maxsplit=1)[0]
+    shell = f"""
+training_config=config.yaml
+accelerator=gpu
+run_dir=run
+target_global_step=350000
+data_dir=data
+batch_size=64
+start_epoch=245
+start_global_step=343000
+fit_args=(
+{fit_args}
+)
+printf '%s\\n' "${{fit_args[@]}}"
+"""
+    result = subprocess.run(
+        ["bash", "-c", shell],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    arguments = result.stdout.splitlines()
+
+    assert "--trainer.max_epochs=-1" in arguments
+    assert "--trainer.max_epochs=250" not in arguments
+    assert "--trainer.max_steps=350000" in arguments
