@@ -42,7 +42,7 @@ model-index:
 
 This package ports the image encoder and decoder from [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), the ICCV 2021 vector-document VAE, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package. Its MobileNetV2 encoder maps 256 × 256 RGBA previews to the 256-dimensional posterior mean used by CanvasVAE document records. The package is a separate workspace member so it can be converted, serialized, and parity-checked independently before the document model consumes it.
 
-CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch: all 17 held-out metrics met their frozen per-metric limits, and state mapping, decode, and encoder save/load checks passed. The original and package each completed 250-epoch Crello v1 training. The package validation best was 193.7491 at epoch 249; this value is a reference only, not an S5 result. PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric, so there is no full-run comparison to make. PixelVAE training reproduction is not verified; the separate shared-cache CanvasVAE comparison does not evaluate package PixelVAE training. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md).
+CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch. All 17 held-out metrics met their frozen limits. State mapping, decode, and encoder save/load checks passed. The original and package each completed 250-epoch Crello v1 training. The package validation best was 193.7491 at epoch 249, a reference only. PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric. PixelVAE training reproduction is not verified. The separate shared-cache CanvasVAE comparison does not evaluate package PixelVAE training. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md).
 
 ## Model Details
 
@@ -146,7 +146,7 @@ Original-code parity uses [crello-dataset-v1.zip](https://storage.googleapis.com
 
 ### Training Procedure
 
-This package includes a Lightning training module and a `traingen` configuration. The original and package Crello v1 training runs each finished 250 epochs. The package validation reconstruction value 193.7491 at epoch 249 is a reference only, not an S5 result; the final checkpoint supplied the encoder export. PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric, so there is no full-run comparison to make. PixelVAE training reproduction is not verified by the separate downstream CanvasVAE comparison.
+This package includes a Lightning training module and a `traingen` configuration. The original and package Crello v1 training runs each finished 250 epochs. The package validation reconstruction value 193.7491 at epoch 249 is a reference only, not an S5 result; the final checkpoint supplied the encoder export. PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric, so there is no full-run comparison to make. PixelVAE training reproduction is not verified. The downstream CanvasVAE comparison does not evaluate package PixelVAE training.
 
 #### Preprocessing
 
@@ -154,7 +154,7 @@ The training data module reads the original image-record export under `.cache/pi
 
 #### Training Hyperparameters
 
-- **Training regime:** batch size 64 for 250 epochs, `KerasAdam` at constant learning rate `1e-4`, KL weight 100, and L2 weight `1e-6`; validation selects the checkpoint with minimum reconstruction loss.
+- **Training regime:** batch size 64 for 250 epochs with `KerasAdam`, constant learning rate `1e-4`, KL weight 100, and L2 weight `1e-6`; validation selects minimum reconstruction loss.
 
 Train from the repository root after preparing the filtered image-record export:
 
@@ -178,7 +178,7 @@ The source and package receive identical PNG bytes decoded to RGBA uint8 values,
 
 #### Metrics
 
-Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric, rounding upward to two significant figures while preserving the per-metric floor `L` from [parity-limit-floors.json](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json). The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
+Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction, KL, total loss, gradients, Keras Adam moments, updated parameters, and the three-step trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric. Limits round upward to two significant figures while preserving per-metric floor `L`. The per-metric floors are listed in [parity-limit-floors.json](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json). The held-out run uses a fresh normal-mode CPU process. Image decode and structural S0/S4 gates require exact equality.
 
 ### Parity Results
 
@@ -194,7 +194,7 @@ The CPU acceptance passed against one deterministic, untrained TensorFlow state 
 
 ## Reproducibility
 
-Reproduce agreement with the original TensorFlow implementation using [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md), which covers the pinned source, private Crello archive, three-run CPU calibration, held-out validation, conversion, and local loading. Both 250-epoch Crello v1 training runs are complete, but PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric, so there is no full-run comparison to make. Validation scores are references only, and PixelVAE training reproduction is not verified by the separate CanvasVAE comparison; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the run record.
+Reproduce agreement with the original TensorFlow implementation using [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md), which covers the pinned source, private Crello archive, three-run CPU calibration, held-out validation, conversion, and local loading. Both 250-epoch Crello v1 training runs are complete, but PixelVAE S5 is not claimed because the original code defines no standalone PixelVAE test metric, so there is no full-run comparison to make. Validation scores are references only, and PixelVAE training reproduction is not verified. The CanvasVAE comparison does not evaluate package PixelVAE training; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the run record.
 
 ## Technical Specifications
 
