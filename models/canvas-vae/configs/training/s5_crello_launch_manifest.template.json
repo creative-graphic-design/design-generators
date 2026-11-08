@@ -23,10 +23,12 @@
     "materialized_original_data_dir": ".cache/canvas-vae/original/data/crello-s5"
   },
   "evaluator_command": null,
-  "checkpoint_rule": "Train each system through epoch 500 with batch size 1024. Package checkpoints must report epoch 499 and global step 9500 before evaluation; original runs use final.ckpt. Evaluate every selected checkpoint on all 2278 v1 test documents with Sreconst, layout mIoU using type as the primary label, and Sgen for evaluation seeds 0, 1, and 2.",
-  "package_checkpoint_expectation": {
-    "max_epochs": 500,
-    "global_step": 9500
+  "checkpoint_rule": "Train each system through 500 epochs with batch size 1024. Package evaluation uses the validation-selected top-1 best.ckpt monitored on val/total_score in max mode; original evaluation uses its validation-selected best.ckpt. Evaluate each selected checkpoint on all 2278 v1 test documents with Sreconst, layout mIoU using type as the primary label, and Sgen for evaluation seeds 0, 1, and 2.",
+  "package_checkpoint_selection": {
+    "filename": "best.ckpt",
+    "monitor": "val/total_score",
+    "mode": "max",
+    "save_top_k": 1
   },
   "artifacts": {
     "<repository-relative-artifact-path>": "<sha256>"
@@ -53,7 +55,7 @@
     "one_training_run_at_a_time": true,
     "queue_supervisor_sequential": true,
     "lockstep_probe_steps": 300,
-    "session_order": "Run the 300-step lockstep probe before original seed 0 in the same A100 session. Stop before full training if any step exceeds the relative loss limit of 1e-3. Report throughput without using it as a gate. Then train each named seed sequentially, require wrapper exit code 0 and final checkpoint presence, convert and evaluate on a separate named CPU session, and self-release both sessions.",
+    "session_order": "Run the 300-step lockstep probe before original seed 0 in the same A100 session. Report the first step over 1e-3 and compare the divergence with the package-versus-perturbed-package noise floor; the 1e-3 threshold is report-only. Report throughput without using it as a gate. Then train each named seed sequentially, require wrapper exit code 0 and selected checkpoint presence, convert and evaluate on a separate named CPU session, and self-release both sessions.",
     "source_branch": "feat/canvas-vae-crello-model",
     "source_commit": null,
     "wrapper_script": "${S5_WRAPPER_PATH}",
@@ -487,7 +489,7 @@
   "comparison_scope": {
     "evaluator": "models/canvas-vae/scripts/evaluate_crello.py",
     "test_split": "Crello v1 test",
-    "checkpoint_selection": "epoch 500; package epoch 499/global step 9500 gate, original final.ckpt",
+    "checkpoint_selection": "Package validation-best best.ckpt selected by val/total_score in max mode, top-1; original validation-selected best.ckpt.",
     "sample_count": 2278,
     "primary_layout_label": "type",
     "evaluation_seeds": [

@@ -23,7 +23,7 @@
     ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed1.json": "77dce916748821cfd3a0ef801a7ff4f5e3497c0da2c2cc4c4e69d6ea5bee7995",
     ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed2.json": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
     ".cache/canvas-vae/training-runs/crello/lightning_logs/version_1/checkpoints/best.ckpt": "2e6c11d65f8ae5ede5f6304e2046481f9bfd297b7c74861f44feb9c5a565b378",
-    "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "249e34ef2ccc8f3ab512db681286c1583e8f4629b9f7f933d9791ea05a322bea"
+    "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644"
   },
   "cache": {
     "array_file": "posterior_means.npy",
@@ -36,7 +36,7 @@
       256
     ]
   },
-  "checkpoint_rule": "For each system, evaluate the validation-selected top-k checkpoint: original best.ckpt and package epoch=499-step=9500.ckpt. Do not evaluate last.ckpt.",
+  "checkpoint_rule": "For each system, evaluate the validation-selected top-1 checkpoint: original best.ckpt and package best.ckpt (val/total_score, max). Do not evaluate last.ckpt.",
   "claim": "CanvasVAE training comparison on identical fixed PixelVAE embeddings; it does not reproduce PixelVAE training or end-to-end PixelVAE-to-CanvasVAE training.",
   "comparison": {
     "decision_rule": "For each primary metric, original and package three-seed ranges must overlap and the absolute difference in means must be no greater than twice the pooled sample standard deviation; all three must pass. Otherwise the outcome is CHECK.",
@@ -52,7 +52,7 @@
     "status": "pending"
   },
   "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
-  "config_sha256": "249e34ef2ccc8f3ab512db681286c1583e8f4629b9f7f933d9791ea05a322bea",
+  "config_sha256": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
   "dataset": "crello",
   "evaluation": {
     "evaluation_path_parity": {

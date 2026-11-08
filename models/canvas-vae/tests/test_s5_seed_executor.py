@@ -377,12 +377,17 @@ def test_crello_postprocess_uses_crello_vocab_and_evaluator() -> None:
     assert "repository .venv exists; refusing environment drift" in command
 
 
-def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> None:
+def test_crello_package_training_dry_run_selects_validation_best_checkpoint() -> None:
     command = EXECUTOR.build_run_job(
         {
             "dataset": "crello",
             "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
-            "package_checkpoint_expectation": {"max_epochs": 500, "global_step": 9500},
+            "package_checkpoint_selection": {
+                "filename": "best.ckpt",
+                "monitor": "val/total_score",
+                "mode": "max",
+                "save_top_k": 1,
+            },
         },
         {
             "run_id": "crello-package-seed0",
@@ -397,11 +402,60 @@ def test_crello_package_training_dry_run_contains_final_checkpoint_gate() -> Non
         resume_checkpoint=None,
     )
 
-    assert "--expected-global-step 9500" in command
-    assert "--max-epochs 500" in command
+    assert "*/checkpoints/best.ckpt" in command
+    assert 'selected_checkpoints="$(find' in command
+    assert (
+        'cp -- "$selected_checkpoints" /content/out/checkpoints/crello-package-seed0/'
+        "segment-001/epoch-500.ckpt" in command
+    )
+    assert "last.ckpt" not in command
     assert "--model.init_args.fixture_dir=.cache/embeddings" in command
     assert "UV_PROJECT_ENVIRONMENT=/content/canvas-vae-training-env" in command
     assert "repository .venv exists; refusing environment drift" in command
+
+
+def test_crello_package_postprocess_converts_selected_checkpoint() -> None:
+    manifest = {
+        "dataset": "crello",
+        "dataset_paths": {
+            "package_vocabulary": ".cache/canvas-vae/crello/package-run-1/vocabulary.json",
+        },
+        "evaluator_command": [
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "models/canvas-vae/scripts/evaluate_crello.py",
+            "--checkpoint",
+            "{converted_checkpoint}",
+            "--output",
+            "{evaluation_output}",
+        ],
+    }
+    run = {
+        "run_id": "crello-package-seed0",
+        "system": "package",
+        "converted_output_root": "/content/out/converted/crello-package-seed0/{segment_id}",
+        "evaluation_output": "/content/out/results/crello-package-seed0/{segment_id}/evaluation.json",
+        "epoch_500_checkpoint": "/content/out/checkpoints/crello-package-seed0/{segment_id}/epoch-500.ckpt",
+    }
+
+    command = EXECUTOR.build_postprocess_job(manifest, run, "segment-001", "a" * 40)
+
+    assert (
+        "convert_original_checkpoint.py --checkpoint "
+        "/content/s5-training-checkpoint/epoch-500.ckpt" in command
+    )
+    assert (
+        "models/canvas-vae/scripts/evaluate_crello.py --checkpoint "
+        "/content/out/converted/crello-package-seed0/segment-001" in command
+    )
 
 
 def test_crello_remote_preflight_rejects_wrong_original_document_counts() -> None:

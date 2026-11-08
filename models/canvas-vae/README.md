@@ -214,7 +214,7 @@ CPU is sufficient for inference, unit tests, and the staged agreement checks.
 
 #### Software
 
-Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. For RICO, the final package checkpoint gate requires epoch 499 and global step 22,500. Crello uses a separate 19-batch-per-epoch config and selects the package top-k checkpoint `epoch=499-step=9500.ckpt` for evaluation.
+Use `uv run --package canvas-vae ...` from the repository root. The `training` extra installs Lightning, and the `vendor` extra installs CUDA-enabled TensorFlow 2.15.1 and Apache Beam for original-code references. The separate `convert` extra installs CPU-only TensorFlow for original `initial.ckpt` and `final.ckpt` conversion. For RICO, the final package checkpoint gate requires epoch 499 and global step 22,500. Crello uses a separate 19-batch-per-epoch config and evaluates validation-best `best.ckpt`, selected by `val/total_score` in max mode.
 
 ## License
 

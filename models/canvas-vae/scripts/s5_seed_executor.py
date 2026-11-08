@@ -1406,6 +1406,7 @@ def build_run_job(
     epoch_500_checkpoint = f"{output_root}/epoch-500.ckpt"
     checkpoint_max_epochs: int | None = None
     checkpoint_global_step: int | None = None
+    package_checkpoint_selection: JsonObject | None = None
     env_lines = (
         "set -Eeuo pipefail",
         "cd /content/repo",
@@ -1445,26 +1446,55 @@ def build_run_job(
         ]
         if resume_checkpoint is not None:
             training_args.append("--ckpt_path=/content/out/resume/checkpoint.ckpt")
-        checkpoint_path = f"{training_root}/checkpoints/last.ckpt"
-        checkpoint_expectation = run.get(
-            "package_checkpoint_expectation",
-            manifest.get("package_checkpoint_expectation"),
+        selection = run.get(
+            "package_checkpoint_selection",
+            manifest.get("package_checkpoint_selection"),
         )
-        if not isinstance(checkpoint_expectation, dict):
-            raise ExecutorError("manifest package_checkpoint_expectation is required")
-        max_epochs = checkpoint_expectation.get("max_epochs")
-        global_step = checkpoint_expectation.get("global_step")
-        if (
-            type(max_epochs) is not int
-            or type(global_step) is not int
-            or max_epochs < 1
-            or global_step < 0
-        ):
-            raise ExecutorError(
-                "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
+        if selection is not None:
+            if not isinstance(selection, dict):
+                raise ExecutorError("package_checkpoint_selection must be an object")
+            filename = selection.get("filename")
+            monitor = selection.get("monitor")
+            mode = selection.get("mode")
+            save_top_k = selection.get("save_top_k")
+            if (
+                not isinstance(filename, str)
+                or Path(filename).name != filename
+                or not filename.endswith(".ckpt")
+                or not isinstance(monitor, str)
+                or not isinstance(mode, str)
+                or mode not in {"min", "max"}
+                or type(save_top_k) is not int
+                or save_top_k != 1
+            ):
+                raise ExecutorError(
+                    "package checkpoint selection needs a filename, monitor, mode, and save_top_k=1"
+                )
+            package_checkpoint_selection = selection
+            checkpoint_path = f"{training_root}/checkpoints/{filename}"
+        else:
+            checkpoint_path = f"{training_root}/checkpoints/last.ckpt"
+            checkpoint_expectation = run.get(
+                "package_checkpoint_expectation",
+                manifest.get("package_checkpoint_expectation"),
             )
-        checkpoint_max_epochs = max_epochs
-        checkpoint_global_step = global_step
+            if not isinstance(checkpoint_expectation, dict):
+                raise ExecutorError(
+                    "manifest package_checkpoint_expectation is required"
+                )
+            max_epochs = checkpoint_expectation.get("max_epochs")
+            global_step = checkpoint_expectation.get("global_step")
+            if (
+                type(max_epochs) is not int
+                or type(global_step) is not int
+                or max_epochs < 1
+                or global_step < 0
+            ):
+                raise ExecutorError(
+                    "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
+                )
+            checkpoint_max_epochs = max_epochs
+            checkpoint_global_step = global_step
     elif system == "original":
         if resume_checkpoint is not None:
             raise ExecutorError(
@@ -1595,22 +1625,35 @@ def build_run_job(
         )
 
     if system == "package":
-        if checkpoint_max_epochs is None or checkpoint_global_step is None:
-            raise ExecutorError("package checkpoint gate was not configured")
+        if package_checkpoint_selection is not None:
+            filename = cast(str, package_checkpoint_selection["filename"])
+            post_train_lines = [
+                'selected_checkpoints="$(find '
+                + shlex.quote(training_root)
+                + " -path "
+                + shlex.quote(f"*/checkpoints/{filename}")
+                + ' -type f -print)"',
+                'test "$(printf \'%s\\n\' "$selected_checkpoints" | wc -l)" -eq 1',
+                'test -s "$selected_checkpoints"',
+                f'cp -- "$selected_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
+            ]
+        else:
+            if checkpoint_max_epochs is None or checkpoint_global_step is None:
+                raise ExecutorError("package checkpoint gate was not configured")
 
-        checkpoint_gate = (
-            "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training "
-            'python -m canvas_vae.training.checkpoints "$last_checkpoints" '
-            f"--max-epochs {checkpoint_max_epochs} "
-            f"--expected-global-step {checkpoint_global_step}"
-        )
-        post_train_lines = [
-            f"last_checkpoints=\"$(find {shlex.quote(training_root)} -path '*/checkpoints/last.ckpt' -type f -print)\"",
-            'test "$(printf \'%s\\n\' "$last_checkpoints" | wc -l)" -eq 1',
-            'test -s "$last_checkpoints"',
-            checkpoint_gate,
-            f'cp -- "$last_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
-        ]
+            checkpoint_gate = (
+                "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training "
+                'python -m canvas_vae.training.checkpoints "$last_checkpoints" '
+                f"--max-epochs {checkpoint_max_epochs} "
+                f"--expected-global-step {checkpoint_global_step}"
+            )
+            post_train_lines = [
+                f"last_checkpoints=\"$(find {shlex.quote(training_root)} -path '*/checkpoints/last.ckpt' -type f -print)\"",
+                'test "$(printf \'%s\\n\' "$last_checkpoints" | wc -l)" -eq 1',
+                'test -s "$last_checkpoints"',
+                checkpoint_gate,
+                f'cp -- "$last_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
+            ]
     else:
         post_train_lines = [
             f"checkpoint_prefix={shlex.quote(checkpoint_path or '')}",
@@ -2946,6 +2989,7 @@ def execute_cpu_smoke(
         else:
             run["training_config_override"] = "/content/s5-smoke.yaml"
             if system == "package":
+                run["package_checkpoint_selection"] = None
                 run["package_checkpoint_expectation"] = {
                     "max_epochs": 1,
                     "global_step": 2,
@@ -3216,10 +3260,13 @@ def main() -> int:
                 args.segment_id,
                 resume_checkpoint=None,
             )
-            has_package_checkpoint_gate = "canvas_vae.training.checkpoints" in run_job
+            has_package_checkpoint_gate = (
+                "canvas_vae.training.checkpoints" in run_job
+                or "selected_checkpoints=" in run_job
+            )
             if run.get("system") == "package" and not has_package_checkpoint_gate:
                 raise ExecutorError(
-                    "package dry-run is missing the final-checkpoint gate"
+                    "package dry-run is missing the checkpoint-selection gate"
                 )
             result: JsonObject = {
                 "event": "executor_dry_run_passed",
@@ -3230,24 +3277,36 @@ def main() -> int:
                 "epoch_500_checkpoint_hub_path": checkpoint_hub_path,
                 "system": run.get("system"),
                 "seed": run.get("seed"),
-                "training_job_contains_final_checkpoint_gate": (
-                    has_package_checkpoint_gate
-                ),
+                "training_job_contains_checkpoint_gate": has_package_checkpoint_gate,
             }
             if run.get("system") == "package":
-                expectation = manifest.get("package_checkpoint_expectation")
-                if not isinstance(expectation, dict):
-                    raise ExecutorError(
-                        "manifest package_checkpoint_expectation is required"
+                selection = run.get(
+                    "package_checkpoint_selection",
+                    manifest.get("package_checkpoint_selection"),
+                )
+                if selection is not None:
+                    if not isinstance(selection, dict):
+                        raise ExecutorError(
+                            "package_checkpoint_selection must be an object"
+                        )
+                    result["checkpoint_selection"] = selection
+                else:
+                    expectation = run.get(
+                        "package_checkpoint_expectation",
+                        manifest.get("package_checkpoint_expectation"),
                     )
-                max_epochs = expectation.get("max_epochs")
-                global_step = expectation.get("global_step")
-                if type(max_epochs) is not int or type(global_step) is not int:
-                    raise ExecutorError("package checkpoint expectation is invalid")
-                result["checkpoint_gate"] = {
-                    "expected_epoch": max_epochs - 1,
-                    "expected_global_step": global_step,
-                }
+                    if not isinstance(expectation, dict):
+                        raise ExecutorError(
+                            "manifest package_checkpoint_expectation is required"
+                        )
+                    max_epochs = expectation.get("max_epochs")
+                    global_step = expectation.get("global_step")
+                    if type(max_epochs) is not int or type(global_step) is not int:
+                        raise ExecutorError("package checkpoint expectation is invalid")
+                    result["checkpoint_gate"] = {
+                        "expected_epoch": max_epochs - 1,
+                        "expected_global_step": global_step,
+                    }
             print(json.dumps(result, sort_keys=True))
         elif args.cpu_smoke:
             if args.session_name is None or args.source_commit is None:

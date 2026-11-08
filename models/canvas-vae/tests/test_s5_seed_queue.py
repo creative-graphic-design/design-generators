@@ -55,6 +55,47 @@ def test_crello_template_defines_three_seeds_per_system() -> None:
     )
     assert manifest["runtime_plan"]["one_training_run_at_a_time"] is True
     assert manifest["runtime_plan"]["lockstep_probe_steps"] == 300
+    assert (
+        "the 1e-3 threshold is report-only" in manifest["runtime_plan"]["session_order"]
+    )
+    assert raw_manifest["package_checkpoint_selection"] == {
+        "filename": "best.ckpt",
+        "monitor": "val/total_score",
+        "mode": "max",
+        "save_top_k": 1,
+    }
+
+
+def test_crello_config_stops_non_finite_loss_and_selects_validation_best() -> None:
+    import yaml
+
+    path = (
+        QUEUE.REPOSITORY_ROOT
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "canvas_vae_crello.yaml"
+    )
+    config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    callbacks = config["trainer"]["callbacks"]
+
+    assert callbacks[0] == {
+        "class_path": "lightning.pytorch.callbacks.ModelCheckpoint",
+        "init_args": {
+            "monitor": "val/total_score",
+            "mode": "max",
+            "save_top_k": 1,
+            "save_last": False,
+            "filename": "best",
+            "auto_insert_metric_name": False,
+        },
+    }
+    assert any(
+        callback.get("class_path")
+        == "canvas_vae.training.callbacks.StopOnNonFiniteLoss"
+        for callback in callbacks
+    )
 
 
 def test_crello_launch_requires_runtime_hub_prefixes() -> None:

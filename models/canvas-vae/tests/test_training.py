@@ -312,6 +312,49 @@ def test_final_checkpoint_is_saved_when_validation_worsens(tmp_path):
 
 
 @pytest.mark.training
+def test_non_finite_training_loss_stops_after_its_batch(tmp_path):
+    from lightning.pytorch import LightningModule, Trainer
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from canvas_vae.training.callbacks import StopOnNonFiniteLoss
+
+    class NonFiniteSecondBatch(LightningModule):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(()))
+
+        def training_step(
+            self, batch: tuple[torch.Tensor, ...], batch_idx: int
+        ) -> torch.Tensor:
+            del batch
+            loss = self.weight.square()
+            return loss * float("nan") if batch_idx == 1 else loss
+
+        def configure_optimizers(self) -> torch.optim.Optimizer:
+            return torch.optim.SGD(self.parameters(), lr=0.1)
+
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=3,
+        limit_train_batches=3,
+        num_sanity_val_steps=0,
+        default_root_dir=tmp_path / "trainer",
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        callbacks=[StopOnNonFiniteLoss()],
+    )
+    trainer.fit(
+        NonFiniteSecondBatch(),
+        train_dataloaders=DataLoader(TensorDataset(torch.ones(3, 1)), batch_size=1),
+    )
+
+    assert trainer.global_step == 2
+
+
+@pytest.mark.training
 def test_training_module_rejects_global_clipping(rico_dir):
     from canvas_vae.training.datamodule import CanvasVAEDataModule
     from canvas_vae.training.lightning_module import CanvasVAETrainingModule
