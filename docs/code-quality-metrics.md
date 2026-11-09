@@ -36,31 +36,29 @@ jq -r '[.files[] | .path as $path | .functions[] | recurse(.children[]?) |
   sort_by(-.cognitive) | .[:20][]' cccc.json
 ```
 
-## Baseline quality gate
+## Strict cognitive complexity gate
 
-The complexity workflow fails when any of these conditions is violated:
+The workflow uses `max-cognitive = 15` in `cccc.toml`, equivalent to
+running `cccc --max-cognitive 15 lib models scripts tools`.
+**Every first-party Python function is subject to this limit**, including
+pre-existing code. The workflow fails if any function has cognitive
+complexity greater than 15; there are no grandfathered exceptions.
 
-| Metric | Initial limit |
-| --- | ---: |
-| Python parse errors | 0 |
-| Cognitive complexity P95 | 15 |
-| Cognitive complexity maximum | 125 |
-| Cyclomatic complexity P95 | 11 |
-| Cyclomatic complexity maximum | 107 |
-| Functions with cognitive complexity >15 | 178 |
-| Functions with cognitive complexity >30 | 39 |
-| Functions with cognitive complexity >50 | 16 |
+The first measurement on PR #537 counted **178 existing functions above 15**
+(out of 3,967 functions across 614 files). Consequently the new check will
+**intentionally fail** until those functions have been simplified.
+These functions are not silently waived. The workflow keeps the cccc and
+octocov reporting steps running despite a threshold violation, then fails
+in the final gate step so the failure is visible.
 
-These limits come from the first successful cccc run on PR #537
-(614 files, 3,967 functions). They are **initial regression budgets**,
-not target values or an endorsement of highly complex functions. The
-workflow also verifies that its recursive function list matches the
-summary's function count. The >15, >30, and >50 counts are published
-to octocov for trend monitoring.
+The octocov custom metrics also include the number of functions above
+15, 30 and 50 and the complexity distribution, so progress can be tracked
+as existing functions are refactored. Because model implementations must
+preserve reference behavior, changes to numerical paths require parity
+verification before being accepted.
 
-The aggregate limits permit an increase in one function's complexity
-when other functions improve enough to offset it. A future follow-up
-should implement a per-function changed-code gate, with a recommended
-cognitive threshold of 15 for new functions and a no-regression policy
-for existing functions. Model implementation refactors must preserve
-vendor parity and numerical reproducibility.
+Locally, the command exits nonzero when the limit is exceeded:
+
+```bash
+cccc --max-cognitive 15 lib models scripts tools > cccc.json
+```
