@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), a variational autoencoder for vector graphic documents, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for training and layout generation. The RICO three-seed training comparison passes after held-out CPU checks of the model and production data stream. The planned Crello comparison has not yet run: it will give both systems the same full-size cache from an untrained, seed-0-initialized original PixelVAE. Prior same-cache results remain reference data only because they predate the required amendment and checks; a separate different-cache comparison is superseded. This scope evaluates CanvasVAE training on fixed embeddings and does not verify package PixelVAE training or end-to-end PixelVAE-to-CanvasVAE reproduction. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for the pending checks, comparison scope, and prior-run evidence.
+This package ports [CanvasVAE][canvasvae-paper], a variational autoencoder for vector graphics, into [`🤗transformers`](https://huggingface.co/docs/transformers/index) for training and generation. The RICO and Crello three-seed comparisons pass their primary metrics. Both Crello systems used a cache from untrained original PixelVAE weights. This comparison does not evaluate PixelVAE training or the full pipeline. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for all six runs and first-run instability evidence.
 
 The original and package each completed three 500-epoch RICO runs and pass the predeclared comparison rule on 5,623 test layouts for the reconstruction score (Sreconst, mean BLEU-1 across fields and test layouts), layout mIoU (mean class intersection-over-union on rasterized component maps), and generated-layout score (Sgen, mean histogram intersection for generated-layout field and element-count distributions against RICO); each Sgen value averages three evaluation seeds. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) gives per-run results, the comparison rule, evaluation scope, calibration, and reproduction commands.
 
@@ -62,12 +62,12 @@ CanvasVAE encodes a layout, meaning a sequence of up to 50 UI elements, into a l
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID                                    | Status                            |
-| ---------- | ----------------------------------------- | --------------------------------- |
-| RICO       | `creative-graphic-design/canvas-vae-rico` | not-published                     |
-| Crello     | —                                         | comparison pending; not published |
+| Checkpoint | Hub ID                                    | Status        |
+| ---------- | ----------------------------------------- | ------------- |
+| RICO       | `creative-graphic-design/canvas-vae-rico` | not-published |
+| Crello     | —                                         | not-published |
 
-The RICO three-seed comparison passes after held-out CPU checks; its package checkpoint reached epoch 499 / global step 22,500. The Crello shared-cache comparison is pending. Earlier shared-cache values are reference-only because they predate the required checks; a separate comparison paired different caches and is superseded. The planned cache comes from untrained original PixelVAE weights, so the comparison does not verify package PixelVAE training. Neither dataset has published weights. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for the scope, required checks, reference metrics, commands, and artifact hashes.
+The RICO package checkpoint reached epoch 499 and global step 22,500. Crello has status `s5-practical-reproduction` for both systems; each of its three primary metrics passes the registered rule. The shared untrained-original PixelVAE cache does not test package PixelVAE training. Neither dataset has published weights. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) for run-level metrics, instability evidence, commands, and artifact hashes.
 
 ## Uses
 
@@ -177,7 +177,7 @@ Training agreement compares forward activations, losses, gradients, optimizer st
 
 ### Parity Results
 
-RICO calibration maxima and independent held-out results are listed separately. The RICO held-out run used a fresh clone, initialized its submodule, prepared RICO, and regenerated references on an Intel Xeon CPU at 2.20 GHz without AVX-512. All RICO S0–S4 commands passed; the documented suite reported 10 passed and 3 warnings in 3,591.26 seconds. The [held-out evidence record](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6052063572) provides additional run detail. Crello CPU unit tests passed, and production-loader replay matched all three splits exactly. The real-scale GPU lockstep probe, production-path loss envelope, and GPU-bound check for the shared-cache comparison remain pending. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the required checks and current evidence.
+RICO calibration maxima and independent held-out results are listed separately. A fresh RICO checkout passed the documented CPU S0–S4 suite: 10 passed and 3 warnings in 3,591.26 seconds. See the [held-out evidence record](https://github.com/creative-graphic-design/design-generators/issues/31#issuecomment-6052063572). Crello CPU parity and exact production-loader replay passed. The three-seed loss envelope passed with 1,501 updates per seed and no batch-sequence mismatches. The 300-step lockstep first crossed the 1e-3 noise threshold at step 36; the package noise floor crossed it at step 10, so the difference is attributed to floating-point noise. The GPU-bound check is waived for both Crello systems; GPU utilization, board power, and CPU use are report-only after the selected probe used 8 workers, 50-update logging, and no progress bar.
 
 | Check                                                                | Cases                                                                                                      | Criterion                                                                                                                                                                                                                                        | Historical calibration maximum                                                                                                                                                                                                                                                       | Held-out normal-mode result                                                                                                                                                                                                                                                        |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -192,7 +192,25 @@ RICO calibration maxima and independent held-out results are listed separately. 
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for commands to prepare RICO and Crello, generate original-code references, run agreement checks, convert checkpoints, and load local models. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the completed RICO comparison and the pending Crello shared-cache comparison.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md) for the preparation and evaluation commands. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records the completed RICO and Crello comparisons.
+
+Crello S5 follows the [S5 protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md) for full three-seed training and test evaluation. Both CanvasVAE systems used the same cache from untrained original PixelVAE weights. Each system has status `s5-practical-reproduction`, and all three primary metrics pass. The results use validation-best `best.ckpt` for each completed run.
+
+| System   | Run          | Best epoch | Sreconst | Layout mIoU |     Sgen |
+| -------- | ------------ | ---------: | -------: | ----------: | -------: |
+| Original | seed 0 rerun |        340 | 0.873973 |    0.475849 | 0.900248 |
+| Original | seed 1 rerun |        420 | 0.871019 |    0.467415 | 0.903411 |
+| Original | seed 2       |        500 | 0.866959 |    0.483868 | 0.902319 |
+| Package  | seed 0 rerun |        239 | 0.874347 |    0.476819 | 0.890439 |
+| Package  | seed 1       |        399 | 0.869933 |    0.471386 | 0.906030 |
+| Package  | seed 2       |        339 | 0.874782 |    0.479417 | 0.899085 |
+
+Non-finite training losses occurred in two of three original seeds and one of three package seeds. Each affected seed received one rerun; the comparison uses completed runs and retains each first run's best-checkpoint metrics as instability evidence. Package seed 0's rerun selected epoch 239; epoch 339 belongs to its divergent first run.
+
+| Recorded behavior                                                                  | Current code and check                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package seed 0 continued after a non-finite training loss was logged at epoch 346. | Current code stops after that batch; `test_training.py::test_non_finite_training_loss_stops_after_its_batch` verifies the behavior.                            |
+| The first package evaluation loaded an unmonitored final-epoch checkpoint.         | Evaluation selects validation-best `best.ckpt`; `test_s5_seed_executor.py::test_crello_package_training_dry_run_selects_validation_best_checkpoint` covers it. |
 
 ## Environmental Impact
 
@@ -233,3 +251,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
 ```
 
 <!-- --8<-- [end:card] -->
+
+[canvasvae-paper]: https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html

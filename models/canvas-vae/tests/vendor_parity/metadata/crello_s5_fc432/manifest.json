@@ -23,7 +23,8 @@
     ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed1.json": "77dce916748821cfd3a0ef801a7ff4f5e3497c0da2c2cc4c4e69d6ea5bee7995",
     ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed2.json": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
     ".cache/canvas-vae/training-runs/crello/lightning_logs/version_1/checkpoints/best.ckpt": "2e6c11d65f8ae5ede5f6304e2046481f9bfd297b7c74861f44feb9c5a565b378",
-    "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644"
+    "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
+    "models/canvas-vae/tests/vendor_parity/metadata/crello_s5_fc432/results.json": "b49ea6178110abd2f7b6376baeb0753275e43a4ff7d14a98a41c67041e5d692e"
   },
   "cache": {
     "array_file": "posterior_means.npy",
@@ -49,7 +50,9 @@
     "secondary_metrics": [
       "KL"
     ],
-    "status": "pending"
+    "status": "s5-practical-reproduction",
+    "results_path": "models/canvas-vae/tests/vendor_parity/metadata/crello_s5_fc432/results.json",
+    "results_sha256": "b49ea6178110abd2f7b6376baeb0753275e43a4ff7d14a98a41c67041e5d692e"
   },
   "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
   "config_sha256": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
@@ -73,7 +76,7 @@
   "evaluator_command": "uv run --locked --package canvas-vae --extra training models/canvas-vae/scripts/evaluate_crello.py --checkpoint \"${MODEL_DIR}\" --data-dir \"${DATA_DIR}\" --fixture-dir \"${CACHE_DIR}\" --seeds 0 1 2 --batch-size 1024 --device cpu --output \"${RESULT_PATH}\" --expected-test-documents 2278",
   "historical_reference": {
     "accepted_original_evaluations_reused": true,
-    "note": "The accepted original evaluations were reused only for the historical reference table; their hashes are recorded below, and they will not be reused for the pending both-arm S5 comparison.",
+    "note": "Accepted original and package evaluations are retained only for the historical reference table; the completed six-run comparison uses the selected-run evaluations recorded in results.json.",
     "original": [
       {
         "evaluated_model_sha256": "052f14c9f99658723fc0e38d2ad9f10cead57f9b54380a640fc2d96391ecfc41",
@@ -138,9 +141,9 @@
     "tfrecords_regenerated": true
   },
   "prerequisite_status": {
-    "gpu_bound_check": "pending",
-    "production_path_loss_envelope": "pending",
-    "real_scale_gpu_lockstep": "pending"
+    "gpu_bound_check": "waived_for_both_systems_report_only_telemetry",
+    "production_path_loss_envelope": "passed",
+    "real_scale_gpu_lockstep": "passed_noise_attributed"
   },
   "schema_version": 2,
   "source_commit_mappings": [
