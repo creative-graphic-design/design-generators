@@ -78,7 +78,7 @@ jobs:
                 {path: $path, name: .name, line: .line, cognitive: .cognitive, cyclomatic: .cyclomatic}
               ]
               | sort_by(-.cognitive) | .[:20][]
-              | "| $(.cognitive) | $(.cyclomatic) | `$(.name)` | `$(.path):$(.line)` |"
+              | "| \(.cognitive) | \(.cyclomatic) | `\(.name)` | `\(.path):\(.line)` |"
             ' cccc.json
           } >> "$GITHUB_STEP_SUMMARY"
 
