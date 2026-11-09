@@ -127,7 +127,7 @@ def test_model_rejects_invalid_inputs() -> None:
         model(torch.zeros(1, 3, 256, 256))
 
 
-def test_keras_batch_norm_uses_biased_variance_and_ema() -> None:
+def test_batch_norm_uses_biased_output_and_unbiased_moving_variance() -> None:
     norm = PixelVAEBatchNorm2d(1, eps=1e-3, momentum=0.5).train()
     values = torch.tensor([[[[1.0, 3.0]]]])
     normalized = norm(values)
@@ -139,12 +139,20 @@ def test_keras_batch_norm_uses_biased_variance_and_ema() -> None:
         rtol=1e-4,
     )
     torch.testing.assert_close(norm.running_mean, torch.tensor([1.0]))
-    torch.testing.assert_close(norm.running_var, torch.tensor([1.0]))
+    torch.testing.assert_close(norm.running_var, torch.tensor([1.5]))
 
     norm.eval()
     torch.testing.assert_close(
-        norm(values), torch.tensor([[[[0.0, 2.0]]]]) * epsilon_scale
+        norm(values), torch.tensor([[[[0.0, 2.0]]]]) * torch.rsqrt(torch.tensor(1.501))
     )
+
+
+def test_batch_norm_keeps_single_sample_running_variance_finite() -> None:
+    norm = PixelVAEBatchNorm2d(1, eps=1e-3, momentum=0.5).train()
+    normalized = norm(torch.tensor([[[[3.0]]]]))
+
+    torch.testing.assert_close(normalized, torch.zeros_like(normalized))
+    torch.testing.assert_close(norm.running_var, torch.tensor([0.5]))
 
 
 def test_reconstruction_masks_rgb_for_transparent_targets() -> None:
