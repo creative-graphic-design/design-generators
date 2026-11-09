@@ -26,6 +26,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Measure Python complexity
+        id: measure
+        # Preserve the report even when legacy functions exceed the limit.
+        continue-on-error: true
         uses: moznion/cccc-action@1d5313811f8451953e46a268c61791a01e40b7df # v1.1.2
         with:
           path: lib models scripts tools
@@ -61,22 +64,6 @@ jobs:
             ]
           }' cccc.json > octocov-complexity.json
 
-      - name: Enforce complexity baseline
-        run: |
-          jq -e '
-            [.files[].functions[] | recurse(.children[]?)] as $functions
-            | (.summary.parse_error_count == 0)
-              and (.summary.parse_error_file_count == 0)
-              and (.summary.function_count == ($functions | length))
-              and (.summary.cognitive.p95 <= 15)
-              and (.summary.cognitive.max <= 125)
-              and (.summary.cyclomatic.p95 <= 11)
-              and (.summary.cyclomatic.max <= 107)
-              and ([$functions[] | select(.cognitive > 15)] | length <= 178)
-              and ([$functions[] | select(.cognitive > 30)] | length <= 39)
-              and ([$functions[] | select(.cognitive > 50)] | length <= 16)
-          ' cccc.json
-
       - name: Report highest-complexity functions
         run: |
           {
@@ -101,3 +88,20 @@ jobs:
           config: .octocov.complexity.yml
         env:
           OCTOCOV_CUSTOM_METRICS_COMPLEXITY: octocov-complexity.json
+
+      # Keep the workflow failing while still publishing the octocov report above.
+      - name: Enforce cognitive complexity <= 15
+        if: always()
+        env:
+          CCCC_OUTCOME: ${{ steps.measure.outcome }}
+        run: |
+          if [ "${CCCC_OUTCOME}" != "success" ]; then
+            echo "::error::cccc failed: a Python function exceeded max-cognitive = 15, or analysis failed."
+            if [ -f cccc.json ]; then
+              jq -r '
+                [.files[].functions[] | recurse(.children[]?) | select(.cognitive > 15)]
+                | "Functions exceeding cognitive complexity 15: \(length)"
+              ' cccc.json | tee -a "${GITHUB_STEP_SUMMARY}"
+            fi
+            exit 1
+          fi

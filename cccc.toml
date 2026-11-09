@@ -1,6 +1,7 @@
 # Analyze first-party Python source and scripts; submodules are not checked out.
-# Record a baseline before introducing a complexity threshold for legacy code.
+# Enforce the same maximum for every function, including existing code.
 languages = ["python"]
+max-cognitive = 15
 exclude = [
   "**/tests/**",
   "**/test_*.py",
