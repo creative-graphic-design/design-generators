@@ -43,6 +43,7 @@ Use the README template for required metadata and headings. Keep its overview, p
 - For framework and library names, follow the naming rule in the [Model README template](.agents/skills/design-generators-model-conversion/references/model-readme-template.md).
 
 - Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
+- Place pipelines and models on CUDA with `.to("cuda")` in code examples; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
 
 - Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
 

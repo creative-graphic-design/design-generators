@@ -166,6 +166,98 @@ def test_model_readme_usage_output_contract(text: str, message: str | None) -> N
     assert message in violation
 
 
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        'pipe.to("cpu")',
+        'pipe.to(device="cpu")',
+        'pipe.to(torch.device("cpu"))',
+        'pipe.to(device=torch.device("cpu"))',
+        'pipe.to(torch.device(type="cpu"))',
+        'pipe.to("cpu:0")',
+        'pipe.to(*["cpu"])',
+        "pipe.cpu()",
+        'Pipeline.from_pretrained("checkpoint", device="cpu")',
+        'Pipeline.from_pretrained("checkpoint", device=torch.device("cpu"))',
+        'Pipeline.from_pretrained("checkpoint", device_map="cpu")',
+        'Pipeline.from_pretrained("checkpoint", device_map={"": "cpu"})',
+        'Pipeline.from_pretrained("checkpoint", map_location="cpu")',
+        'Pipeline.from_pretrained("checkpoint", **{"device": "cpu"})',
+        'torch.load("checkpoint", map_location="CPU")',
+        'torch.load("checkpoint", map_location={"": "cpu"})',
+        'torch.load("checkpoint", **{"map_location": "cpu"})',
+        'torch.Generator(device=torch.device("cpu"))',
+        'torch.Generator(device="cpu:0")',
+        'device = "cpu"; pipe.to(device)',
+        'device = torch.device("cpu"); pipe.to(device)',
+        'device = "cpu"; Pipeline.from_pretrained("checkpoint", device=device)',
+        'device = "cpu"; pipe.to(**{"device": device})',
+        'device = "cpu"; torch.Generator(device=device)',
+    ],
+)
+def test_model_readme_python_fences_reject_cpu_placement(snippet: str) -> None:
+    path = Path("models") / "synthetic" / "README.md"
+    text = f"```python\n{snippet}\n```\n"
+
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 2"
+    ):
+        card.assert_no_cpu_placement(path, text)
+
+
+def test_model_readme_python_fences_allow_cpu_generator_and_map_location() -> None:
+    path = Path("models") / "synthetic" / "README.md"
+    text = """
+Prose may mention `.to("cpu")` without showing it as runnable code.
+
+```bash
+pipe.to("cpu")
+```
+
+```python
+pipe.to("cuda")
+generator = torch.Generator(device="cpu").manual_seed(0)
+inputs = torch.load("checkpoint", map_location="cpu")
+```
+"""
+
+    card.assert_no_cpu_placement(path, text)
+
+
+def test_model_readme_template_python_fence_rejects_cpu_placement() -> None:
+    path = (
+        Path(".agents")
+        / "skills"
+        / "design-generators-model-conversion"
+        / "references"
+        / "model-readme-template.md"
+    )
+    text = '```python\nfrom <package_name> import Pipeline\npipe.to("cpu")\n```\n'
+
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 3"
+    ):
+        card.assert_no_cpu_placement(path, text)
+
+
+def test_model_readme_python_fence_rejects_unterminated_cpu_example() -> None:
+    path = Path("models") / "synthetic" / "README.md"
+    text = '```python\npipe.to("cpu")\n'
+
+    with pytest.raises(
+        AssertionError, match=r"CPU (?:placement|string literal).*line 2"
+    ):
+        card.assert_no_cpu_placement(path, text)
+
+
+def test_model_readme_python_fence_fails_closed_on_invalid_python() -> None:
+    path = Path("models") / "synthetic" / "README.md"
+    text = '```python\npipe.to("cpu"\n```\n'
+
+    with pytest.raises(AssertionError, match=r"cannot inspect invalid Python"):
+        card.assert_no_cpu_placement(path, text)
+
+
 def test_model_readme_baseline_reports_new_and_stale_entries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
