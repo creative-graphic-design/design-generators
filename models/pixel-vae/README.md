@@ -21,7 +21,7 @@ model-index:
           type: "cyberagent/crello"
           name: "Crello v1"
           config: "crello-dataset-v1.zip"
-          split: "Crello v1 training completed; full PixelVAE training and test evaluation not claimed"
+          split: "one 250-epoch run completed; S5 test evaluation not claimed"
         metrics:
           - type: "vendor-parity"
             value: "CPU parity passed; all 17 held-out metrics met frozen limits"

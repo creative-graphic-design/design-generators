@@ -77,7 +77,7 @@ The original image-record transform selects `imageElement`, `maskElement`, and `
 
 ## Segment Acceptance
 
-Accept a completed segment only after reading its `last.ckpt` back from the Hugging Face Hub: its SHA-256 must equal `checkpoints.last_sha256` in the segment report, and its stored `global_step` must equal `segment.global_step` in that report. A successful training exit code alone does not confirm that every artifact reached the Hub. The best checkpoint stores weights only and cannot resume optimizer state; continue segmented training from the verified full-state `last.ckpt`.
+Use `scripts/audit_hub_checkpoint.py` to verify a completed segment's `last.ckpt` after reading it back from the Hugging Face Hub. Its SHA-256 must match `checkpoints.last_sha256` in the report, and its `global_step` must match `segment.global_step`. A successful training exit code alone does not confirm that every artifact reached the Hub. The best checkpoint stores weights only and cannot resume optimizer state; continue segmented training from the verified full-state `last.ckpt`.
 
 Scheduler cadence — not applicable: the source and package use a constant learning rate. Importance sampler — not applicable: the loop has no timestep or importance sampler. EMA — not applicable: the loop has no exponential moving average. AMP — not applicable: the recipe uses float32. Multi-worker loader — applied: the sampler fixes record order in the main process. The six-worker persistent loader with pinned memory preserved the first 20 batch tensor hashes at epochs 1 and 11 in the CPU regression test.
 
@@ -181,7 +181,9 @@ The config sets `default_root_dir` to `.cache/pixel-vae/training-runs/crello` an
 
 ### Recorded Segmented Campaign
 
-Recorded segments used the [runner](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/scripts/run_crello_training_segment.sh). `colab-gpu-run` is its private Colab job launcher. The segmented route needs that launcher and private staged Hub inputs; readers without them should use the direct command above. The runner requires `uv 0.12.22` and syncs the locked training dependencies. Production runs use batch size 64, one visible CUDA device, and absolute epoch endpoints 010, 078, 146, 214, and 250. The first segment covers 10 epochs and later segments cover at most 68. The runner sets `max_epochs=-1` and stops at the absolute `max_steps` target.
+Recorded segments used the [runner](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/scripts/run_crello_training_segment.sh). `colab-gpu-run` is the private Colab job launcher used for the recorded campaign. The segmented route needs that launcher and private staged Hub inputs; readers without them should use the direct command above. The runner requires `uv 0.12.22` and syncs the locked training dependencies. Production runs use batch size 64 and one visible CUDA device.
+
+The planned cumulative epoch endpoints are 010, 078, 146, 214, and 250. The recorded segments ended at absolute epochs 10, 78, 146, 194, 227, 245, and 250. The runner reads the endpoint from the job name. It checks only that the endpoint is after the resume epoch and no greater than 250. It does not enforce the planned schedule or the header's 68-epoch cap. The runner sets `max_epochs=-1` and stops at the absolute `max_steps` target.
 
 The runner expects exactly one `<job-name>/logs/job.log` beneath `COLAB_JOB_WORK_ROOT`. If unset, that directory is `$PIXELVAE_WORK_ROOT/colab-jobs`; `PIXELVAE_WORK_ROOT` defaults to the current directory. The job name is `pixelvae-<40-hex-source-sha>-e<3-digit-end-epoch>-a<unique-attempt-id>`. The runner checks that its commit matches the source archive and reads the epoch endpoint from the name. A token file must exist at `HF_TOKEN_PATH`; the runner defaults that path under `PIXELVAE_WORK_ROOT`, and `PIXELVAE_HF_TOKEN_PATH` can set another path.
 
