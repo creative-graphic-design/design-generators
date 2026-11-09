@@ -20,6 +20,10 @@ design-generators ports layout, poster, and graphic-design generation research r
 - 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
 - ✅ **Reference-verified**: our ports are numerically checked against the [original implementations](https://github.com/creative-graphic-design/design-generators/tree/main/vendor/) through [agreement checks](https://creative-graphic-design.github.io/design-generators/#reproducibility) with [copy-pasteable reproduction commands per package](https://creative-graphic-design.github.io/design-generators/#models).
 
+## Code quality
+
+Python cognitive/cyclomatic complexity is measured with [cccc](https://github.com/moznion/cccc) and tracked by [octocov](https://github.com/k1LoW/octocov) on pull requests and `main`. See the [code-quality metrics guide](docs/code-quality-metrics.md) for scope, reports, and local commands. Per-model test coverage continues to be measured by Codecov.
+
 ## Models
 
 Framework and dataset details are maintained in each package README and linked from the [Models documentation](https://creative-graphic-design.github.io/design-generators/#models). Layout-generation `Task` badges describe checkpoint sharing across accepted conditions, and layout-generation `Content` badges indicate whether inference uses a canvas/background image or saliency input; image-generation `Task` badges show `text-to-image` or `image-to-image`, while `Content` lists the accepted conditioning inputs. See [the model catalog classification conventions](docs/conventions.md#model-catalog-classification).

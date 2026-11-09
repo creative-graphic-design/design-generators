@@ -1,0 +1,11 @@
+# Analyze first-party Python source and scripts; submodules are not checked out.
+# Record a baseline before introducing a complexity threshold for legacy code.
+languages = ["python"]
+exclude = [
+  "**/tests/**",
+  "**/test_*.py",
+  "**/__pycache__/**",
+  "vendor/**",
+  ".venv/**",
+  ".cache/**",
+]
