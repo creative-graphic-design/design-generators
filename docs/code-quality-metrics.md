@@ -36,7 +36,31 @@ jq -r '[.files[] | .path as $path | .functions[] | recurse(.children[]?) |
   sort_by(-.cognitive) | .[:20][]' cccc.json
 ```
 
-Initial adoption is **measurement-only**: no arbitrary cognitive or
-cyclomatic threshold was introduced for pre-existing code. After establishing
-the baseline, consider an incremental budget that prevents new regressions
-without requiring wholesale refactoring of reproduction-sensitive models.
+## Baseline quality gate
+
+The complexity workflow fails when any of these conditions is violated:
+
+| Metric | Initial limit |
+| --- | ---: |
+| Python parse errors | 0 |
+| Cognitive complexity P95 | 15 |
+| Cognitive complexity maximum | 125 |
+| Cyclomatic complexity P95 | 11 |
+| Cyclomatic complexity maximum | 107 |
+| Functions with cognitive complexity >15 | 178 |
+| Functions with cognitive complexity >30 | 39 |
+| Functions with cognitive complexity >50 | 16 |
+
+These limits come from the first successful cccc run on PR #537
+(614 files, 3,967 functions). They are **initial regression budgets**,
+not target values or an endorsement of highly complex functions. The
+workflow also verifies that its recursive function list matches the
+summary's function count. The >15, >30, and >50 counts are published
+to octocov for trend monitoring.
+
+The aggregate limits permit an increase in one function's complexity
+when other functions improve enough to offset it. A future follow-up
+should implement a per-function changed-code gate, with a recommended
+cognitive threshold of 15 for new functions and a no-regression policy
+for existing functions. Model implementation refactors must preserve
+vendor parity and numerical reproducibility.

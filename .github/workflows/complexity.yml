@@ -48,6 +48,9 @@ jobs:
               {key: "function_count", name: "Functions", value: .summary.function_count},
               {key: "parse_error_count", name: "Parse errors", value: .summary.parse_error_count},
               {key: "cognitive_sum", name: "Cognitive total", value: .summary.cognitive.sum},
+              {key: "functions_over_15", name: "Functions cognitive >15", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 15)] | length)},
+              {key: "functions_over_30", name: "Functions cognitive >30", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 30)] | length)},
+              {key: "functions_over_50", name: "Functions cognitive >50", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 50)] | length)},
               {key: "cognitive_max", name: "Cognitive max", value: .summary.cognitive.max},
               {key: "cognitive_p90", name: "Cognitive p90", value: .summary.cognitive.p90},
               {key: "cognitive_p95", name: "Cognitive p95", value: .summary.cognitive.p95},
@@ -57,6 +60,22 @@ jobs:
               {key: "cyclomatic_p95", name: "Cyclomatic p95", value: .summary.cyclomatic.p95}
             ]
           }' cccc.json > octocov-complexity.json
+
+      - name: Enforce complexity baseline
+        run: |
+          jq -e '
+            [.files[].functions[] | recurse(.children[]?)] as $functions
+            | (.summary.parse_error_count == 0)
+              and (.summary.parse_error_file_count == 0)
+              and (.summary.function_count == ($functions | length))
+              and (.summary.cognitive.p95 <= 15)
+              and (.summary.cognitive.max <= 125)
+              and (.summary.cyclomatic.p95 <= 11)
+              and (.summary.cyclomatic.max <= 107)
+              and ([$functions[] | select(.cognitive > 15)] | length <= 178)
+              and ([$functions[] | select(.cognitive > 30)] | length <= 39)
+              and ([$functions[] | select(.cognitive > 50)] | length <= 16)
+          ' cccc.json
 
       - name: Report highest-complexity functions
         run: |
