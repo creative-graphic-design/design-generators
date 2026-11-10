@@ -294,7 +294,7 @@
         "test_documents": 2278
       },
       "first_run_status": "invalid_loss",
-      "invalid_loss_batch": null,
+      "invalid_loss_batch": 2,
       "invalid_loss_epoch": 349,
       "system": "original",
       "training_seed": 0

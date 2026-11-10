@@ -1,6 +1,6 @@
 # CanvasVAE Training
 
-Three 500-epoch RICO runs per system and three 500-epoch Crello runs per system completed; the three primary metrics pass for both datasets. The Crello comparison uses one 114,007 × 256 float32 cache from untrained original PixelVAE weights for both CanvasVAE systems. It does not verify package PixelVAE training or end-to-end PixelVAE-to-CanvasVAE reproduction. Earlier same-cache values are reference-only; the earlier different-cache comparison is superseded. See the [training-reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md), [Calibration Results](#calibration-results), [Held-out Validation Results](#held-out-validation-results), and [Crello prior-run values](#crello-prior-run-values-reference-only).
+Three 500-epoch RICO runs per system and three 500-epoch Crello runs per system completed; the three primary metrics pass for both datasets. The Crello comparison uses one 114,007 × 256 float32 cache from untrained original PixelVAE weights for both CanvasVAE systems. It does not verify package PixelVAE training or end-to-end PixelVAE-to-CanvasVAE reproduction. Earlier same-cache values are reference-only; the earlier different-cache comparison is superseded. Original seeds 0 and 1 stopped after non-finite training losses; package seed 0 logged one at epoch 346, did not stop, and completed all 500 epochs; each affected seed received one rerun. See the [training-reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md), [Calibration Results](#calibration-results), [Held-out Validation Results](#held-out-validation-results), and [Crello prior-run values](#crello-prior-run-values-reference-only).
 
 Run commands from the repository root. Keep generated data, logs, checkpoints, converted local pipelines, and evaluation artifacts under `.cache/canvas-vae/`.
 
@@ -44,7 +44,7 @@ For the planned full run, the loader uses eight workers, progress-bar updates ar
 
 ```bash
 uv run --package canvas-vae --extra training traingen fit --config models/canvas-vae/configs/training/canvas_vae_crello.yaml --trainer.accelerator=cpu --trainer.devices=1
-uv run --package canvas-vae models/canvas-vae/scripts/convert_original_checkpoint.py --dataset crello --checkpoint .cache/canvas-vae/training-runs/crello/lightning_logs/version_0/checkpoints/last.ckpt --vocabulary .cache/canvas-vae/crello/package-run-1/vocabulary.json --output-dir .cache/canvas-vae/converted/crello-package
+uv run --package canvas-vae models/canvas-vae/scripts/convert_original_checkpoint.py --dataset crello --checkpoint .cache/canvas-vae/training-runs/crello/lightning_logs/version_0/checkpoints/best.ckpt --vocabulary .cache/canvas-vae/crello/package-run-1/vocabulary.json --output-dir .cache/canvas-vae/converted/crello-package
 uv run --package canvas-vae --extra training models/canvas-vae/scripts/evaluate_crello.py --checkpoint .cache/canvas-vae/converted/crello-package --output .cache/canvas-vae/evaluation/crello-package.json
 ```
 
@@ -223,13 +223,13 @@ Both systems have status `s5-practical-reproduction`. Sreconst, layout mIoU, and
 | layout mIoU    |       0.475711 ± 0.008227 |      0.475874 ± 0.004098 |                 0.000163 |               0.012999 | Yes            | PASS     |
 | Sgen           |       0.901993 ± 0.001606 |      0.898518 ± 0.007811 |                 0.003475 |               0.011277 | Yes            | PASS     |
 
-Non-finite training losses occurred in two of three original runs (seeds 0 and 1) and one of three package runs (seed 0); all three first runs stopped on a V100. Their best-checkpoint test metrics are listed below as instability evidence. Each affected seed received one rerun; all reruns completed and enter the comparison. `recipe-unstable (documented)` applies only if a rerun also stops early; no three-seed verdict is then available.
+Non-finite training losses occurred in two of three original first runs (seeds 0 and 1) and one of three package first runs (seed 0). Both original runs stopped after those losses; package seed 0 logged a non-finite loss at epoch 346, did not stop, and completed all 500 epochs. Their best-checkpoint test metrics are listed below as instability evidence. Each affected seed received one rerun, and all reruns completed for the comparison. `recipe-unstable (documented)` applies only if a rerun also stops early; no three-seed verdict is then available.
 
 | System   | Seed | First-run invalid-loss record | First-run best-checkpoint epoch | Sreconst | Layout mIoU | KL (secondary) |     Sgen |
 | -------- | ---: | ----------------------------- | ------------------------------: | -------: | ----------: | -------------: | -------: |
 | original |    0 | Epoch 349, batch 2            |                             340 | 0.872206 |    0.475703 |       0.619285 | 0.899012 |
 | original |    1 | Epoch 302, batch 15           |                             240 | 0.873911 |    0.470760 |       0.650851 | 0.893351 |
-| package  |    0 | First logged at epoch 346     |                             339 | 0.870149 |    0.468960 |       0.614124 | 0.900185 |
+| package  |    0 | Logged at 346; completed 500 epochs |                         339 | 0.870149 |    0.468960 |       0.614124 | 0.900185 |
 
 The package seed-0 rerun's `metrics.csv` losses logged every 50 steps contain no non-finite values. Its maximum `val/total_score` was 0.883168 at epoch 239; `best.ckpt` records epoch 239 and global step 4,560. Epoch 339 is the best-checkpoint epoch of the diverged first run. `CANVAS_VAE_UPDATE_TRACE` was unset, so no per-step loss trace is claimed.
 
@@ -237,7 +237,7 @@ The package seed-0 first run continued after a non-finite training loss was logg
 
 The first package evaluation used an unmonitored final-epoch checkpoint and produced non-finite metrics. Current evaluation selects validation-best `best.ckpt`; `test_s5_seed_executor.py::test_crello_package_training_dry_run_selects_validation_best_checkpoint` verifies the route.
 
-Original seed 0 and 1 first runs stopped on non-finite training losses, and both reruns completed. The earlier A100 runs did not show non-finite training losses, while later V100 runs did; the device difference is recorded but not identified as the cause.
+Original seeds 0 and 1 stopped on non-finite training losses, and both reruns completed. All six selected comparison runs used Tesla V100-SXM2-32GB. Package training used PyTorch 2.13.0+cu126 because the locked CUDA 13.0 build could not initialize on the available CUDA 12.9 driver; non-CUDA packages remained at their locked versions. Earlier A100 runs were outside this comparison and did not show non-finite training losses; the device difference is recorded but not identified as the cause.
 
 The source commit for the original runs and package seeds 1 and 2 is `58f9338e40cacb448cb45e400d600e8a5b616c8a`. Package seed 0 was rerun at `330dcf0bdf109914e4d0b057f74f7e13baae2b59`; its stop callback did not change the loss, gradient, or parameter-update calculations.
 
@@ -318,8 +318,8 @@ The SHA-256 values for all 27 source inputs are recorded per file in `.cache/can
 | Launch manifest                       | `b52d889bfc1b950237a19a512a8501b2aaac49c9b438e6f46c0cfcc8e9bcad61` |
 | RICO evaluation-path parity artifact  | `2934dac2a4427d001956eea548359e4466c10e3306b9f05eb2575df8ffac6c2b` |
 | Crello evaluation-path parity receipt | `fe4495c1944670d65cf63ddfc75ff8e9a55872c8789ffab7450e9be11ba9e1c7` |
-| Crello comparison manifest            | `1f7e2159f4f5c7c909fd3a1b5c078d65d7c5f0bdf33ee424acc0dc8c229c7792` |
-| Crello comparison results             | `b49ea6178110abd2f7b6376baeb0753275e43a4ff7d14a98a41c67041e5d692e` |
+| Crello comparison manifest            | `642e41eca8d34915564c6f476918a1abcc795dc82536414b8e5896a0b7d3652b` |
+| Crello comparison results             | `5240176303801e901e792c64e872cdc81aa6c46ea787a1a36cd931e18f373683` |
 
 The launch and evaluation scripts are tracked under `models/canvas-vae/tests/vendor_parity/crello_s5/`; model evaluation and source-guard scripts are under `models/canvas-vae/scripts/`. These hashes identify the exact helper snapshots used by the recorded runs. Per-run lane, training-helper, and evaluator hashes are also in `results.json`.
 

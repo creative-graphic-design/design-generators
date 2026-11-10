@@ -157,7 +157,7 @@ Modal
 
 #### Speeds, Sizes, Times
 
-The model has 1,558,435 trainable parameters. Crello run timestamps and artifact hashes are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md); package runs shared V100 GPUs.
+The model has 1,558,435 trainable parameters. Crello run timestamps and artifact hashes are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md). All six selected comparison runs used Tesla V100-SXM2-32GB; package training used PyTorch 2.13.0+cu126.
 
 ## Evaluation
 
@@ -205,7 +205,7 @@ Crello S5 follows the [S5 protocol](https://github.com/creative-graphic-design/d
 | Package  | seed 1       |        399 | 0.869933 |    0.471386 | 0.906030 |
 | Package  | seed 2       |        339 | 0.874782 |    0.479417 | 0.899085 |
 
-Non-finite training losses occurred in two of three original seeds and one of three package seeds. Each affected seed received one rerun; the comparison uses completed runs and retains each first run's best-checkpoint metrics as instability evidence. Package seed 0's rerun selected epoch 239; epoch 339 belongs to its divergent first run.
+The original seed 0 and 1 first runs stopped after non-finite training losses; package seed 0 logged a non-finite loss at epoch 346, did not stop, and completed all 500 epochs. Each affected seed received one rerun, and the comparison uses completed runs while retaining first-run best-checkpoint metrics as instability evidence. Package seed 0's rerun selected epoch 239; epoch 339 belongs to its first run.
 
 | Recorded behavior                                                                  | Current code and check                                                                                                                                         |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
