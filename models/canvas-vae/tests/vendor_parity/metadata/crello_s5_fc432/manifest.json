@@ -56,7 +56,22 @@
   },
   "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
   "config_sha256": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
+  "config_sha256_scope": "The top-level hash and config artifact apply to the package seed-0 rerun only; per-run selected package training configurations are listed below.",
   "dataset": "crello",
+  "selected_package_training_configs": {
+    "seed_0_rerun": {
+      "sha256": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
+      "source_commit": "330dcf0bdf109914e4d0b057f74f7e13baae2b59"
+    },
+    "seed_1": {
+      "sha256": "bc17ca3419c97ff84f43684af6f9b3be605878118aa2c84f268b910c0e84dc02",
+      "source_commit": "58f9338e40cacb448cb45e400d600e8a5b616c8a"
+    },
+    "seed_2": {
+      "sha256": "bc17ca3419c97ff84f43684af6f9b3be605878118aa2c84f268b910c0e84dc02",
+      "source_commit": "58f9338e40cacb448cb45e400d600e8a5b616c8a"
+    }
+  },
   "evaluation": {
     "evaluation_path_parity": {
       "categorical_mismatches": 0,
