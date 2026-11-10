@@ -50,7 +50,7 @@
       "training_seed": 0,
       "wrapper_sha256": {
         "evaluator": "ab90729da2953f7a9cbd196de66ed9b1118e63fec7ee159f4cdc496bb37631ca",
-        "lane": null,
+        "lane": "61c3b11427a89cce4ac22903958706e3e5e01bc547b0cb02a619b1782affe848",
         "training_helper": "d6ab5a2220d59d98e48b51c9bde4ae69e49952f79c0bf3a0fb6dc5b8ee39ec29"
       }
     },
@@ -140,7 +140,7 @@
       "training_seed": 2,
       "wrapper_sha256": {
         "evaluator": "ab90729da2953f7a9cbd196de66ed9b1118e63fec7ee159f4cdc496bb37631ca",
-        "lane": null,
+        "lane": "476ab478448062de0419765714d258e770379ef9a0b6e1c6e48776f187b6890b",
         "training_helper": "d6ab5a2220d59d98e48b51c9bde4ae69e49952f79c0bf3a0fb6dc5b8ee39ec29"
       }
     },
@@ -572,7 +572,6 @@
     "check_live_freeze.py": "68e394fd106ef6b11b7e22ccfd7bc2f516dcf89900ac940b47da5bcc594507c6",
     "convert_original_checkpoint.py": "c1b195c0bb2dc999cb165f69ff7d303aa45d178335d912fbe530fae2d03da22c",
     "evaluate_crello.py": "539391cbdcbc28583b319359e72e1ef3552616186ff24cb64fa0d31d6fc436b0",
-    "evaluate_original_best.py": "ef6e0232ac3c17a47e4733e661a6d350889d25745c216a2d2235c6779c3d7028",
     "evaluate_original_best.py (corrected; selected evaluations)": "ab90729da2953f7a9cbd196de66ed9b1118e63fec7ee159f4cdc496bb37631ca",
     "evaluate_original_best.py (initial; no checkpoint evaluation completed)": "ef6e0232ac3c17a47e4733e661a6d350889d25745c216a2d2235c6779c3d7028",
     "launch_s5.sh": "dd542ba2e2590b1d5c54f1be87aaf8f8ffb0f28e01e933d507cfacb1551d6040",
@@ -583,7 +582,10 @@
     "source_tree_guard.py": "5a003019bf9cd66f99bd5504869dffef2d2593116f36121973368735bf82af0b",
     "telemetry.sh": "a8c73fa660926228529535fe98e0de615ba613183f619ea2b9ea92e206285cbf",
     "train_original_best.py": "d6ab5a2220d59d98e48b51c9bde4ae69e49952f79c0bf3a0fb6dc5b8ee39ec29",
-    "write_manifest.py": "0ca35605951b8737d4ad2281489d127196c0d2d6af29088f14dd9528126dfb24"
+    "write_manifest.py": "0ca35605951b8737d4ad2281489d127196c0d2d6af29088f14dd9528126dfb24",
+    "original_seed0_rerun_20261108-2200.sh": "61c3b11427a89cce4ac22903958706e3e5e01bc547b0cb02a619b1782affe848",
+    "original_seed1_rerun_snapshot_20261108-2330.sh": "aa517756658f700344d1bcb000f6b561dc0e07ced7a30419f2118ff42e34850b",
+    "original_lane_seeds_1_2.sh": "476ab478448062de0419765714d258e770379ef9a0b6e1c6e48776f187b6890b"
   },
   "schema_version": 1,
   "shared_cache": {
