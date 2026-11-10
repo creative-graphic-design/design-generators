@@ -205,7 +205,7 @@ Crello S5 follows the [S5 protocol](https://github.com/creative-graphic-design/d
 | Package  | seed 1       |        399 | 0.869933 |    0.471386 | 0.906030 |
 | Package  | seed 2       |        339 | 0.874782 |    0.479417 | 0.899085 |
 
-The original seed 0 and 1 first runs stopped after non-finite training losses; package seed 0 logged a non-finite loss at epoch 346, did not stop, and completed all 500 epochs. Each affected seed received one rerun, and the comparison uses completed runs while retaining first-run best-checkpoint metrics as instability evidence. Package seed 0's rerun selected epoch 239; epoch 339 belongs to its first run.
+The original seed 0 and 1 first runs stopped after non-finite training losses; package seed 0 logged a non-finite loss at epoch 346, did not stop, and completed all 500 epochs. Each affected seed received one rerun, and the comparison uses completed runs while retaining first-run best-checkpoint metrics as instability evidence. Package seed 0's rerun selected epoch 239; its divergent first-run checkpoint was epoch 339. Package seed 2 separately selected epoch 339 in its completed run.
 
 | Recorded behavior                                                                  | Current code and check                                                                                                                                         |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
