@@ -31,7 +31,38 @@ def test_queue_launch_forwards_hub_repository() -> None:
     assert command[-2:] == ["--hub-repo", repository]
 
 
-def test_queue_requires_generic_gpu_label() -> None:
+def test_queue_forwards_colab_accelerator_to_each_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = QUEUE.load_manifest(QUEUE.DEFAULT_MANIFEST)
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr(QUEUE, "source_gate", lambda *_args, **_kwargs: None)
+
+    def capture_subprocess(command: list[str], **_kwargs: object) -> Completed:
+        commands.append(command)
+        return Completed()
+
+    monkeypatch.setattr(QUEUE.subprocess, "run", capture_subprocess)
+    QUEUE.run_queue(
+        manifest,
+        "a" * 40,
+        ["python3", "executor.py"],
+        False,
+        "configured-accelerator",
+    )
+
+    assert commands
+    assert all(
+        command[-2:] == ["--colab-accelerator", "configured-accelerator"]
+        for command in commands
+    )
+
+
+def test_queue_validates_generic_gpu_schema_and_label() -> None:
     manifest_path = QUEUE.DEFAULT_MANIFEST
     parity_path = QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -44,6 +75,8 @@ def test_queue_requires_generic_gpu_label() -> None:
     manifest["runtime_plan"]["source_commit"] = "a" * 40
 
     assert manifest["runtime_plan"]["gpu"] == "GPU"
+    assert manifest["runtime_plan"]["one_named_gpu_session_per_run"] is True
+    assert "gpu_wrapper_ttl_by_system" in manifest["runtime_plan"]
     _, command = QUEUE.launch_preconditions(
         manifest, manifest_path, "example-owner/test-artifacts"
     )
@@ -145,7 +178,7 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
     manifest["source_commit"] = "a" * 40
     manifest["queue_status"] = "ready"
     manifest["runtime_plan"]["source_commit"] = "a" * 40
-    manifest["runtime_plan"]["a100_wrapper_ttl_by_system"] = {
+    manifest["runtime_plan"]["gpu_wrapper_ttl_by_system"] = {
         "original": "30m",
         "package": "30m",
     }
@@ -165,7 +198,7 @@ def test_crello_launch_requires_runtime_hub_prefixes() -> None:
         ),
     }
     for run in manifest["runs"]:
-        run["a100_wrapper_ttl"] = "30m"
+        run["gpu_wrapper_ttl"] = "30m"
         run["cpu_wrapper_ttl"] = "30m"
 
     with pytest.raises(QUEUE.QueueError, match="--input-prefix"):
@@ -232,14 +265,14 @@ def test_crello_cpu_runtime_smoke_does_not_claim_production_gates() -> None:
             "cpu_runtime_smoke": True,
             "gpu": "CPU",
             "source_commit": pinned,
-            "a100_wrapper_ttl_by_system": {"original": "30m", "package": "30m"},
+            "gpu_wrapper_ttl_by_system": {"original": "30m", "package": "30m"},
             "cpu_wrapper_ttl": "30m",
             "lockstep_probe_steps": 3,
         }
     )
     for index, run in enumerate(manifest["runs"]):
         run["run_id"] = f"cpu-smoke-crello-{index}"
-        run["a100_wrapper_ttl"] = "30m"
+        run["gpu_wrapper_ttl"] = "30m"
         run["cpu_wrapper_ttl"] = "30m"
 
     _, command = QUEUE.launch_preconditions(

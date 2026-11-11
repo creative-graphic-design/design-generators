@@ -43,7 +43,7 @@ class QueueRun(TypedDict):
     seed: int
     session_name: str
     cpu_session_name: str
-    a100_wrapper_ttl: str
+    gpu_wrapper_ttl: str
     cpu_wrapper_ttl: str
     artifact_prefix: str
     runtime_output_root: str
@@ -207,7 +207,7 @@ def load_manifest(path: Path) -> QueueManifest:
         seed = raw_run.get("seed")
         session_name = raw_run.get("session_name")
         cpu_session_name = raw_run.get("cpu_session_name")
-        a100_wrapper_ttl = raw_run.get("a100_wrapper_ttl")
+        gpu_wrapper_ttl = raw_run.get("gpu_wrapper_ttl")
         cpu_wrapper_ttl = raw_run.get("cpu_wrapper_ttl")
         artifact_prefix = raw_run.get("artifact_prefix")
         runtime_output_root = raw_run.get("runtime_output_root")
@@ -224,7 +224,7 @@ def load_manifest(path: Path) -> QueueManifest:
                 system,
                 session_name,
                 cpu_session_name,
-                a100_wrapper_ttl,
+                gpu_wrapper_ttl,
                 cpu_wrapper_ttl,
                 artifact_prefix,
                 runtime_output_root,
@@ -286,7 +286,7 @@ def load_manifest(path: Path) -> QueueManifest:
                 "seed": seed,
                 "session_name": session_name,
                 "cpu_session_name": cpu_session_name,
-                "a100_wrapper_ttl": a100_wrapper_ttl,
+                "gpu_wrapper_ttl": gpu_wrapper_ttl,
                 "cpu_wrapper_ttl": cpu_wrapper_ttl,
                 "artifact_prefix": artifact_prefix,
                 "runtime_output_root": runtime_output_root,
@@ -470,29 +470,29 @@ def launch_preconditions(
         input_prefix = validate_hub_prefix(input_prefix, "input-prefix")
     if needs_output_prefix:
         output_prefix = validate_hub_prefix(output_prefix, "output-prefix")
-    a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
+    gpu_ttls = runtime_plan.get("gpu_wrapper_ttl_by_system")
     cpu_ttl = runtime_plan.get("cpu_wrapper_ttl")
     cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
     expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("source_commit") != pinned_commit
         or runtime_plan.get("gpu") != expected_gpu
-        or runtime_plan.get("one_named_a100_session_per_run") is not True
+        or runtime_plan.get("one_named_gpu_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
         or runtime_plan.get("one_training_run_at_a_time") is not True
         or runtime_plan.get("queue_supervisor_sequential") is not True
         or runtime_plan.get("self_release") is not True
         or runtime_plan.get("sync_interval") != "15m"
-        or not isinstance(a100_ttls, dict)
+        or not isinstance(gpu_ttls, dict)
         or not all(
-            isinstance(a100_ttls.get(system), str)
-            and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system])
+            isinstance(gpu_ttls.get(system), str)
+            and re.fullmatch(r"[1-9][0-9]*m", gpu_ttls[system])
             for system in ("package", "original")
         )
         or not isinstance(cpu_ttl, str)
         or not re.fullmatch(r"[1-9][0-9]*m", cpu_ttl)
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
-        or runtime_plan.get("a100_sync_paths")
+        or runtime_plan.get("gpu_sync_paths")
         != ["${S5_RUNTIME_ROOT}/out/checkpoints", "${S5_RUNTIME_ROOT}/out/logs"]
         or runtime_plan.get("cpu_sync_paths")
         != [
@@ -519,8 +519,8 @@ def launch_preconditions(
             BLOCKED_EXIT,
         )
     for run in manifest["runs"]:
-        expected_a100_ttl = a100_ttls.get(run["system"])
-        if run["a100_wrapper_ttl"] != expected_a100_ttl or run[
+        expected_gpu_ttl = gpu_ttls.get(run["system"])
+        if run["gpu_wrapper_ttl"] != expected_gpu_ttl or run[
             "cpu_wrapper_ttl"
         ] != runtime_plan.get("cpu_wrapper_ttl"):
             raise QueueError(
@@ -555,7 +555,16 @@ def run_queue(
     pinned_commit: str,
     runner_command: list[str] | None,
     dry_run: bool,
+    colab_accelerator: str | None = None,
 ) -> None:
+    if not dry_run and (
+        not isinstance(colab_accelerator, str) or not colab_accelerator.strip()
+    ):
+        raise QueueError(
+            "--colab-accelerator is required for a non-smoke queue launch",
+            BLOCKED_EXIT,
+        )
+
     emit(
         {
             "event": "queue_start",
@@ -576,6 +585,7 @@ def run_queue(
             raise QueueError(
                 "launch refused: runner command is not configured", BLOCKED_EXIT
             )
+        assert isinstance(colab_accelerator, str)
 
         environment = os.environ.copy()
         environment.update(
@@ -598,6 +608,7 @@ def run_queue(
                     str(manifest["runtime_plan"]["lockstep_probe_steps"]),
                 ]
             )
+        runner_arguments.extend(["--colab-accelerator", colab_accelerator])
         result = subprocess.run(
             runner_arguments,
             cwd=REPOSITORY_ROOT,
@@ -627,6 +638,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hub-repo")
     parser.add_argument("--input-prefix")
     parser.add_argument("--output-prefix")
+    parser.add_argument("--colab-accelerator")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--launch", action="store_true")
@@ -653,6 +665,11 @@ def main() -> int:
             raise QueueError("source gate requires a clean worktree")
 
         if args.launch:
+            if not args.colab_accelerator or not args.colab_accelerator.strip():
+                raise QueueError(
+                    "--colab-accelerator is required for a non-smoke queue launch",
+                    BLOCKED_EXIT,
+                )
             if args.hub_repo is None or not args.hub_repo.strip():
                 raise QueueError("--hub-repo is required for a launch", BLOCKED_EXIT)
             pinned_commit, runner_command = launch_preconditions(
@@ -678,7 +695,13 @@ def main() -> int:
             if args.test_source_mismatch:
                 pinned_commit = "0" * 40
 
-        run_queue(manifest, pinned_commit, runner_command, args.dry_run)
+        run_queue(
+            manifest,
+            pinned_commit,
+            runner_command,
+            args.dry_run,
+            args.colab_accelerator,
+        )
     except QueueError as error:
         print(f"queue stopped: {error}", file=sys.stderr)
         return error.exit_code

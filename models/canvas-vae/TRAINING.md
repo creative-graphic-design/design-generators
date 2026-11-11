@@ -378,7 +378,13 @@ The original record function emits all eligible screens, but the multi-threaded 
 
 ## Training Commands
 
-The S5 seed queue requires an explicit artifact repository; pass it as `--hub-repo '<your-hub-repo>'` when launching the queue. The queue forwards this value to each per-seed executor, which refuses to start without it.
+The S5 seed queue requires an artifact repository and a Colab accelerator value supplied at launch; pass `--hub-repo '<your-hub-repo>'` and `--colab-accelerator '<accelerator>'`. The accelerator is sent directly to Colab and has no repository default.
+
+Launch the RICO queue after its manifest is ready.
+
+```bash
+uv run --package canvas-vae models/canvas-vae/scripts/s5_rico_seed_queue.py --manifest .cache/canvas-vae/full-run/rico/manifest.json --launch --hub-repo '<your-hub-repo>' --colab-accelerator '<accelerator>'
+```
 
 Run the staged parity checks after generating references with [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md).
 

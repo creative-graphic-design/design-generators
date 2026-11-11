@@ -50,7 +50,7 @@
   ],
   "runtime_plan": {
     "gpu": "GPU",
-    "one_named_a100_session_per_run": true,
+    "one_named_gpu_session_per_run": true,
     "one_named_cpu_session_per_run": true,
     "one_training_run_at_a_time": true,
     "queue_supervisor_sequential": true,
@@ -59,13 +59,13 @@
     "source_branch": "feat/canvas-vae-crello-model",
     "source_commit": null,
     "wrapper_script": "${S5_WRAPPER_PATH}",
-    "a100_wrapper_ttl_by_system": {
+    "gpu_wrapper_ttl_by_system": {
       "original": "<measure-in-first-production-run>",
       "package": "<measure-in-first-production-run>"
     },
     "cpu_wrapper_ttl": "<measure-before-launch>",
     "sync_interval": "15m",
-    "a100_sync_paths": [
+    "gpu_sync_paths": [
       "${S5_RUNTIME_ROOT}/out/checkpoints",
       "${S5_RUNTIME_ROOT}/out/logs"
     ],
@@ -113,7 +113,7 @@
       "evaluation_output": "/content/out/results/crello-original-seed0/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-original-seed0/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-original-seed0/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "lockstep_probe_inputs": {
         "package_data_dir": ".cache/canvas-vae/crello/package-run-1",
@@ -199,7 +199,7 @@
       "evaluation_output": "/content/out/results/crello-original-seed1/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-original-seed1/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-original-seed1/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "evaluator_command": [
         "uv",
@@ -273,7 +273,7 @@
       "evaluation_output": "/content/out/results/crello-original-seed2/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-original-seed2/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-original-seed2/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "evaluator_command": [
         "uv",
@@ -347,7 +347,7 @@
       "evaluation_output": "/content/out/results/crello-package-seed0/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-package-seed0/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-package-seed0/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "evaluator_command": [
         "uv",
@@ -398,7 +398,7 @@
       "evaluation_output": "/content/out/results/crello-package-seed1/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-package-seed1/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-package-seed1/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "evaluator_command": [
         "uv",
@@ -449,7 +449,7 @@
       "evaluation_output": "/content/out/results/crello-package-seed2/{segment_id}/evaluation.json",
       "training_artifact_prefix": "{output_prefix}/crello/crello-package-seed2/train/{segment_id}",
       "postprocess_artifact_prefix": "{output_prefix}/crello/crello-package-seed2/postprocess/{segment_id}",
-      "a100_wrapper_ttl": "<measure-in-first-production-run>",
+      "gpu_wrapper_ttl": "<measure-in-first-production-run>",
       "cpu_wrapper_ttl": "<measure-before-launch>",
       "evaluator_command": [
         "uv",
@@ -503,30 +503,30 @@
     "per_step": [
       {
         "step": "Encode 114007 unique visual elements once with the original PixelVAE encoder",
-        "estimate_a100_hours": 0.05,
+        "estimate_gpu_hours": 0.05,
         "estimate_cu_at_historical_rate": 0.27,
         "basis": "114007 images divided by the measured pilot rate of 654.62 images/second; excludes startup, synchronization, and packaging."
       },
       {
         "step": "Encode 114007 unique visual elements once with the package PixelVAE encoder",
-        "estimate_a100_hours": 0.05,
+        "estimate_gpu_hours": 0.05,
         "estimate_cu_at_historical_rate": 0.27,
         "basis": "Same pilot-rate estimate as the original cache; excludes startup, synchronization, and packaging."
       },
       {
         "step": "Train one 500-epoch CanvasVAE seed on one GPU",
-        "estimate_a100_hours": 1.0,
+        "estimate_gpu_hours": 1.0,
         "estimate_cu_at_historical_rate": 5.3,
         "basis": "Planning proxy from the RICO 500-epoch run estimate; Crello runtime will be measured in the first production session and the queue stops if the integrated gates fail."
       },
       {
         "step": "Convert and evaluate one final checkpoint on CPU",
-        "estimate_a100_hours": 0,
+        "estimate_gpu_hours": 0,
         "estimate_cu_at_historical_rate": 0.02,
         "basis": "CPU-only planning allowance based on prior CanvasVAE conversion/evaluation sessions; exact runtime varies with allocation and upload tails."
       }
     ],
-    "full_campaign_a100_hours_low_mid_high": [
+    "full_campaign_gpu_hours_low_mid_high": [
       49.4,
       73.2,
       125.6
