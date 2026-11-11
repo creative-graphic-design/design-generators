@@ -31,6 +31,39 @@ def test_queue_launch_forwards_hub_repository() -> None:
     assert command[-2:] == ["--hub-repo", repository]
 
 
+def test_queue_requires_generic_gpu_label() -> None:
+    manifest_path = QUEUE.DEFAULT_MANIFEST
+    parity_path = QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["source_commit"] = "a" * 40
+    manifest["queue_status"] = "ready"
+    manifest["evaluation_path_parity"] = {
+        "path": "models/canvas-vae/TRAINING.md",
+        "sha256": QUEUE.sha256_file(parity_path),
+    }
+    manifest["runtime_plan"]["source_commit"] = "a" * 40
+
+    assert manifest["runtime_plan"]["gpu"] == "GPU"
+    _, command = QUEUE.launch_preconditions(
+        manifest, manifest_path, "example-owner/test-artifacts"
+    )
+    assert command[-2:] == ["--hub-repo", "example-owner/test-artifacts"]
+
+    for invalid_value in ("OTHER", None):
+        invalid_manifest = json.loads(json.dumps(manifest))
+        if invalid_value is None:
+            invalid_manifest["runtime_plan"].pop("gpu")
+        else:
+            invalid_manifest["runtime_plan"]["gpu"] = invalid_value
+
+        with pytest.raises(QUEUE.QueueError, match="manifest runtime plan"):
+            QUEUE.launch_preconditions(
+                invalid_manifest,
+                manifest_path,
+                "example-owner/test-artifacts",
+            )
+
+
 @pytest.mark.parametrize("repository", [None, "   "])
 def test_queue_refuses_launch_without_hub_repository(
     monkeypatch: pytest.MonkeyPatch,

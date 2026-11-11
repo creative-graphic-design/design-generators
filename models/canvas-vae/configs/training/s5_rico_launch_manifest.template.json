@@ -30,7 +30,7 @@
     "--output",
     "{evaluation_output}"
   ],
-  "checkpoint_rule": "Train through epoch 500 on the named A100 session. For package runs, require Lightning last.ckpt at epoch 499 and global_step 22,500 before copying it to epoch-500.ckpt; for original runs, use final.ckpt. On a separate named CPU runtime, download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
+  "checkpoint_rule": "Train through epoch 500 on the named GPU session. For package runs, require Lightning last.ckpt at epoch 499 and global_step 22,500 before copying it to epoch-500.ckpt; for original runs, use final.ckpt. On a separate named CPU runtime, download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
   "package_checkpoint_expectation": {
     "max_epochs": 500,
     "global_step": 22500
@@ -48,11 +48,11 @@
     "models/canvas-vae/scripts/s5_rico_seed_executor.py"
   ],
   "runtime_plan": {
-    "gpu": "A100",
+    "gpu": "GPU",
     "one_named_a100_session_per_run": true,
     "one_named_cpu_session_per_run": true,
     "one_training_run_at_a_time": true,
-    "session_order": "For each run, the named A100 session trains, syncs checkpoints/logs, and self-releases; the executor reads logs/<job>/exit_code from the private Hub and requires 0, verifies the epoch-500 checkpoint is present on the Hub, then creates a separate named CPU session to download, convert, evaluate, upload results/logs, and self-release. A missing/nonzero Hub status or missing checkpoint stops the run and sequential queue.",
+    "session_order": "For each run, the named GPU session trains, syncs checkpoints/logs, and self-releases; the executor reads logs/<job>/exit_code from the private Hub and requires 0, verifies the epoch-500 checkpoint is present on the Hub, then creates a separate named CPU session to download, convert, evaluate, upload results/logs, and self-release. A missing/nonzero Hub status or missing checkpoint stops the run and sequential queue.",
     "source_branch": "feat/canvas-vae",
     "wrapper_script": "${S5_WRAPPER_PATH}",
     "a100_wrapper_ttl_by_system": {
@@ -61,11 +61,11 @@
     },
     "cpu_wrapper_ttl": "16m",
     "ttl_margin_seconds": 300,
-    "ttl_formula": "Package A100 TTL = ceil to whole minutes of 22,500 \u00d7 package full-epoch p90 + 25 validation passes \u00d7 24.5 seconds + measured allocation-to-training-start (108 s) + measured finalization/upload reserve (64 s) + 300-second margin = 55m. Original A100 TTL uses original full-epoch p90 with the same validation reserve and measured setup/sync plus a 240-second margin = 50m. CPU TTL = 8-minute conversion/evaluation allowance based on cvae-s5-eval-path-final-retry3 + measured setup/final-sync reserves (108 s + 64 s) + 300-second margin = 16m. The wrapper TTL bounds the command; billed worst-case totals also include measured setup, finalization, and release-tail reserves outside each TTL.",
+    "ttl_formula": "Package GPU TTL = ceil to whole minutes of 22,500 \u00d7 package full-epoch p90 + 25 validation passes \u00d7 24.5 seconds + measured allocation-to-training-start (108 s) + measured finalization/upload reserve (64 s) + 300-second margin = 55m. Original GPU TTL uses original full-epoch p90 with the same validation reserve and measured setup/sync plus a 240-second margin = 50m. CPU TTL = 8-minute conversion/evaluation allowance based on cvae-s5-eval-path-final-retry3 + measured setup/final-sync reserves (108 s + 64 s) + 300-second margin = 16m. The wrapper TTL bounds the command; billed worst-case totals also include measured setup, finalization, and release-tail reserves outside each TTL.",
     "a100_setup_reserve_seconds": 108,
     "a100_final_sync_reserve_seconds": 64,
     "session_termination_after_wrapper_reserve_seconds": 30,
-    "cpu_setup_and_sync_reserve_seconds": "Use the measured A100 allocation-to-training-start (108 s) and finalization/upload reserve (64 s) plus the 30 s release tail as conservative CPU-session billing reserves; CPU sessions use 0.08 CU/hour.",
+    "cpu_setup_and_sync_reserve_seconds": "Use the measured GPU allocation-to-training-start (108 s) and finalization/upload reserve (64 s) plus the 30 s release tail as conservative CPU-session billing reserves; CPU sessions use 0.08 CU/hour.",
     "setup_measurement_source": {
       "method": "Colab CLI history session_created to first package optimizer-step start; reserve is the largest observed interval rounded up to the next second.",
       "observations": [
