@@ -40,7 +40,6 @@ REQUIRED_SECTIONS = (
 TERMINAL_STATUSES = {
     "s5-bit-parity",
     "s5-practical-reproduction",
-    "s5-results-reported-separately",
     "recipe-unstable (documented)",
 }
 NON_TERMINAL_STATUS_RE = re.compile(r"^(not-yet-run|blocked)\s+\((.+)\)$")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import inspect
 import os
@@ -222,12 +223,21 @@ def test_evaluator_command_names_the_terminal_checkpoint(
     assert command[1].startswith("PYTHONPATH=")
     pythonpath = command[1].partition("=")[2].split(os.pathsep)
     assert all(Path(path).is_absolute() for path in pythonpath)
-    assert str(Path(cast(Path, launcher["RADM_SOURCE_ROOT"])).resolve()) in pythonpath
-    assert str(Path(cast(Path, launcher["VENDOR_COMPAT_ROOT"])).resolve()) in pythonpath
+    expected_source_roots = cast(dict[str, Path], launcher["WORKSPACE_SOURCE_ROOTS"])
+    expected_pythonpath = [
+        str(Path(cast(Path, launcher["VENDOR_COMPAT_ROOT"])).resolve()),
+        *(
+            str(source_root.resolve())
+            for package, source_root in expected_source_roots.items()
+            if arm == "package" or package != "radm"
+        ),
+    ]
+    assert pythonpath == expected_pythonpath
     if arm == "original":
         assert command[command.index("SEED") + 1] == str(seed)
     else:
-        assert command[command.index("--evaluation-seed") + 1] == str(seed)
+        assert command[command.index("--seed") + 1] == str(seed)
+        assert "--evaluation-seed" not in command
     assert environment is None
 
 
@@ -481,6 +491,12 @@ def test_s5_launcher_writes_manifest_before_training(
             ] == cast(Callable[[Path], str], launcher["sha256_file"])(
                 evaluation_path_parity_artifact
             )
+            assert manifest["evaluation_path_parity_artifact"] == {
+                "path": str(evaluation_path_parity_artifact.resolve()),
+                "sha256": cast(Callable[[Path], str], launcher["sha256_file"])(
+                    evaluation_path_parity_artifact
+                ),
+            }
             assert manifest["arm"] == "package"
             assert manifest["max_steps"] == steps
             assert manifest["checkpoint_rule"]["filename"] == checkpoint_name
@@ -551,6 +567,11 @@ def test_s5_launcher_writes_manifest_before_training(
                 Callable[..., dict[str, object]],
                 evaluator["validate_terminal_checkpoint"],
             )
+            monkeypatch.setitem(
+                cast(FunctionType, validate).__globals__,
+                "evaluator_source_commit",
+                lambda: "b" * 40,
+            )
             checkpoint_path = output_dir / "checkpoints" / checkpoint_name
             monkeypatch.chdir(tmp_path)
             validation = validate(
@@ -562,6 +583,8 @@ def test_s5_launcher_writes_manifest_before_training(
             )
             assert validation["global_step"] == steps
             assert validation["training_seed"] == 1
+            assert validation["evaluation_seed"] == 1
+            assert validation["evaluator_source_commit"] == "b" * 40
             assert validation["radm_source_path"] == str(
                 Path(cast(str, cast(ModuleType, evaluator["radm"]).__file__)).resolve()
             )
@@ -636,6 +659,13 @@ def test_s5_launcher_writes_manifest_before_training(
                     None,
                     "data root",
                     "/tmp/different_radm_cgl",
+                ),
+                (
+                    "data_root",
+                    "target",
+                    str(tmp_path / "different-radm-cgl"),
+                    "data root target",
+                    str(data_alias),
                 ),
             ):
                 mismatched_manifest = deepcopy(original_manifest)
@@ -733,20 +763,25 @@ def test_s5_source_tree_must_be_clean_and_vendor_must_match_gitlink(
         }
 
 
-def test_s5_launcher_rejects_radm_from_outside_source_tree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "package", ("radm", "laygen", "posgen", "traingen", "traingen_parity")
+)
+def test_s5_launcher_rejects_workspace_packages_outside_source_tree(
+    package: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     launcher = _launcher()
-    verify_radm_source = cast(Callable[[], str], launcher["verify_radm_source"])
-    radm_module = cast(ModuleType, launcher["radm"])
+    verify_workspace_sources = cast(
+        Callable[[], dict[str, str]], launcher["verify_workspace_sources"]
+    )
+    module = importlib.import_module(package)
     monkeypatch.setattr(
-        radm_module,
+        module,
         "__file__",
-        str(tmp_path / "stale-checkout" / "radm" / "__init__.py"),
+        str(tmp_path / "stale-checkout" / package / "__init__.py"),
     )
 
-    with pytest.raises(SystemExit, match="radm resolves outside"):
-        verify_radm_source()
+    with pytest.raises(SystemExit, match=f"{package} resolves outside"):
+        verify_workspace_sources()
 
 
 def test_existing_output_root_fails_before_subprocess(
@@ -903,3 +938,20 @@ def test_empty_text_feature_splits_fail_before_subprocess(
 
         with pytest.raises(SystemExit, match="no text-feature files"):
             main()
+
+
+def test_s5_training_doc_separates_recorded_command_from_launch_template() -> None:
+    training_doc = (Path(__file__).parents[1] / "TRAINING.md").read_text(
+        encoding="utf-8"
+    )
+    s5_command = next(
+        line
+        for line in training_doc.splitlines()
+        if line.startswith("| S5") and "--arm" in line
+    )
+    launch_template = training_doc.split("## Training commands", maxsplit=1)[1]
+
+    assert "--evaluation-path-parity-artifact" not in s5_command
+    assert "evaluation-path-parity:" not in s5_command
+    assert "--evaluation-path-parity-artifact" in launch_template
+    assert "/pull/503" not in training_doc

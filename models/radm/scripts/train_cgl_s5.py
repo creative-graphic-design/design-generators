@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 from importlib.metadata import PackageNotFoundError, version
+from importlib.util import find_spec
 import json
 import os
 import subprocess
@@ -29,6 +30,13 @@ EVALUATOR = (
 VENDOR_COMPAT_ROOT = ROOT / "models" / "radm" / "scripts" / "vendor_compat"
 VENDOR_COMPAT_MODULE = VENDOR_COMPAT_ROOT / "sitecustomize.py"
 RADM_SOURCE_ROOT = ROOT / "models" / "radm" / "src"
+WORKSPACE_SOURCE_ROOTS = {
+    "radm": RADM_SOURCE_ROOT,
+    "traingen": ROOT / "lib" / "traingen" / "src",
+    "traingen_parity": ROOT / "lib" / "traingen-parity" / "src",
+    "laygen": ROOT / "lib" / "laygen" / "src",
+    "posgen": ROOT / "lib" / "posgen" / "src",
+}
 STEPS = 250000
 
 
@@ -42,13 +50,31 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_radm_source() -> str:
-    """Require the imported package module to come from this repository."""
-    module_path = Path(radm.__file__).resolve()
-    if not module_path.is_relative_to(RADM_SOURCE_ROOT.resolve()):
-        raise SystemExit(f"radm resolves outside repository source tree: {module_path}")
+def verify_workspace_sources() -> dict[str, str]:
+    """Require RADM and its workspace dependencies to come from this checkout."""
+    source_paths = {}
+    for package, source_root in WORKSPACE_SOURCE_ROOTS.items():
+        module = radm if package == "radm" else sys.modules.get(package)
+        module_path = getattr(module, "__file__", None)
+        if not isinstance(module_path, str):
+            spec = find_spec(package)
+            module_path = spec.origin if spec is not None else None
+        if not module_path:
+            raise SystemExit(f"{package} cannot be resolved from this checkout")
 
-    return str(module_path)
+        resolved_path = Path(module_path).resolve()
+        if not resolved_path.is_relative_to(source_root.resolve()):
+            raise SystemExit(
+                f"{package} resolves outside repository source tree: {resolved_path}"
+            )
+        source_paths[package] = str(resolved_path)
+
+    return source_paths
+
+
+def verify_radm_source() -> str:
+    """Require the imported RADM module to come from this repository."""
+    return verify_workspace_sources()["radm"]
 
 
 def verify_source_tree(expected_commit: str) -> dict[str, str]:
@@ -321,8 +347,13 @@ def build_evaluator_command(
     checkpoint_path: Path,
 ) -> tuple[list[str], Path, dict[str, str] | None]:
     """Build the evaluation command for the arm's terminal checkpoint."""
+    workspace_source_roots = tuple(
+        source_root
+        for package, source_root in WORKSPACE_SOURCE_ROOTS.items()
+        if arm == "package" or package != "radm"
+    )
     pythonpath = os.pathsep.join(
-        str(path.resolve()) for path in (VENDOR_COMPAT_ROOT, RADM_SOURCE_ROOT)
+        str(path.resolve()) for path in (VENDOR_COMPAT_ROOT, *workspace_source_roots)
     )
     command_prefix = ["env", f"PYTHONPATH={pythonpath}", sys.executable]
 
@@ -336,8 +367,6 @@ def build_evaluator_command(
                 "--manifest",
                 str(manifest_path),
                 "--seed",
-                str(seed),
-                "--evaluation-seed",
                 str(seed),
                 "--data-root",
                 data_root,
@@ -423,6 +452,8 @@ def main() -> None:
             "evaluation-path parity artifact is missing: "
             f"{evaluation_path_parity_artifact}"
         )
+    evaluation_path_parity_artifact = evaluation_path_parity_artifact.resolve()
+    evaluation_path_parity_sha256 = sha256_file(evaluation_path_parity_artifact)
 
     output_dir = args.output_dir.absolute()
     if output_dir.exists():
@@ -470,9 +501,7 @@ def main() -> None:
         config_relative_path: config_sha256,
         data_root: data_root_sha256,
         str(data_root_target): data_root_sha256,
-        evaluation_path_parity_artifact.as_posix(): sha256_file(
-            evaluation_path_parity_artifact
-        ),
+        str(evaluation_path_parity_artifact): evaluation_path_parity_sha256,
     }
     vendor_compatibility = vendor_compatibility_metadata(args.arm)
     if vendor_compatibility is not None:
@@ -495,6 +524,10 @@ def main() -> None:
             "type": "top_k_val_loss" if args.arm == "package" else "final_iteration",
             "checkpoint": str(checkpoint_path),
             "filename": checkpoint_name,
+        },
+        "evaluation_path_parity_artifact": {
+            "path": str(evaluation_path_parity_artifact),
+            "sha256": evaluation_path_parity_sha256,
         },
         "evaluator_command": evaluator_command,
         "evaluator_cwd": str(evaluator_cwd),

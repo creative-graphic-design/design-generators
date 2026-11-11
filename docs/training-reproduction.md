@@ -130,7 +130,6 @@ Use these status values in `TRAINING.md`:
 
 - `s5-bit-parity`: Package and original metrics and losses are bit-identical for this dataset and seed scope.
 - `s5-practical-reproduction`: Full S5 metrics fall within the accepted per-dataset parity thresholds without bit-level equality; see [Step Parity and Full-Run Parity](#step-parity-and-full-run-parity).
-- `s5-results-reported-separately`: S5 runs are complete, and their terminal results are recorded in a separate report; this status does not state whether reproduction criteria passed.
 - `recipe-unstable (documented)`: The original training recipe itself gives unstable results across seeds; the interpretation paragraph documents the instability.
 - `not-yet-run (<tracking ref>)`: S5 evidence is not yet available for this dataset; the parenthetical links the issue or pull request that tracks the run.
 - `blocked (<reason>)`: Required data, original code, assets, or compute are unavailable; the parenthetical states the reason.

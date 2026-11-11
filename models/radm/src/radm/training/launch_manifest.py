@@ -27,6 +27,13 @@ class CGLS5CheckpointRule(TypedDict):
     filename: str
 
 
+class CGLS5ArtifactIdentity(TypedDict):
+    """Resolved artifact path and content digest recorded before a run."""
+
+    path: str
+    sha256: str
+
+
 class CGLS5LaunchManifest(TypedDict):
     """Identity, runtime, data, and artifact record for one CGL training launch."""
 
@@ -44,6 +51,7 @@ class CGLS5LaunchManifest(TypedDict):
     text_feature_inventory: dict[str, dict[str, int]]
     vendor_compatibility: dict[str, str] | None
     checkpoint_rule: CGLS5CheckpointRule
+    evaluation_path_parity_artifact: CGLS5ArtifactIdentity
     evaluator_command: list[str]
     evaluator_cwd: str
     artifacts: dict[str, str]

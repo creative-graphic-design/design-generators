@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 from typing import cast
 
 import torch
@@ -36,6 +37,18 @@ def verify_radm_source() -> str:
     return str(module_path)
 
 
+def evaluator_source_commit() -> str:
+    """Return the checkout commit used by this evaluator."""
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            f"unable to determine evaluator source commit: {exc}"
+        ) from exc
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -63,6 +76,7 @@ def validate_terminal_checkpoint(
         raise RuntimeError("launch manifest must be a JSON object")
     manifest = cast(CGLS5LaunchManifest, raw_manifest)
     radm_source_path = verify_radm_source()
+    current_evaluator_source_commit = evaluator_source_commit()
     if manifest.get("arm") != "package":
         raise RuntimeError("manifest arm does not match the package evaluator")
     if manifest.get("training_seed") != seed:
@@ -78,17 +92,25 @@ def validate_terminal_checkpoint(
         raise RuntimeError(
             "evaluator data root does not match manifest data_root alias"
         )
+    manifest_data_root_target = manifest_data_root.get("target")
+    if not isinstance(manifest_data_root_target, str):
+        raise RuntimeError("manifest has no data_root target")
+    resolved_data_root = Path(data_root).resolve(strict=True)
+    if str(resolved_data_root) != manifest_data_root_target:
+        raise RuntimeError(
+            "evaluator data root target does not match manifest data_root target"
+        )
 
     manifest_config = manifest.get("config")
     if not isinstance(manifest_config, dict):
         raise RuntimeError("manifest has no config identity")
     expected_config_path = config_path.resolve().relative_to(ROOT).as_posix()
     if manifest_config.get("path") != expected_config_path:
-        raise RuntimeError("manifest config path does not match the S5 recipe")
+        raise RuntimeError("manifest config path does not match the evaluator config")
     if manifest_config.get("sha256") != config_sha256:
-        raise RuntimeError("manifest config digest does not match the S5 recipe")
+        raise RuntimeError("manifest config digest does not match the evaluator config")
     if manifest.get("max_steps") != expected_steps:
-        raise RuntimeError("manifest max_steps does not match the S5 recipe")
+        raise RuntimeError("manifest max_steps does not match the expected step count")
 
     output_root = manifest.get("output_root")
     if not isinstance(output_root, str) or not output_root:
@@ -123,6 +145,8 @@ def validate_terminal_checkpoint(
         "arm": "package",
         "global_step": global_step,
         "training_seed": seed,
+        "evaluation_seed": seed,
+        "evaluator_source_commit": current_evaluator_source_commit,
         "data_root_alias": data_root_alias,
         "radm_source_path": radm_source_path,
         "config_path": expected_config_path,
@@ -190,7 +214,6 @@ def main() -> None:
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--evaluation-seed", type=int, default=1)
     args = parser.parse_args()
     data_root = validate_dot_free_data_root(args.data_root)
     validation = validate_terminal_checkpoint(
@@ -204,7 +227,7 @@ def main() -> None:
         data_root=Path(data_root),
         output_dir=args.output_dir,
         device=args.device,
-        evaluation_seed=args.evaluation_seed,
+        evaluation_seed=args.seed,
     )
     print(json.dumps({"validation": validation, "report": report}, allow_nan=True))
 
