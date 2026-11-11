@@ -2260,11 +2260,6 @@ def execute_run(
     probe_fixture_prefix: str | None = None,
     colab_accelerator: str | None = None,
 ) -> None:
-    if not isinstance(colab_accelerator, str) or not colab_accelerator.strip():
-        raise ExecutorError(
-            "--colab-accelerator is required for a non-smoke Colab launch"
-        )
-
     manifest = cast(
         JsonObject,
         resolve_runtime_prefixes(
@@ -2274,6 +2269,17 @@ def execute_run(
             probe_fixture_prefix,
         ),
     )
+    runtime_plan = manifest.get("runtime_plan")
+    if not isinstance(runtime_plan, dict):
+        raise ExecutorError("manifest runtime_plan must be an object")
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    if not cpu_runtime_smoke and (
+        not isinstance(colab_accelerator, str) or not colab_accelerator.strip()
+    ):
+        raise ExecutorError(
+            "--colab-accelerator is required for a non-smoke Colab launch"
+        )
+
     pinned = manifest.get("source_commit")
     if not isinstance(pinned, str):
         raise ExecutorError("manifest source_commit must be finalized")
@@ -2356,15 +2362,11 @@ def execute_run(
     runner = manifest.get("runner_command")
     if runner != ["python3", "models/canvas-vae/scripts/s5_seed_executor.py"]:
         raise ExecutorError("manifest runner_command does not identify this executor")
-    runtime_plan = manifest.get("runtime_plan")
-    if not isinstance(runtime_plan, dict):
-        raise ExecutorError("manifest runtime_plan must be an object")
     verify_crello_launch_gates(manifest, pinned)
     if runtime_plan.get("source_commit") != pinned:
         raise ExecutorError(
             "runtime_plan source_commit must match the manifest source_commit"
         )
-    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
     planned_probe_steps = runtime_plan.get("lockstep_probe_steps")
     if manifest.get("dataset") == "crello" and (
         type(planned_probe_steps) is not int

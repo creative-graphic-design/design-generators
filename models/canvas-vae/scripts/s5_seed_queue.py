@@ -557,8 +557,11 @@ def run_queue(
     dry_run: bool,
     colab_accelerator: str | None = None,
 ) -> None:
-    if not dry_run and (
-        not isinstance(colab_accelerator, str) or not colab_accelerator.strip()
+    cpu_runtime_smoke = manifest["runtime_plan"].get("cpu_runtime_smoke") is True
+    if (
+        not dry_run
+        and not cpu_runtime_smoke
+        and (not isinstance(colab_accelerator, str) or not colab_accelerator.strip())
     ):
         raise QueueError(
             "--colab-accelerator is required for a non-smoke queue launch",
@@ -585,8 +588,6 @@ def run_queue(
             raise QueueError(
                 "launch refused: runner command is not configured", BLOCKED_EXIT
             )
-        assert isinstance(colab_accelerator, str)
-
         environment = os.environ.copy()
         environment.update(
             {
@@ -608,7 +609,9 @@ def run_queue(
                     str(manifest["runtime_plan"]["lockstep_probe_steps"]),
                 ]
             )
-        runner_arguments.extend(["--colab-accelerator", colab_accelerator])
+        if not cpu_runtime_smoke:
+            assert isinstance(colab_accelerator, str)
+            runner_arguments.extend(["--colab-accelerator", colab_accelerator])
         result = subprocess.run(
             runner_arguments,
             cwd=REPOSITORY_ROOT,
@@ -665,7 +668,14 @@ def main() -> int:
             raise QueueError("source gate requires a clean worktree")
 
         if args.launch:
-            if not args.colab_accelerator or not args.colab_accelerator.strip():
+            runtime_plan = manifest.get("runtime_plan")
+            cpu_runtime_smoke = (
+                isinstance(runtime_plan, dict)
+                and runtime_plan.get("cpu_runtime_smoke") is True
+            )
+            if not cpu_runtime_smoke and (
+                not args.colab_accelerator or not args.colab_accelerator.strip()
+            ):
                 raise QueueError(
                     "--colab-accelerator is required for a non-smoke queue launch",
                     BLOCKED_EXIT,

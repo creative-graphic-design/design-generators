@@ -383,7 +383,7 @@ The S5 seed queue requires an artifact repository and a Colab accelerator value 
 Launch the RICO queue after its manifest is ready.
 
 ```bash
-uv run --package canvas-vae models/canvas-vae/scripts/s5_rico_seed_queue.py --manifest .cache/canvas-vae/full-run/rico/manifest.json --launch --hub-repo '<your-hub-repo>' --colab-accelerator '<accelerator>'
+uv run --package canvas-vae models/canvas-vae/scripts/s5_seed_queue.py --manifest .cache/canvas-vae/full-run/rico/manifest.json --launch --hub-repo '<your-hub-repo>' --colab-accelerator '<accelerator>'
 ```
 
 Run the staged parity checks after generating references with [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/REPRODUCING.md).
