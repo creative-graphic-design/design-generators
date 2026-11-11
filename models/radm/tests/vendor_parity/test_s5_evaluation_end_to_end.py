@@ -149,6 +149,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
         package_checkpoint,
         manifest,
         seed=int(os.environ.get("RADM_E2E_TRAINING_SEED", "1")),
+        data_root=str(data_root),
     )
     package_output = tmp_path / "package"
     package_report = evaluate_package_checkpoint(

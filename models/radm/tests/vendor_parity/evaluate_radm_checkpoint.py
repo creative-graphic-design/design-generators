@@ -10,6 +10,7 @@ from typing import cast
 
 import torch
 
+import radm
 from radm.configuration_radm import RADMConfig
 from radm.evaluation import evaluate_checkpoint
 from radm.training.config import effective_radm_config
@@ -21,6 +22,18 @@ from radm.training.launch_manifest import CGLS5LaunchManifest
 ROOT = Path(__file__).resolve().parents[4]
 EXPECTED_STEPS = 250000
 DEFAULT_CONFIG = Path("models") / "radm" / "configs" / "training" / "radm_cgl.yaml"
+RADM_SOURCE_ROOT = ROOT / "models" / "radm" / "src"
+
+
+def verify_radm_source() -> str:
+    """Require the imported package module to come from this repository."""
+    module_path = Path(radm.__file__).resolve()
+    if not module_path.is_relative_to(RADM_SOURCE_ROOT.resolve()):
+        raise RuntimeError(
+            f"radm resolves outside repository source tree: {module_path}"
+        )
+
+    return str(module_path)
 
 
 def sha256(path: Path) -> str:
@@ -36,7 +49,8 @@ def validate_terminal_checkpoint(
     manifest_path: Path,
     *,
     seed: int,
-    config_path: Path = DEFAULT_CONFIG,
+    data_root: str,
+    config_path: Path = ROOT / DEFAULT_CONFIG,
     expected_steps: int = EXPECTED_STEPS,
 ) -> dict[str, object]:
     """Validate the checkpoint against the launch manifest before evaluation."""
@@ -48,10 +62,23 @@ def validate_terminal_checkpoint(
     if not isinstance(raw_manifest, dict):
         raise RuntimeError("launch manifest must be a JSON object")
     manifest = cast(CGLS5LaunchManifest, raw_manifest)
+    radm_source_path = verify_radm_source()
     if manifest.get("arm") != "package":
         raise RuntimeError("manifest arm does not match the package evaluator")
     if manifest.get("training_seed") != seed:
         raise RuntimeError("manifest training_seed does not match the evaluator seed")
+    manifest_data_root = manifest.get("data_root")
+    if not isinstance(manifest_data_root, dict) or not isinstance(
+        manifest_data_root.get("alias"), str
+    ):
+        raise RuntimeError("manifest has no data_root alias")
+    data_root_alias = validate_dot_free_data_root(data_root)
+    manifest_data_root_alias = validate_dot_free_data_root(manifest_data_root["alias"])
+    if data_root_alias != manifest_data_root_alias:
+        raise RuntimeError(
+            "evaluator data root does not match manifest data_root alias"
+        )
+
     manifest_config = manifest.get("config")
     if not isinstance(manifest_config, dict):
         raise RuntimeError("manifest has no config identity")
@@ -96,6 +123,8 @@ def validate_terminal_checkpoint(
         "arm": "package",
         "global_step": global_step,
         "training_seed": seed,
+        "data_root_alias": data_root_alias,
+        "radm_source_path": radm_source_path,
         "config_path": expected_config_path,
         "config_sha256": config_sha256,
         "checkpoint": str(resolved_checkpoint),
@@ -168,6 +197,7 @@ def main() -> None:
         args.checkpoint,
         args.manifest,
         seed=args.seed,
+        data_root=data_root,
     )
     report = evaluate_package_checkpoint(
         args.checkpoint,

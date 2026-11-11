@@ -12,7 +12,7 @@ import runpy
 import subprocess
 import sys
 import tempfile
-from types import FunctionType, SimpleNamespace
+from types import FunctionType, ModuleType, SimpleNamespace
 from typing import cast
 
 import pytest
@@ -188,14 +188,14 @@ def test_s5_launcher_builds_same_absolute_data_root_for_both_arms(
 
 
 @pytest.mark.parametrize(
-    ("arm", "checkpoint_name"),
+    ("arm", "checkpoint_name", "seed"),
     (
-        ("package", "epoch=0-step=250000.ckpt"),
-        ("original", "model_final.pth"),
+        ("package", "epoch=0-step=250000.ckpt", 2),
+        ("original", "model_final.pth", 3),
     ),
 )
 def test_evaluator_command_names_the_terminal_checkpoint(
-    arm: str, checkpoint_name: str, tmp_path: Path
+    arm: str, checkpoint_name: str, seed: int, tmp_path: Path
 ) -> None:
     launcher = _launcher()
     terminal_checkpoint_path = cast(
@@ -210,7 +210,7 @@ def test_evaluator_command_names_the_terminal_checkpoint(
 
     command, _, environment = build_evaluator_command(
         arm=arm,
-        seed=1,
+        seed=seed,
         data_root="/data/radm_cgl",
         output_dir=tmp_path,
         manifest_path=tmp_path / "manifest.json",
@@ -218,13 +218,17 @@ def test_evaluator_command_names_the_terminal_checkpoint(
     )
 
     assert str(checkpoint_path) in command
+    assert command[0] == "env"
+    assert command[1].startswith("PYTHONPATH=")
+    pythonpath = command[1].partition("=")[2].split(os.pathsep)
+    assert all(Path(path).is_absolute() for path in pythonpath)
+    assert str(Path(cast(Path, launcher["RADM_SOURCE_ROOT"])).resolve()) in pythonpath
+    assert str(Path(cast(Path, launcher["VENDOR_COMPAT_ROOT"])).resolve()) in pythonpath
     if arm == "original":
-        compat_root = Path(cast(str, launcher["VENDOR_COMPAT_ROOT"]))
-        assert environment is not None
-        assert environment["PYTHONPATH"].split(os.pathsep)[0] == str(compat_root)
-        assert "Image.LINEAR" not in " ".join(command)
+        assert command[command.index("SEED") + 1] == str(seed)
     else:
-        assert environment is None
+        assert command[command.index("--evaluation-seed") + 1] == str(seed)
+    assert environment is None
 
 
 def test_original_arm_manifest_records_the_tracked_compatibility_module() -> None:
@@ -332,7 +336,7 @@ def test_package_cgl_validation_only_selects_the_terminal_top_k_checkpoint(
         num_workers=data["num_workers"],
         effective=effective_radm_config(),
     )
-    assert len(data_module.train_dataloader()) >= trainer["max_steps"]
+    assert len(data_module.train_dataloader()) == trainer["max_steps"]
 
 
 def test_evaluator_reports_a_missing_terminal_checkpoint_clearly(
@@ -359,6 +363,7 @@ def test_evaluator_reports_a_missing_terminal_checkpoint_clearly(
             tmp_path / "checkpoints" / "epoch=0-step=250000.ckpt",
             tmp_path / "manifest.json",
             seed=1,
+            data_root=str(tmp_path / "radm_cgl"),
         )
 
 
@@ -377,6 +382,8 @@ def test_s5_launcher_writes_manifest_before_training(
     output_dir = tmp_path / "package-run"
     manifest_path = output_dir / "manifest.json"
     source_commit = "a" * 40
+    evaluation_path_parity_artifact = tmp_path / "evaluation-path-parity.json"
+    evaluation_path_parity_artifact.write_text("{}", encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="radm-cgl-", dir="/tmp") as data_dir:
         data_parent = Path(data_dir)
         data_target = data_parent / ".cache" / "cgl"
@@ -399,6 +406,8 @@ def test_s5_launcher_writes_manifest_before_training(
                 source_commit,
                 "--output-dir",
                 str(output_dir),
+                "--evaluation-path-parity-artifact",
+                str(evaluation_path_parity_artifact),
             ],
         )
         gitlink_commit = "b" * 40
@@ -451,6 +460,9 @@ def test_s5_launcher_writes_manifest_before_training(
             assert manifest["source_commit"] == source_commit
             assert manifest["vendor_gitlink_commit"] == gitlink_commit
             assert manifest["vendor_checkout_commit"] == gitlink_commit
+            assert manifest["radm_source_path"] == str(
+                Path(cast(str, cast(ModuleType, launcher["radm"]).__file__)).resolve()
+            )
             assert manifest["runtime"]["torch_version"] == "2.8.0+cu128"
             assert manifest["runtime"]["torchvision_version"] == "0.23.0+cu128"
             assert manifest["runtime"]["detectron2_version"] == "0.6"
@@ -464,6 +476,11 @@ def test_s5_launcher_writes_manifest_before_training(
                 == "models/radm/configs/training/radm_cgl.yaml"
             )
             assert manifest["config"]["sha256"]
+            assert manifest["artifacts"][
+                evaluation_path_parity_artifact.as_posix()
+            ] == cast(Callable[[Path], str], launcher["sha256_file"])(
+                evaluation_path_parity_artifact
+            )
             assert manifest["arm"] == "package"
             assert manifest["max_steps"] == steps
             assert manifest["checkpoint_rule"]["filename"] == checkpoint_name
@@ -471,6 +488,8 @@ def test_s5_launcher_writes_manifest_before_training(
                 output_dir / "checkpoints" / checkpoint_name
             )
             assert any(checkpoint_name in arg for arg in manifest["evaluator_command"])
+            assert manifest["evaluator_command"][0] == "env"
+            assert manifest["evaluator_command"][1].startswith("PYTHONPATH=")
             assert manifest["text_feature_inventory"] == {
                 "train": {"annotation_images": 1, "matching_text_features": 1},
                 "test": {"annotation_images": 1, "matching_text_features": 1},
@@ -533,52 +552,96 @@ def test_s5_launcher_writes_manifest_before_training(
                 evaluator["validate_terminal_checkpoint"],
             )
             checkpoint_path = output_dir / "checkpoints" / checkpoint_name
-            monkeypatch.chdir(repo_root)
+            monkeypatch.chdir(tmp_path)
             validation = validate(
-                checkpoint_path, manifest_path, seed=1, expected_steps=steps
+                checkpoint_path,
+                manifest_path,
+                seed=1,
+                data_root=str(data_alias),
+                expected_steps=steps,
             )
             assert validation["global_step"] == steps
             assert validation["training_seed"] == 1
+            assert validation["radm_source_path"] == str(
+                Path(cast(str, cast(ModuleType, evaluator["radm"]).__file__)).resolve()
+            )
 
             with pytest.raises(RuntimeError, match="training_seed"):
-                validate(checkpoint_path, manifest_path, seed=2, expected_steps=steps)
+                validate(
+                    checkpoint_path,
+                    manifest_path,
+                    seed=2,
+                    data_root=str(data_alias),
+                    expected_steps=steps,
+                )
 
             outside_checkpoint = tmp_path / "outside.ckpt"
             torch.save({"global_step": steps}, outside_checkpoint)
             with pytest.raises(RuntimeError, match="outside the manifest output_root"):
                 validate(
-                    outside_checkpoint, manifest_path, seed=1, expected_steps=steps
+                    outside_checkpoint,
+                    manifest_path,
+                    seed=1,
+                    data_root=str(data_alias),
+                    expected_steps=steps,
                 )
 
             checkpoint_bytes = checkpoint_path.read_bytes()
             torch.save({"global_step": steps - 1}, checkpoint_path)
             with pytest.raises(RuntimeError, match=f"global_step={steps - 1}"):
-                validate(checkpoint_path, manifest_path, seed=1, expected_steps=steps)
+                validate(
+                    checkpoint_path,
+                    manifest_path,
+                    seed=1,
+                    data_root=str(data_alias),
+                    expected_steps=steps,
+                )
             checkpoint_path.write_bytes(checkpoint_bytes)
 
             original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            for section, field, value, message in (
-                (None, "arm", "original", "manifest arm"),
+            for section, field, value, message, evaluation_data_root in (
+                (None, "arm", "original", "manifest arm", str(data_alias)),
                 (
                     None,
                     "output_root",
                     str(output_dir.parent),
                     "manifest output_root",
+                    str(data_alias),
                 ),
-                ("config", "path", "other.yaml", "manifest config path"),
-                ("config", "sha256", "0" * 64, "manifest config digest"),
+                (
+                    "config",
+                    "path",
+                    "other.yaml",
+                    "manifest config path",
+                    str(data_alias),
+                ),
+                (
+                    "config",
+                    "sha256",
+                    "0" * 64,
+                    "manifest config digest",
+                    str(data_alias),
+                ),
                 (
                     "checkpoint_rule",
                     "checkpoint",
                     str(output_dir / "checkpoints" / "other.ckpt"),
                     "manifest checkpoint rule",
+                    str(data_alias),
                 ),
-                (None, "max_steps", 249999, "manifest max_steps"),
+                (None, "max_steps", 249999, "manifest max_steps", str(data_alias)),
+                (
+                    None,
+                    None,
+                    None,
+                    "data root",
+                    "/tmp/different_radm_cgl",
+                ),
             ):
                 mismatched_manifest = deepcopy(original_manifest)
-                if section is None:
+                if section is None and field is not None:
                     mismatched_manifest[field] = value
-                else:
+                elif section is not None and field is not None:
                     mismatched_manifest[section][field] = value
                 manifest_path.write_text(
                     json.dumps(mismatched_manifest), encoding="utf-8"
@@ -588,9 +651,25 @@ def test_s5_launcher_writes_manifest_before_training(
                         checkpoint_path,
                         manifest_path,
                         seed=1,
+                        data_root=evaluation_data_root,
                         expected_steps=steps,
                     )
             manifest_path.write_text(json.dumps(original_manifest), encoding="utf-8")
+
+            radm_module = cast(ModuleType, evaluator["radm"])
+            monkeypatch.setattr(
+                radm_module,
+                "__file__",
+                str(tmp_path / "stale-checkout" / "radm" / "__init__.py"),
+            )
+            with pytest.raises(RuntimeError, match="radm resolves outside"):
+                validate(
+                    checkpoint_path,
+                    manifest_path,
+                    seed=1,
+                    data_root=str(data_alias),
+                    expected_steps=steps,
+                )
         else:
             with pytest.raises(
                 SystemExit, match="training completed without the terminal checkpoint"
@@ -648,7 +727,26 @@ def test_s5_source_tree_must_be_clean_and_vendor_must_match_gitlink(
             "source_commit": source_commit,
             "vendor_gitlink_commit": vendor_gitlink,
             "vendor_checkout_commit": vendor_head,
+            "radm_source_path": str(
+                Path(cast(str, cast(ModuleType, launcher["radm"]).__file__)).resolve()
+            ),
         }
+
+
+def test_s5_launcher_rejects_radm_from_outside_source_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launcher = _launcher()
+    verify_radm_source = cast(Callable[[], str], launcher["verify_radm_source"])
+    radm_module = cast(ModuleType, launcher["radm"])
+    monkeypatch.setattr(
+        radm_module,
+        "__file__",
+        str(tmp_path / "stale-checkout" / "radm" / "__init__.py"),
+    )
+
+    with pytest.raises(SystemExit, match="radm resolves outside"):
+        verify_radm_source()
 
 
 def test_existing_output_root_fails_before_subprocess(
@@ -660,6 +758,45 @@ def test_existing_output_root_fails_before_subprocess(
     output_dir.mkdir()
     marker = output_dir / "keep.txt"
     marker.write_text("existing", encoding="utf-8")
+    evaluation_path_parity_artifact = tmp_path / "evaluation-path-parity.json"
+    evaluation_path_parity_artifact.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_cgl_s5.py",
+            "--arm",
+            "package",
+            "--seed",
+            "1",
+            "--data-root",
+            "/tmp/radm_cgl",
+            "--source-commit",
+            "a" * 40,
+            "--output-dir",
+            str(output_dir),
+            "--evaluation-path-parity-artifact",
+            str(evaluation_path_parity_artifact),
+        ],
+    )
+
+    def fail_if_subprocess_starts(*args: object, **kwargs: object) -> None:
+        raise AssertionError("training subprocess must not start")
+
+    monkeypatch.setattr(subprocess, "check_output", fail_if_subprocess_starts)
+    monkeypatch.setattr(subprocess, "run", fail_if_subprocess_starts)
+
+    with pytest.raises(SystemExit, match="refusing to reuse training output directory"):
+        main()
+    assert marker.read_text(encoding="utf-8") == "existing"
+
+
+def test_s5_launcher_requires_evaluation_path_parity_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launcher = _launcher()
+    main = cast(Callable[[], None], launcher["main"])
+    output_dir = tmp_path / "package-run"
     monkeypatch.setattr(
         sys,
         "argv",
@@ -684,9 +821,47 @@ def test_existing_output_root_fails_before_subprocess(
     monkeypatch.setattr(subprocess, "check_output", fail_if_subprocess_starts)
     monkeypatch.setattr(subprocess, "run", fail_if_subprocess_starts)
 
-    with pytest.raises(SystemExit, match="refusing to reuse training output directory"):
+    with pytest.raises(SystemExit) as exc_info:
         main()
-    assert marker.read_text(encoding="utf-8") == "existing"
+    assert exc_info.value.code == 2
+    assert not output_dir.exists()
+
+
+def test_s5_launcher_rejects_missing_evaluation_path_parity_artifact_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launcher = _launcher()
+    main = cast(Callable[[], None], launcher["main"])
+    output_dir = tmp_path / "package-run"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_cgl_s5.py",
+            "--arm",
+            "package",
+            "--seed",
+            "1",
+            "--data-root",
+            "/tmp/radm_cgl",
+            "--source-commit",
+            "a" * 40,
+            "--output-dir",
+            str(output_dir),
+            "--evaluation-path-parity-artifact",
+            str(tmp_path / "missing-evaluation-path-parity.json"),
+        ],
+    )
+
+    def fail_if_subprocess_starts(*args: object, **kwargs: object) -> None:
+        raise AssertionError("training subprocess must not start")
+
+    monkeypatch.setattr(subprocess, "check_output", fail_if_subprocess_starts)
+    monkeypatch.setattr(subprocess, "run", fail_if_subprocess_starts)
+
+    with pytest.raises(SystemExit, match="evaluation-path parity artifact is missing"):
+        main()
+    assert not output_dir.exists()
 
 
 @pytest.mark.parametrize("empty_split", ("train", "test"))
@@ -698,6 +873,8 @@ def test_empty_text_feature_splits_fail_before_subprocess(
     with tempfile.TemporaryDirectory(prefix="radm-cgl-", dir="/tmp") as data_dir:
         data_root = Path(data_dir) / "radm_cgl"
         _write_dataset(data_root, empty_split=empty_split)
+        evaluation_path_parity_artifact = tmp_path / "evaluation-path-parity.json"
+        evaluation_path_parity_artifact.write_text("{}", encoding="utf-8")
         monkeypatch.setattr(
             sys,
             "argv",
@@ -713,6 +890,8 @@ def test_empty_text_feature_splits_fail_before_subprocess(
                 "a" * 40,
                 "--output-dir",
                 str(tmp_path / "package-run"),
+                "--evaluation-path-parity-artifact",
+                str(evaluation_path_parity_artifact),
             ],
         )
 

@@ -573,6 +573,7 @@ def test_status_free_text_and_placeholder_reasons_fail(
     [
         "s5-bit-parity",
         "s5-practical-reproduction",
+        "s5-results-reported-separately",
         "recipe-unstable (documented)",
         "not-yet-run (#253)",
         "not-yet-run (<https://github.com/creative-graphic-design/design-generators/issues/253>)",

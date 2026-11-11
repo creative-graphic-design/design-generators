@@ -33,6 +33,7 @@ class CGLS5LaunchManifest(TypedDict):
     source_commit: str
     vendor_gitlink_commit: str
     vendor_checkout_commit: str
+    radm_source_path: str
     arm: Literal["original", "package"]
     training_seed: int
     runtime: dict[str, str | int]

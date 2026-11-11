@@ -15,6 +15,7 @@ from pathlib import Path
 import torch
 import yaml
 
+import radm
 from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.launch_manifest import CGLS5LaunchManifest
 
@@ -27,6 +28,7 @@ EVALUATOR = (
 )
 VENDOR_COMPAT_ROOT = ROOT / "models" / "radm" / "scripts" / "vendor_compat"
 VENDOR_COMPAT_MODULE = VENDOR_COMPAT_ROOT / "sitecustomize.py"
+RADM_SOURCE_ROOT = ROOT / "models" / "radm" / "src"
 STEPS = 250000
 
 
@@ -40,8 +42,18 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def verify_radm_source() -> str:
+    """Require the imported package module to come from this repository."""
+    module_path = Path(radm.__file__).resolve()
+    if not module_path.is_relative_to(RADM_SOURCE_ROOT.resolve()):
+        raise SystemExit(f"radm resolves outside repository source tree: {module_path}")
+
+    return str(module_path)
+
+
 def verify_source_tree(expected_commit: str) -> dict[str, str]:
     """Require clean root and vendor checkouts pinned to the same gitlink."""
+    radm_source_path = verify_radm_source()
     source_commit = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
     ).strip()
@@ -87,6 +99,7 @@ def verify_source_tree(expected_commit: str) -> dict[str, str]:
         "source_commit": source_commit,
         "vendor_gitlink_commit": vendor_gitlink_commit,
         "vendor_checkout_commit": vendor_checkout_commit,
+        "radm_source_path": radm_source_path,
     }
 
 
@@ -98,13 +111,13 @@ def runtime_metadata(arm: str) -> dict[str, str | int]:
     else:
         base_path = configuration_path(arm).parent / config["_BASE_"]
         base = yaml.safe_load(base_path.read_text(encoding="utf-8"))
-        base_num_workers = base.get("DATALOADER", {}).get("NUM_WORKERS", 2)
+        base_num_workers = base.get("DATALOADER", {}).get("NUM_WORKERS", 4)
         num_workers = int(
             config.get("DATALOADER", {}).get("NUM_WORKERS", base_num_workers)
         )
 
     if not torch.cuda.is_available():
-        raise SystemExit("CGL S5 training requires one available CUDA device")
+        raise SystemExit("CGL training requires one available CUDA device")
 
     try:
         torchvision_version = version("torchvision")
@@ -210,7 +223,7 @@ def configuration_path(arm: str) -> Path:
         return CONFIG
     if arm == "original":
         return VENDOR_ROOT / "configs" / "radm.yaml"
-    raise ValueError(f"unsupported CGL S5 arm: {arm}")
+    raise ValueError(f"unsupported RADM training arm: {arm}")
 
 
 def terminal_checkpoint_path(arm: str, output_dir: Path) -> Path:
@@ -219,7 +232,7 @@ def terminal_checkpoint_path(arm: str, output_dir: Path) -> Path:
         return output_dir / "checkpoints" / f"epoch=0-step={STEPS}.ckpt"
     if arm == "original":
         return output_dir / "model_final.pth"
-    raise ValueError(f"unsupported CGL S5 arm: {arm}")
+    raise ValueError(f"unsupported RADM evaluation arm: {arm}")
 
 
 def build_command(
@@ -295,7 +308,7 @@ def build_command(
             None,
         )
 
-    raise ValueError(f"unsupported CGL S5 arm: {arm}")
+    raise ValueError(f"unsupported RADM training arm: {arm}")
 
 
 def build_evaluator_command(
@@ -308,16 +321,23 @@ def build_evaluator_command(
     checkpoint_path: Path,
 ) -> tuple[list[str], Path, dict[str, str] | None]:
     """Build the evaluation command for the arm's terminal checkpoint."""
+    pythonpath = os.pathsep.join(
+        str(path.resolve()) for path in (VENDOR_COMPAT_ROOT, RADM_SOURCE_ROOT)
+    )
+    command_prefix = ["env", f"PYTHONPATH={pythonpath}", sys.executable]
+
     if arm == "package":
         return (
             [
-                sys.executable,
+                *command_prefix,
                 str(EVALUATOR),
                 "--checkpoint",
                 str(checkpoint_path),
                 "--manifest",
                 str(manifest_path),
                 "--seed",
+                str(seed),
+                "--evaluation-seed",
                 str(seed),
                 "--data-root",
                 data_root,
@@ -336,7 +356,7 @@ def build_evaluator_command(
     )
     return (
         [
-            sys.executable,
+            *command_prefix,
             "-c",
             launcher,
             "--num-gpus",
@@ -351,11 +371,13 @@ def build_evaluator_command(
             data_root,
             "DATASETS.TEXT_FEATURE_PATH",
             os.path.join(data_root, "text_features"),
+            "SEED",
+            str(seed),
             "OUTPUT_DIR",
             str(output_dir / "evaluation"),
         ],
         VENDOR_ROOT,
-        vendor_compatibility_environment(),
+        None,
     )
 
 
@@ -386,9 +408,22 @@ def main() -> None:
         required=True,
         help="Expected current Git commit shared by the CGL training arms.",
     )
+    parser.add_argument(
+        "--evaluation-path-parity-artifact",
+        type=Path,
+        required=True,
+        help="Existing evaluation-path parity artifact to record in the launch manifest.",
+    )
     args = parser.parse_args()
 
     data_root = validate_dot_free_data_root(args.data_root)
+    evaluation_path_parity_artifact = args.evaluation_path_parity_artifact
+    if not evaluation_path_parity_artifact.is_file():
+        raise SystemExit(
+            "evaluation-path parity artifact is missing: "
+            f"{evaluation_path_parity_artifact}"
+        )
+
     output_dir = args.output_dir.absolute()
     if output_dir.exists():
         raise SystemExit(f"refusing to reuse training output directory: {output_dir}")
@@ -435,6 +470,9 @@ def main() -> None:
         config_relative_path: config_sha256,
         data_root: data_root_sha256,
         str(data_root_target): data_root_sha256,
+        evaluation_path_parity_artifact.as_posix(): sha256_file(
+            evaluation_path_parity_artifact
+        ),
     }
     vendor_compatibility = vendor_compatibility_metadata(args.arm)
     if vendor_compatibility is not None:
@@ -443,6 +481,7 @@ def main() -> None:
         "source_commit": source_provenance["source_commit"],
         "vendor_gitlink_commit": source_provenance["vendor_gitlink_commit"],
         "vendor_checkout_commit": source_provenance["vendor_checkout_commit"],
+        "radm_source_path": source_provenance["radm_source_path"],
         "arm": args.arm,
         "training_seed": args.seed,
         "runtime": runtime,
