@@ -90,7 +90,6 @@ def test_execute_run_passes_supplied_accelerator_to_colab_new(
         EXECUTOR.REPOSITORY_ROOT / manifest["config"]
     )
     manifest["runtime_plan"]["source_commit"] = pinned_commit
-    manifest["runs"][0]["device"] = "cuda"
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 

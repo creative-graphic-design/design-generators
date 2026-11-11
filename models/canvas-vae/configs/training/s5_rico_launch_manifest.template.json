@@ -183,6 +183,7 @@
     {
       "run_id": "rico-original-seed0",
       "system": "original",
+      "device": "cuda",
       "seed": 0,
       "session_name": "cvae-s5-rico-original-seed0",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed0",
@@ -240,6 +241,7 @@
     {
       "run_id": "rico-original-seed1",
       "system": "original",
+      "device": "cuda",
       "seed": 1,
       "session_name": "cvae-s5-rico-original-seed1",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed1",
@@ -297,6 +299,7 @@
     {
       "run_id": "rico-original-seed2",
       "system": "original",
+      "device": "cuda",
       "seed": 2,
       "session_name": "cvae-s5-rico-original-seed2",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-original-seed2",
@@ -354,6 +357,7 @@
     {
       "run_id": "rico-package-seed0",
       "system": "package",
+      "device": "cuda",
       "seed": 0,
       "session_name": "cvae-s5-rico-package-seed0",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed0",
@@ -396,6 +400,7 @@
     {
       "run_id": "rico-package-seed1",
       "system": "package",
+      "device": "cuda",
       "seed": 1,
       "session_name": "cvae-s5-rico-package-seed1",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed1",
@@ -438,6 +443,7 @@
     {
       "run_id": "rico-package-seed2",
       "system": "package",
+      "device": "cuda",
       "seed": 2,
       "session_name": "cvae-s5-rico-package-seed2",
       "artifact_prefix": "design-generators/canvas-vae/s5/rico-package-seed2",
