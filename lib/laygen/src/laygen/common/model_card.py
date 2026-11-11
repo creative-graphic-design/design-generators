@@ -263,8 +263,9 @@ def build_layout_model_card(
         ),
         hardware_type=(
             "Original training hardware is not reported in this converted "
-            "artifact. Reference regeneration is documented for "
-            "`CUDA_VISIBLE_DEVICES=0` when a CUDA device is available."
+            "artifact. "
+            "Reference regeneration uses `CUDA_VISIBLE_DEVICES=<gpu-index>`; "
+            "choose a free GPU when CUDA is available."
         ),
         hours_used=(
             "Original training hours are not reported in this converted artifact."

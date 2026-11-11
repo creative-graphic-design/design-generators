@@ -40,7 +40,7 @@ def main() -> None:
                 "epoch": args.epoch,
                 "condition": args.condition,
                 "command": (
-                    "CUDA_VISIBLE_DEVICES=0 python vendor/dlt/dlt/generate_samples.py "
+                    "CUDA_VISIBLE_DEVICES=<gpu-index> python vendor/dlt/dlt/generate_samples.py "
                     f"--config {args.config} --workdir {args.workdir} "
                     f"--epoch {args.epoch} --cond_type {args.condition}"
                 ),

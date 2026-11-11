@@ -144,10 +144,10 @@ Training is not implemented in this workspace member. The package focuses on arc
 
 ### Parity Results
 
-| Check                   |                                   Cases | Criterion                                                                                                 | Result |
-| ----------------------- | --------------------------------------: | --------------------------------------------------------------------------------------------------------- | ------ |
-| BASNet saliency maps    | 3 SmartText demo images / 196608 values | Bit-exact, `max_abs_diff=0.0`, `pearson_corr=1.0`, `rtol=0`, `atol=0`, same-device comparison             | Passed |
-| SmartText consumer path | 3 SmartText demo images / 43 candidates | Bit-exact saliency, scorer inputs, scores, selected boxes, and text color after GPU1 reference generation | Passed |
+| Check                   |                                   Cases | Criterion                                                                                                                        | Result |
+| ----------------------- | --------------------------------------: | -------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| BASNet saliency maps    | 3 SmartText demo images / 196608 values | Bit-exact, `max_abs_diff=0.0`, `pearson_corr=1.0`, `rtol=0`, `atol=0`, same-device comparison                                    | Passed |
+| SmartText consumer path | 3 SmartText demo images / 43 candidates | Bit-exact saliency, scorer inputs, scores, selected boxes, and text color after reference generation on the selected CUDA device | Passed |
 
 ## Reproducibility
 

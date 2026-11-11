@@ -38,7 +38,7 @@ uv run --package radm models/radm/scripts/inspect_original_checkpoint.py \
 ## Generate Reference Outputs
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package radm models/radm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package radm models/radm/scripts/generate_reference_outputs.py \
   --vendor-root ./vendor/radm \
   --checkpoint .cache/radm/original/radm_cgl.pth \
   --dataset-root .cache/radm/data/cgl \

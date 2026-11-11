@@ -4,6 +4,8 @@ This walkthrough reproduces DLT agreement checks against the original implementa
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
+Choose a free GPU and substitute its index for `<gpu-index>` in the CUDA commands below.
+
 ## Commands
 
 ```bash
@@ -11,7 +13,7 @@ mkdir -p .cache/dlt/reference .cache/dlt/converted
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor \
   models/dlt/scripts/generate_vendor_reference.py \
   --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
   --workdir dlt-publaynet \
@@ -21,12 +23,12 @@ CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor \
 ```
 
 ```bash
-PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor \
+PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor \
   pytest models/dlt/tests/vendor_parity -m vendor_parity
 ```
 
 The accepted PubLayNet S5 rerun compares seeds `42`, `43`, and `44` and writes
-`.cache/dlt/full-run/s5-evaluation-lr-step/results-gpu1-rerun.json`. The
+`.cache/dlt/full-run/s5-evaluation-lr-step/results-selected-gpu-rerun.json`. The
 train-loss diagnostic writes
 `.cache/dlt/full-run/s5-evaluation-lr-step/train_loss_diagnostic.{json,md}` and
 recomputes the final checkpoints on the same batches, noise, and timesteps.
