@@ -11,7 +11,12 @@ trainer:
   use_distributed_sampler: false
   callbacks:
     - class_path: layoutformerpp.training.checkpoint.LayoutFormerPPModelCheckpoint
-      init_args: {monitor: val_loss, mode: min, save_top_k: 1, save_last: false}
+      init_args:
+        dirpath: .cache/layoutformerpp/training-runs/publaynet_refinement/checkpoints
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 model:
   class_path: layoutformerpp.training.lightning_module.LayoutFormerPPTrainingModule
   init_args:
