@@ -34,6 +34,16 @@ class CGLS5ArtifactIdentity(TypedDict):
     sha256: str
 
 
+class CGLS5SourceProvenance(TypedDict):
+    """Resolved workspace package modules and pinned source revisions."""
+
+    source_commit: str
+    vendor_gitlink_commit: str
+    vendor_checkout_commit: str
+    radm_source_path: str
+    workspace_source_paths: dict[str, str]
+
+
 class CGLS5LaunchManifest(TypedDict):
     """Identity, runtime, data, and artifact record for one CGL training launch."""
 
@@ -41,6 +51,7 @@ class CGLS5LaunchManifest(TypedDict):
     vendor_gitlink_commit: str
     vendor_checkout_commit: str
     radm_source_path: str
+    workspace_source_paths: dict[str, str]
     arm: Literal["original", "package"]
     training_seed: int
     runtime: dict[str, str | int]

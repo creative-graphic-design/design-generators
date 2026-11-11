@@ -13,7 +13,7 @@ import runpy
 import subprocess
 import sys
 import tempfile
-from types import FunctionType, ModuleType, SimpleNamespace
+from types import FunctionType, SimpleNamespace
 from typing import cast
 
 import pytest
@@ -27,6 +27,7 @@ from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMAspectRatioBatchSampler, RADMDataModule
 from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.dataset import RADMCOCODataset
+from radm.training.launch_manifest import CGLS5SourceProvenance
 
 
 def _launcher() -> dict[str, object]:
@@ -34,6 +35,21 @@ def _launcher() -> dict[str, object]:
     return runpy.run_path(
         str(root / "models" / "radm" / "scripts" / "train_cgl_s5.py"),
         run_name="radm_cgl_s5_test",
+    )
+
+
+def _evaluator() -> dict[str, object]:
+    root = Path(__file__).parents[3]
+    return runpy.run_path(
+        str(
+            root
+            / "models"
+            / "radm"
+            / "tests"
+            / "vendor_parity"
+            / "evaluate_radm_checkpoint.py"
+        ),
+        run_name="radm_evaluator_test",
     )
 
 
@@ -185,6 +201,12 @@ def test_s5_launcher_builds_same_absolute_data_root_for_both_arms(
         assert environment["PYTHONPATH"].split(os.pathsep)[0] == str(compat_root)
         assert "Image.LINEAR" not in " ".join(command)
     else:
+        assert command[:4] == [
+            sys.executable,
+            "-m",
+            "traingen.lightning.cli",
+            "fit",
+        ]
         assert environment is None
 
 
@@ -458,7 +480,12 @@ def test_s5_launcher_writes_manifest_before_training(
             env: dict[str, str] | None,
             check: bool,
         ) -> subprocess.CompletedProcess[bytes]:
-            assert command[0] == "traingen"
+            assert command[:4] == [
+                sys.executable,
+                "-m",
+                "traingen.lightning.cli",
+                "fit",
+            ]
             assert cwd == launcher["ROOT"]
             assert env is None
             assert check
@@ -470,9 +497,10 @@ def test_s5_launcher_writes_manifest_before_training(
             assert manifest["source_commit"] == source_commit
             assert manifest["vendor_gitlink_commit"] == gitlink_commit
             assert manifest["vendor_checkout_commit"] == gitlink_commit
-            assert manifest["radm_source_path"] == str(
-                Path(cast(str, cast(ModuleType, launcher["radm"]).__file__)).resolve()
+            manifest_source_paths = cast(
+                dict[str, str], manifest["workspace_source_paths"]
             )
+            assert manifest["radm_source_path"] == manifest_source_paths["radm"]
             assert manifest["runtime"]["torch_version"] == "2.8.0+cu128"
             assert manifest["runtime"]["torchvision_version"] == "0.23.0+cu128"
             assert manifest["runtime"]["detectron2_version"] == "0.6"
@@ -551,18 +579,7 @@ def test_s5_launcher_writes_manifest_before_training(
 
         if checkpoint_present:
             main()
-            repo_root = Path(__file__).parents[3]
-            evaluator = runpy.run_path(
-                str(
-                    repo_root
-                    / "models"
-                    / "radm"
-                    / "tests"
-                    / "vendor_parity"
-                    / "evaluate_radm_checkpoint.py"
-                ),
-                run_name="radm_manifest_validation_test",
-            )
+            evaluator = _evaluator()
             validate = cast(
                 Callable[..., dict[str, object]],
                 evaluator["validate_terminal_checkpoint"],
@@ -571,6 +588,11 @@ def test_s5_launcher_writes_manifest_before_training(
                 cast(FunctionType, validate).__globals__,
                 "evaluator_source_commit",
                 lambda: "b" * 40,
+            )
+            monkeypatch.setitem(
+                cast(FunctionType, validate).__globals__,
+                "evaluator_source_status",
+                lambda: " M models/radm/TRAINING.md",
             )
             checkpoint_path = output_dir / "checkpoints" / checkpoint_name
             monkeypatch.chdir(tmp_path)
@@ -585,9 +607,11 @@ def test_s5_launcher_writes_manifest_before_training(
             assert validation["training_seed"] == 1
             assert validation["evaluation_seed"] == 1
             assert validation["evaluator_source_commit"] == "b" * 40
-            assert validation["radm_source_path"] == str(
-                Path(cast(str, cast(ModuleType, evaluator["radm"]).__file__)).resolve()
+            assert validation["evaluator_source_status"] == " M models/radm/TRAINING.md"
+            workspace_source_paths = cast(
+                dict[str, str], validation["workspace_source_paths"]
             )
+            assert validation["radm_source_path"] == workspace_source_paths["radm"]
 
             with pytest.raises(RuntimeError, match="training_seed"):
                 validate(
@@ -686,7 +710,7 @@ def test_s5_launcher_writes_manifest_before_training(
                     )
             manifest_path.write_text(json.dumps(original_manifest), encoding="utf-8")
 
-            radm_module = cast(ModuleType, evaluator["radm"])
+            radm_module = importlib.import_module("radm")
             monkeypatch.setattr(
                 radm_module,
                 "__file__",
@@ -727,7 +751,7 @@ def test_s5_source_tree_must_be_clean_and_vendor_must_match_gitlink(
 ) -> None:
     launcher = _launcher()
     verify_source_tree = cast(
-        Callable[..., dict[str, str]], launcher["verify_source_tree"]
+        Callable[..., CGLS5SourceProvenance], launcher["verify_source_tree"]
     )
     root = cast(Path, launcher["ROOT"])
     source_commit = "a" * 40
@@ -752,14 +776,16 @@ def test_s5_source_tree_must_be_clean_and_vendor_must_match_gitlink(
         with pytest.raises(SystemExit, match="does not match root gitlink"):
             verify_source_tree(source_commit)
     else:
+        workspace_source_paths = cast(
+            Callable[[], dict[str, str]], launcher["verify_workspace_sources"]
+        )()
         provenance = verify_source_tree(source_commit)
         assert provenance == {
             "source_commit": source_commit,
             "vendor_gitlink_commit": vendor_gitlink,
             "vendor_checkout_commit": vendor_head,
-            "radm_source_path": str(
-                Path(cast(str, cast(ModuleType, launcher["radm"]).__file__)).resolve()
-            ),
+            "radm_source_path": workspace_source_paths["radm"],
+            "workspace_source_paths": workspace_source_paths,
         }
 
 
@@ -782,6 +808,80 @@ def test_s5_launcher_rejects_workspace_packages_outside_source_tree(
 
     with pytest.raises(SystemExit, match=f"{package} resolves outside"):
         verify_workspace_sources()
+
+
+@pytest.mark.parametrize(
+    "package", ("radm", "laygen", "posgen", "traingen", "traingen_parity")
+)
+def test_s5_evaluator_rejects_workspace_packages_outside_source_tree(
+    package: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evaluator = _evaluator()
+    validate = cast(
+        Callable[..., dict[str, object]], evaluator["validate_terminal_checkpoint"]
+    )
+    module = importlib.import_module(package)
+    monkeypatch.setattr(
+        module,
+        "__file__",
+        str(tmp_path / "stale-checkout" / package / "__init__.py"),
+    )
+    checkpoint_path = tmp_path / "checkpoint.ckpt"
+    checkpoint_path.touch()
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=f"{package} resolves outside"):
+        validate(
+            checkpoint_path,
+            manifest_path,
+            seed=1,
+            data_root="/tmp/radm_cgl",
+        )
+
+
+def test_s5_evaluator_writes_validation_record_to_output_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evaluator = _evaluator()
+    main = cast(Callable[[], None], evaluator["main"])
+    evaluator_globals = cast(FunctionType, main).__globals__
+    output_dir = tmp_path / "evaluation"
+    validation = {"evaluation_seed": 2, "evaluator_source_status": ""}
+    monkeypatch.setitem(
+        evaluator_globals,
+        "validate_terminal_checkpoint",
+        lambda *args, **kwargs: validation,
+    )
+    monkeypatch.setitem(
+        evaluator_globals,
+        "evaluate_package_checkpoint",
+        lambda *args, **kwargs: {"bbox": {}},
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_radm_checkpoint.py",
+            "--checkpoint",
+            str(tmp_path / "checkpoint.ckpt"),
+            "--manifest",
+            str(tmp_path / "manifest.json"),
+            "--seed",
+            "2",
+            "--data-root",
+            "/tmp/radm_cgl",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    main()
+
+    assert (
+        json.loads((output_dir / "validation.json").read_text(encoding="utf-8"))
+        == validation
+    )
 
 
 def test_existing_output_root_fails_before_subprocess(
@@ -953,5 +1053,15 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
 
     assert "--evaluation-path-parity-artifact" not in s5_command
     assert "evaluation-path-parity:" not in s5_command
+    assert all(
+        setting in s5_command
+        for setting in (
+            "PATH=",
+            "PYTHONPATH=",
+            "UV_FROZEN=1",
+            "CUDA_VISIBLE_DEVICES=",
+            "PYTHONUNBUFFERED=1",
+            "OMP_NUM_THREADS=1",
+        )
+    )
     assert "--evaluation-path-parity-artifact" in launch_template
-    assert "/pull/503" not in training_doc

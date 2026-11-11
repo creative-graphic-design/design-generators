@@ -11,30 +11,18 @@ from typing import cast
 
 import torch
 
-import radm
 from radm.configuration_radm import RADMConfig
 from radm.evaluation import evaluate_checkpoint
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMDataModule
 from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.launch_manifest import CGLS5LaunchManifest
+from radm.training.source_paths import verify_workspace_sources
 
 
 ROOT = Path(__file__).resolve().parents[4]
 EXPECTED_STEPS = 250000
 DEFAULT_CONFIG = Path("models") / "radm" / "configs" / "training" / "radm_cgl.yaml"
-RADM_SOURCE_ROOT = ROOT / "models" / "radm" / "src"
-
-
-def verify_radm_source() -> str:
-    """Require the imported package module to come from this repository."""
-    module_path = Path(radm.__file__).resolve()
-    if not module_path.is_relative_to(RADM_SOURCE_ROOT.resolve()):
-        raise RuntimeError(
-            f"radm resolves outside repository source tree: {module_path}"
-        )
-
-    return str(module_path)
 
 
 def evaluator_source_commit() -> str:
@@ -46,6 +34,26 @@ def evaluator_source_commit() -> str:
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(
             f"unable to determine evaluator source commit: {exc}"
+        ) from exc
+
+
+def evaluator_source_status() -> str:
+    """Return tracked and untracked changes in the evaluator checkout."""
+    try:
+        return subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(ROOT),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+            ],
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            f"unable to determine evaluator source status: {exc}"
         ) from exc
 
 
@@ -75,8 +83,10 @@ def validate_terminal_checkpoint(
     if not isinstance(raw_manifest, dict):
         raise RuntimeError("launch manifest must be a JSON object")
     manifest = cast(CGLS5LaunchManifest, raw_manifest)
-    radm_source_path = verify_radm_source()
+    workspace_source_paths = verify_workspace_sources()
+    radm_source_path = workspace_source_paths["radm"]
     current_evaluator_source_commit = evaluator_source_commit()
+    current_evaluator_source_status = evaluator_source_status()
     if manifest.get("arm") != "package":
         raise RuntimeError("manifest arm does not match the package evaluator")
     if manifest.get("training_seed") != seed:
@@ -147,8 +157,10 @@ def validate_terminal_checkpoint(
         "training_seed": seed,
         "evaluation_seed": seed,
         "evaluator_source_commit": current_evaluator_source_commit,
+        "evaluator_source_status": current_evaluator_source_status,
         "data_root_alias": data_root_alias,
         "radm_source_path": radm_source_path,
+        "workspace_source_paths": workspace_source_paths,
         "config_path": expected_config_path,
         "config_sha256": config_sha256,
         "checkpoint": str(resolved_checkpoint),
@@ -221,6 +233,10 @@ def main() -> None:
         args.manifest,
         seed=args.seed,
         data_root=data_root,
+    )
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    (args.output_dir / "validation.json").write_text(
+        json.dumps(validation, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     report = evaluate_package_checkpoint(
         args.checkpoint,

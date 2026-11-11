@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 from importlib.metadata import PackageNotFoundError, version
-from importlib.util import find_spec
 import json
 import os
 import subprocess
@@ -16,9 +15,12 @@ from pathlib import Path
 import torch
 import yaml
 
-import radm
 from radm.training.data_paths import validate_dot_free_data_root
-from radm.training.launch_manifest import CGLS5LaunchManifest
+from radm.training.launch_manifest import CGLS5LaunchManifest, CGLS5SourceProvenance
+from radm.training.source_paths import (
+    WORKSPACE_SOURCE_ROOTS,
+    verify_workspace_sources as verify_workspace_source_paths,
+)
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -29,14 +31,6 @@ EVALUATOR = (
 )
 VENDOR_COMPAT_ROOT = ROOT / "models" / "radm" / "scripts" / "vendor_compat"
 VENDOR_COMPAT_MODULE = VENDOR_COMPAT_ROOT / "sitecustomize.py"
-RADM_SOURCE_ROOT = ROOT / "models" / "radm" / "src"
-WORKSPACE_SOURCE_ROOTS = {
-    "radm": RADM_SOURCE_ROOT,
-    "traingen": ROOT / "lib" / "traingen" / "src",
-    "traingen_parity": ROOT / "lib" / "traingen-parity" / "src",
-    "laygen": ROOT / "lib" / "laygen" / "src",
-    "posgen": ROOT / "lib" / "posgen" / "src",
-}
 STEPS = 250000
 
 
@@ -52,34 +46,16 @@ def sha256_file(path: Path) -> str:
 
 def verify_workspace_sources() -> dict[str, str]:
     """Require RADM and its workspace dependencies to come from this checkout."""
-    source_paths = {}
-    for package, source_root in WORKSPACE_SOURCE_ROOTS.items():
-        module = radm if package == "radm" else sys.modules.get(package)
-        module_path = getattr(module, "__file__", None)
-        if not isinstance(module_path, str):
-            spec = find_spec(package)
-            module_path = spec.origin if spec is not None else None
-        if not module_path:
-            raise SystemExit(f"{package} cannot be resolved from this checkout")
-
-        resolved_path = Path(module_path).resolve()
-        if not resolved_path.is_relative_to(source_root.resolve()):
-            raise SystemExit(
-                f"{package} resolves outside repository source tree: {resolved_path}"
-            )
-        source_paths[package] = str(resolved_path)
-
-    return source_paths
+    try:
+        return verify_workspace_source_paths()
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
-def verify_radm_source() -> str:
-    """Require the imported RADM module to come from this repository."""
-    return verify_workspace_sources()["radm"]
-
-
-def verify_source_tree(expected_commit: str) -> dict[str, str]:
+def verify_source_tree(expected_commit: str) -> CGLS5SourceProvenance:
     """Require clean root and vendor checkouts pinned to the same gitlink."""
-    radm_source_path = verify_radm_source()
+    workspace_source_paths = verify_workspace_sources()
+    radm_source_path = workspace_source_paths["radm"]
     source_commit = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
     ).strip()
@@ -126,6 +102,7 @@ def verify_source_tree(expected_commit: str) -> dict[str, str]:
         "vendor_gitlink_commit": vendor_gitlink_commit,
         "vendor_checkout_commit": vendor_checkout_commit,
         "radm_source_path": radm_source_path,
+        "workspace_source_paths": workspace_source_paths,
     }
 
 
@@ -313,7 +290,9 @@ def build_command(
         )
         return (
             [
-                "traingen",
+                sys.executable,
+                "-m",
+                "traingen.lightning.cli",
                 "fit",
                 "--config",
                 str(CONFIG.relative_to(ROOT)),
@@ -511,6 +490,7 @@ def main() -> None:
         "vendor_gitlink_commit": source_provenance["vendor_gitlink_commit"],
         "vendor_checkout_commit": source_provenance["vendor_checkout_commit"],
         "radm_source_path": source_provenance["radm_source_path"],
+        "workspace_source_paths": source_provenance["workspace_source_paths"],
         "arm": args.arm,
         "training_seed": args.seed,
         "runtime": runtime,
