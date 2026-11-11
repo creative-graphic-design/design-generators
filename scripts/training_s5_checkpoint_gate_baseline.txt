@@ -1,6 +1,6 @@
 # Existing S5 claim fingerprints; new or changed claims require bounded checkpoint evidence.
 models/canvas-vae/TRAINING.md	d5d99eedb143965315891806a77e48889135f04caf7c7ca9b8c26d7b82b5717e
-models/cgb-dm/TRAINING.md	53dddbb5c8fe8791b5eaea4c5eb8487382a6610c20c643d2f23e2328dddc0bd1
+models/cgb-dm/TRAINING.md	f9521bbee507f9cb67ac223a07d90ea6a8ef34e98e0a8f109ba0d7f15c92c4a7
 models/dlt/TRAINING.md	bfaf9dd2cd6dd820abecdf235aae47efc703388df09b67a09eeab062fb47d137
 models/layout-corrector/TRAINING.md	7ae7f98ebecf3dbe3670fdc8d0a27fdd4041f8cb7bde8f7f59ca7494af7f36bd
 models/layout-diffusion/TRAINING.md	6f99eed50861d16c7e88d2f0d193307eefc56a66a892d6f8e8c74f13e1bcf1dc

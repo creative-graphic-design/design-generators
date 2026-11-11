@@ -13,7 +13,7 @@ def test_dlt_inference_reference_assets_present() -> None:
             "DLT inference parity reference metadata is absent.",
             missing_paths=[reference],
             regeneration_hint=(
-                "CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor "
+                "CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor "
                 "models/dlt/scripts/generate_vendor_reference.py ..."
             ),
         )

@@ -4,7 +4,7 @@ This walkthrough reproduces DLT agreement checks against the original implementa
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
-Choose a free GPU and substitute its index for `<gpu-index>` in the CUDA commands below.
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA commands below.
 
 ## Commands
 
@@ -13,7 +13,7 @@ mkdir -p .cache/dlt/reference .cache/dlt/converted
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
   models/dlt/scripts/generate_vendor_reference.py \
   --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
   --workdir dlt-publaynet \
@@ -23,7 +23,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor \
 ```
 
 ```bash
-PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package dlt --extra vendor \
+PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
   pytest models/dlt/tests/vendor_parity -m vendor_parity
 ```
 

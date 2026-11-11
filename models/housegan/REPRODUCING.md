@@ -4,7 +4,7 @@ This walkthrough reproduces House-GAN agreement checks against the original impl
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
-Choose a free GPU and substitute its index for `<gpu-index>` in the CUDA commands below.
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA commands below.
 
 ## 1. Validate Original Assets
 
@@ -18,7 +18,7 @@ uv run --package housegan --extra download \
 ## 2. Generate Vendor References
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package housegan \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package housegan \
   models/housegan/scripts/generate_reference_outputs.py \
     --vendor-dir ./vendor/housegan \
     --assets-dir .cache/housegan/original \
@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package housegan \
 ## 3. Run Vendor-Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package housegan \
+CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 uv run --package housegan \
   pytest models/housegan/tests -m vendor_parity
 ```
 

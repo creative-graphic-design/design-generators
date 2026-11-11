@@ -37,8 +37,10 @@ uv run --package radm models/radm/scripts/inspect_original_checkpoint.py \
 
 ## Generate Reference Outputs
 
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA command below.
+
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package radm models/radm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package radm models/radm/scripts/generate_reference_outputs.py \
   --vendor-root ./vendor/radm \
   --checkpoint .cache/radm/original/radm_cgl.pth \
   --dataset-root .cache/radm/data/cgl \

@@ -23,7 +23,7 @@ uv run --package posterllava pytest models/posterllava/tests -m "not vendor_pari
 
 ## Original Reference Generation
 
-Choose a free GPU and replace `<gpu-index>` in the reference command below.
+Choose a free GPU and replace `<gpu-id>` in the reference command below.
 
 Full-generation references require at least 35 GB free on `/root` before
 downloading `posterllava/posterllava_v0`; the checkpoint is about 24.9 GiB and
@@ -52,7 +52,7 @@ python models/posterllava/scripts/generate_reference_outputs.py \
   --json-file ./vendor/posterllava/data/qbposter/qbposter_val_instruct.json \
   --data-path ./vendor/posterllava/data \
   --output-dir ./.cache/posterllava/reference \
-  --device <gpu-index> \
+  --device <gpu-id> \
   --seed 0 \
   --no-do-sample
 ```
