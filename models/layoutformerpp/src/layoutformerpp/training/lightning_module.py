@@ -21,6 +21,13 @@ from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch.utils.data import DataLoader, Dataset, get_worker_info
 from torch.optim.lr_scheduler import LRScheduler
 
+from traingen.checkpointing import (
+    PythonRandomState,
+    SafeValue,
+    TensorState,
+    is_safe_mapping,
+)
+
 from ..configuration_layoutformerpp import LayoutFormerPPConfig
 from ..labels import label_translation_for_dataset
 from ..modeling_layoutformerpp import (
@@ -459,6 +466,18 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
     def __len__(self) -> int:
         return len(self.data)
 
+    def state_dict(self) -> dict[str, SafeValue]:
+        """Return task-generation state needed for an exact resumed epoch."""
+        return {"relation_generator": self._relation_generator.getstate()}
+
+    def load_state_dict(self, state_dict: Mapping[str | int, SafeValue]) -> None:
+        """Restore task-generation state from a checkpoint."""
+        relation_state = state_dict.get("relation_generator")
+        if not isinstance(relation_state, tuple):
+            raise TypeError("relation generator state is not a tuple")
+
+        self._relation_generator.setstate(cast(PythonRandomState, relation_state))
+
     def _task_for_index(self, index: int) -> LayoutFormerPPTask:
         if self.train and self.recipe.partition_buckets:
             return random.choice(self._bucket_tasks[self._partition_data[index]])
@@ -614,9 +633,48 @@ class LayoutFormerPPDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.seed = seed
         self.pin_memory = pin_memory
+        self.sampler_epoch = 0
+        self.train_generator = torch.Generator().manual_seed(seed)
         self.train_dataset: _LayoutFormerPPDataset | None = None
         self.val_dataset: _LayoutFormerPPDataset | None = None
         self.tokenizer = _package_tokenizer(self.recipe)
+
+    def state_dict(self) -> dict[str, SafeValue]:
+        """Return sampler, loader, and dataset generator state."""
+        state: dict[str, SafeValue] = {
+            "sampler_epoch": self.sampler_epoch,
+            "train_generator": cast(TensorState, self.train_generator.get_state()),
+        }
+        if self.train_dataset is not None:
+            state["train_dataset"] = self.train_dataset.state_dict()
+
+        if self.val_dataset is not None:
+            state["val_dataset"] = self.val_dataset.state_dict()
+
+        return state
+
+    def load_state_dict(self, state_dict: dict[str, SafeValue]) -> None:
+        """Restore sampler, loader, and dataset generator state."""
+        sampler_epoch = state_dict.get("sampler_epoch")
+        if not isinstance(sampler_epoch, int):
+            raise TypeError("sampler epoch is not an integer")
+
+        self.sampler_epoch = sampler_epoch
+        train_generator = state_dict.get("train_generator")
+        if not isinstance(train_generator, torch.Tensor):
+            raise TypeError("train generator state is not a tensor")
+
+        self.train_generator.set_state(train_generator)
+        for name, dataset in (
+            ("train_dataset", self.train_dataset),
+            ("val_dataset", self.val_dataset),
+        ):
+            dataset_state = state_dict.get(name)
+            if dataset is not None and dataset_state is not None:
+                if not is_safe_mapping(dataset_state):
+                    raise TypeError(f"{name} state is not a mapping")
+
+                dataset.load_state_dict(dataset_state)
 
     def setup(self, stage: str | None = None) -> None:
         """Load the processed train and validation splits for ``stage``."""
@@ -673,7 +731,7 @@ class LayoutFormerPPDataModule(LightningDataModule):
             pin_memory=self.pin_memory,
             collate_fn=self._collate,
             worker_init_fn=_seed_worker if self.num_workers else None,
-            generator=None,
+            generator=self.train_generator,
         )
 
     def val_dataloader(self) -> DataLoader[_LayoutFormerPPSample]:
