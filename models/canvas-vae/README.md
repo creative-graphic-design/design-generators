@@ -141,7 +141,7 @@ Modal
 | Dataset | Dataset ID / source                                                                                        | Notes                                                                                                                                                                                                                                                        |
 | ------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | RICO    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)             | Training reads the original [semantic-annotation archive](https://storage.googleapis.com/crowdstf-rico-uiuc-4540/rico_dataset_v0.1/semantic_annotations.zip) because its content-hash split and `textButtonClass` field are not in the hosted configuration. |
-| Crello  | [Original Crello v1 archive](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip) | Training uses the canonical prepared splits and a verified posterior-mean fixture for every referenced image; the public archive and derived assets are not redistributed.                                                                                                   |
+| Crello  | [Original Crello v1 archive](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip) | Training uses the canonical prepared splits and a verified posterior-mean fixture for every referenced image; the public archive and derived assets are not redistributed.                                                                                   |
 
 ### Training Procedure
 
@@ -157,7 +157,7 @@ Modal
 
 #### Speeds, Sizes, Times
 
-The model has 1,558,435 trainable parameters. Crello run timestamps and artifact hashes are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md). All six selected comparison runs used Tesla V100-SXM2-32GB; package training used PyTorch 2.13.0+cu126.
+The model has 1,558,435 trainable parameters. Crello run timestamps and artifact hashes are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md). All six selected comparison runs used the same GPU type; package training used PyTorch 2.13.0+cu126.
 
 ## Evaluation
 
@@ -224,7 +224,7 @@ The encoder sums per-field embeddings with learned position embeddings, applies 
 
 ### Compute Infrastructure
 
-Agreement checks run on CPU. Full RICO training used one A100 per training process, with training processes run sequentially per GPU.
+Agreement checks run on CPU. Full RICO training used one GPU per training process, with training processes run sequentially per GPU.
 
 #### Hardware
 

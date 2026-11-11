@@ -24,7 +24,7 @@
     ".cache/canvas-vae/s5-path-a/inputs/reference-evaluations/package-seed2.json": "d1667fabfbb5630d94f5093dbbb34e019054a67eae8033a304ef6bdbf6f98229",
     ".cache/canvas-vae/training-runs/crello/lightning_logs/version_1/checkpoints/best.ckpt": "2e6c11d65f8ae5ede5f6304e2046481f9bfd297b7c74861f44feb9c5a565b378",
     "models/canvas-vae/configs/training/canvas_vae_crello.yaml": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",
-    "models/canvas-vae/tests/vendor_parity/metadata/crello_s5_fc432/results.json": "4d19137db47eaaf355d69bf9ee091ac5bbe096fa45a74b0878f0af251e3107e2"
+    "models/canvas-vae/tests/vendor_parity/metadata/crello_s5_fc432/results.json": "f78a83113329049d3e0ef2406eb6cac1c40311b0f0462a468547cbda76306583"
   },
   "cache": {
     "array_file": "posterior_means.npy",
@@ -52,7 +52,7 @@
     ],
     "status": "s5-practical-reproduction",
     "results_path": "models/canvas-vae/tests/vendor_parity/metadata/crello_s5_fc432/results.json",
-    "results_sha256": "4d19137db47eaaf355d69bf9ee091ac5bbe096fa45a74b0878f0af251e3107e2"
+    "results_sha256": "f78a83113329049d3e0ef2406eb6cac1c40311b0f0462a468547cbda76306583"
   },
   "config": "models/canvas-vae/configs/training/canvas_vae_crello.yaml",
   "config_sha256": "64beed1cb4b66df961d696844cf91e8f1b3512c52f1ee8ff975a46c78beba644",

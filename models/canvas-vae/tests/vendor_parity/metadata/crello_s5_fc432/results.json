@@ -42,7 +42,7 @@
         "driver": "575.57.08",
         "framework": "tensorflow",
         "framework_version": "2.15.1",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.16.5",
         "nccl_runtime": "2.16.5"
       },
@@ -87,7 +87,7 @@
         "driver": "575.57.08",
         "framework": "tensorflow",
         "framework_version": "2.15.1",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.16.5",
         "nccl_runtime": "2.16.5"
       },
@@ -132,7 +132,7 @@
         "driver": "575.57.08",
         "framework": "tensorflow",
         "framework_version": "2.15.1",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.16.5",
         "nccl_runtime": "2.16.5"
       },
@@ -174,7 +174,7 @@
         "driver": "575.57.08",
         "framework": "torch",
         "framework_version": "2.13.0+cu126",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.29.3",
         "nccl_runtime": "2.29.3"
       },
@@ -216,7 +216,7 @@
         "driver": "575.57.08",
         "framework": "torch",
         "framework_version": "2.13.0+cu126",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.29.3",
         "nccl_runtime": "2.29.3"
       },
@@ -258,7 +258,7 @@
         "driver": "575.57.08",
         "framework": "torch",
         "framework_version": "2.13.0+cu126",
-        "gpu": "Tesla V100-SXM2-32GB",
+        "gpu": "GPU",
         "nccl_package": "2.29.3",
         "nccl_runtime": "2.29.3"
       },
