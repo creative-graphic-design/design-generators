@@ -11,6 +11,7 @@ _DETECTRON2_TEST_MODULES = {
     "test_radm_300_lockstep",
     "test_radm_evaluation",
     "test_radm_parity",
+    "test_s0_radm_topology",
     "test_s1_radm_training",
     "test_s4_radm_loader_stream",
 }
