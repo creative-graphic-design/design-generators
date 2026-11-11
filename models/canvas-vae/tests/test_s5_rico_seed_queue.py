@@ -31,7 +31,7 @@ def test_queue_launch_forwards_hub_repository() -> None:
     assert command[-2:] == ["--hub-repo", repository]
 
 
-def test_queue_requires_generic_gpu_label() -> None:
+def test_queue_validates_generic_gpu_schema_and_label() -> None:
     manifest_path = QUEUE.DEFAULT_MANIFEST
     parity_path = QUEUE.REPOSITORY_ROOT / "models" / "canvas-vae" / "TRAINING.md"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -44,6 +44,8 @@ def test_queue_requires_generic_gpu_label() -> None:
     manifest["runtime_plan"]["source_commit"] = "a" * 40
 
     assert manifest["runtime_plan"]["gpu"] == "GPU"
+    assert manifest["runtime_plan"]["one_named_gpu_session_per_run"] is True
+    assert "gpu_wrapper_ttl_by_system" in manifest["runtime_plan"]
     _, command = QUEUE.launch_preconditions(
         manifest, manifest_path, "example-owner/test-artifacts"
     )
@@ -62,6 +64,37 @@ def test_queue_requires_generic_gpu_label() -> None:
                 manifest_path,
                 "example-owner/test-artifacts",
             )
+
+
+def test_queue_forwards_colab_accelerator_to_each_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = QUEUE.load_manifest(QUEUE.DEFAULT_MANIFEST)
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr(QUEUE, "source_gate", lambda *_args, **_kwargs: None)
+
+    def capture_subprocess(command: list[str], **_kwargs: object) -> Completed:
+        commands.append(command)
+        return Completed()
+
+    monkeypatch.setattr(QUEUE.subprocess, "run", capture_subprocess)
+    QUEUE.run_queue(
+        manifest,
+        "a" * 40,
+        ["python3", "executor.py"],
+        False,
+        "configured-accelerator",
+    )
+
+    assert commands
+    assert all(
+        command[-2:] == ["--colab-accelerator", "configured-accelerator"]
+        for command in commands
+    )
 
 
 @pytest.mark.parametrize("repository", [None, "   "])

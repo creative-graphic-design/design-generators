@@ -1080,7 +1080,13 @@ def execute_run(
     segment_id: str,
     hub_repository: str,
     resume_checkpoint: Path | None,
+    colab_accelerator: str | None = None,
 ) -> None:
+    if not isinstance(colab_accelerator, str) or not colab_accelerator.strip():
+        raise ExecutorError(
+            "--colab-accelerator is required for a non-smoke Colab launch"
+        )
+
     manifest = load_json(manifest_path)
     pinned = manifest.get("source_commit")
     if not isinstance(pinned, str):
@@ -1173,7 +1179,7 @@ def execute_run(
     expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("gpu") != expected_gpu
-        or runtime_plan.get("one_named_a100_session_per_run") is not True
+        or runtime_plan.get("one_named_gpu_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
     ):
         raise ExecutorError("runtime must name one GPU and one CPU session per run")
@@ -1188,12 +1194,12 @@ def execute_run(
         or runtime_plan.get("sync_interval") != "15m"
     ):
         raise ExecutorError("runtime must self-release and sync every 15 minutes")
-    a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
+    gpu_ttls = runtime_plan.get("gpu_wrapper_ttl_by_system")
     if (
-        not isinstance(a100_ttls, dict)
+        not isinstance(gpu_ttls, dict)
         or not all(
-            isinstance(a100_ttls.get(system_name), str)
-            and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system_name])
+            isinstance(gpu_ttls.get(system_name), str)
+            and re.fullmatch(r"[1-9][0-9]*m", gpu_ttls[system_name])
             for system_name in ("package", "original")
         )
         or not isinstance(runtime_plan.get("cpu_wrapper_ttl"), str)
@@ -1225,7 +1231,7 @@ def execute_run(
         raise ExecutorError(
             "runtime must verify Hub completion/checkpoint artifacts and freeze the source branch"
         )
-    expected_a100_sync_paths = [
+    expected_gpu_sync_paths = [
         "${S5_RUNTIME_ROOT}/out/checkpoints",
         "${S5_RUNTIME_ROOT}/out/logs",
     ]
@@ -1234,7 +1240,7 @@ def execute_run(
         "${S5_RUNTIME_ROOT}/out/results",
         "${S5_RUNTIME_ROOT}/out/logs",
     ]
-    if runtime_plan.get("a100_sync_paths") != expected_a100_sync_paths:
+    if runtime_plan.get("gpu_sync_paths") != expected_gpu_sync_paths:
         raise ExecutorError("GPU runtime must sync only checkpoints and logs")
     if runtime_plan.get("cpu_sync_paths") != expected_cpu_sync_paths:
         raise ExecutorError(
@@ -1419,14 +1425,14 @@ def execute_run(
         )
         cpu_env.chmod(0o600)
         cpu_capture_path = capture_path.with_name(f"{run_id}-{segment_id}-cpu.log")
-        expected_a100_ttl = a100_ttls.get(system)
-        a100_ttl = run.get("a100_wrapper_ttl")
+        expected_gpu_ttl = gpu_ttls.get(system)
+        gpu_ttl = run.get("gpu_wrapper_ttl")
         cpu_ttl = run.get("cpu_wrapper_ttl")
         if (
-            not isinstance(expected_a100_ttl, str)
-            or not isinstance(a100_ttl, str)
+            not isinstance(expected_gpu_ttl, str)
+            or not isinstance(gpu_ttl, str)
             or not isinstance(cpu_ttl, str)
-            or a100_ttl != expected_a100_ttl
+            or gpu_ttl != expected_gpu_ttl
             or cpu_ttl != runtime_plan.get("cpu_wrapper_ttl")
         ):
             raise ExecutorError(
@@ -1434,7 +1440,7 @@ def execute_run(
             )
         training_exit_code = run_named_session(
             session_name,
-            None if cpu_runtime_smoke else "GPU",
+            None if cpu_runtime_smoke else colab_accelerator,
             wrapper_path,
             token_path,
             preflight_path,
@@ -1442,7 +1448,7 @@ def execute_run(
             run_path,
             job_name,
             training_prefix,
-            a100_ttl,
+            gpu_ttl,
             "bash /content/run-job.sh",
             (
                 "/content/out/checkpoints",
@@ -1585,16 +1591,16 @@ def execute_cpu_smoke(
             "cpu_runtime_smoke": True,
             "gpu": "CPU",
             "source_commit": source_commit,
-            "one_named_a100_session_per_run": True,
+            "one_named_gpu_session_per_run": True,
             "one_named_cpu_session_per_run": True,
             "one_training_run_at_a_time": True,
             "queue_supervisor_sequential": True,
             "self_release": True,
             "sync_interval": "15m",
             "wrapper_script": "${S5_WRAPPER_PATH}",
-            "a100_wrapper_ttl_by_system": {"package": "30m", "original": "30m"},
+            "gpu_wrapper_ttl_by_system": {"package": "30m", "original": "30m"},
             "cpu_wrapper_ttl": "30m",
-            "a100_sync_paths": [
+            "gpu_sync_paths": [
                 f"{runtime_root}/out/checkpoints",
                 f"{runtime_root}/out/logs",
             ],
@@ -1635,7 +1641,7 @@ def execute_cpu_smoke(
                 "evaluation_output": f"/content/out/results/{run_id}/{{segment_id}}/evaluation.json",
                 "training_artifact_prefix": training_prefix,
                 "postprocess_artifact_prefix": postprocess_prefix,
-                "a100_wrapper_ttl": "30m",
+                "gpu_wrapper_ttl": "30m",
                 "cpu_wrapper_ttl": "30m",
                 "cpu_smoke": True,
                 "evaluator_command": [
@@ -1876,6 +1882,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cpu-smoke", action="store_true")
     parser.add_argument("--session-name")
     parser.add_argument("--source-commit")
+    parser.add_argument("--colab-accelerator")
     args = parser.parse_args()
     if not args.hub_repo.strip():
         parser.error("--hub-repo must not be empty")
@@ -2004,6 +2011,7 @@ def main() -> int:
                 args.segment_id,
                 args.hub_repo,
                 args.resume_checkpoint,
+                args.colab_accelerator,
             )
     except (ExecutorError, OSError, subprocess.SubprocessError) as error:
         print(f"Full-run seed failed closed: {error}", file=sys.stderr)
