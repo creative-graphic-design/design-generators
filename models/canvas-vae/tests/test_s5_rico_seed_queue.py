@@ -97,6 +97,39 @@ def test_queue_forwards_colab_accelerator_to_each_executor(
     )
 
 
+def test_cpu_smoke_queue_launch_omits_colab_accelerator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = QUEUE.load_manifest(QUEUE.DEFAULT_MANIFEST)
+    manifest["runtime_plan"]["cpu_runtime_smoke"] = True
+    commands: list[list[str]] = []
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr(QUEUE, "source_gate", lambda *_args, **_kwargs: None)
+
+    def capture_subprocess(command: list[str], **_kwargs: object) -> Completed:
+        commands.append(command)
+        return Completed()
+
+    monkeypatch.setattr(QUEUE.subprocess, "run", capture_subprocess)
+    QUEUE.run_queue(manifest, "a" * 40, ["python3", "executor.py"], False)
+
+    assert commands
+    assert all("--colab-accelerator" not in command for command in commands)
+
+
+def test_non_smoke_queue_launch_requires_colab_accelerator() -> None:
+    manifest = QUEUE.load_manifest(QUEUE.DEFAULT_MANIFEST)
+
+    with pytest.raises(
+        QUEUE.QueueError,
+        match="--colab-accelerator is required for a non-smoke queue launch",
+    ):
+        QUEUE.run_queue(manifest, "a" * 40, ["python3", "executor.py"], False)
+
+
 @pytest.mark.parametrize("repository", [None, "   "])
 def test_queue_refuses_launch_without_hub_repository(
     monkeypatch: pytest.MonkeyPatch,
@@ -115,3 +148,43 @@ def test_queue_refuses_launch_without_hub_repository(
     )
 
     assert QUEUE.main() == QUEUE.BLOCKED_EXIT
+
+
+@pytest.mark.parametrize(
+    ("cpu_runtime_smoke", "expected_exit"),
+    [(True, 0), (False, QUEUE.BLOCKED_EXIT)],
+)
+def test_queue_launch_requires_accelerator_only_for_non_smoke_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    cpu_runtime_smoke: bool,
+    expected_exit: int,
+) -> None:
+    manifest = {"runtime_plan": {"cpu_runtime_smoke": cpu_runtime_smoke}}
+    run_calls: list[str | None] = []
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(QUEUE_PATH),
+            "--launch",
+            "--hub-repo",
+            "example-owner/test-artifacts",
+        ],
+    )
+    monkeypatch.setattr(QUEUE, "load_manifest", lambda _path: manifest)
+    monkeypatch.setattr(QUEUE, "current_source_state", lambda: ("a" * 40, True))
+    monkeypatch.setattr(
+        QUEUE,
+        "launch_preconditions",
+        lambda *_args, **_kwargs: ("a" * 40, ["python3", "executor.py"]),
+    )
+    monkeypatch.setattr(
+        QUEUE,
+        "run_queue",
+        lambda _manifest, _commit, _runner, _dry_run, accelerator: run_calls.append(
+            accelerator
+        ),
+    )
+
+    assert QUEUE.main() == expected_exit
+    assert run_calls == ([None] if cpu_runtime_smoke else [])

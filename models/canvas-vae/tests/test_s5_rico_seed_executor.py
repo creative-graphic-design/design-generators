@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -45,13 +46,24 @@ def test_executor_refuses_to_run_without_hub_repository(
     assert error.value.code == 2
 
 
-def test_full_run_requires_colab_accelerator_before_loading_manifest() -> None:
+@pytest.mark.parametrize(
+    ("cpu_runtime_smoke", "error_match"),
+    [(False, "--colab-accelerator is required"), (True, "source_commit")],
+)
+def test_executor_requires_accelerator_only_for_non_smoke_manifests(
+    tmp_path: Path, cpu_runtime_smoke: bool, error_match: str
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps({"runtime_plan": {"cpu_runtime_smoke": cpu_runtime_smoke}}),
+        encoding="utf-8",
+    )
     with pytest.raises(
         EXECUTOR.ExecutorError,
-        match="--colab-accelerator is required for a non-smoke Colab launch",
+        match=error_match,
     ):
         EXECUTOR.execute_run(
-            Path("missing-manifest.json"),
+            manifest_path,
             "run-1",
             "segment-001",
             "example-owner/test-artifacts",
@@ -59,79 +71,78 @@ def test_full_run_requires_colab_accelerator_before_loading_manifest() -> None:
         )
 
 
-def test_run_named_session_passes_supplied_accelerator_to_colab_new(
+def test_execute_run_passes_supplied_accelerator_to_colab_new(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     accelerator = "configured-accelerator"
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            str(EXECUTOR_PATH),
-            "--hub-repo",
-            "example-owner/test-artifacts",
-            "--colab-accelerator",
-            accelerator,
-        ],
+    template_path = (
+        EXECUTOR.REPOSITORY_ROOT
+        / "models"
+        / "canvas-vae"
+        / "configs"
+        / "training"
+        / "s5_rico_launch_manifest.template.json"
     )
-    args = EXECUTOR.parse_args()
-
+    manifest = json.loads(template_path.read_text(encoding="utf-8"))
+    pinned_commit = EXECUTOR.git_output("rev-parse", "HEAD")
+    manifest["source_commit"] = pinned_commit
+    manifest["queue_status"] = "ready"
+    config_path = EXECUTOR.REPOSITORY_ROOT / manifest["config"]
+    manifest["config_sha256"] = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    manifest["runtime_plan"]["source_commit"] = pinned_commit
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     wrapper_path = tmp_path / "wrapper.sh"
-    preflight_path = tmp_path / "preflight.json"
-    preflight_script = tmp_path / "preflight.py"
-    run_script = tmp_path / "run.sh"
+    wrapper_path.write_text("#!/bin/sh\n", encoding="utf-8")
     token_path = tmp_path / "token"
-    run_env = tmp_path / "run.env"
-    for path in (
-        wrapper_path,
-        preflight_path,
-        preflight_script,
-        run_script,
-        token_path,
-        run_env,
-    ):
-        path.write_text("placeholder", encoding="utf-8")
+    token_path.write_text("hf_test-token\n", encoding="utf-8")
+    token_path.chmod(0o600)
+    monkeypatch.setenv("S5_WRAPPER_PATH", str(wrapper_path))
+    monkeypatch.setenv("S5_HF_TOKEN_FILE", str(token_path))
 
-    commands: list[list[str]] = []
+    colab_commands: list[list[str]] = []
+    original_subprocess_run = subprocess.run
 
-    class StopAfterLaunch(Exception):
+    class StopAfterColabCreate(Exception):
         pass
 
     def capture_subprocess(
-        command: list[str], **kwargs: object
+        command: list[str], **_kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        commands.append(command)
-        if command[4] == "new":
-            raise StopAfterLaunch
+        if command[: len(EXECUTOR.COLAB_COMMAND)] == EXECUTOR.COLAB_COMMAND:
+            colab_args = command[len(EXECUTOR.COLAB_COMMAND) :]
+            if colab_args[0] == "sessions":
+                return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+            if colab_args[0] == "new":
+                colab_commands.append(command)
+                raise StopAfterColabCreate
+        if command[0] == "git":
+            return original_subprocess_run(
+                command,
+                cwd=EXECUTOR.REPOSITORY_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
 
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected subprocess command: {command}")
 
     monkeypatch.setattr(EXECUTOR.subprocess, "run", capture_subprocess)
-    with pytest.raises(StopAfterLaunch):
-        EXECUTOR.run_named_session(
-            session_name="accelerator-forwarding-test",
-            gpu=args.colab_accelerator,
-            wrapper_path=wrapper_path,
-            token_path=token_path,
-            preflight_path=preflight_path,
-            preflight_script=preflight_script,
-            run_script=run_script,
-            job_name="accelerator-forwarding-test",
-            hub_prefix="test/output",
-            ttl="30m",
-            run_command="bash /content/run-job.sh",
-            sync_paths=("/content/out/logs",),
-            run_env=run_env,
-            output_capture=tmp_path / "output.log",
-            hub_repository="example-owner/test-artifacts",
-            download_inputs=False,
+    run = manifest["runs"][0]
+    with pytest.raises(StopAfterColabCreate):
+        EXECUTOR.execute_run(
+            manifest_path,
+            run["run_id"],
+            "segment-001",
+            "example-owner/test-artifacts",
+            None,
+            accelerator,
         )
 
-    assert args.colab_accelerator == accelerator
-    assert commands[-1][4:] == [
+    assert colab_commands[-1][len(EXECUTOR.COLAB_COMMAND) :] == [
         "new",
         "--session",
-        "accelerator-forwarding-test",
+        run["session_name"],
         "--gpu",
         accelerator,
     ]

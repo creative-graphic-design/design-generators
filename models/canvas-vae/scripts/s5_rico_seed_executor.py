@@ -1082,12 +1082,18 @@ def execute_run(
     resume_checkpoint: Path | None,
     colab_accelerator: str | None = None,
 ) -> None:
-    if not isinstance(colab_accelerator, str) or not colab_accelerator.strip():
+    manifest = load_json(manifest_path)
+    runtime_plan = manifest.get("runtime_plan")
+    if not isinstance(runtime_plan, dict):
+        raise ExecutorError("manifest runtime_plan must be an object")
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    if not cpu_runtime_smoke and (
+        not isinstance(colab_accelerator, str) or not colab_accelerator.strip()
+    ):
         raise ExecutorError(
             "--colab-accelerator is required for a non-smoke Colab launch"
         )
 
-    manifest = load_json(manifest_path)
     pinned = manifest.get("source_commit")
     if not isinstance(pinned, str):
         raise ExecutorError("manifest source_commit must be finalized")
@@ -1168,14 +1174,10 @@ def execute_run(
     runner = manifest.get("runner_command")
     if runner != ["python3", "models/canvas-vae/scripts/s5_rico_seed_executor.py"]:
         raise ExecutorError("manifest runner_command does not identify this executor")
-    runtime_plan = manifest.get("runtime_plan")
-    if not isinstance(runtime_plan, dict):
-        raise ExecutorError("manifest runtime_plan must be an object")
     if runtime_plan.get("source_commit") != pinned:
         raise ExecutorError(
             "runtime_plan source_commit must match the manifest source_commit"
         )
-    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
     expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("gpu") != expected_gpu
