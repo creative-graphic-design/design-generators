@@ -60,12 +60,9 @@ def test_training_namespace_exports_when_lightning_is_installed() -> None:
         LayoutDiffusionTrainingModule,
     )
 
+    assert training_namespace.LayoutDiffusionDataModule is LayoutDiffusionDataModule
     assert (
-        training_namespace.LayoutDiffusionDataModule  # ty: ignore[possibly-missing-attribute]
-        is LayoutDiffusionDataModule
-    )
-    assert (
-        training_namespace.LayoutDiffusionTrainingModule  # ty: ignore[possibly-missing-attribute]
+        training_namespace.LayoutDiffusionTrainingModule
         is LayoutDiffusionTrainingModule
     )
     assert "__all__" not in training_namespace.__dict__
