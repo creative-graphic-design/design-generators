@@ -204,7 +204,7 @@ The encoder sums per-field embeddings with learned position embeddings, applies 
 
 ### Compute Infrastructure
 
-Agreement checks run on CPU. Full RICO training used one A100 per training process, with training processes run sequentially per GPU.
+Agreement checks run on CPU. Full RICO training used one GPU per training process, with training processes run sequentially per GPU.
 
 #### Hardware
 
