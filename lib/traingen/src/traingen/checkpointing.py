@@ -189,9 +189,6 @@ def restore_rng_state(state: Mapping[str, SafeValue]) -> None:
             raise TypeError("checkpoint CUDA RNG state is not a tensor list")
 
         cuda_tensors = [item for item in cuda_state if isinstance(item, torch.Tensor)]
-        if len(cuda_tensors) != len(cuda_state):
-            raise TypeError("checkpoint CUDA RNG state is not a tensor list")
-
         torch.cuda.set_rng_state_all(cuda_tensors)
 
 
