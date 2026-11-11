@@ -23,7 +23,7 @@ def test_run_metadata_records_stack_and_complete_pip_freeze(tmp_path, monkeypatc
     setattr(
         cuda_module,
         "get_device_name",
-        lambda _index: "Tesla V100-SXM2-32GB",
+        lambda _index: "Example GPU 32GB",
     )
     monkeypatch.setitem(sys.modules, "torch.cuda", cuda_module)
     monkeypatch.setitem(sys.modules, "torch.cuda.nccl", nccl_module)
@@ -40,7 +40,7 @@ def test_run_metadata_records_stack_and_complete_pip_freeze(tmp_path, monkeypatc
 
     def run(command, **_kwargs):
         if command[0] == "nvidia-smi":
-            return SimpleNamespace(stdout="575.57.08, Tesla V100-SXM2-32GB\n")
+            return SimpleNamespace(stdout="575.57.08, Example GPU 32GB\n")
 
         raise AssertionError(f"unexpected command: {command}")
 
@@ -60,7 +60,7 @@ def test_run_metadata_records_stack_and_complete_pip_freeze(tmp_path, monkeypatc
     assert metadata["stack"]["cudnn_runtime"] == "91002"
     assert metadata["stack"]["nccl_runtime"] == "2.29.3"
     assert metadata["stack"]["driver"] == "575.57.08"
-    assert metadata["stack"]["gpu"] == "Tesla V100-SXM2-32GB"
+    assert metadata["stack"]["gpu"] == "Example GPU 32GB"
 
 
 def test_tensorflow_run_metadata_records_build_versions(tmp_path, monkeypatch):
@@ -89,7 +89,7 @@ def test_tensorflow_run_metadata_records_build_versions(tmp_path, monkeypatch):
         run_metadata.subprocess,
         "run",
         lambda *_args, **_kwargs: SimpleNamespace(
-            stdout="575.57.08, Tesla V100-SXM2-32GB\n"
+            stdout="575.57.08, Example GPU 32GB\n"
         ),
     )
 

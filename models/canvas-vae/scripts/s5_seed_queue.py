@@ -237,7 +237,7 @@ def load_manifest(path: Path) -> QueueManifest:
             )
         ) or not isinstance(seed, int):
             raise QueueError(
-                "each run needs named A100/CPU runtimes, unique output templates, and an integer seed"
+                "each run needs named GPU/CPU runtimes, unique output templates, and an integer seed"
             )
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", run_id):
             raise QueueError(f"invalid run_id {run_id!r}")
@@ -322,7 +322,7 @@ def load_manifest(path: Path) -> QueueManifest:
         for session_name in (run["session_name"], run["cpu_session_name"])
     ]
     if len(session_names) != len(set(session_names)):
-        raise QueueError("manifest A100 and CPU session names must be globally unique")
+        raise QueueError("manifest GPU and CPU session names must be globally unique")
 
     return {
         "dataset": dataset,
@@ -473,7 +473,7 @@ def launch_preconditions(
     a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
     cpu_ttl = runtime_plan.get("cpu_wrapper_ttl")
     cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
-    expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
+    expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("source_commit") != pinned_commit
         or runtime_plan.get("gpu") != expected_gpu

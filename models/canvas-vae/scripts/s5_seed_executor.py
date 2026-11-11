@@ -2323,7 +2323,7 @@ def execute_run(
         set(session_names)
     ):
         raise ExecutorError(
-            "manifest A100 and CPU session names must be globally unique"
+            "manifest GPU and CPU session names must be globally unique"
         )
     matches = [
         run for run in raw_runs if isinstance(run, dict) and run.get("run_id") == run_id
@@ -2369,13 +2369,13 @@ def execute_run(
         raise ExecutorError(
             "Crello lockstep probe steps must match the runtime plan and production requires 300"
         )
-    expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
+    expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("gpu") != expected_gpu
         or runtime_plan.get("one_named_a100_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
     ):
-        raise ExecutorError("runtime must name one A100 and one CPU session per run")
+        raise ExecutorError("runtime must name one GPU and one CPU session per run")
     if cpu_runtime_smoke and (
         not run_id.startswith("cpu-smoke-") or run.get("cpu_smoke") is not True
     ):
@@ -2401,9 +2401,7 @@ def execute_run(
         or not re.fullmatch(r"[1-9][0-9]*m", runtime_plan["cpu_wrapper_ttl"])
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
     ):
-        raise ExecutorError(
-            "runtime wrapper TTLs must define bounded A100 and CPU jobs"
-        )
+        raise ExecutorError("runtime wrapper TTLs must define bounded GPU and CPU jobs")
     resume_policy = runtime_plan.get("resume_policy")
     if (
         not isinstance(resume_policy, dict)
@@ -2438,7 +2436,7 @@ def execute_run(
         "${S5_RUNTIME_ROOT}/out/logs",
     ]
     if runtime_plan.get("a100_sync_paths") != expected_a100_sync_paths:
-        raise ExecutorError("A100 runtime must sync only checkpoints and logs")
+        raise ExecutorError("GPU runtime must sync only checkpoints and logs")
     if runtime_plan.get("cpu_sync_paths") != expected_cpu_sync_paths:
         raise ExecutorError(
             "CPU runtime must sync converted weights, results, and logs"
@@ -2458,7 +2456,7 @@ def execute_run(
         for value in (session_name, cpu_session_name, artifact_prefix)
     ):
         raise ExecutorError(
-            "run needs named A100 and CPU sessions and a unique Hub artifact prefix"
+            "run needs named GPU and CPU sessions and a unique Hub artifact prefix"
         )
     if not RUN_ID_PATTERN.fullmatch(session_name) or not RUN_ID_PATTERN.fullmatch(
         cpu_session_name
@@ -2644,7 +2642,7 @@ def execute_run(
             )
         training_exit_code = run_named_session(
             session_name,
-            None if cpu_runtime_smoke else "A100",
+            None if cpu_runtime_smoke else "GPU",
             wrapper_path,
             token_path,
             preflight_path,

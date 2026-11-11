@@ -16,7 +16,7 @@ Install the `vendor` extra only when rerunning staged parity against `vendor/lay
 uv sync --package layout-flow --extra training --extra vendor
 ```
 
-Full RICO25 and PubLayNet runs fit on one 80 GB A100 with the default batch size of 512 used by the LayoutFlow reference setup. For smaller GPUs, lower `data.init_args.batch_size` and increase gradient accumulation only after rerunning the deterministic parity checks, because batch shape and optimizer order are part of the parity surface.
+Full RICO25 and PubLayNet runs fit on one 80 GB GPU with the default batch size of 512 used by the LayoutFlow reference setup. For smaller GPUs, lower `data.init_args.batch_size` and increase gradient accumulation only after rerunning the deterministic parity checks, because batch shape and optimizer order are part of the parity surface.
 
 ## Data
 

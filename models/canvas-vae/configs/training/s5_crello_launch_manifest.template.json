@@ -49,13 +49,13 @@
     "models/canvas-vae/scripts/s5_seed_executor.py"
   ],
   "runtime_plan": {
-    "gpu": "A100",
+    "gpu": "GPU",
     "one_named_a100_session_per_run": true,
     "one_named_cpu_session_per_run": true,
     "one_training_run_at_a_time": true,
     "queue_supervisor_sequential": true,
     "lockstep_probe_steps": 300,
-    "session_order": "Run the 300-step lockstep probe before original seed 0 in the same A100 session. Report the first step over 1e-3 and compare the divergence with the package-versus-perturbed-package noise floor; the 1e-3 threshold is report-only. Report throughput without using it as a gate. Then train each named seed sequentially, require wrapper exit code 0 and selected checkpoint presence, convert and evaluate on a separate named CPU session, and self-release both sessions.",
+    "session_order": "Run the 300-step lockstep probe before original seed 0 in the same GPU session. Report the first step over 1e-3 and compare the divergence with the package-versus-perturbed-package noise floor; the 1e-3 threshold is report-only. Report throughput without using it as a gate. Then train each named seed sequentially, require wrapper exit code 0 and selected checkpoint presence, convert and evaluate on a separate named CPU session, and self-release both sessions.",
     "source_branch": "feat/canvas-vae-crello-model",
     "source_commit": null,
     "wrapper_script": "${S5_WRAPPER_PATH}",
@@ -514,7 +514,7 @@
         "basis": "Same pilot-rate estimate as the original cache; excludes startup, synchronization, and packaging."
       },
       {
-        "step": "Train one 500-epoch CanvasVAE seed on one A100",
+        "step": "Train one 500-epoch CanvasVAE seed on one GPU",
         "estimate_a100_hours": 1.0,
         "estimate_cu_at_historical_rate": 5.3,
         "basis": "Planning proxy from the RICO 500-epoch run estimate; Crello runtime will be measured in the first production session and the queue stops if the integrated gates fail."

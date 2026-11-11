@@ -18,10 +18,10 @@ uv sync --package layout-dm --extra training --extra vendor
 
 ### GPU Environment
 
-So far, we have only verified the GPU setup on Tesla V100 with driver
+So far, the only verified GPU setup used driver
 `575.57.08`, which is compatible with CUDA 12.9-era wheels. The repository
 default torch build is `cu130` (CUDA 13.0), and GPU initialization on that
-verified V100 setup fails with `driver too old (found 12090)`. Keep the
+verified setup fails with `driver too old (found 12090)`. Keep the
 repository torch pins and lockfile at their defaults, but before launching GPU
 training in this environment, install a driver-compatible CUDA 12 torch wheel
 such as `cu126` into the execution environment. This is a local runtime change
