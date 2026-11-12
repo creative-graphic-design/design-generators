@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader, Dataset, get_worker_info
 from torch.optim.lr_scheduler import LRScheduler
 
 from traingen.checkpointing import (
+    python_random_state,
     safe_value_type,
     safe_string_mapping,
 )
@@ -471,20 +472,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
     def load_state_dict(self, state_dict: Mapping[str, safe_value_type]) -> None:
         """Restore the relation generator state from a checkpoint."""
         relation_state = state_dict.get("relation_generator")
-        if not isinstance(relation_state, tuple) or len(relation_state) != 3:
-            raise TypeError("relation generator state is not a tuple")
-
-        version, internal, gaussian = relation_state
-        if not isinstance(version, int) or not isinstance(internal, tuple):
-            raise TypeError("relation generator state has an invalid shape")
-
-        if not all(isinstance(item, int) for item in internal):
-            raise TypeError("relation generator state has an invalid shape")
-
-        if gaussian is not None and not isinstance(gaussian, float):
-            raise TypeError("relation generator state has an invalid shape")
-
-        self._relation_generator.setstate((version, internal, gaussian))
+        self._relation_generator.setstate(python_random_state(relation_state))
 
     def _task_for_index(self, index: int) -> LayoutFormerPPTask:
         if self.train and self.recipe.partition_buckets:
@@ -802,10 +790,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
             task_ids=task_ids,
             return_dict=True,
         )
-        if outputs.logits is None:
-            raise RuntimeError("LayoutFormer++ model did not return logits")
-
-        return outputs.logits
+        return cast(torch.Tensor, outputs.logits)
 
     def _loss(
         self,

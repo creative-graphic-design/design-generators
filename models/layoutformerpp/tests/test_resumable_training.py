@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import random
 from pathlib import Path
 import subprocess
 import sys
 from typing import Literal
 
+import numpy as np
 import pytest
 import torch
 from lightning.pytorch import LightningModule, Trainer, seed_everything
 
 from traingen.checkpointing import (
+    is_safe_mapping,
     load_weights_only_checkpoint,
     safe_value_type,
 )
@@ -243,6 +246,65 @@ def test_resume_equivalence_detects_disabled_restore_component(
     )
 
     assert any(not torch.equal(resumed[name], uninterrupted[name]) for name in resumed)
+
+
+def test_plain_checkpoint_captures_and_restores_rng_without_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in (
+        "CAMPAIGN_ROOT",
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
+        "LAYOUTFORMERPP_LAUNCH_MANIFEST",
+        "LAYOUTFORMERPP_DURABLE_ROOT",
+        "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    callback = LayoutFormerPPModelCheckpoint(dirpath=str(tmp_path / "checkpoints"))
+    trainer = Trainer(accelerator="cpu", devices=1, logger=False)
+    random.seed(3)
+    np.random.seed(3)
+    torch.manual_seed(3)
+    checkpoint: dict[str, safe_value_type] = {}
+    callback.on_save_checkpoint(trainer, LightningModule(), checkpoint)
+
+    assert "layoutformerpp_identity" not in checkpoint
+    assert is_safe_mapping(checkpoint.get("layoutformerpp_rng"))
+    expected = (random.random(), np.random.rand(), torch.rand(2))
+    random.seed(9)
+    np.random.seed(9)
+    torch.manual_seed(9)
+
+    callback.on_load_checkpoint(trainer, LightningModule(), checkpoint)
+
+    assert random.random() == expected[0]
+    assert np.random.rand() == expected[1]
+    assert torch.equal(torch.rand(2), expected[2])
+
+
+def test_plain_resume_refuses_checkpoint_with_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in (
+        "CAMPAIGN_ROOT",
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
+        "LAYOUTFORMERPP_LAUNCH_MANIFEST",
+        "LAYOUTFORMERPP_DURABLE_ROOT",
+        "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    callback = LayoutFormerPPModelCheckpoint(dirpath=str(tmp_path / "checkpoints"))
+    trainer = Trainer(accelerator="cpu", devices=1, logger=False)
+
+    with pytest.raises(
+        RuntimeError, match="cannot be validated without durable settings"
+    ):
+        callback.on_load_checkpoint(
+            trainer,
+            LightningModule(),
+            {"layoutformerpp_identity": {}},
+        )
 
 
 def test_checkpoint_identity_mismatch_and_missing_identity_fail(
@@ -477,4 +539,8 @@ def test_plain_traingen_fit_config_runs_without_checkpoint_identity(
     assert completed.returncode == 0, (
         f"plain traingen fit failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
     )
-    assert list(output_root.rglob("*.ckpt"))
+    checkpoints = list(output_root.rglob("*.ckpt"))
+    assert checkpoints
+    plain_checkpoint = load_weights_only_checkpoint(checkpoints[0])
+    assert "layoutformerpp_identity" not in plain_checkpoint
+    assert is_safe_mapping(plain_checkpoint.get("layoutformerpp_rng"))

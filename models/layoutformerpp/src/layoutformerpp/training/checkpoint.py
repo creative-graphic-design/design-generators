@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -99,10 +99,10 @@ def _durable_configuration(
     if any(not value for value in values.values()):
         raise RuntimeError("durable checkpoint settings must be configured together")
 
-    campaign_root_value = cast(str, values["CAMPAIGN_ROOT"])
-    manifest_value = cast(str, values["LAYOUTFORMERPP_LAUNCH_MANIFEST"])
-    durable_root_value = cast(str, values["LAYOUTFORMERPP_DURABLE_ROOT"])
-    track_value = cast(str, values["LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE"])
+    campaign_root_value = os.environ["CAMPAIGN_ROOT"]
+    manifest_value = os.environ["LAYOUTFORMERPP_LAUNCH_MANIFEST"]
+    durable_root_value = os.environ["LAYOUTFORMERPP_DURABLE_ROOT"]
+    track_value = os.environ["LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE"]
     identity = _validate_identity(dirpath)
     raw_campaign_root = identity["campaign_root"]
     if raw_campaign_root is None:
@@ -185,16 +185,15 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         pl_module: LightningModule,
         checkpoint: dict[str, safe_value_type],
     ) -> None:
-        """Add launch identity and RNG state to a durable save."""
+        """Capture RNG state and add launch identity when durable saving is enabled."""
         del trainer, pl_module
         configuration = _durable_configuration(self._checkpoint_directory)
-        if configuration is None:
-            return
+        if configuration is not None:
+            identity_state: dict[str, safe_value_type] = {
+                key: value for key, value in configuration[0].items()
+            }
+            checkpoint["layoutformerpp_identity"] = identity_state
 
-        identity_state: dict[str, safe_value_type] = {
-            key: value for key, value in configuration[0].items()
-        }
-        checkpoint["layoutformerpp_identity"] = identity_state
         checkpoint["layoutformerpp_rng"] = capture_rng_state()
 
     def on_load_checkpoint(
@@ -207,14 +206,17 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         del trainer, pl_module
         configuration = _durable_configuration(self._checkpoint_directory)
         if configuration is None:
-            return
+            if "layoutformerpp_identity" in checkpoint:
+                raise RuntimeError(
+                    "checkpoint identity cannot be validated without durable settings"
+                )
+        else:
+            identity = checkpoint.get("layoutformerpp_identity")
+            if not is_safe_mapping(identity):
+                raise RuntimeError("checkpoint identity is missing or invalid")
 
-        identity = checkpoint.get("layoutformerpp_identity")
-        if not is_safe_mapping(identity):
-            raise RuntimeError("checkpoint identity is missing or invalid")
-
-        if identity != configuration[0]:
-            raise RuntimeError("checkpoint identity mismatch")
+            if identity != configuration[0]:
+                raise RuntimeError("checkpoint identity mismatch")
 
         rng = checkpoint.get("layoutformerpp_rng")
         restore_rng_state(safe_string_mapping(rng, "checkpoint RNG state"))
