@@ -17,6 +17,7 @@ from radm.evaluation import (
     CocoPrediction,
     evaluate_cgl_predictions,
 )
+from radm.training.data_paths import validate_dot_free_data_root
 from reference_adapter import (
     RADMReferenceAdapter,
     _legacy_pillow_compat,
@@ -33,7 +34,9 @@ def test_cgl_evaluator_matches_vendor_bbox_metrics() -> None:
     """Compare real COCO AP values on a fixed CGL test subset."""
     if os.environ.get("PARITY_REQUIRE") != "1":
         pytest.skip("PARITY_REQUIRE=1 is required for vendor evaluation parity")
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     annotation_path = data_root / "annotations" / "test.json"
     if not annotation_path.is_file():
         pytest.fail(f"CGL test annotations are missing: {annotation_path}")

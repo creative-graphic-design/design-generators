@@ -25,10 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--checkpoint", type=Path, required=True, help="Local RADM checkpoint."
     )
     parser.add_argument(
-        "--dataset-root", type=Path, required=True, help="Local CGL dataset root."
+        "--dataset-root", required=True, help="Local CGL dataset-root path."
     )
     parser.add_argument(
-        "--text-feature-root", type=Path, required=True, help="Local text-feature root."
+        "--text-feature-root", required=True, help="Local text-feature path."
     )
     parser.add_argument(
         "--output-dir", type=Path, required=True, help="Reference metadata directory."
@@ -49,21 +49,23 @@ def _sha256(path: Path) -> str:
 def main() -> None:
     """Write reference metadata and explain the gated execution boundary."""
     args = build_parser().parse_args()
+    dataset_root = str(Path(args.dataset_root).absolute())
+    text_feature_root = str(Path(args.text_feature_root).absolute())
     marker = args.vendor_root / "train_net.py"
     if not marker.exists():
         raise RuntimeError(
             "RADM vendor execution is unavailable: expected train_net.py under --vendor-root"
         )
-    for path in (args.checkpoint, args.dataset_root, args.text_feature_root):
+    for path in (args.checkpoint, Path(dataset_root), Path(text_feature_root)):
         if not path.exists():
             raise RuntimeError(f"Missing required local asset: {path}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "checkpoint_sha256": _sha256(args.checkpoint),
-        "dataset_root": str(args.dataset_root),
+        "dataset_root": dataset_root,
         "device": args.device,
         "seed": args.seed,
-        "text_feature_root": str(args.text_feature_root),
+        "text_feature_root": text_feature_root,
         "vendor_root": str(args.vendor_root),
     }
     (args.output_dir / "metadata.json").write_text(

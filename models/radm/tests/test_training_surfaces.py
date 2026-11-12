@@ -419,6 +419,118 @@ def test_optimizer_scheduler_parity_and_training_module_paths(
     assert configured["lr_scheduler"]["interval"] == "step"
 
 
+def test_training_rois_match_vendor_scale_then_float32_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lightning_module = pytest.importorskip("radm.training.lightning_module")
+    config = RADMConfig(
+        num_classes=4,
+        num_proposals=1,
+        hidden_dim=8,
+        text_feature_dim=4,
+        num_heads=1,
+        backbone_depth=18,
+        with_vtram=False,
+        with_gram=False,
+        deep_supervision=False,
+    )
+    effective = replace(
+        effective_radm_config(),
+        num_proposals=1,
+        hidden_dim=8,
+        text_feature_dim=4,
+        num_heads=1,
+        backbone_depth=18,
+        with_vtram=False,
+        with_gram=False,
+        deep_supervision=False,
+        ota_k=1,
+    )
+    model = RADMDenoiser(config=config)
+    normalized_boxes = torch.tensor(
+        [[0.0, 0.0, 0.314159265359, 0.314159265359]], dtype=torch.float64
+    )
+    monkeypatch.setattr(
+        model,
+        "prepare_diffusion_concat",
+        lambda _boxes: (
+            normalized_boxes,
+            torch.zeros_like(normalized_boxes),
+            torch.tensor([3]),
+        ),
+    )
+
+    def zero_backbone(images: torch.Tensor) -> dict[str, torch.Tensor]:
+        return {
+            name: images.new_zeros(images.shape[0], 256, 1, 1)
+            for name in ("p2", "p3", "p4", "p5")
+        }
+
+    monkeypatch.setattr(model.backbone, "forward", zero_backbone)
+    normalized_head_boxes: list[torch.Tensor] = []
+    roi_level_boxes: list[torch.Tensor] = []
+    original_head_forward = model.head.forward
+    original_assign_pooler_levels = model.head._assign_pooler_levels
+
+    def capture_head_boxes(
+        features: dict[str, torch.Tensor],
+        boxes_xyxy: torch.Tensor,
+        text_features: torch.Tensor,
+        text_mask: torch.Tensor | None,
+        timesteps: torch.Tensor,
+        image_scales: torch.Tensor,
+        absolute_boxes_xyxy: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        normalized_head_boxes.append(boxes_xyxy.detach().clone())
+        return original_head_forward(
+            features,
+            boxes_xyxy,
+            text_features,
+            text_mask,
+            timesteps,
+            image_scales,
+            absolute_boxes_xyxy,
+        )
+
+    def capture_pooler_levels(boxes_xyxy: torch.Tensor) -> torch.Tensor:
+        roi_level_boxes.append(boxes_xyxy.detach().clone())
+        return original_assign_pooler_levels(boxes_xyxy)
+
+    monkeypatch.setattr(model.head, "forward", capture_head_boxes)
+    monkeypatch.setattr(model.head, "_assign_pooler_levels", capture_pooler_levels)
+    module = lightning_module.RADMTrainingModule(model=model, effective=effective)
+    monkeypatch.setattr(module, "log", lambda *args, **kwargs: None)
+    scale = torch.full((1, 4), 800.0, dtype=torch.float32)
+    batch = {
+        "boxes_xyxy": torch.tensor([[[0.2, 0.2, 0.3, 0.3]]]),
+        "mask": torch.tensor([[True]]),
+        "labels": torch.tensor([[0]]),
+        "image_scales": scale.float(),
+        "forward_image_scales": scale,
+        "images": torch.zeros(1, 3, 32, 32),
+        "text_features": torch.zeros(1, 1, 4),
+        "text_mask": torch.ones(1, 1, 1, dtype=torch.bool),
+    }
+
+    assert module.training_step(batch, 0).isfinite()
+    expected_roi_boxes = (
+        (normalized_boxes * scale).to(dtype=torch.float32).reshape(1, 1, 4)
+    )
+    wrong_roi_boxes = (normalized_boxes.to(dtype=torch.float32) * scale).reshape(
+        1, 1, 4
+    )
+
+    assert not torch.equal(expected_roi_boxes, wrong_roi_boxes)
+    assert normalized_head_boxes[0].dtype == torch.float32
+    assert torch.equal(
+        normalized_head_boxes[0],
+        normalized_boxes.to(dtype=torch.float32).reshape(1, 1, 4),
+    )
+    assert len(roi_level_boxes) == 1
+    assert roi_level_boxes[0].dtype == torch.float32
+    assert torch.equal(roi_level_boxes[0], expected_roi_boxes)
+
+
 def test_training_module_rejects_missing_model_and_ema() -> None:
     lightning_module = pytest.importorskip("radm.training.lightning_module")
     effective = effective_radm_config()
