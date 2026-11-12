@@ -14,7 +14,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-convert = ["tensorflow-cpu==2.15.1"]
+convert = [
+    "apache-beam[tfrecord]==2.76.0",
+    "pyyaml>=6",
+    "tensorflow-cpu==2.15.1",
+    "traingen-parity",
+]
 training = [
     "jsonargparse[signatures]>=4.27.7",
     "lightning>=2.4,<3",
@@ -22,9 +27,22 @@ training = [
     "traingen-parity",
 ]
 vendor = [
-    "apache-beam[tfrecord]>=2.70",
+    "apache-beam[tfrecord]==2.76.0",
     "pyyaml>=6",
-    "tensorflow[and-cuda]==2.15.1",
+    "tensorflow==2.15.1",
+    # TensorFlow's NCCL wheel overwrites Torch's shared nvidia/nccl files.
+    # Single-GPU TensorFlow does not use NCCL collectives.
+    "nvidia-cublas-cu12==12.2.5.6",
+    "nvidia-cuda-cupti-cu12==12.2.142",
+    "nvidia-cuda-nvcc-cu12==12.2.140",
+    "nvidia-cuda-nvrtc-cu12==12.2.140",
+    "nvidia-cuda-runtime-cu12==12.2.140",
+    "nvidia-cudnn-cu12==8.9.4.25",
+    "nvidia-cufft-cu12==11.0.8.103",
+    "nvidia-curand-cu12==10.3.3.141",
+    "nvidia-cusolver-cu12==11.5.2.141",
+    "nvidia-cusparse-cu12==12.1.2.141",
+    "nvidia-nvjitlink-cu12==12.2.140",
     "traingen-parity",
 ]
 
@@ -37,7 +55,7 @@ traingen-parity = { workspace = true }
 framework = "transformers"
 task = "content-agnostic-layout-generation"
 conditions = ["unconditional"]
-datasets = ["rico25"]
+datasets = ["rico25", "crello"]
 vendor = "CyberAgentAILab/canvas-vae"
 paper = "https://arxiv.org/abs/2108.01249"
 

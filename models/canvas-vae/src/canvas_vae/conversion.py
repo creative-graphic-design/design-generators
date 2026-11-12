@@ -18,7 +18,11 @@ import numpy as np
 import torch
 from jaxtyping import Float, Shaped
 
-from .configuration_canvas_vae import CanvasVAEConfig, CanvasVAEField
+from .configuration_canvas_vae import (
+    CanvasVAECrelloConfig,
+    CanvasVAEConfig,
+    CanvasVAEField,
+)
 
 VARIABLE_SUFFIX = "/.ATTRIBUTES/VARIABLE_VALUE"
 IGNORED_KEY_PARTS = ("OPTIMIZER_SLOT", "optimizer/", "save_counter", "_CHECKPOINTABLE")
@@ -117,6 +121,66 @@ def tensorflow_key_map(config: CanvasVAEConfig) -> dict[str, TensorFlowSource]:
     return mapping
 
 
+def tensorflow_crello_key_map(
+    config: CanvasVAECrelloConfig,
+) -> dict[str, TensorFlowSource]:
+    """Return the original Keras variable for every Crello model tensor."""
+    mapping = {
+        "encoder.position_embedding.embeddings.weight": TensorFlowSource(
+            "encoder/input_layer/const/embeddings/embeddings", False
+        ),
+        "encoder.norm.weight": TensorFlowSource("encoder/norm/gamma", False),
+        "encoder.norm.bias": TensorFlowSource("encoder/norm/beta", False),
+        "encoder.norm.running_mean": TensorFlowSource(
+            "encoder/norm/moving_mean", False
+        ),
+        "encoder.norm.running_var": TensorFlowSource(
+            "encoder/norm/moving_variance", False
+        ),
+        "decoder.position_embedding.embeddings.weight": TensorFlowSource(
+            "decoder/embedding_const/embeddings/embeddings", False
+        ),
+    }
+    mapping |= _dense("encoder.z_mean", "encoder/head/z_mean")
+    mapping |= _dense("encoder.z_log_var", "encoder/head/z_log_sigma")
+    mapping |= _dense("decoder.length_head", "decoder/head/decoders/length")
+    for field in config.context_fields:
+        mapping[f"encoder.context_embeddings.{field}.weight"] = TensorFlowSource(
+            f"encoder/input_layer/{field}/embeddings", False
+        )
+
+    for field in config.sequence_field_sizes:
+        mapping[f"encoder.sequence_embeddings.field_{field}.weight"] = TensorFlowSource(
+            f"encoder/input_layer/{field}/embeddings", False
+        )
+        mapping |= _dense(
+            f"decoder.sequence_heads.field_{field}",
+            f"decoder/head/decoders/{field}",
+        )
+
+    mapping |= _dense(
+        "encoder.numerical_projections.image_embedding",
+        "encoder/input_layer/image_embedding",
+    )
+    mapping |= _dense("decoder.context_heads.group", "decoder/head/decoders/group")
+    for field in config.context_fields[2:]:
+        mapping |= _dense(
+            f"decoder.context_heads.{field}", f"decoder/head/decoders/{field}"
+        )
+
+    mapping |= _dense(
+        "decoder.numerical_heads.image_embedding",
+        "decoder/head/decoders/image_embedding",
+    )
+    for index in range(config.num_blocks):
+        for part in ("encoder", "decoder"):
+            mapping |= _block(
+                f"{part}.blocks.{index}", f"{part}/seq2seq/seq2seq_{index}"
+            )
+
+    return mapping
+
+
 def convert_tensorflow_variables(
     variables: Mapping[str, Shaped[np.ndarray, ...]],
     config: CanvasVAEConfig,
@@ -135,12 +199,26 @@ def convert_tensorflow_variables(
     Raises:
         KeyError: If model variables are missing or unexpected.
     """
+    return _convert_variables(variables, tensorflow_key_map(config))
+
+
+def convert_tensorflow_crello_variables(
+    variables: Mapping[str, Shaped[np.ndarray, ...]],
+    config: CanvasVAECrelloConfig,
+) -> dict[str, Float[torch.Tensor, ...]]:
+    """Map original TensorFlow variables into a Crello model state dict."""
+    return _convert_variables(variables, tensorflow_crello_key_map(config))
+
+
+def _convert_variables(
+    variables: Mapping[str, Shaped[np.ndarray, ...]],
+    mapping: Mapping[str, TensorFlowSource],
+) -> dict[str, Float[torch.Tensor, ...]]:
     model_variables = {
         key.removesuffix(VARIABLE_SUFFIX): value
         for key, value in variables.items()
         if not any(part in key for part in IGNORED_KEY_PARTS)
     }
-    mapping = tensorflow_key_map(config)
     expected = {source.key for source in mapping.values()}
     missing = sorted(expected - model_variables.keys())
     unexpected = sorted(model_variables.keys() - expected)
@@ -181,7 +259,9 @@ def load_lightning_state_dict(
 
 __all__ = [
     "TensorFlowSource",
+    "convert_tensorflow_crello_variables",
     "convert_tensorflow_variables",
     "load_lightning_state_dict",
+    "tensorflow_crello_key_map",
     "tensorflow_key_map",
 ]

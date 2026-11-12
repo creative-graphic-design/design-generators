@@ -109,6 +109,11 @@ PROMPT_AGENT_MODULES = {
 }
 
 PACKAGE_SPECIFIC_ALLOWED_MODULES = {
+    "canvas_vae": {
+        "crello_schema.py",
+        "run_metadata.py",
+        "update_trace.py",
+    },
     "ltnet": {
         "modeling_lt_compatible.py",
     },
