@@ -1173,7 +1173,8 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
             "runtime.omp_num_threads",
         )
     )
-    assert "those environment values are unrecorded" in s5_command
+    assert "vendor_compatibility.pythonpath_entry" in s5_command
+    assert "full `PYTHONPATH`" in s5_command
     assert 'PATH="' not in s5_command
     assert "PYTHONPATH=" not in s5_command
     assert "--evaluation-path-parity-artifact" in launch_template

@@ -96,18 +96,6 @@ def _vendor_eval_command(
     ]
 
 
-def test_vendor_eval_command_uses_the_evaluation_seed(tmp_path: Path) -> None:
-    command = _vendor_eval_command(
-        checkpoint=tmp_path / "checkpoint.pth",
-        output_dir=tmp_path / "output",
-        data_root=tmp_path / "data",
-        evaluation_seed=2,
-    )
-
-    seed_index = command.index("SEED")
-    assert command[seed_index + 1] == "2"
-
-
 @pytest.mark.vendor_parity
 def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

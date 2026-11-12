@@ -74,12 +74,11 @@ GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-gene
 EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
 CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
-CLAIM_GAP = r"(?:(?![.!?]\s|\x00).){0,160}"
+CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
     re.IGNORECASE,
 )
-NOT_YET_RUN_STATUS_CELL_RE = re.compile(r"not-yet-run\s+\([^()]+\)", re.IGNORECASE)
 POSITIVE_CLAIM_RE = re.compile(
     r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
     re.IGNORECASE,
@@ -281,7 +280,6 @@ def has_reproduction_results_heading(text: str) -> bool:
 
 def claim_text(text: str) -> str:
     """Return whole-document text normalized for claim matching."""
-    text = re.sub(r"\n[ \t]*(?=\|)", "\x00", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -295,31 +293,6 @@ def clause_around_match(text: str, start: int, end: int) -> str:
     return text[left_boundary:right_boundary].strip()
 
 
-def has_not_yet_run_status_cell(text: str, match_start: int) -> bool:
-    """Return whether a claim match shares a table row with an exact pending status."""
-    rows = text.split("\x00")
-    row_index = text.count("\x00", 0, match_start)
-    row = rows[row_index]
-    if not row.lstrip().startswith("|"):
-        return False
-
-    cells = split_markdown_row(row)
-    for header_row in reversed(rows[:row_index]):
-        if not header_row.lstrip().startswith("|"):
-            break
-
-        headers = [normalize_header(cell) for cell in split_markdown_row(header_row)]
-        if "status" not in headers:
-            continue
-
-        status_index = headers.index("status")
-        status = cells[status_index] if status_index < len(cells) else ""
-        status = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", status)
-        return bool(NOT_YET_RUN_STATUS_CELL_RE.fullmatch(normalize_value(status)))
-
-    return False
-
-
 def has_s5_claim(text: str) -> bool:
     """Return whether the document claims full training run results."""
     return bool(s5_claim_clauses(text))
@@ -331,11 +304,7 @@ def s5_claim_clauses(text: str) -> tuple[str, ...]:
     clauses = []
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
-            if has_not_yet_run_status_cell(normalized, match.start()):
-                continue
-
             clause = clause_around_match(normalized, match.start(), match.end())
-            clause = re.sub(r"\s+", " ", clause.replace("\x00", " ")).strip()
             if NEGATED_CLAIM_RE.search(clause):
                 if POSITIVE_CLAIM_RE.search(match.group(0)):
                     clauses.append(clause)
