@@ -5,7 +5,34 @@ from layoutformerpp.serialization import (
     T5LayoutSequenceForGenR,
     T5LayoutSequenceForGenT,
     build_default_tokens,
+    build_task_prompt,
 )
+
+
+def test_build_task_prompt_matches_vendor_prefix() -> None:
+    assert build_task_prompt("gen_r", "label_1 <sep_labels_relations>") == (
+        "task-gen_r : label_1 <sep_labels_relations>"
+    )
+
+
+def test_default_tokens_include_task_prompts_only_when_enabled() -> None:
+    base_tokens = build_default_tokens(
+        ("Text",), task="gen_r", grid=4, add_task_prompt=False
+    )
+    prompted_tokens = build_default_tokens(
+        ("Text",), task="gen_r", grid=4, add_task_prompt=True
+    )
+
+    assert "task-gen_r" not in base_tokens
+    assert prompted_tokens[-7:] == [
+        "task-refinement",
+        ":",
+        "task-completion",
+        "task-ugen",
+        "task-gen_t",
+        "task-gen_ts",
+        "task-gen_r",
+    ]
 
 
 def test_full_sequence_parse_with_sep() -> None:

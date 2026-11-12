@@ -19,8 +19,10 @@ from layoutformerpp.serialization import build_default_tokens
 from layoutformerpp.tasks import (
     LayoutFormerPPTask,
     SUPPORTED_DATASETS,
+    TASK_TO_CONDITION,
     normalize_layoutformerpp_dataset,
 )
+from layoutformerpp.training.recipes import get_training_recipe
 from laygen.common.labels import labels_for_dataset
 
 
@@ -77,17 +79,29 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    recipe = get_training_recipe(f"{args.dataset}_{TASK_TO_CONDITION[args.task]}")
+    recipe_flags = recipe.serialization_flags
+
     vocab_json = resolve_vocab_json(args.vocab_json, args.checkpoint)
     if vocab_json is not None:
         tokenizer = LayoutFormerPPTokenizer(vocab_file=str(vocab_json))
     else:
         tokenizer = LayoutFormerPPTokenizer(
             tokens=build_default_tokens(
-                labels_for_dataset(args.dataset), task=args.task, grid=128
+                labels_for_dataset(args.dataset),
+                task=args.task,
+                grid=128,
+                add_task_prompt="add_task_prompt" in recipe_flags,
             )
         )
     config = LayoutFormerPPConfig(
-        vocab_size=tokenizer.vocab_size, dataset=args.dataset, task=args.task
+        vocab_size=tokenizer.vocab_size,
+        dataset=args.dataset,
+        task=args.task,
+        gen_t_add_unk_token="gen_t_add_unk_token" in recipe_flags,
+        gen_ts_add_unk_token="gen_ts_add_unk_token" in recipe_flags,
+        gen_r_add_unk_token="gen_r_add_unk_token" in recipe_flags,
+        gen_r_compact="gen_r_compact" in recipe_flags,
     )
     model = LayoutFormerPPForConditionalGeneration(config)
     missing, unexpected = model.load_state_dict(
@@ -98,7 +112,15 @@ def main() -> None:
     if missing:
         print(f"Missing keys: {missing}")
     processor = LayoutFormerPPProcessor(
-        tokenizer=tokenizer, dataset=args.dataset, task=args.task
+        tokenizer=tokenizer,
+        dataset=args.dataset,
+        task=args.task,
+        add_sep_token="add_sep_token" in recipe_flags,
+        add_task_prompt="add_task_prompt" in recipe_flags,
+        gen_t_add_unk_token="gen_t_add_unk_token" in recipe_flags,
+        gen_ts_add_unk_token="gen_ts_add_unk_token" in recipe_flags,
+        gen_r_add_unk_token="gen_r_add_unk_token" in recipe_flags,
+        gen_r_compact="gen_r_compact" in recipe_flags,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(args.output_dir, safe_serialization=True)
