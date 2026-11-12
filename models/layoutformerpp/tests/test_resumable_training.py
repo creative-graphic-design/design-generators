@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 from typing import Literal
 
 import pytest
 import torch
 from lightning.pytorch import LightningModule, Trainer, seed_everything
 
-from traingen.checkpointing import SafeValue, load_weights_only_checkpoint
+from traingen.checkpointing import (
+    load_weights_only_checkpoint,
+    safe_value_type,
+)
 
 from layoutformerpp.training import checkpoint as checkpoint_module
 from layoutformerpp.training.checkpoint import (
@@ -28,15 +34,42 @@ Mutation = Literal[
 ]
 
 
-def _identity(checkpoint_dir: Path) -> dict[str, str | None]:
+def _identity(
+    checkpoint_dir: Path, campaign_root: Path | None = None
+) -> dict[str, str | None]:
+    root = (campaign_root or checkpoint_dir.parent).resolve()
     return {
         "config_sha256": "config",
         "source_commit": "source",
         "vendor_source_commit": None,
         "device": "cpu",
         "checkpoint_dirpath": str(checkpoint_dir.resolve()),
-        "campaign_root": "campaign",
+        "campaign_root": str(root),
     }
+
+
+def _configure_durable_track(
+    monkeypatch: pytest.MonkeyPatch,
+    campaign_root: Path,
+    checkpoint_dir: Path,
+    track: str,
+) -> None:
+    campaign_root.mkdir(parents=True, exist_ok=True)
+    durable_root = campaign_root / "durable"
+    durable_root.mkdir(exist_ok=True)
+    manifest = campaign_root / "launch_manifest.json"
+    identity = _identity(checkpoint_dir, campaign_root)
+    manifest_identity = {
+        key: value for key, value in identity.items() if key != "campaign_root"
+    }
+    manifest.write_text(json.dumps(manifest_identity), encoding="utf-8")
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root.resolve()))
+    monkeypatch.setenv(
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY", json.dumps(identity, sort_keys=True)
+    )
+    monkeypatch.setenv("LAYOUTFORMERPP_LAUNCH_MANIFEST", str(manifest))
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(durable_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE", track)
 
 
 def _write_data_root(root: Path) -> None:
@@ -65,19 +98,19 @@ def _disable_callback_load(
     callback: LayoutFormerPPModelCheckpoint,
     trainer: Trainer,
     pl_module: LightningModule,
-    checkpoint: dict[str, SafeValue],
+    checkpoint: dict[str, safe_value_type],
 ) -> None:
     del callback, trainer, pl_module, checkpoint
 
 
 def _disable_datamodule_load(
     data: LayoutFormerPPDataModule,
-    state_dict: dict[str, SafeValue],
+    state_dict: dict[str, safe_value_type],
 ) -> None:
     del data, state_dict
 
 
-def _disable_rng_restore(state: dict[str, SafeValue]) -> None:
+def _disable_rng_restore(state: dict[str, safe_value_type]) -> None:
     del state
 
 
@@ -117,18 +150,7 @@ def _run_package_track(
     callback = LayoutFormerPPModelCheckpoint(
         dirpath=str(checkpoint_dir), monitor="val_loss", mode="min", save_top_k=1
     )
-    manifest = root / "launch_manifest.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(json.dumps(_identity(checkpoint_dir)), encoding="utf-8")
-    durable = root / "durable"
-    durable.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv(
-        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
-        json.dumps(_identity(checkpoint_dir), sort_keys=True),
-    )
-    monkeypatch.setenv("LAYOUTFORMERPP_LAUNCH_MANIFEST", str(manifest))
-    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(durable))
-    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE", "track")
+    _configure_durable_track(monkeypatch, root, checkpoint_dir, "track")
     trainer = Trainer(
         accelerator="cpu",
         devices=1,
@@ -245,15 +267,201 @@ def test_durable_publish_requires_complete_configuration(
 ) -> None:
     callback = LayoutFormerPPModelCheckpoint(dirpath=str(tmp_path / "checkpoints"))
     for name in (
+        "CAMPAIGN_ROOT",
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
         "LAYOUTFORMERPP_LAUNCH_MANIFEST",
         "LAYOUTFORMERPP_DURABLE_ROOT",
         "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
     ):
         monkeypatch.delenv(name, raising=False)
 
-    with pytest.raises(RuntimeError, match="publishing is required"):
-        callback._publish(tmp_path / "checkpoint.ckpt", epoch=0)
+    callback._publish(tmp_path / "checkpoint.ckpt", epoch=0)
 
     monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(tmp_path))
-    with pytest.raises(RuntimeError, match="partially configured"):
+    with pytest.raises(RuntimeError, match="configured together"):
         callback._publish(tmp_path / "checkpoint.ckpt", epoch=0)
+
+
+def test_relative_checkpoint_dirpath_uses_each_seed_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relative_dirpath = (
+        Path(".cache")
+        / "layoutformerpp"
+        / "training-runs"
+        / "publaynet_relation"
+        / "checkpoints"
+    )
+    resolved_paths: list[Path] = []
+    for seed in (1, 2):
+        campaign_root = tmp_path / f"seed-{seed}"
+        checkpoint_dir = campaign_root / relative_dirpath
+        _configure_durable_track(
+            monkeypatch, campaign_root, checkpoint_dir, f"seed-{seed}"
+        )
+        callback = LayoutFormerPPModelCheckpoint(dirpath=str(relative_dirpath))
+        trainer = Trainer(
+            accelerator="cpu",
+            devices=1,
+            default_root_dir=str(campaign_root),
+            logger=False,
+            enable_checkpointing=False,
+        )
+
+        callback.setup(trainer, LightningModule(), stage="fit")
+        resolved_paths.append(Path(callback.dirpath))
+
+    assert resolved_paths == [
+        (tmp_path / f"seed-{seed}" / relative_dirpath).resolve() for seed in (1, 2)
+    ]
+    assert resolved_paths[0] != resolved_paths[1]
+
+
+def test_partial_durable_setup_fails_before_first_epoch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CountingModule(LightningModule):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(()))
+            self.steps = 0
+
+        def training_step(self, batch: torch.Tensor, batch_idx: int) -> torch.Tensor:
+            del batch_idx
+            self.steps += 1
+            return self.weight * batch
+
+        def configure_optimizers(self) -> torch.optim.Optimizer:
+            return torch.optim.SGD(self.parameters(), lr=0.1)
+
+    for name in (
+        "CAMPAIGN_ROOT",
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
+        "LAYOUTFORMERPP_LAUNCH_MANIFEST",
+        "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(tmp_path))
+    callback = LayoutFormerPPModelCheckpoint(dirpath=str(tmp_path / "checkpoints"))
+    module = CountingModule()
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=1,
+        logger=False,
+        default_root_dir=str(tmp_path),
+        callbacks=[callback],
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+
+    with pytest.raises(RuntimeError, match="configured together"):
+        trainer.fit(module, train_dataloaders=[torch.ones(())])
+
+    assert module.steps == 0
+
+
+def test_on_load_checkpoint_rejects_empty_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint_dir = tmp_path / "checkpoints"
+    callback = LayoutFormerPPModelCheckpoint(dirpath=str(checkpoint_dir))
+    identity = _identity(checkpoint_dir, tmp_path)
+    identity["config_sha256"] = ""
+    manifest = tmp_path / "launch_manifest.json"
+    manifest_identity = {
+        key: value for key, value in identity.items() if key != "campaign_root"
+    }
+    manifest.write_text(json.dumps(manifest_identity), encoding="utf-8")
+    durable_root = tmp_path / "durable"
+    durable_root.mkdir()
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setenv("LAYOUTFORMERPP_CHECKPOINT_IDENTITY", json.dumps(identity))
+    monkeypatch.setenv("LAYOUTFORMERPP_LAUNCH_MANIFEST", str(manifest))
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(durable_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE", "track")
+
+    with pytest.raises(ValueError, match="empty value"):
+        callback.on_load_checkpoint(
+            None, None, {"layoutformerpp_identity": _identity(checkpoint_dir, tmp_path)}
+        )
+
+
+def test_on_load_checkpoint_rejects_identity_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint_dir = tmp_path / "checkpoints"
+    callback = LayoutFormerPPModelCheckpoint(dirpath=str(checkpoint_dir))
+    _configure_durable_track(monkeypatch, tmp_path, checkpoint_dir, "track")
+    wrong_identity = _identity(tmp_path / "other-checkpoints", tmp_path)
+
+    with pytest.raises(RuntimeError, match="checkpoint identity mismatch"):
+        callback.on_load_checkpoint(
+            None, None, {"layoutformerpp_identity": wrong_identity}
+        )
+
+
+def test_plain_traingen_fit_config_runs_without_checkpoint_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = Path(__file__).resolve().parents[3]
+    data_root = tmp_path / "data"
+    output_root = tmp_path / "seed-1"
+    _write_data_root(data_root)
+    for name in (
+        "CAMPAIGN_ROOT",
+        "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
+        "LAYOUTFORMERPP_LAUNCH_MANIFEST",
+        "LAYOUTFORMERPP_DURABLE_ROOT",
+        "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    command = [
+        str(Path(sys.executable).with_name("traingen")),
+        "fit",
+        "--config",
+        str(
+            project_root
+            / "models"
+            / "layoutformerpp"
+            / "configs"
+            / "training"
+            / "publaynet_relation.yaml"
+        ),
+        "--trainer.accelerator=cpu",
+        "--trainer.devices=1",
+        "--trainer.max_epochs=1",
+        "--trainer.max_steps=1",
+        "--trainer.limit_train_batches=1",
+        "--trainer.limit_val_batches=1",
+        "--trainer.num_sanity_val_steps=0",
+        f"--trainer.default_root_dir={output_root}",
+        "--trainer.enable_progress_bar=false",
+        "--trainer.enable_model_summary=false",
+        "--model.init_args.config.d_model=8",
+        "--model.init_args.config.encoder_layers=1",
+        "--model.init_args.config.decoder_layers=1",
+        "--model.init_args.config.encoder_attention_heads=2",
+        "--model.init_args.config.decoder_attention_heads=2",
+        "--model.init_args.config.dim_feedforward=16",
+        "--model.init_args.config.dropout=0.0",
+    ]
+    environment = {
+        **os.environ,
+        "CAMPAIGN_ROOT": str(output_root),
+        "CUDA_VISIBLE_DEVICES": "",
+        "LAYOUTFORMERPP_DATA_ROOT": str(data_root),
+    }
+    completed = subprocess.run(
+        command,
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, (
+        f"plain traingen fit failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+    )
+    assert list(output_root.rglob("*.ckpt"))
