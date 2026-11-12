@@ -19,12 +19,13 @@ accepts a same-file swap (one residual violation fixed and one added) when the
 file/rule count is unchanged; that is the granularity of this heuristic.
 
 The checker fails when the working baseline counts differ from the current scan.
-It also rejects added or increased counts relative to the committed baseline:
-``MERGE_HEAD`` during a merge and ``HEAD`` otherwise. This permits only
-decreasing or removing residual counts and prevents hiding a new violation by
-appending it to the baseline. A missing or legacy location-format baseline is
-treated as an initial baseline, which permits the merge that first introduces
-this checker to establish counts for content inherited from main.
+During a merge, it compares counts against ``MERGE_HEAD``; otherwise it uses
+committed ``HEAD``. It fails if a working count is added or increased relative
+to that committed baseline. This permits only decreasing or removing residual
+counts and prevents hiding a new violation by appending it to the baseline. A
+missing or legacy location-format baseline is treated as an initial baseline,
+which permits the merge that first introduces this checker to establish counts
+for content inherited from main.
 An ``# Established rule: <rule>`` marker records that a rule has been
 introduced even after its residual count reaches zero. Established markers are
 also shrink-only: removing one relative to the committed baseline fails.
@@ -437,8 +438,7 @@ def committed_baseline_state(
     ):
         return None
 
-    counts, established_rules = _parse_baseline_text(result.stdout)
-    return counts, established_rules
+    return _parse_baseline_text(result.stdout)
 
 
 def committed_baseline_counts(root: Path) -> dict[tuple[str, str], int] | None:

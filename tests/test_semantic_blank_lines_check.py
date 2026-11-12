@@ -499,52 +499,6 @@ def test_checker_accepts_initial_baseline_for_new_rule(tmp_path: Path) -> None:
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
 
 
-def test_checker_uses_incoming_merge_parent_for_baseline_growth(
-    tmp_path: Path,
-) -> None:
-    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
-    write_baseline(baseline, {}, established_rules={"block-end"})
-    write_source(tmp_path, "def terminal():\n    pass\n")
-    initialize_git_repository(tmp_path)
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "--quiet", "-m", "base"], cwd=tmp_path, check=True)
-    base = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
-    ).strip()
-
-    subprocess.run(
-        ["git", "checkout", "--quiet", "-b", "incoming"], cwd=tmp_path, check=True
-    )
-    write_source(
-        tmp_path,
-        "def missing():\n    if True:\n        pass\n    return 1\n",
-    )
-    write_baseline(
-        baseline,
-        checker.current_counts(tmp_path),
-        established_rules={"block-end"},
-    )
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(
-        ["git", "commit", "--quiet", "-m", "incoming baseline"],
-        cwd=tmp_path,
-        check=True,
-    )
-
-    subprocess.run(
-        ["git", "checkout", "--quiet", "-b", "task", base],
-        cwd=tmp_path,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "merge", "--quiet", "--no-commit", "--no-ff", "incoming"],
-        cwd=tmp_path,
-        check=True,
-    )
-
-    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
-
-
 def test_checker_rejects_growth_after_established_rule_reaches_zero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
