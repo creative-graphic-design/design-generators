@@ -309,6 +309,7 @@ def test_relative_checkpoint_dirpath_uses_each_seed_root(
         )
 
         callback.setup(trainer, LightningModule(), stage="fit")
+        assert callback.dirpath is not None
         resolved_paths.append(Path(callback.dirpath))
 
     assert resolved_paths == [
@@ -382,8 +383,14 @@ def test_on_load_checkpoint_rejects_empty_identity(
     monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE", "track")
 
     with pytest.raises(ValueError, match="empty value"):
+        identity_state: dict[str, safe_value_type] = {
+            key: value for key, value in _identity(checkpoint_dir, tmp_path).items()
+        }
+        trainer = Trainer(accelerator="cpu", devices=1, logger=False)
         callback.on_load_checkpoint(
-            None, None, {"layoutformerpp_identity": _identity(checkpoint_dir, tmp_path)}
+            trainer,
+            LightningModule(),
+            {"layoutformerpp_identity": identity_state},
         )
 
 
@@ -393,11 +400,17 @@ def test_on_load_checkpoint_rejects_identity_mismatch(
     checkpoint_dir = tmp_path / "checkpoints"
     callback = LayoutFormerPPModelCheckpoint(dirpath=str(checkpoint_dir))
     _configure_durable_track(monkeypatch, tmp_path, checkpoint_dir, "track")
-    wrong_identity = _identity(tmp_path / "other-checkpoints", tmp_path)
+    identity_state: dict[str, safe_value_type] = {
+        key: value
+        for key, value in _identity(tmp_path / "other-checkpoints", tmp_path).items()
+    }
+    trainer = Trainer(accelerator="cpu", devices=1, logger=False)
 
     with pytest.raises(RuntimeError, match="checkpoint identity mismatch"):
         callback.on_load_checkpoint(
-            None, None, {"layoutformerpp_identity": wrong_identity}
+            trainer,
+            LightningModule(),
+            {"layoutformerpp_identity": identity_state},
         )
 
 
