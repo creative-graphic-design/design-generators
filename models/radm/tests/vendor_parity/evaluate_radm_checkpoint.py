@@ -239,6 +239,13 @@ def main() -> None:
         data_root=data_root,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    report = evaluate_package_checkpoint(
+        args.checkpoint,
+        data_root=Path(data_root),
+        output_dir=args.output_dir,
+        device=args.device,
+        evaluation_seed=args.seed,
+    )
     try:
         with validation_path.open("x", encoding="utf-8") as stream:
             stream.write(json.dumps(validation, indent=2, sort_keys=True) + "\n")
@@ -247,13 +254,6 @@ def main() -> None:
             f"refusing to overwrite validation record: {validation_path}"
         ) from exc
 
-    report = evaluate_package_checkpoint(
-        args.checkpoint,
-        data_root=Path(data_root),
-        output_dir=args.output_dir,
-        device=args.device,
-        evaluation_seed=args.seed,
-    )
     print(json.dumps({"validation": validation, "report": report}, allow_nan=True))
 
 

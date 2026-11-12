@@ -8,7 +8,7 @@ tags:
 
 # RADM Training
 
-This record covers the launch configuration and launch evidence for six RADM CGL runs. The package and original runs (training seeds 1–3) launched from commit `4e5c31d44052ae0f8f682c073ba6ab9d940be503` on 2026-11-06 JST and completed later. Their terminal comparison is not recorded here yet. See [RADM CGL training design](https://github.com/creative-graphic-design/design-generators/issues/261) for the training scope.
+This record covers the launch configuration and launch evidence for six RADM CGL runs. The package and original runs (training seeds 1–3) launched from commit `4e5c31d44052ae0f8f682c073ba6ab9d940be503` on 2026-11-06 JST and completed later. Their terminal comparison is not recorded here yet. No CGL S5 result is claimed. See [RADM CGL training design](https://github.com/creative-graphic-design/design-generators/issues/261) for the training scope.
 
 ## Result at a glance
 
@@ -65,7 +65,7 @@ The retained S0 topology evidence records that text encoding fields are derived 
 
 The pre-S5 lockstep gate requires equal initial state, aligned RNG and batches, matching step-1 forward and loss surfaces, and a passing step-1 gradient tolerance. Natural long-run comparisons are report-only. The lockstep criterion is recorded in the [issue 261 lockstep amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-5318097501).
 
-Production CGL runs use `trainer.deterministic: false`; deterministic controls remain enabled for the parity lockstep. The 60.016-second package measurement over updates 301–341 recorded `1.500405` seconds per update and did not meet the [GPU-bound criterion](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#gpu-placement). The measurement is `.cache/radm/s5/cgl/prelaunch-4e5c31d/gpu-bound/seed-1-steps300-500.json` (SHA-256 `3b58a296b2f450a201272d7ab34cf494d5e568091a58c6ef00fd7a6f8e91a9e2`), with the run log at `.cache/radm/s5/cgl/prelaunch-4e5c31d/logs/gpu-bound-seed1.log` (SHA-256 `61ae87225c7a2bec62d050cd63e4c5f340aa9142fc106db097fc9b7dba5c06d5`). The package S5 runs for seeds 1–3 proceed under the GPU-bound deviation recorded in the [CGL S5 recipe amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6675591463).
+Production CGL runs use `trainer.deterministic: false`; deterministic controls remain enabled for the parity lockstep. The 60.016-second package measurement over updates 301–341 recorded `1.500405` seconds per update and did not meet the [GPU-bound criterion](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#gpu-placement). The measurement is `.cache/radm/s5/cgl/prelaunch-4e5c31d/gpu-bound/seed-1-steps300-500.json` (SHA-256 `3b58a296b2f450a201272d7ab34cf494d5e568091a58c6ef00fd7a6f8e91a9e2`), with the run log at `.cache/radm/s5/cgl/prelaunch-4e5c31d/logs/gpu-bound-seed1.log` (SHA-256 `61ae87225c7a2bec62d050cd63e4c5f340aa9142fc106db097fc9b7dba5c06d5`). Package S5 seeds 1–3 ran under the GPU-bound deviation (see [recipe amendment](https://github.com/creative-graphic-design/design-generators/issues/261#issuecomment-6675591463)).
 
 ### Pre-launch gates
 
@@ -136,7 +136,7 @@ The retained CGL diagnosis uses checkpoints from an invalid training stream. The
 
 The earlier deterministic CGL config has three 1,500-step production runs for S3 wiring. The original arm lacked text features, and the package arm used the old deterministic setting, so those runs are superseded by the current S3 evidence.
 
-Current S3 and S4 checks and evaluation-path parity pass. Six CGL runs launched from commit `4e5c31d44052ae0f8f682c073ba6ab9d940be503` on 2026-11-06 JST and completed later. Their terminal comparison is not recorded here yet. See [RADM CGL training design](https://github.com/creative-graphic-design/design-generators/issues/261) for the training scope. CGL-v2 remains outside the approved S5 scope.
+Current S3 and S4 checks and evaluation-path parity pass. Six CGL runs launched from commit `4e5c31d44052ae0f8f682c073ba6ab9d940be503` on 2026-11-06 JST and completed later. Their terminal comparison is not recorded here yet. No CGL S5 result is claimed. See [RADM CGL training design](https://github.com/creative-graphic-design/design-generators/issues/261) for the training scope. CGL-v2 remains outside the approved S5 scope.
 
 | Dataset | System   | Status                                                                                                            | Seed scope         | Primary metrics | Loss evidence                                                                                           | Artifact summary                                                            |
 | ------- | -------- | ----------------------------------------------------------------------------------------------------------------- | ------------------ | --------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |

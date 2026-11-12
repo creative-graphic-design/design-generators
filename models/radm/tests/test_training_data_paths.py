@@ -910,6 +910,7 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
     main = cast(Callable[[], None], evaluator["main"])
     evaluator_globals = cast(FunctionType, main).__globals__
     output_dir = tmp_path / "evaluation"
+    validation_path = output_dir / "validation.json"
     validation = {"evaluation_seed": 2, "evaluator_source_status": ""}
     evaluation_seeds: list[object] = []
     monkeypatch.setitem(
@@ -919,7 +920,11 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
     )
 
     def record_evaluation_seed(*args: object, **kwargs: object) -> dict[str, object]:
+        assert not validation_path.exists()
         evaluation_seeds.append(kwargs["evaluation_seed"])
+        if len(evaluation_seeds) == 1:
+            raise RuntimeError("evaluation failed")
+
         return {"bbox": {}}
 
     monkeypatch.setitem(
@@ -945,13 +950,15 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
         ],
     )
 
+    with pytest.raises(RuntimeError, match="evaluation failed"):
+        main()
+
+    assert not validation_path.exists()
+
     main()
 
-    assert (
-        json.loads((output_dir / "validation.json").read_text(encoding="utf-8"))
-        == validation
-    )
-    assert evaluation_seeds == [2]
+    assert json.loads(validation_path.read_text(encoding="utf-8")) == validation
+    assert evaluation_seeds == [2, 2]
 
 
 def test_s5_evaluator_refuses_to_overwrite_validation_record(
