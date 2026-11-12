@@ -18,12 +18,13 @@ import yaml
 from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.launch_manifest import CGLS5LaunchManifest, CGLS5SourceProvenance
 from radm.training.source_paths import (
-    WORKSPACE_SOURCE_ROOTS,
+    workspace_source_roots,
     verify_workspace_sources as verify_workspace_source_paths,
 )
 
 
 ROOT = Path(__file__).resolve().parents[3]
+WORKSPACE_SOURCE_ROOTS = workspace_source_roots(ROOT)
 VENDOR_ROOT = ROOT / "vendor" / "radm"
 CONFIG = ROOT / "models" / "radm" / "configs" / "training" / "radm_cgl.yaml"
 EVALUATOR = (
@@ -47,7 +48,7 @@ def sha256_file(path: Path) -> str:
 def verify_workspace_sources() -> dict[str, str]:
     """Require RADM and its workspace dependencies to come from this checkout."""
     try:
-        return verify_workspace_source_paths()
+        return verify_workspace_source_paths(ROOT)
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
 

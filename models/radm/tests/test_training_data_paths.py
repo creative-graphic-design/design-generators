@@ -810,6 +810,53 @@ def test_s5_launcher_rejects_workspace_packages_outside_source_tree(
         verify_workspace_sources()
 
 
+def test_workspace_source_verification_rejects_foreign_radm_import(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).parents[3].resolve()
+    foreign_source = tmp_path / "foreign-radm" / "src"
+    foreign_package = foreign_source / "radm"
+    foreign_package.mkdir(parents=True)
+    (foreign_package / "__init__.py").write_text("", encoding="utf-8")
+    script = """
+import importlib.util
+from pathlib import Path
+import sys
+
+root, foreign_source = map(Path, sys.argv[1:])
+sys.path[:0] = [
+    str(foreign_source),
+    str(root / "models/radm/src"),
+    str(root / "lib/traingen/src"),
+    str(root / "lib/traingen-parity/src"),
+    str(root / "lib/laygen/src"),
+    str(root / "lib/posgen/src"),
+]
+import radm
+assert Path(radm.__file__).resolve().is_relative_to(foreign_source.resolve())
+
+helper_path = root / "models/radm/src/radm/training/source_paths.py"
+spec = importlib.util.spec_from_file_location("source_paths", helper_path)
+assert spec is not None and spec.loader is not None
+source_paths = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(source_paths)
+try:
+    source_paths.verify_workspace_sources(root)
+except RuntimeError as exc:
+    assert "radm resolves outside repository source tree" in str(exc)
+else:
+    raise AssertionError("foreign RADM source passed workspace verification")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(root), str(foreign_source)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.parametrize(
     "package", ("radm", "laygen", "posgen", "traingen", "traingen_parity")
 )

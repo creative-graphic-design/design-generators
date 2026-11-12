@@ -83,7 +83,7 @@ def validate_terminal_checkpoint(
     if not isinstance(raw_manifest, dict):
         raise RuntimeError("launch manifest must be a JSON object")
     manifest = cast(CGLS5LaunchManifest, raw_manifest)
-    workspace_source_paths = verify_workspace_sources()
+    workspace_source_paths = verify_workspace_sources(ROOT)
     radm_source_path = workspace_source_paths["radm"]
     current_evaluator_source_commit = evaluator_source_commit()
     current_evaluator_source_status = evaluator_source_status()

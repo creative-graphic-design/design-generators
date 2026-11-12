@@ -105,7 +105,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     vendor_checkpoint = _required_env("RADM_E2E_VENDOR_CHECKPOINT")
     manifest = _required_env("RADM_E2E_PACKAGE_MANIFEST")
     data_root = Path(
-        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm_cgl"))
     )
     assert data_root.is_absolute()
     test_image_stems = {
