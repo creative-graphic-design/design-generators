@@ -10,10 +10,11 @@ import shutil
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TypeAlias, TypeGuard, cast
+from typing import TypeAlias, TypeGuard
 
 import numpy as np
 import torch
+from jaxtyping import Shaped
 from typing_extensions import TypeAliasType
 
 
@@ -43,6 +44,18 @@ safe_input_type = TypeAliasType(
     | list["safe_input_type"]
     | tuple["safe_input_type", ...],
 )
+
+
+def _is_int_tuple(value: safe_value_type) -> TypeGuard[tuple[int, ...]]:
+    return isinstance(value, tuple) and all(isinstance(item, int) for item in value)
+
+
+def _is_tensor_list(
+    value: safe_value_type,
+) -> TypeGuard[list[Shaped[torch.Tensor, "..."]]]:
+    return isinstance(value, list) and all(
+        isinstance(item, torch.Tensor) for item in value
+    )
 
 
 def _is_safe_input_mapping(
@@ -132,21 +145,19 @@ def capture_rng_state() -> dict[str, safe_value_type]:
     }
 
 
-def _python_random_state(value: safe_value_type) -> PythonRandomState:
+def python_random_state(value: safe_value_type) -> PythonRandomState:
+    """Validate and return the standard-library Python RNG state tuple."""
     if not isinstance(value, tuple) or len(value) != 3:
         raise TypeError("checkpoint Python RNG state has an invalid shape")
 
     version, internal, gaussian = value
-    if not isinstance(version, int) or not isinstance(internal, tuple):
-        raise TypeError("checkpoint Python RNG state has an invalid shape")
-
-    if not all(isinstance(item, int) for item in internal):
+    if not isinstance(version, int) or not _is_int_tuple(internal):
         raise TypeError("checkpoint Python RNG state has an invalid shape")
 
     if gaussian is not None and not isinstance(gaussian, float):
         raise TypeError("checkpoint Python RNG state has an invalid shape")
 
-    return version, cast(tuple[int, ...], internal), gaussian
+    return version, internal, gaussian
 
 
 def safe_string_mapping(
@@ -173,7 +184,7 @@ def restore_rng_state(state: Mapping[str, safe_value_type]) -> None:
     if not isinstance(python_state, tuple) or not isinstance(numpy_state, Mapping):
         raise TypeError("checkpoint RNG state has an invalid shape")
 
-    random.setstate(_python_random_state(python_state))
+    random.setstate(python_random_state(python_state))
     numpy_values = safe_string_mapping(numpy_state, "checkpoint NumPy RNG state")
     np_keys = numpy_values["keys"]
     if isinstance(np_keys, torch.Tensor):
@@ -201,15 +212,13 @@ def restore_rng_state(state: Mapping[str, safe_value_type]) -> None:
         raise RuntimeError("checkpoint contains CUDA RNG state but CUDA is unavailable")
 
     if torch.cuda.is_available():
-        if not cuda_state or not all(
-            isinstance(item, torch.Tensor) for item in cuda_state
-        ):
+        if not cuda_state or not _is_tensor_list(cuda_state):
             raise TypeError("checkpoint CUDA RNG state is missing or not a tensor list")
 
         if len(cuda_state) != torch.cuda.device_count():
             raise RuntimeError("checkpoint CUDA RNG state does not match device count")
 
-        torch.cuda.set_rng_state_all(cast(list[torch.Tensor], cuda_state))
+        torch.cuda.set_rng_state_all(cuda_state)
 
 
 def save_weights_only_checkpoint(
@@ -283,6 +292,30 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _bundle_matches(
+    destination: Path,
+    source_files: Mapping[str, Path],
+    launch_manifest: Path,
+    bundle_relative: Path,
+) -> bool:
+    expected_files = {
+        name: sha256_file(source) for name, source in source_files.items()
+    }
+    expected_files["launch_manifest.json"] = sha256_file(launch_manifest)
+    expected = {"files": expected_files, "checkpoint": bundle_relative.as_posix()}
+    try:
+        actual = json.loads(
+            (destination / "bundle_manifest.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    return actual == expected and all(
+        (destination / name).is_file() and sha256_file(destination / name) == digest
+        for name, digest in expected_files.items()
+    )
+
+
 def publish_checkpoint_bundle(
     source_files: Mapping[str, Path],
     launch_manifest: Path,
@@ -297,9 +330,20 @@ def publish_checkpoint_bundle(
     if not durable_root.is_dir():
         raise ValueError("durable root must already be an existing directory")
 
+    for name, source in source_files.items():
+        if Path(name).is_absolute() or ".." in Path(name).parts:
+            raise ValueError("bundle file names must be relative")
+
+        if not source.is_file():
+            raise FileNotFoundError(source)
+
+    if not launch_manifest.is_file():
+        raise FileNotFoundError(launch_manifest)
+
     destination = durable_root / relative
     if destination.exists():
-        raise FileExistsError(destination)
+        if _bundle_matches(destination, source_files, launch_manifest, relative):
+            return destination
 
     missing_parents: list[Path] = []
     parent = destination.parent
@@ -316,12 +360,6 @@ def publish_checkpoint_bundle(
     try:
         hashes: dict[str, str] = {}
         for name, source in source_files.items():
-            if Path(name).is_absolute() or ".." in Path(name).parts:
-                raise ValueError("bundle file names must be relative")
-
-            if not source.is_file():
-                raise FileNotFoundError(source)
-
             target = temporary / name
             target.parent.mkdir(parents=True, exist_ok=True)
             hashes[name] = _copy_and_hash(source, target)
@@ -350,6 +388,13 @@ def publish_checkpoint_bundle(
             _fsync_directory(directory)
 
         _fsync_directory(temporary)
+        if destination.exists():
+            superseded = destination.with_name(
+                f"{destination.name}-superseded-{uuid.uuid4().hex}"
+            )
+            os.replace(destination, superseded)
+            _fsync_directory(destination.parent)
+
         os.replace(temporary, destination)
         _fsync_directory(destination.parent)
     finally:
@@ -376,8 +421,11 @@ def retain_checkpoint_bundles(
     bundles = [
         path
         for path in track.glob("epoch-*")
-        if path.is_dir() and (path / "bundle_manifest.json").is_file()
+        if path.is_dir()
+        and "-superseded-" not in path.name
+        and (path / "bundle_manifest.json").is_file()
     ]
+    superseded = [path for path in track.glob("epoch-*-superseded-*") if path.is_dir()]
 
     def bundle_key(path: Path) -> tuple[int, bool]:
         stem = path.name.removeprefix("epoch-")
@@ -396,7 +444,7 @@ def retain_checkpoint_bundles(
     best = sorted((path for path in bundles if bundle_key(path)[1]), key=bundle_key)
     keep = set(regular[-keep_latest:])
     keep.update(best[-1:])
-    for path in bundles:
+    for path in (*bundles, *superseded):
         if path not in keep:
             shutil.rmtree(path)
 
@@ -408,6 +456,7 @@ __all__ = [
     "load_weights_only_checkpoint",
     "make_weights_only_safe",
     "publish_checkpoint_bundle",
+    "python_random_state",
     "retain_checkpoint_bundles",
     "resolve_durable_root",
     "restore_rng_state",

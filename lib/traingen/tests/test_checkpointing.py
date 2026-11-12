@@ -64,6 +64,7 @@ def test_checkpoint_bundle_hashes_files_and_publishes_atomically(
         (bundle / "bundle_manifest.json").read_text(encoding="utf-8")
     )
     assert bundle.name == "epoch-000001"
+    assert bundle_manifest["checkpoint"] == "track/epoch-000001"
     assert set(bundle_manifest["files"]) == {"checkpoint.pt", "launch_manifest.json"}
     assert not list((bundle.parent).glob("*.tmp"))
 
@@ -151,6 +152,9 @@ def test_checkpoint_bundle_retention_keeps_two_epochs_and_best(tmp_path: Path) -
     best = track / "epoch-000002-best"
     best.mkdir(parents=True)
     (best / "bundle_manifest.json").write_text("{}", encoding="utf-8")
+    superseded = track / "epoch-000003-superseded-old"
+    superseded.mkdir()
+    (superseded / "bundle_manifest.json").write_text("{}", encoding="utf-8")
 
     retain_checkpoint_bundles(tmp_path, "track")
 
@@ -160,6 +164,7 @@ def test_checkpoint_bundle_retention_keeps_two_epochs_and_best(tmp_path: Path) -
         "epoch-000002-best",
     }
     assert best.is_dir()
+    assert not superseded.exists()
 
 
 def test_weights_only_safe_rejects_unsupported_values_and_keys() -> None:
@@ -313,11 +318,87 @@ def test_publish_bundle_rejects_invalid_paths_and_cleans_temporary_bundle(
     published = publish_checkpoint_bundle(
         {"checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-3"
     )
-    with pytest.raises(FileExistsError):
+    assert (
         publish_checkpoint_bundle(
             {"checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-3"
         )
+        == published
+    )
+
+    checkpoint.write_bytes(b"changed checkpoint")
+    assert (
+        publish_checkpoint_bundle(
+            {"checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-3"
+        )
+        == published
+    )
+    superseded = list(published.parent.glob("epoch-3-superseded-*"))
+    assert len(superseded) == 1
+    assert (superseded[0] / "checkpoint.pt").read_bytes() == b"checkpoint"
+    assert (published / "checkpoint.pt").read_bytes() == b"changed checkpoint"
     assert published.is_dir()
+
+
+def test_publish_bundle_keeps_old_copy_until_replacement_is_durable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = tmp_path / "checkpoint.pt"
+    manifest = tmp_path / "launch_manifest.json"
+    checkpoint.write_bytes(b"old checkpoint")
+    manifest.write_text("{}", encoding="utf-8")
+    durable = tmp_path / "durable"
+    durable.mkdir()
+    published = publish_checkpoint_bundle(
+        {"nested/checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-1"
+    )
+
+    checkpoint.write_bytes(b"new checkpoint")
+    fsynced_directories: set[Path] = set()
+    superseded: Path | None = None
+    replacements = 0
+    original_fsync_directory = checkpointing._fsync_directory
+    original_replace = os.replace
+
+    def record_fsync_directory(path: Path) -> None:
+        original_fsync_directory(path)
+        fsynced_directories.add(path)
+
+    def record_replace(
+        source: str | os.PathLike[str], target: str | os.PathLike[str]
+    ) -> None:
+        nonlocal replacements, superseded
+        source_path, target_path = Path(source), Path(target)
+        if source_path == published:
+            assert target_path.name.startswith("epoch-1-superseded-")
+            assert (
+                source_path / "nested" / "checkpoint.pt"
+            ).read_bytes() == b"old checkpoint"
+            superseded = target_path
+        else:
+            assert target_path == published
+            assert superseded is not None and superseded.is_dir()
+            assert (
+                superseded / "nested" / "checkpoint.pt"
+            ).read_bytes() == b"old checkpoint"
+            assert (
+                source_path / "nested" / "checkpoint.pt"
+            ).read_bytes() == b"new checkpoint"
+            assert source_path in fsynced_directories
+            assert source_path / "nested" in fsynced_directories
+
+        replacements += 1
+        original_replace(source, target)
+
+    monkeypatch.setattr(checkpointing, "_fsync_directory", record_fsync_directory)
+    monkeypatch.setattr(checkpointing.os, "replace", record_replace)
+
+    publish_checkpoint_bundle(
+        {"nested/checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-1"
+    )
+
+    assert replacements == 2
+    assert superseded is not None and superseded.is_dir()
+    assert (published / "nested" / "checkpoint.pt").read_bytes() == b"new checkpoint"
 
 
 def test_publish_bundle_refuses_missing_durable_root(tmp_path: Path) -> None:
