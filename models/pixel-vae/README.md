@@ -21,10 +21,10 @@ model-index:
           type: "cyberagent/crello"
           name: "Crello v1"
           config: "crello-dataset-v1.zip"
-          split: "CPU implementation parity only; no trained-checkpoint evaluation"
+          split: "one 250-epoch run completed; S5 test evaluation not claimed"
         metrics:
           - type: "vendor-parity"
-            value: "CPU S0-S4 passed; all 17 held-out metrics met frozen limits"
+            value: "CPU parity passed; all 17 held-out metrics met frozen limits"
             name: "Agreement with the original implementation"
 ---
 
@@ -40,9 +40,11 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports the image encoder and decoder from [CanvasVAE](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), the ICCV 2021 vector-document VAE, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package. Its MobileNetV2 encoder maps 256 × 256 RGBA previews to the 256-dimensional posterior mean used by CanvasVAE document records. The package is a separate workspace member so it can be converted, serialized, and parity-checked independently before the document model consumes it.
+This package implements PixelVAE as a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style image encoder and decoder. PixelVAE is the image encoder used by CanvasVAE; its MobileNetV2 maps each 256 × 256 RGBA image element to the 256-value posterior mean consumed by the layout model.
 
-CPU parity passed on one deterministic, untrained TensorFlow state copied to PyTorch: all 17 held-out metrics met their frozen per-metric limits, and state mapping, decode, and encoder save/load checks passed. This verifies conversion only; no trained-checkpoint or embedding-quality result is claimed. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the evidence and [EMBEDDING_CONTRACT.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/EMBEDDING_CONTRACT.md) for the shared Crello input and output contract.
+CPU parity compares the original TensorFlow implementation with the PyTorch package on one deterministic, untrained state. A separate CPU check compared 17 values with limits fixed in advance; all 17 passed. State mapping, image decoding, and encoder save/load checks passed.
+
+The original and package each completed one 250-epoch Crello v1 run. Their validation values were `184.70` with deterministic posterior means and `193.7491` with sampled-posterior validation; they are references only and are not comparable. The planned three-seed training and test evaluations for both systems were deferred because the estimate exceeded the available compute limit. PixelVAE training reproduction is not verified. The CanvasVAE comparison uses a shared cache made with untrained original PixelVAE weights. It does not evaluate package PixelVAE training. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md).
 
 ## Model Details
 
@@ -138,23 +140,33 @@ Captured output will be added after running the example against the converted CP
 
 ### Training Data
 
-| Dataset | Dataset ID                                                               | Notes                                                                                            |
-| ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| Crello  | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | Original-code parity uses a private v1 archive; the archive and derived embeddings stay private. |
+| Dataset | Dataset ID                                                               | Notes                                                                                                        |
+| ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Crello  | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | The public v1 source archive is available for original-code parity; keep the archive and derived data local. |
 
 Original-code parity uses [crello-dataset-v1.zip](https://storage.googleapis.com/ailab-public/canvas-vae/crello-dataset-v1.zip), 2,989,732,284 bytes with SHA-256 `f6cab2d0c4d888f5082e3b19cfa841c6f483cecdfcbc02a30bc87bd3393cf91e`. Keep the archive and derived embeddings private.
 
 ### Training Procedure
 
-This package does not include a package-local training loop or a trained checkpoint. It supports checkpoint conversion and CPU parity; GPU training, full-run evaluation, and S5 are out of scope.
+This package includes a Lightning training module and a `traingen` configuration. The original and package Crello v1 training runs each completed 250 epochs. The package's recorded `193.7491` validation value was sampled-posterior; the original's `184.70` used deterministic posterior means. These values are not comparable. The epoch-249 best checkpoint used sampled-posterior validation, unlike the original's deterministic-mean selection. The exported encoder depends on that choice. The encoder was re-exported on CPU; its SHA-256 is `b7925fe15d057925d2b3c28cebe920aa7bb5b88d9988d29e450610b7ba5c9c22`. The existing cache came from the epoch-250 `last.ckpt` encoder (SHA-256 `dd8ed8e8a85bae96eeba8a2cbf5cfdad7b5e23a5456f856039db63ef279a53f2`), not the best encoder. No cache was regenerated from the best encoder. CanvasVAE uses a separate untrained-original cache. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) for the PixelVAE training status.
 
 #### Preprocessing
 
-Decode every document-stage `image_bytes` PNG to RGBA at its original 256 × 256 dimensions, then map byte values to float32 `[0, 1]`. The encoder consumes all element types for document construction. Original PixelVAE training records select only `imageElement`, `maskElement`, and `svgElement`.
+The training data module reads the original image-record export under `.cache/pixel-vae/data/crello-image/`, which contains `count.json` and train/validation TFRecords with one `image` byte feature per example. Build these files using the commands in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md). The transform selects only `imageElement`, `maskElement`, and `svgElement` and deduplicates identical PNG bytes within each split. The image processor decodes each selected PNG to its original 256 × 256 RGBA pixels and scales byte values to float32 `[0, 1]`.
 
 #### Training Hyperparameters
 
-- **Training regime:** not retrained; the original configuration uses batch size 64, 250 epochs, Adam at 1e-4, KL weight 100, and L2 weight 1e-6.
+- **Training regime:** batch size 64 for 250 epochs with `KerasAdam`, constant learning rate `1e-4`, KL weight 100, and L2 weight `1e-6`; validation selects minimum reconstruction loss.
+
+Train from the repository root after preparing the filtered image-record export:
+
+```bash
+uv sync --package pixel-vae --extra training
+uv run --package pixel-vae --extra training traingen fit \
+  --config models/pixel-vae/configs/training/pixel_vae_crello.yaml
+```
+
+The config sets `default_root_dir` to `.cache/pixel-vae/training-runs/crello` and leaves the checkpoint callback's `dirpath` unset. Lightning writes `best.ckpt` under `lightning_logs/version_N/checkpoints/` beneath that root; use that file for encoder export.
 
 ## Evaluation
 
@@ -170,7 +182,7 @@ The source and package receive identical PNG bytes decoded to RGBA uint8 values,
 
 #### Metrics
 
-Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction/KL/total loss, gradients, Keras Adam moments, updated parameters, and a three-step short trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric, rounding upward to two significant figures while preserving the per-metric floor `L` from [parity-limit-floors.json](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json). The held-out run uses a fresh normal-mode CPU process; image decode and structural S0/S4 gates require exact equality.
+Compare maximum absolute error for posterior means, posterior log variances, decoder logits, reconstruction, KL, total loss, gradients, Keras Adam moments, updated parameters, and the three-step trace. Calibration uses three independent CPU processes on distinct train image groups and freezes `max(L, ceil2(1.5 × max))` per metric. Limits round upward to two significant figures while preserving per-metric floor `L`. The per-metric floors are listed in [parity-limit-floors.json](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/parity-limit-floors.json). The held-out run uses a fresh normal-mode CPU process. Image decode and structural S0/S4 gates require exact equality.
 
 ### Parity Results
 
@@ -186,7 +198,7 @@ The CPU acceptance passed against one deterministic, untrained TensorFlow state 
 
 ## Reproducibility
 
-Reproduce agreement with the original TensorFlow implementation using [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md), which covers the pinned source, private Crello archive, three-run CPU calibration, held-out validation, conversion, and local loading. No trained-checkpoint reproduction is claimed.
+Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/REPRODUCING.md) for CPU agreement, conversion, and local loading. It covers the pinned source, Crello inputs, three-run calibration, and held-out validation. [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/pixel-vae/TRAINING.md) gives the training procedure and status.
 
 ## Technical Specifications
 
@@ -198,11 +210,11 @@ The encoder uses Keras MobileNetV2 topology with a four-channel first convolutio
 
 #### Hardware
 
-The only verified runtime in this package is CPU; GPU training and S5 evaluation have no result and are not claimed.
+The 250-epoch package training used an A100 for epochs 1–227 and a Tesla V100-SXM2-32GB for the continuation.
 
 #### Software
 
-The model uses PyTorch and [`🤗transformers`](https://huggingface.co/docs/transformers/index). Conversion and source comparison require TensorFlow CPU 2.15.1. See the package `pyproject.toml` for workspace dependencies.
+The model uses PyTorch and `transformers`. Conversion and source comparison require TensorFlow CPU 2.15.1. See the package `pyproject.toml` for workspace dependencies.
 
 ## Citation
 

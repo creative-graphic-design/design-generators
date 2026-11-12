@@ -152,13 +152,13 @@ def main() -> None:
     parser.add_argument(
         "--source-root",
         type=Path,
-        default=Path("vendor/layout-generation-baselines/LayoutVAE"),
+        default=(Path("vendor") / "layout-generation-baselines" / "LayoutVAE"),
         help="Path to the LayoutVAE source root.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-vae/reference"),
+        default=Path(".cache") / "layout-vae" / "reference",
         help="Directory for reference metadata.",
     )
     parser.add_argument("--seed", type=int, default=0, help="Reference seed.")

@@ -28,8 +28,10 @@ from posterllava.processing_posterllava import (
 )
 
 
-VENDOR_ROOT = Path("vendor/posterllava")
-REFERENCE_JSON = Path(".cache/posterllava/reference/posterllava_reference.json")
+VENDOR_ROOT = Path("vendor") / "posterllava"
+REFERENCE_JSON = (
+    Path(".cache") / "posterllava" / "reference" / "posterllava_reference.json"
+)
 
 
 class TinyEncoding(dict[str, list[int]]):

@@ -1,0 +1,117 @@
+name: Publish model packages to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Find changed packages with publishers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      publisher_matrix: ${{ steps.select.outputs.publisher_matrix }}
+      has_publishers: ${{ steps.select.outputs.has_publishers }}
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Select changed model packages with publisher scripts
+        id: select
+        env:
+          PYTHONPATH: tools/devharness/src
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            publisher_matrix="$(python scripts/select_hub_publishers.py)"
+          else
+            publisher_matrix="$(python scripts/select_hub_publishers.py --base "$BASE_SHA" --head "$HEAD_SHA")"
+          fi
+          has_publishers="$(python -c 'import json, sys; print("true" if json.loads(sys.argv[1])["include"] else "false")' "$publisher_matrix")"
+          printf 'publisher_matrix=%s\n' "$publisher_matrix" >> "$GITHUB_OUTPUT"
+          printf 'has_publishers=%s\n' "$has_publishers" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish ${{ matrix.package }}
+    needs: discover
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.discover.outputs.has_publishers == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: hub-publish-${{ matrix.package }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.publisher_matrix) }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Skip publication when main has a newer package change
+        id: freshness
+        env:
+          PYTHONPATH: tools/devharness/src
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          freshness_result="$(python scripts/select_hub_publishers.py \
+            --check-freshness \
+            --package-directory "$PACKAGE_DIRECTORY" \
+            --event-revision "$EVENT_SHA" \
+            --main-ref origin/main)"
+          is_current="$(python -c 'import json, sys; print("true" if json.loads(sys.argv[1])["is_current"] else "false")' "$freshness_result")"
+          if [ "$is_current" = "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping stale publication for $PACKAGE_DIRECTORY; a newer main commit changed this package."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        if: steps.freshness.outputs.publish == 'true'
+        with:
+          enable-cache: true
+
+      - name: Install package environment
+        if: steps.freshness.outputs.publish == 'true'
+        env:
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: uv sync --package "$PACKAGE_NAME" --frozen
+
+      - name: Publish package to Hugging Face
+        if: steps.freshness.outputs.publish == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PACKAGE_DIRECTORY: ${{ matrix.directory }}
+          PACKAGE_NAME: ${{ matrix.package }}
+        run: |
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
+            exit 1
+          fi
+          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=1.5.0,<2" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py" --revision "$GITHUB_SHA"

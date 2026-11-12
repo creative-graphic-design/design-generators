@@ -59,4 +59,4 @@ Run the affected member tests and the repository gates in `docs/implementation-c
 
 For root-only documentation changes, the final pre-commit command is still required. If a package has extras for vendor or parity work, document the exact extra in the README and PR body.
 
-Use `.github/PULL_REQUEST_TEMPLATE.md` and the lifecycle in `AGENTS.md`. Report the implemented matrix, measured parity and smoke-test results, exact commands, checklist deviations, license questions, and publication state. Local artifacts and verified parity can be complete while Hub publication remains unrequested.
+Use `.github/PULL_REQUEST_TEMPLATE.md` and the lifecycle in `AGENTS.md`. Report the implemented matrix, measured parity and smoke-test results, exact commands, checklist deviations, license questions, and publication state. A model pull request does not publish to Hub; after merge, the main-push workflow runs the package-local procedure for each changed package that defines one. Track publication separately from local serialization and parity verification.

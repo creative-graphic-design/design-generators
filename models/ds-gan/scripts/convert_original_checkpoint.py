@@ -27,13 +27,13 @@ def main() -> None:
     parser.add_argument(
         "--input-checkpoint",
         type=Path,
-        default=Path(".cache/ds-gan/original/DS-GAN-Epoch300.pth"),
+        default=Path(".cache") / "ds-gan" / "original" / "DS-GAN-Epoch300.pth",
         help="Path to the original vendor DS-GAN checkpoint.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/ds-gan/converted/ds-gan-pku-posterlayout"),
+        default=Path(".cache") / "ds-gan" / "converted" / "ds-gan-pku-posterlayout",
         help="Directory where converted pipeline files are written.",
     )
     args = parser.parse_args()

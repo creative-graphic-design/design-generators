@@ -18,7 +18,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/smarttext/converted/smarttext-smt"),
+        default=Path(".cache") / "smarttext" / "converted" / "smarttext-smt",
     )
     args = parser.parse_args()
     report = convert_original_checkpoints(

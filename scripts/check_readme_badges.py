@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from devharness.hub_publishers import (
+    HUB_BADGE_COLORS,
+    assert_hub_badge_matches_publisher,
+    discover_publishers,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BADGE_RE = re.compile(
@@ -174,6 +179,7 @@ PAPER_LINKS = {
     ("arXiv", "2108.01249"): "https://arxiv.org/abs/2108.01249",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
     ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
+    ("arXiv", "2303.00262"): "https://arxiv.org/abs/2303.00262",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
@@ -182,6 +188,7 @@ PAPER_LINKS = {
     ("arXiv", "2308.12700"): "https://arxiv.org/abs/2308.12700",
     ("arXiv", "2311.06495"): "https://arxiv.org/abs/2311.06495",
     ("arXiv", "2311.13602"): "https://arxiv.org/abs/2311.13602",
+    ("arXiv", "2212.05032"): "https://arxiv.org/abs/2212.05032",
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2404.00995"): "https://arxiv.org/abs/2404.00995",
     ("arXiv", "2406.02884"): "https://arxiv.org/abs/2406.02884",
@@ -403,6 +410,9 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
             return "lightgrey"
 
     if label == "hub":
+        if message in HUB_BADGE_COLORS:
+            return HUB_BADGE_COLORS[message]
+
         return "lightgrey" if message == "n/a" else "orange"
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
 
@@ -580,6 +590,23 @@ def _assert_badge_links() -> None:
                 )
 
 
+def _assert_hub_badge_status() -> None:
+    publisher_directories = {
+        publisher.directory.name for publisher in discover_publishers(REPO_ROOT)
+    }
+    for path in sorted((REPO_ROOT / "models").glob("*/README.md")):
+        messages = [
+            badge.message
+            for badge in _iter_badges(path)
+            if badge.label == "hub" and badge.message is not None
+        ]
+        assert_hub_badge_matches_publisher(
+            path.parent.name,
+            messages,
+            publisher_directories,
+        )
+
+
 def _assert_prefix(path: Path, expected: list[str]) -> None:
     labels = _badge_labels(path)
     if labels[: len(expected)] != expected:
@@ -619,10 +646,11 @@ def _assert_model_order(path: Path) -> None:
 
 def check() -> None:
     _assert_prefix(REPO_ROOT / "README.md", ROOT_ORDER)
-    _assert_prefix(REPO_ROOT / "lib/laygen/README.md", LAYGEN_ORDER)
-    _assert_prefix(REPO_ROOT / "lib/posgen/README.md", POSGEN_ORDER)
+    _assert_prefix(REPO_ROOT / "lib" / "laygen" / "README.md", LAYGEN_ORDER)
+    _assert_prefix(REPO_ROOT / "lib" / "posgen" / "README.md", POSGEN_ORDER)
     for path in sorted((REPO_ROOT / "models").glob("*/README.md")):
         _assert_model_order(path)
+    _assert_hub_badge_status()
     _assert_badge_links()
 
 

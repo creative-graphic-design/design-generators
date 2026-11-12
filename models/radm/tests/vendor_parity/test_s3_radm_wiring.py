@@ -34,7 +34,7 @@ def test_s3_radm_production_traingen_fit_wiring(
 ) -> None:
     """Exercise the CGL fit boundary and its observable training artifacts."""
     project_root = Path(__file__).resolve().parents[4]
-    config = project_root / "models/radm/configs/training/radm_cgl.yaml"
+    config = project_root / "models" / "radm" / "configs" / "training" / "radm_cgl.yaml"
     output_root = tmp_path / "fit"
     logger_root = output_root / "logs"
     checkpoint_root = output_root / "checkpoints"

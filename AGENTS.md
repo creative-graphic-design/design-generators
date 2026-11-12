@@ -84,10 +84,12 @@
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
 - Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair.
-- Treat publication to the `creative-graphic-design` Hugging Face organization as a separate approved step.
+- Treat merging a model package to `main` as approval to publish it to the `creative-graphic-design` Hugging Face organization. The main-push workflow selects changed model packages with `scripts/publish_to_hub.py` and runs only those package-local procedures; pull requests and merge queue entries never receive the publishing secret.
+- The shared repository secret `HF_TOKEN` is required for an eligible publication run, and the workflow must fail clearly when it is missing. Use a Hugging Face fine-grained token that grants content-write permission only to the Hub repositories whose packages define publishers; do not grant organization-wide access. When adding a package publisher, add its destination repository to the token's resource scope. Each publisher checks write access before upload and must clearly name its destination when access is missing.
 - Track publication separately from local serialization and parity verification.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
-- Hub publishing is deferred and is not part of the per-issue close condition.
+- Hub publishing runs after the package merge through the main-push workflow and remains separate from the per-issue close condition.
+- A model README's Hub badge follows publisher presence: packages with `scripts/publish_to_hub.py` use the matching `published-*` value. Packages without it retain their planned or other pre-publication value. `devharness check model-readmes` and `scripts/check_readme_badges.py` enforce this rule through shared publisher discovery; see [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for the value mapping.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
@@ -109,6 +111,7 @@
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
+- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories.
 - `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
 - `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
 - `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.
@@ -119,9 +122,10 @@
 
 ### Documentation Checks
 
-- `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
+- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
+- `devharness check model-readmes` rejects CPU strings and `.cpu()` in README, REPRODUCING, templates, and cards. It allows direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
 - `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
-- `scripts/check_readme_badges.py` enforces README badge contracts.
+- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
 - `scripts/check_training_doc_template.py` enforces training-document structure.
@@ -134,8 +138,12 @@
 - `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
-- The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
-- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and member tests selected from declared workspace dependencies, optional dependencies, and dependency groups for pull requests and merge queue entries; every non-Markdown change also selects `devharness`, non-Markdown changes outside member directories select all members with tests, and non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
+- The Lint job runs `uv lock --check`; its pre-commit step uses `SKIP=uv-lock,pytest-models,vulture,ty,duplicate-code`.
+- The `Duplicate Code` job uses root-tooling dependencies to compare changed Python files with `origin/main` on merge queue and manual dispatches targeting non-main branches.
+- Main pushes, scheduled runs, and manual dispatches targeting `main` have no changed targets, so `Duplicate Code` skips them. `Dead Code` continues full-repository scans on those events.
+- Pull requests and merge queue entries run `ty`, root tests, generated API pages, strict Zensical, and selected member tests.
+- Member tests follow declared workspace dependencies, optional dependencies, and dependency groups; every non-Markdown change also selects `devharness`.
+- Non-Markdown changes outside member directories select all members with tests; non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.

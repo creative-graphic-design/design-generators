@@ -156,7 +156,7 @@ def test_campaign_root_must_match_its_repository_relative_name() -> None:
 
     assert validate_campaign_root(campaign_rel, expected) == expected
     with pytest.raises(RuntimeError, match="CAMPAIGN_ROOT does not match CAMPAIGN_REL"):
-        validate_campaign_root(campaign_rel, REPOSITORY / ".cache/other")
+        validate_campaign_root(campaign_rel, REPOSITORY / ".cache" / "other")
 
 
 def test_pretraining_failure_is_recorded_as_retryable(tmp_path: Path) -> None:
@@ -371,7 +371,7 @@ def test_pruning_error_stops_process_group_and_is_recorded(
     monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
     monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
     monkeypatch.setattr(
-        launch_track.sys, "executable", str(package_environment / "bin/python")
+        launch_track.sys, "executable", str(package_environment / "bin" / "python")
     )
     monkeypatch.setattr(
         launch_track,

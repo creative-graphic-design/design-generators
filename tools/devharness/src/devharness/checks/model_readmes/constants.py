@@ -32,6 +32,7 @@ DOCS_MODEL_TABLE_HEADER = [
     "Paper",
     "Docs",
 ]
+DOCS_LIBRARY_TABLE_HEADER = ["Library", "Description", "Docs"]
 MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
 IMAGE_GENERATION_CATEGORY = "image generation"
 MODEL_TYPE_VALUES = (*MODEL_CONTENT_VALUES, IMAGE_GENERATION_CATEGORY)
@@ -161,6 +162,7 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "collage-diffusion": {"license": "apache-2.0", "datasets": []},
     "cgb-dm": {
         "license": "apache-2.0",
         "datasets": [
@@ -320,6 +322,7 @@ EXPECTED_FRONTMATTER = {
     },
     "smarttext": {"license": "other", "datasets": ["SmartText demo"]},
     "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
+    "structure-diffusion": {"license": "apache-2.0", "datasets": []},
 }
 
 EXPECTED_PIPELINE_TAGS = {"pixel-vae": "image-feature-extraction"}
@@ -327,6 +330,7 @@ EXPECTED_MODEL_INDEX_TASKS = {"pixel-vae": "image-feature-extraction"}
 
 
 EXPECTED_MODEL_NAMES = {
+    "collage-diffusion": "Collage Diffusion",
     "coarse-to-fine": "Coarse-to-Fine",
     "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
@@ -358,9 +362,11 @@ EXPECTED_MODEL_NAMES = {
     "ralf": "RALF",
     "smarttext": "SmartText",
     "basnet": "BASNet",
+    "structure-diffusion": "StructureDiffusion",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
+    "collage-diffusion": "https://github.com/VSAnimator/collage-diffusion",
     "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layout-diffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
@@ -383,9 +389,12 @@ EXPECTED_REPOSITORY_LINKS = {
     "basnet": "https://github.com/xuebinqin/BASNet",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
+    "structure-diffusion": "https://github.com/weixi-feng/Structured-Diffusion-Guidance",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
+CODE_ONLY_SLUGS = {"collage-diffusion"}
+NO_MODEL_WEIGHTS_SLUGS = PROMPT_ONLY_SLUGS | CODE_ONLY_SLUGS
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",
     "converted behavior follows the upstream checkpoints",

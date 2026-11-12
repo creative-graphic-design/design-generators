@@ -187,7 +187,7 @@ def test_s0_label_map_normalization_and_invalid_maps_fail_closed() -> None:
 
 
 def test_s0_twelve_standalone_yamls_match_registry() -> None:
-    config_dir = Path("models/layoutformerpp/configs/training")
+    config_dir = Path("models") / "layoutformerpp" / "configs" / "training"
     paths = sorted(config_dir.glob("*.yaml"))
     assert [path.stem for path in paths] == sorted(TRAINING_RECIPES_BY_NAME)
     invariant_wiring: set[tuple[object, ...]] = set()
@@ -245,7 +245,13 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
 def test_s0_twelve_yamls_construct_with_bounded_lightning_cli(
     config_name: str,
 ) -> None:
-    path = Path("models/layoutformerpp/configs/training") / f"{config_name}.yaml"
+    path = (
+        Path("models")
+        / "layoutformerpp"
+        / "configs"
+        / "training"
+        / f"{config_name}.yaml"
+    )
     cli = LightningCLI(
         model_class=None,
         datamodule_class=None,

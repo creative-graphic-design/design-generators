@@ -99,7 +99,8 @@ def test_coordinator_identity_is_recorded_and_reports_use_it() -> None:
     ):
         assert required in template
 
-    assert "`main`" not in source
+    assert "merging a package to `main` approves its configured Hub procedure" in source
+    assert "remains with the coordinator and user" not in source
     assert "`main`" not in template
 
 

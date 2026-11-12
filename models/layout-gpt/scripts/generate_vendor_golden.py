@@ -26,8 +26,12 @@ DEFAULT_INPUT_LENGTH_LIMIT: Final[int] = 100_000
 JsonScalar = str | int | float | bool | None
 JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 VendorRecord = dict[str, JsonValue]
-COUNTING_TRAIN_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.train.json")
-COUNTING_VAL_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.val.json")
+COUNTING_TRAIN_JSON: Final[Path] = (
+    Path("dataset") / "NSR-1K" / "counting" / "counting.train.json"
+)
+COUNTING_VAL_JSON: Final[Path] = (
+    Path("dataset") / "NSR-1K" / "counting" / "counting.val.json"
+)
 VENDOR_2D_SCRIPT: Final[str] = "run_layoutgpt_2d.py"
 VENDOR_PARSER_SCRIPT: Final[str] = "parse_llm_output.py"
 

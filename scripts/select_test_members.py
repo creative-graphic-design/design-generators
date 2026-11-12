@@ -15,7 +15,7 @@ from typing import NotRequired, Sequence, TypedDict, cast
 
 
 DEPENDENCY_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkspaceSource(TypedDict, total=False):

@@ -213,19 +213,21 @@ def _scorer_inputs(
 def main() -> None:
     """Run vendor reference generation."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--vendor-dir", type=Path, default=Path("vendor/smarttext"))
+    parser.add_argument("--vendor-dir", type=Path, default=Path("vendor") / "smarttext")
     parser.add_argument("--smt-checkpoint", type=Path, required=True)
     parser.add_argument("--basnet-checkpoint", type=Path, required=True)
     parser.add_argument(
-        "--image-dir", type=Path, default=Path("vendor/smarttext/test_data/SMT")
+        "--image-dir",
+        type=Path,
+        default=Path("vendor") / "smarttext" / "test_data" / "SMT",
     )
     parser.add_argument(
         "--font",
         type=Path,
-        default=Path("vendor/smarttext/test_data/Fonts/verdanab.ttf"),
+        default=Path("vendor") / "smarttext" / "test_data" / "Fonts" / "verdanab.ttf",
     )
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/smarttext/references")
+        "--output-dir", type=Path, default=Path(".cache") / "smarttext" / "references"
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--prompt", default="ICME 2020\n6-10 July, London")

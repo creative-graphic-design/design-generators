@@ -15,7 +15,7 @@ from layout_diffusion.training.datamodule import LayoutDiffusionDataModule
 from layout_diffusion.training.lightning_module import LayoutDiffusionTrainingModule
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 
-EVIDENCE_ROOT = Path(".cache/layout-diffusion/training-evidence")
+EVIDENCE_ROOT = Path(".cache") / "layout-diffusion" / "training-evidence"
 
 
 class GateEvidenceMetadata(TypedDict):

@@ -19,17 +19,15 @@ accepts a same-file swap (one residual violation fixed and one added) when the
 file/rule count is unchanged; that is the granularity of this heuristic.
 
 The checker fails when the working baseline counts differ from the current scan.
-Once a count-format baseline exists in committed ``HEAD``, it also fails if a
-working count is added or increased relative to that commit. During a merge, it
-compares against the incoming parent so upstream baseline entries are not
-mistaken for new violations. This permits only decreasing or removing residual
-counts and prevents hiding a new violation by appending it to the baseline. A
-missing or legacy location-format baseline in ``HEAD`` is treated as an initial
-baseline, which permits the merge that first introduces this checker to
-establish counts for content inherited from main.
+It also rejects added or increased counts relative to the committed baseline:
+``MERGE_HEAD`` during a merge and ``HEAD`` otherwise. This permits only
+decreasing or removing residual counts and prevents hiding a new violation by
+appending it to the baseline. A missing or legacy location-format baseline is
+treated as an initial baseline, which permits the merge that first introduces
+this checker to establish counts for content inherited from main.
 An ``# Established rule: <rule>`` marker records that a rule has been
 introduced even after its residual count reaches zero. Established markers are
-also shrink-only: removing one relative to committed ``HEAD`` fails.
+also shrink-only: removing one relative to the committed baseline fails.
 When a new rule is introduced, its first count-format baseline is also allowed
 through the ``INTRODUCED_RULES`` exception below; later changes to that rule
 are ratcheted against its committed counts like every existing rule.
@@ -50,7 +48,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "semantic_blank_lines_baseline.txt"
-BASELINE_RELATIVE_PATH = Path("scripts/semantic_blank_lines_baseline.txt")
+BASELINE_RELATIVE_PATH = Path("scripts") / "semantic_blank_lines_baseline.txt"
 MAX_CONSECUTIVE_STATEMENTS = 15
 CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally"})
 ESTABLISHED_RULE_PREFIX = "# Established rule:"
@@ -407,21 +405,21 @@ def baseline_established_rules(path: Path) -> set[str]:
 def committed_baseline_state(
     root: Path,
 ) -> tuple[dict[tuple[str, str], int], set[str]] | None:
-    """Return committed counts from HEAD or the merge parent, or ``None``."""
+    """Return committed counts and markers, or ``None`` before count format."""
     merge_head = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", "MERGE_HEAD"],
         capture_output=True,
         check=False,
         text=True,
     )
-    committed_ref = merge_head.stdout.strip() if merge_head.returncode == 0 else "HEAD"
+    revision = "MERGE_HEAD" if merge_head.returncode == 0 else "HEAD"
     result = subprocess.run(
         [
             "git",
             "-C",
             str(root),
             "show",
-            f"{committed_ref}:{BASELINE_RELATIVE_PATH.as_posix()}",
+            f"{revision}:{BASELINE_RELATIVE_PATH.as_posix()}",
         ],
         capture_output=True,
         check=False,
@@ -504,25 +502,22 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
             )
 
     if increased_counts:
-        merge_head = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--verify", "MERGE_HEAD"],
-            capture_output=True,
-            check=False,
-            text=True,
-        )
-        comparison_label = "merge parent" if merge_head.returncode == 0 else "HEAD"
         print(
-            f"Baseline counts added or increased relative to {comparison_label}:",
+            "Baseline counts added or increased relative to the committed baseline:",
             file=sys.stderr,
         )
         for path, rule, committed_count, current_count in increased_counts:
             print(
-                f"{path}\t{rule}\t{comparison_label}={committed_count}\tcurrent={current_count}",
+                f"{path}\t{rule}\tcommitted_baseline={committed_count}"
+                f"\tcurrent={current_count}",
                 file=sys.stderr,
             )
 
     if removed_established_rules:
-        print("Established rule markers removed relative to HEAD:", file=sys.stderr)
+        print(
+            "Established rule markers removed relative to the committed baseline:",
+            file=sys.stderr,
+        )
         for rule in removed_established_rules:
             print(f"# Established rule: {rule}", file=sys.stderr)
 

@@ -66,8 +66,8 @@ def test_conversion_reports_key_mismatch(tmp_path):
 
 
 def test_released_checkpoints_load_strictly():
-    smt_checkpoint = Path(".cache/smarttext/original/SMT.pth")
-    basnet_checkpoint = Path(".cache/smarttext/original/gdi-basnet.pth")
+    smt_checkpoint = Path(".cache") / "smarttext" / "original" / "SMT.pth"
+    basnet_checkpoint = Path(".cache") / "smarttext" / "original" / "gdi-basnet.pth"
     if not smt_checkpoint.exists() or not basnet_checkpoint.exists():
         pytest.skip("SmartText released checkpoints are not downloaded")
     scorer = SmartTextScorer(SmartTextConfig())

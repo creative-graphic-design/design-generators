@@ -31,13 +31,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--asset-dir",
         type=Path,
-        default=Path(".cache/layout-action/original"),
+        default=Path(".cache") / "layout-action" / "original",
         help="Directory containing original Resources files.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-action/references"),
+        default=Path(".cache") / "layout-action" / "references",
         help="Directory for generated reference metadata and tensors.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Vendor random seed.")
@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vendor-root",
         type=Path,
-        default=Path("vendor/layout-action/LayoutAction"),
+        default=Path("vendor") / "layout-action" / "LayoutAction",
         help="Vendor LayoutAction code directory.",
     )
     return parser.parse_args()

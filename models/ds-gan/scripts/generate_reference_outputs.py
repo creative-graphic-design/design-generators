@@ -76,20 +76,22 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--vendor-dir", type=Path, default=Path("vendor/posterlayout-cvpr2023")
+        "--vendor-dir", type=Path, default=Path("vendor") / "posterlayout-cvpr2023"
     )
     parser.add_argument(
         "--checkpoint",
         type=Path,
-        default=Path(".cache/ds-gan/original/DS-GAN-Epoch300.pth"),
+        default=Path(".cache") / "ds-gan" / "original" / "DS-GAN-Epoch300.pth",
     )
     parser.add_argument(
-        "--dataset-root", type=Path, default=Path(".cache/ds-gan/original/Dataset/test")
+        "--dataset-root",
+        type=Path,
+        default=Path(".cache") / "ds-gan" / "original" / "Dataset" / "test",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".cache/ds-gan/fixtures/pku/reference_seed0.pt"),
+        default=Path(".cache") / "ds-gan" / "fixtures" / "pku" / "reference_seed0.pt",
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--batch-size", type=int, default=4)
