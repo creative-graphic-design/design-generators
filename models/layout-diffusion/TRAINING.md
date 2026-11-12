@@ -51,7 +51,7 @@ state on CPU and therefore never activates its effective-uniform sampler update
 buffers. The processed-stream S5 configs set `preconsume_train_batches: 1` to
 match the original pre-loop `next(data)` read before training begins.
 
-The currently verified GPU setup is Tesla V100 with driver `575.57.08`, which is
+The currently verified GPU setup used driver `575.57.08`, which is
 compatible with CUDA 12.9-era torch wheels. Keep repository dependency metadata
 unchanged; install driver-compatible torch wheels only as local runtime setup
 when running GPU training in that environment.

@@ -210,7 +210,7 @@ The encoder uses Keras MobileNetV2 topology with a four-channel first convolutio
 
 #### Hardware
 
-The 250-epoch package training used an A100 for epochs 1–227 and a Tesla V100-SXM2-32GB for the continuation.
+The 250-epoch package training used one GPU for epochs 1–227 and a different GPU for the continuation.
 
 #### Software
 

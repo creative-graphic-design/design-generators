@@ -328,7 +328,7 @@ The historical CGL label provenance note was recorded in https://github.com/crea
 
 The historical CGL label S3 per-run trace note was recorded in https://github.com/creative-graphic-design/design-generators/pull/270; the trace files are not retained, so the per-run digest claims are omitted.
 
-The 300-step real-scale synchronized lockstep probe ran on one V100 at the recipe batch size 32, using 10 train batches per epoch over 30 epochs. All 300 steps record identical package and vendor state SHA-256 values with parameter and optimizer maximum absolute differences of `0.0` and `first_divergence=null`; peak allocated memory was 22.8 GB. The artifact is `.cache/ralf/training-reproduction/cgl/probe/runs/after-blank-lines-001/trace/s3-trace.json` (SHA-256 `8a535a96272d0a1463358290868edd5fca4ec2f1a5b2f014a911c3abe4cf3f35`).
+The 300-step real-scale synchronized lockstep probe ran on one GPU at the recipe batch size 32, using 10 train batches per epoch over 30 epochs. All 300 steps record identical package and vendor state SHA-256 values with parameter and optimizer maximum absolute differences of `0.0` and `first_divergence=null`; peak allocated memory was 22.8 GB. The artifact is `.cache/ralf/training-reproduction/cgl/probe/runs/after-blank-lines-001/trace/s3-trace.json` (SHA-256 `8a535a96272d0a1463358290868edd5fca4ec2f1a5b2f014a911c3abe4cf3f35`).
 
 ## CGL label-size-conditioned training
 
@@ -1564,7 +1564,7 @@ Use the same command with `--stage S2` for the one-step optimizer check.
 For that rerun, set `RALF_GPU`, `RALF_CACHE_DIR`, and `RALF_S3_OUTPUT` as shown in the condition stage-evidence tables and run the complete command below. The run follows the protocol's layered S3 rule: the natural trajectory passes on its own when every step stays inside the S0-S2 contract, and otherwise the retained natural record plus a contract-internal synchronized layer is a bounded pass. The runner records the nested `traingen fit` command and its artifacts. The recipe supplies 30 epochs and the runner supplies the production limits, callbacks, logger, and cache paths.
 
 ```bash
-: "${RALF_GPU:?set RALF_GPU to one selected V100 index}"
+: "${RALF_GPU:?set RALF_GPU to one selected GPU index}"
 : "${RALF_CACHE_DIR:?set RALF_CACHE_DIR to the authoritative read-only cache}"
 : "${RALF_S3_OUTPUT:?set RALF_S3_OUTPUT to a new repository-relative JSON path}"
 CUDA_VISIBLE_DEVICES="$RALF_GPU" PARITY_REQUIRE=1 \
