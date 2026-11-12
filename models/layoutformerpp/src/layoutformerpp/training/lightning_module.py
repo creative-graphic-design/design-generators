@@ -8,8 +8,6 @@ import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
-
 from typing_extensions import TypedDict
 
 import numpy as np
@@ -22,10 +20,9 @@ from torch.utils.data import DataLoader, Dataset, get_worker_info
 from torch.optim.lr_scheduler import LRScheduler
 
 from traingen.checkpointing import (
-    PythonRandomState,
     SafeValue,
-    TensorState,
     is_safe_mapping,
+    safe_string_mapping,
 )
 
 from ..configuration_layoutformerpp import LayoutFormerPPConfig
@@ -64,7 +61,7 @@ class LayoutFormerPPTrainingConfig(TypedDict, total=False):
 
 
 class _LayoutFormerPPConfigInput(TypedDict, total=False, closed=True):
-    """Closed view used only to type-check kwargs forwarded to the config."""
+    """Closed kwargs passed to the converted model configuration."""
 
     dataset: str
     task: str
@@ -78,6 +75,57 @@ class _LayoutFormerPPConfigInput(TypedDict, total=False, closed=True):
     dim_feedforward: int
     dropout: float
     share_embedding: bool
+
+
+def _config_input(config: LayoutFormerPPTrainingConfig) -> _LayoutFormerPPConfigInput:
+    """Copy the open LightningCLI input into the closed model kwargs."""
+    result: _LayoutFormerPPConfigInput = {}
+    dataset = config.get("dataset")
+    if dataset is not None:
+        if not isinstance(dataset, str):
+            raise TypeError("dataset must be a string")
+
+        result["dataset"] = dataset
+
+    task = config.get("task")
+    if task is not None:
+        if not isinstance(task, str):
+            raise TypeError("task must be a string")
+
+        result["task"] = task
+
+    for key in (
+        "vocab_size",
+        "max_position_embeddings",
+        "d_model",
+        "encoder_layers",
+        "decoder_layers",
+        "encoder_attention_heads",
+        "decoder_attention_heads",
+        "dim_feedforward",
+    ):
+        value = config.get(key)
+        if value is not None:
+            if not isinstance(value, int):
+                raise TypeError(f"{key} must be an integer")
+
+            result[key] = value
+
+    dropout = config.get("dropout")
+    if dropout is not None:
+        if not isinstance(dropout, float):
+            raise TypeError("dropout must be a float")
+
+        result["dropout"] = dropout
+
+    share_embedding = config.get("share_embedding")
+    if share_embedding is not None:
+        if not isinstance(share_embedding, bool):
+            raise TypeError("share_embedding must be a boolean")
+
+        result["share_embedding"] = share_embedding
+
+    return result
 
 
 @dataclass(frozen=True)
@@ -389,6 +437,14 @@ class _LayoutFormerPPSample(TypedDict):
     task_id: int
 
 
+class _LayoutFormerPPRawRecord(TypedDict):
+    """One raw processed source record loaded before task generation."""
+
+    labels: Int[torch.Tensor, "elements"]
+    bboxes: Float[torch.Tensor, "elements coordinates"]
+    name: str
+
+
 class _LayoutFormerPPBatch(TypedDict):
     """One collated package batch consumed by the training hooks."""
 
@@ -429,7 +485,24 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
         if not isinstance(values, list) or not values:
             raise ValueError(f"LayoutFormer++ processed split is empty: {path}")
 
-        self.data = cast(list[_LayoutFormerPPSample], values)
+        records: list[_LayoutFormerPPRawRecord] = []
+        for value in values:
+            if not isinstance(value, Mapping):
+                raise TypeError(f"processed record is not a mapping: {path}")
+
+            labels = value.get("labels")
+            bboxes = value.get("bboxes")
+            name = value.get("name")
+            if (
+                not isinstance(labels, torch.Tensor)
+                or not isinstance(bboxes, torch.Tensor)
+                or not isinstance(name, str)
+            ):
+                raise TypeError(f"processed record has invalid fields: {path}")
+
+            records.append({"labels": labels, "bboxes": bboxes, "name": name})
+
+        self.data = records
         self._relation_generator = random.Random(1024)
         self._partition_data: dict[int, int] = {}
         self._bucket_tasks: list[list[LayoutFormerPPTask]] = []
@@ -470,13 +543,23 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
         """Return task-generation state needed for an exact resumed epoch."""
         return {"relation_generator": self._relation_generator.getstate()}
 
-    def load_state_dict(self, state_dict: Mapping[str | int, SafeValue]) -> None:
+    def load_state_dict(self, state_dict: Mapping[str, SafeValue]) -> None:
         """Restore task-generation state from a checkpoint."""
         relation_state = state_dict.get("relation_generator")
-        if not isinstance(relation_state, tuple):
+        if not isinstance(relation_state, tuple) or len(relation_state) != 3:
             raise TypeError("relation generator state is not a tuple")
 
-        self._relation_generator.setstate(cast(PythonRandomState, relation_state))
+        version, internal, gaussian = relation_state
+        if not isinstance(version, int) or not isinstance(internal, tuple):
+            raise TypeError("relation generator state has an invalid shape")
+
+        if not all(isinstance(item, int) for item in internal):
+            raise TypeError("relation generator state has an invalid shape")
+
+        if gaussian is not None and not isinstance(gaussian, float):
+            raise TypeError("relation generator state has an invalid shape")
+
+        self._relation_generator.setstate((version, internal, gaussian))
 
     def _task_for_index(self, index: int) -> LayoutFormerPPTask:
         if self.train and self.recipe.partition_buckets:
@@ -633,18 +716,13 @@ class LayoutFormerPPDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.seed = seed
         self.pin_memory = pin_memory
-        self.sampler_epoch = 0
-        self.train_generator = torch.Generator().manual_seed(seed)
         self.train_dataset: _LayoutFormerPPDataset | None = None
         self.val_dataset: _LayoutFormerPPDataset | None = None
         self.tokenizer = _package_tokenizer(self.recipe)
 
     def state_dict(self) -> dict[str, SafeValue]:
         """Return sampler, loader, and dataset generator state."""
-        state: dict[str, SafeValue] = {
-            "sampler_epoch": self.sampler_epoch,
-            "train_generator": cast(TensorState, self.train_generator.get_state()),
-        }
+        state: dict[str, SafeValue] = {}
         if self.train_dataset is not None:
             state["train_dataset"] = self.train_dataset.state_dict()
 
@@ -655,16 +733,6 @@ class LayoutFormerPPDataModule(LightningDataModule):
 
     def load_state_dict(self, state_dict: dict[str, SafeValue]) -> None:
         """Restore sampler, loader, and dataset generator state."""
-        sampler_epoch = state_dict.get("sampler_epoch")
-        if not isinstance(sampler_epoch, int):
-            raise TypeError("sampler epoch is not an integer")
-
-        self.sampler_epoch = sampler_epoch
-        train_generator = state_dict.get("train_generator")
-        if not isinstance(train_generator, torch.Tensor):
-            raise TypeError("train generator state is not a tensor")
-
-        self.train_generator.set_state(train_generator)
         for name, dataset in (
             ("train_dataset", self.train_dataset),
             ("val_dataset", self.val_dataset),
@@ -674,7 +742,9 @@ class LayoutFormerPPDataModule(LightningDataModule):
                 if not is_safe_mapping(dataset_state):
                     raise TypeError(f"{name} state is not a mapping")
 
-                dataset.load_state_dict(dataset_state)
+                dataset.load_state_dict(
+                    safe_string_mapping(dataset_state, f"{name} state")
+                )
 
     def setup(self, stage: str | None = None) -> None:
         """Load the processed train and validation splits for ``stage``."""
@@ -731,7 +801,7 @@ class LayoutFormerPPDataModule(LightningDataModule):
             pin_memory=self.pin_memory,
             collate_fn=self._collate,
             worker_init_fn=_seed_worker if self.num_workers else None,
-            generator=self.train_generator,
+            generator=None,
         )
 
     def val_dataloader(self) -> DataLoader[_LayoutFormerPPSample]:
@@ -768,9 +838,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
         """Initialize one immutable recipe and its runtime model."""
         super().__init__()
         self.recipe: LayoutFormerPPTrainingRecipe = get_training_recipe(recipe_name)
-        runtime_config = LayoutFormerPPConfig(
-            **cast(_LayoutFormerPPConfigInput, config)
-        )
+        runtime_config = LayoutFormerPPConfig(**_config_input(config))
         self._validate_config(runtime_config)
         self.layoutformerpp_config = runtime_config
         self.model = model or LayoutFormerPPForConditionalGeneration(runtime_config)
@@ -810,7 +878,10 @@ class LayoutFormerPPTrainingModule(LightningModule):
             task_ids=task_ids,
             return_dict=True,
         )
-        return cast(torch.Tensor, outputs.logits)
+        if outputs.logits is None:
+            raise RuntimeError("LayoutFormer++ model did not return logits")
+
+        return outputs.logits
 
     def _loss(
         self,
