@@ -158,8 +158,9 @@ class _VendorVectorMetric(Protocol):
         column: _VendorColumn,
         y_true: Mapping[str, _TensorFlowTensor],
         y_pred: Mapping[str, _TensorFlowTensor],
-        mask_true: _TensorFlowTensor,
-        mask_pred: _TensorFlowTensor,
+        _mask_true: _TensorFlowTensor,
+        _mask_pred: _TensorFlowTensor,
+        /,
     ) -> tuple[_TensorFlowTensor, _TensorFlowTensor]: ...
 
 
