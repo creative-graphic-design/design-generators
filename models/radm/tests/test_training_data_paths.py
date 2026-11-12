@@ -53,12 +53,14 @@ def _evaluator() -> dict[str, object]:
     )
 
 
-def test_runtime_metadata_falls_back_when_omp_threads_is_empty(
+@pytest.mark.parametrize("omp_threads", ["", "4,2"])
+def test_runtime_metadata_falls_back_for_invalid_omp_threads(
     monkeypatch: pytest.MonkeyPatch,
+    omp_threads: str,
 ) -> None:
     launcher = _launcher()
     runtime_metadata = cast(FunctionType, launcher["runtime_metadata"])
-    monkeypatch.setenv("OMP_NUM_THREADS", "")
+    monkeypatch.setenv("OMP_NUM_THREADS", omp_threads)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "get_device_name", lambda _index: "test GPU")
     monkeypatch.setattr(torch, "get_num_threads", lambda: 6)
@@ -909,15 +911,21 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
     evaluator_globals = cast(FunctionType, main).__globals__
     output_dir = tmp_path / "evaluation"
     validation = {"evaluation_seed": 2, "evaluator_source_status": ""}
+    evaluation_seeds: list[object] = []
     monkeypatch.setitem(
         evaluator_globals,
         "validate_terminal_checkpoint",
         lambda *args, **kwargs: validation,
     )
+
+    def record_evaluation_seed(*args: object, **kwargs: object) -> dict[str, object]:
+        evaluation_seeds.append(kwargs["evaluation_seed"])
+        return {"bbox": {}}
+
     monkeypatch.setitem(
         evaluator_globals,
         "evaluate_package_checkpoint",
-        lambda *args, **kwargs: {"bbox": {}},
+        record_evaluation_seed,
     )
     monkeypatch.setattr(
         sys,
@@ -943,6 +951,7 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
         json.loads((output_dir / "validation.json").read_text(encoding="utf-8"))
         == validation
     )
+    assert evaluation_seeds == [2]
 
 
 def test_s5_evaluator_refuses_to_overwrite_validation_record(
@@ -1156,7 +1165,20 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
     assert "--evaluation-path-parity-artifact" not in s5_command
     assert "evaluation-path-parity:" not in s5_command
     assert all(
-        setting in s5_command
+        field in s5_command
+        for field in (
+            "training seed",
+            "data-root alias and target",
+            "output_root",
+            "runtime.omp_num_threads",
+        )
+    )
+    assert "those environment values are unrecorded" in s5_command
+    assert 'PATH="' not in s5_command
+    assert "PYTHONPATH=" not in s5_command
+    assert "--evaluation-path-parity-artifact" in launch_template
+    assert all(
+        setting in launch_template
         for setting in (
             "PATH=",
             "PYTHONPATH=",
@@ -1164,6 +1186,6 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
             "CUDA_VISIBLE_DEVICES=",
             "PYTHONUNBUFFERED=1",
             "OMP_NUM_THREADS=1",
+            "OMP_NUM_THREADS=4",
         )
     )
-    assert "--evaluation-path-parity-artifact" in launch_template

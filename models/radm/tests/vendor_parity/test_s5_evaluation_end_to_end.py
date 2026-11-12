@@ -43,7 +43,7 @@ def _required_env(name: str) -> Path:
 
 
 def _vendor_eval_command(
-    *, checkpoint: Path, output_dir: Path, data_root: Path
+    *, checkpoint: Path, output_dir: Path, data_root: Path, evaluation_seed: int
 ) -> list[str]:
     launcher = dedent(
         """
@@ -83,6 +83,8 @@ def _vendor_eval_command(
         "configs/radm.yaml",
         "--eval-only",
         "--resume",
+        "SEED",
+        str(evaluation_seed),
         "MODEL.WEIGHTS",
         str(checkpoint),
         "DATASETS.DATASET_PATH",
@@ -92,6 +94,18 @@ def _vendor_eval_command(
         "OUTPUT_DIR",
         str(output_dir),
     ]
+
+
+def test_vendor_eval_command_uses_the_evaluation_seed(tmp_path: Path) -> None:
+    command = _vendor_eval_command(
+        checkpoint=tmp_path / "checkpoint.pth",
+        output_dir=tmp_path / "output",
+        data_root=tmp_path / "data",
+        evaluation_seed=2,
+    )
+
+    seed_index = command.index("SEED")
+    assert command[seed_index + 1] == "2"
 
 
 @pytest.mark.vendor_parity
@@ -117,6 +131,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
     from radm.training import dataset as package_dataset
     from radm.training.config import RADMEffectiveConfig
 
+    evaluation_seed = int(os.environ.get("RADM_E2E_EVALUATION_SEED", "1"))
     package_text_reads: list[tuple[str, int, int]] = []
     load_text_features = package_dataset.load_text_features
 
@@ -157,7 +172,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
         data_root=data_root,
         output_dir=package_output,
         device=os.environ.get("RADM_REFERENCE_DEVICE", "cuda"),
-        evaluation_seed=int(os.environ.get("RADM_E2E_EVALUATION_SEED", "1")),
+        evaluation_seed=evaluation_seed,
     )
     assert any(
         image_stem in test_image_stems and valid_count > 0 and nonzero_count > 0
@@ -179,6 +194,7 @@ def test_s5_package_and_vendor_evaluators_use_the_same_checkpoint_and_images(
             checkpoint=vendor_checkpoint,
             output_dir=vendor_output,
             data_root=data_root,
+            evaluation_seed=evaluation_seed,
         ),
         cwd=VENDOR_ROOT,
         env=environment,
@@ -253,6 +269,7 @@ def test_vendor_evaluator_command_uses_absolute_visible_data_root(
         checkpoint=tmp_path / "model_final.pth",
         output_dir=tmp_path / "evaluation",
         data_root=data_root,
+        evaluation_seed=2,
     )
 
     compile(command[2], "<vendor-eval-launcher>", "exec")

@@ -129,6 +129,12 @@ def runtime_metadata(arm: str) -> dict[str, str | int]:
     except PackageNotFoundError as exc:
         raise SystemExit(f"training runtime package is missing: {exc.name}") from exc
 
+    omp_threads = os.environ.get("OMP_NUM_THREADS")
+    try:
+        omp_num_threads = int(omp_threads) if omp_threads else torch.get_num_threads()
+    except ValueError:
+        omp_num_threads = torch.get_num_threads()
+
     return {
         "torch_version": str(torch.__version__),
         "torchvision_version": torchvision_version,
@@ -136,9 +142,7 @@ def runtime_metadata(arm: str) -> dict[str, str | int]:
         "cuda_version": str(torch.version.cuda),
         "gpu_name": torch.cuda.get_device_name(0),
         "num_workers": num_workers,
-        "omp_num_threads": int(
-            os.environ.get("OMP_NUM_THREADS") or torch.get_num_threads()
-        ),
+        "omp_num_threads": omp_num_threads,
     }
 
 

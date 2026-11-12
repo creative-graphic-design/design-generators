@@ -654,13 +654,29 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     assert not check_training_stage_evidence.has_s5_claim(
         "training-seed n=3 is not claimed in this PR."
     )
-    assert not check_training_stage_evidence.has_s5_claim(
-        "The CGL training-seed n=3 result is not-yet-run."
+    assert check_training_stage_evidence.has_s5_claim(
+        "S5 is not-yet-run, but training-seed n=3 results are reported here."
     )
 
 
-def test_neighboring_not_run_row_does_not_hide_training_seed_claim() -> None:
-    table = "| CGL-v2 | original | not run | not measured |\n| CGL | original | complete | training-seed n=3 |"
+def test_exact_not_yet_run_status_cell_suppresses_its_row_claim() -> None:
+    table = "| Dataset | Status | Evidence |\n| --- | --- | --- |\n| CGL | not-yet-run (issue 261) | training-seed n=3 |"
+
+    assert not check_training_stage_evidence.has_s5_claim(table)
+
+
+def test_not_yet_run_status_cell_does_not_hide_a_neighboring_row_claim() -> None:
+    table = (
+        "| Dataset | Status | Evidence |\n| --- | --- | --- |\n"
+        "| CGL-v2 | not-yet-run (issue 261) | no terminal result |\n"
+        "| CGL | complete | training-seed n=3 |"
+    )
+
+    assert check_training_stage_evidence.has_s5_claim(table)
+
+
+def test_not_yet_run_status_cell_must_match_exactly() -> None:
+    table = "| Dataset | Status | Evidence |\n| --- | --- | --- |\n| CGL | not-yet-run (issue 261) and complete | training-seed n=3 |"
 
     assert check_training_stage_evidence.has_s5_claim(table)
 
