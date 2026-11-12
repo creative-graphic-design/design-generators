@@ -25,7 +25,9 @@ def main() -> None:
     parser.add_argument(
         "--input-checkpoint",
         type=Path,
-        default=Path(".cache/layoutganpp/original/layoutganpp_rico.pth.tar"),
+        default=(
+            Path(".cache") / "layoutganpp" / "original" / "layoutganpp_rico.pth.tar"
+        ),
         help=(
             "Path to the original checkpoint. The default expects "
             "download_original_weights.py to have downloaded the Rico checkpoint."
@@ -34,7 +36,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layoutganpp/converted/layoutganpp-rico"),
+        default=Path(".cache") / "layoutganpp" / "converted" / "layoutganpp-rico",
         help=(
             "Directory where config, weights, processor files, and README.md are "
             "written."

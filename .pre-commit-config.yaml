@@ -86,6 +86,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: path-components
+        name: Python path components
+        entry: uv run --locked --package design-generators scripts/check_path_components.py
+        language: system
+        pass_filenames: false
+
       - id: jaxtyping-annotations
         name: jaxtyping annotations
         entry: uv run --locked --package devharness devharness check jaxtyping-annotations
@@ -137,6 +143,12 @@ repos:
       - id: readme-links
         name: README repository links
         entry: uv run --locked --package design-generators scripts/check_readme_links.py
+        language: system
+        pass_filenames: false
+
+      - id: fix-root-models-badge
+        name: fix root README models badge
+        entry: uv run --package devharness python -m devharness.checks.model_readmes.fix_badge
         language: system
         pass_filenames: false
 

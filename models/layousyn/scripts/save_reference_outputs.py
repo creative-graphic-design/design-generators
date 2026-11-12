@@ -227,7 +227,7 @@ def parse_args() -> argparse.Namespace:
     """Parse reference-generation arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--vendor-root", type=Path, default=Path("vendor/lay-your-scene")
+        "--vendor-root", type=Path, default=Path("vendor") / "lay-your-scene"
     )
     parser.add_argument("--ckpt", type=Path, required=True)
     parser.add_argument("--ckpt-config", type=Path, required=True)

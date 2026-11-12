@@ -5,7 +5,7 @@ from lace.training.lightning_module import LaceTrainingModule
 from traingen.lightning.cli import lightning_cli_class
 
 
-CONFIG_DIR = Path("models/lace/configs/training")
+CONFIG_DIR = Path("models") / "lace" / "configs" / "training"
 
 
 def test_training_configs_instantiate_package_classes() -> None:
@@ -30,8 +30,11 @@ def test_training_configs_instantiate_package_classes() -> None:
 
         assert isinstance(cli.model, LaceTrainingModule)
         assert isinstance(cli.datamodule, LaceDataModule)
-        expected_root = Path(".cache/lace/data") / (
-            f"{cli.datamodule.dataset_name}-max{cli.datamodule.max_seq_length}"
-            "/processed"
+        expected_root = (
+            Path(".cache")
+            / "lace"
+            / "data"
+            / f"{cli.datamodule.dataset_name}-max{cli.datamodule.max_seq_length}"
+            / "processed"
         )
         assert cli.datamodule.processed_data_dir == expected_root

@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".cache/layout-diffusion/original"),
+        default=Path(".cache") / "layout-diffusion" / "original",
         help="Directory where original assets are stored.",
     )
     parser.add_argument(

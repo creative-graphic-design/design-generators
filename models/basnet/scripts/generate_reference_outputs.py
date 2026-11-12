@@ -19,13 +19,17 @@ from basnet import BASNetImageProcessor, normalize_saliency
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--vendor-dir", type=Path, default=Path("vendor/smarttext"))
+    parser.add_argument("--vendor-dir", type=Path, default=Path("vendor") / "smarttext")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument(
-        "--image-dir", type=Path, default=Path("vendor/smarttext/test_data/SMT")
+        "--image-dir",
+        type=Path,
+        default=Path("vendor") / "smarttext" / "test_data" / "SMT",
     )
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/basnet/references")
+        "--output-dir",
+        type=Path,
+        default=Path(".cache") / "basnet" / "references",
     )
     parser.add_argument("--max-images", type=int, default=3)
     return parser.parse_args()

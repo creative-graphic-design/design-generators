@@ -20,9 +20,15 @@ def test_s0_ds_gan_topology_guard():
     root = Path(__file__).resolve().parents[4]
     weights = {
         "DSGAN_RESNET18_WEIGHTS": root
-        / ".cache/ds-gan/backbones/resnet18-5c106cde.pth",
+        / ".cache"
+        / "ds-gan"
+        / "backbones"
+        / "resnet18-5c106cde.pth",
         "DSGAN_RESNET50_WEIGHTS": root
-        / ".cache/ds-gan/backbones/resnet50_a1_0-14fe96d1.pth",
+        / ".cache"
+        / "ds-gan"
+        / "backbones"
+        / "resnet50_a1_0-14fe96d1.pth",
     }
     for variable, path in weights.items():
         if not path.is_file():
@@ -53,8 +59,8 @@ def test_s0_ds_gan_topology_guard():
 
 @pytest.mark.vendor_parity
 def test_ds_gan_vendor_forward_parity():
-    fixture = Path(".cache/ds-gan/fixtures/pku/reference_seed0.pt")
-    checkpoint = Path(".cache/ds-gan/original/DS-GAN-Epoch300.pth")
+    fixture = Path(".cache") / "ds-gan" / "fixtures" / "pku" / "reference_seed0.pt"
+    checkpoint = Path(".cache") / "ds-gan" / "original" / "DS-GAN-Epoch300.pth"
     if not fixture.exists() or not checkpoint.exists():
         skip_or_fail_vendor_parity(
             "DS-GAN vendor parity requires local weights and fixture",
@@ -122,8 +128,8 @@ def test_ds_gan_vendor_forward_parity():
 
 @pytest.mark.vendor_parity
 def test_ds_gan_processor_matches_vendor_fixture_pixels():
-    fixture = Path(".cache/ds-gan/fixtures/pku/reference_seed0.pt")
-    dataset_root = Path(".cache/ds-gan/original/Dataset/test")
+    fixture = Path(".cache") / "ds-gan" / "fixtures" / "pku" / "reference_seed0.pt"
+    dataset_root = Path(".cache") / "ds-gan" / "original" / "Dataset" / "test"
     if not fixture.exists() or not dataset_root.exists():
         skip_or_fail_vendor_parity(
             "DS-GAN processor parity requires local dataset fixture",

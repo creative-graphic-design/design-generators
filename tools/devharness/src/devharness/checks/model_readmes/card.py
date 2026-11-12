@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -24,12 +25,13 @@ from .constants import (
     MODEL_CONDITIONING_ORDER,
     MODEL_TYPE_VALUES,
     MODEL_MEMBER_DIRS,
+    NO_MODEL_WEIGHTS_SLUGS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
     REQUIRED_HEADINGS,
     REPO_ROOT,
 )
-from .install import project_metadata
+from .install import _project_name, project_metadata
 
 
 def section(text: str, heading: str) -> str:
@@ -268,6 +270,11 @@ def badge_messages(text: str, label: str) -> list[str]:
 def model_member_slugs() -> set[str]:
     """Return model workspace member directory names."""
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
+
+
+def model_member_count() -> int:
+    """Return the number of model workspace members."""
+    return len(model_member_slugs())
 
 
 ModelType: TypeAlias = tuple[str, str, tuple[str, ...]]
@@ -909,7 +916,7 @@ def assert_pipeline_tag(path: Path, frontmatter: str, model_type: ModelType) -> 
 def assert_model_index_policy(path: Path, frontmatter: str) -> None:
     """Require model-index metadata only for weight-backed model cards."""
     has_model_index = "model-index:" in frontmatter
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         if has_model_index:
             raise AssertionError(
                 f"{path}: prompt-only README must not include model-index"
@@ -1094,10 +1101,10 @@ def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
     if "<<'PY'" in get_started or '<<"PY"' in get_started:
         raise AssertionError(f"{path}: Get Started must not use heredoc examples")
 
-    if path.parent.name in PROMPT_ONLY_SLUGS:
+    if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         required = [
             "git clone https://github.com/creative-graphic-design/design-generators.git",
-            f"uv sync --package {path.parent.name}",
+            f"uv sync --package {_project_name(path.parent)}",
             "no learned checkpoints",
         ]
         missing = [snippet for snippet in required if snippet not in get_started]
@@ -1147,6 +1154,138 @@ def assert_code_fences_tagged(path: Path, text: str) -> None:
 
     if in_fence:
         raise AssertionError(f"{path}: unterminated code fence")
+
+
+def _python_code_fences(text: str) -> list[tuple[int, str]]:
+    fences: list[tuple[int, str]] = []
+    opening_fence: str | None = None
+    language = ""
+    fence_start = 0
+    code_lines: list[str] = []
+
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if opening_fence is None:
+            opening = _FENCE_OPENING_RE.match(line)
+            if opening is None:
+                continue
+
+            opening_fence = opening.group("fence")
+            info = opening.group("info").strip()
+            language = info.split(maxsplit=1)[0].casefold() if info else ""
+            fence_start = line_number
+            code_lines = []
+            continue
+
+        closing = _FENCE_CLOSING_RE.match(line)
+        if closing is None or closing.group("fence")[0] != opening_fence[0]:
+            code_lines.append(line)
+            continue
+
+        closing_fence = closing.group("fence")
+        if len(closing_fence) < len(opening_fence):
+            code_lines.append(line)
+            continue
+
+        if language in {"python", "py"}:
+            fences.append((fence_start, "\n".join(code_lines)))
+
+        opening_fence = None
+        language = ""
+
+    if opening_fence is not None and language in {"python", "py"}:
+        fences.append((fence_start, "\n".join(code_lines)))
+
+    return fences
+
+
+def _qualified_name(expression: ast.expr) -> str | None:
+    if isinstance(expression, ast.Name):
+        return expression.id
+
+    if isinstance(expression, ast.Attribute):
+        prefix = _qualified_name(expression.value)
+        if prefix is None:
+            return None
+
+        return f"{prefix}.{expression.attr}"
+
+    return None
+
+
+def _is_cpu_string_literal(expression: ast.AST) -> bool:
+    return (
+        isinstance(expression, ast.Constant)
+        and isinstance(expression.value, str)
+        and (
+            expression.value.casefold() == "cpu"
+            or expression.value.casefold().startswith("cpu:")
+        )
+    )
+
+
+def _allowed_cpu_literals(tree: ast.Module) -> set[int]:
+    allowed_literals: set[int] = set()
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call):
+            continue
+
+        function_name = _qualified_name(call.func)
+        if function_name == "torch.Generator":
+            allowed_keyword = "device"
+        elif function_name == "torch.load":
+            allowed_keyword = "map_location"
+        else:
+            continue
+
+        for keyword in call.keywords:
+            if (
+                keyword.arg == allowed_keyword
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value == "cpu"
+            ):
+                allowed_literals.add(id(keyword.value))
+
+    return allowed_literals
+
+
+def assert_no_cpu_placement(path: Path, text: str) -> None:
+    """Reject CPU string literals and .cpu() calls in Python fences."""
+    for fence_start, code in _python_code_fences(text):
+        normalized_code = re.sub(
+            r"<[A-Za-z_][A-Za-z0-9_-]*>", "template_placeholder", code
+        )
+        try:
+            syntax_tree = ast.parse(normalized_code)
+        except SyntaxError as exc:
+            line_number = fence_start + (exc.lineno or 1)
+            raise AssertionError(
+                f"{path}: cannot inspect invalid Python code at line {line_number}"
+            ) from exc
+
+        allowed_cpu_literals = _allowed_cpu_literals(syntax_tree)
+        for node in ast.walk(syntax_tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "cpu"
+            ):
+                line_number = fence_start + node.lineno
+                raise AssertionError(
+                    f"{path}: CPU placement with .cpu() at line {line_number} "
+                    "is prohibited"
+                )
+            elif (
+                isinstance(node, ast.Constant)
+                and _is_cpu_string_literal(node)
+                and id(node) not in allowed_cpu_literals
+            ):
+                line_number = fence_start + node.lineno
+                raise AssertionError(
+                    f"{path}: CPU string literal in Python code at line "
+                    f"{line_number} is prohibited here; only direct "
+                    'torch.Generator(device="cpu") and '
+                    'torch.load(..., map_location="cpu") arguments are allowed'
+                )
 
 
 def usage_output_violation(path: Path, text: str) -> str | None:

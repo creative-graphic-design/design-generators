@@ -25,7 +25,11 @@ def test_prompt_selection_and_parser_match_vendor_golden(tmp_path: Path) -> None
         skip_or_fail_vendor_parity(
             "LayoutPrompter vendor source is not available",
             missing_paths=[
-                Path("vendor/ms-layout-generation/LayoutPrompter/src/serialization.py")
+                Path("vendor")
+                / "ms-layout-generation"
+                / "LayoutPrompter"
+                / "src"
+                / "serialization.py"
             ],
             regeneration_hint="initialize the ms-layout-generation vendor submodule before running vendor parity",
         )

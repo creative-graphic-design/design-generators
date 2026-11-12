@@ -21,7 +21,7 @@ def main() -> None:
     """Run the command-line downloader."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/smarttext/original")
+        "--output-dir", type=Path, default=Path(".cache") / "smarttext" / "original"
     )
     parser.add_argument(
         "--download", action="store_true", help="Actually download files with gdown."

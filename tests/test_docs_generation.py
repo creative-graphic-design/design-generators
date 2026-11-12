@@ -81,7 +81,7 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
         assert (REPO_ROOT / "docs" / path).is_file(), (
             f"{Path(path).stem}: missing nav target (nav)"
         )
-    for stub in (REPO_ROOT / "docs/api").rglob("*.md"):
+    for stub in (REPO_ROOT / "docs" / "api").rglob("*.md"):
         if stub.name == "index.md":
             continue
         assert counts[stub.relative_to(REPO_ROOT / "docs").as_posix()] == 1, (
@@ -101,7 +101,7 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
     show_submodules_globally = python_options.get("show_submodules") is True
     api_stub_violations: list[str] = []
     for (group, slug), import_name in members.items():
-        stub = REPO_ROOT / "docs/api" / group / f"{slug}.md"
+        stub = REPO_ROOT / "docs" / "api" / group / f"{slug}.md"
         assert stub.is_file(), f"{slug}: missing API stub (stub)"
         text = stub.read_text(encoding="utf-8")
         frontmatter = FRONTMATTER_RE.match(text)
@@ -212,7 +212,7 @@ def test_roadmap_links_implemented_packages_and_issue_targets() -> None:
             assert match is not None, f"invalid roadmap package link: {package}"
             directory, target = match.groups()
             assert directory == target, f"package/link mismatch: {package}"
-            assert (REPO_ROOT / "docs/api/models" / f"{target}.md").is_file(), (
+            assert (REPO_ROOT / "docs" / "api" / "models" / f"{target}.md").is_file(), (
                 f"missing API target for {package}"
             )
             packages.add(directory)
@@ -235,6 +235,9 @@ def test_roadmap_links_implemented_packages_and_issue_targets() -> None:
         f"extra={sorted(packages - model_directories)}"
     )
 
-    for page in (REPO_ROOT / "docs/roadmap.md", REPO_ROOT / "docs/data-sources.md"):
+    for page in (
+        REPO_ROOT / "docs" / "roadmap.md",
+        REPO_ROOT / "docs" / "data-sources.md",
+    ):
         raw_urls = re.findall(r"(?<!\]\()https?://[^)\s|]+", page.read_text())
         assert not raw_urls, f"{page}: raw URLs outside Markdown links: {raw_urls}"

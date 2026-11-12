@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task", required=True)
     parser.add_argument("--variant", default="ours-exp-ft")
     parser.add_argument(
-        "--asset-dir", type=Path, default=Path(".cache/flex-dm/original")
+        "--asset-dir", type=Path, default=Path(".cache") / "flex-dm" / "original"
     )
     parser.add_argument("--probe-dir", type=Path, required=True)
     parser.add_argument("--checkpoint-dir", type=Path)
@@ -211,8 +211,8 @@ def compare_torch(args: argparse.Namespace) -> None:
     from flex_dm import FlexDmForMaskedDocumentModeling
 
     tf_probe = np.load(args.probe_dir / "tf_probe.npz")
-    checkpoint_dir = args.checkpoint_dir or Path(
-        f".cache/flex-dm/converted/flex-dm-{args.dataset}"
+    checkpoint_dir = args.checkpoint_dir or (
+        Path(".cache") / "flex-dm" / "converted" / f"flex-dm-{args.dataset}"
     )
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     model = (

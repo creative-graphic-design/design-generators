@@ -27,13 +27,15 @@ def test_s0_reference_adapter_is_lazy_and_source_selected(tmp_path: Path) -> Non
     assert source.index('importlib.import_module("train_net")') < source.index(
         "detectron2_modeling.build_model(config)"
     )
-    (tmp_path / "train_net.py").touch()
+    vendor_root = tmp_path / Path("vendor") / "radm"
+    vendor_root.mkdir(parents=True)
+    (vendor_root / "train_net.py").touch()
     if importlib.util.find_spec("detectron2") is None:
         with pytest.raises(ReferenceUnavailable, match="optional Detectron2"):
-            RADMReferenceAdapter(vendor_root=tmp_path).build_initialized_state()
+            RADMReferenceAdapter(vendor_root=vendor_root).build_initialized_state()
     else:
-        adapter = RADMReferenceAdapter(vendor_root=tmp_path)
-        assert adapter.vendor_root == tmp_path
+        adapter = RADMReferenceAdapter(vendor_root=vendor_root)
+        assert adapter.vendor_root == vendor_root
 
 
 def test_s0_reference_adapter_bridges_detectron2_pillow_symbol() -> None:

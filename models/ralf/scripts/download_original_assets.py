@@ -21,13 +21,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache-dir",
         type=Path,
-        default=Path(".cache/ralf/cache"),
+        default=Path(".cache") / "ralf" / "cache",
         help="Directory containing or receiving the unpacked RALF cache.",
     )
     parser.add_argument(
         "--zip-path",
         type=Path,
-        default=Path(".cache/ralf/cache.zip"),
+        default=Path(".cache") / "ralf" / "cache.zip",
         help="Path to the downloaded authors' cache.zip.",
     )
     parser.add_argument(
@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path(".cache/ralf/cache_manifest.json"),
+        default=Path(".cache") / "ralf" / "cache_manifest.json",
         help="Manifest path to write.",
     )
     return parser.parse_args()

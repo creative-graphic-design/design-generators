@@ -49,7 +49,7 @@ model-index:
 <!-- --8<-- [start:card] -->
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
-<!-- Include the arXiv, venue, license, base-library, dataset, vendor-parity, and Hub-status badges required by the model README checker. -->
+<!-- Include the arXiv, venue, license, base-library, dataset, vendor-parity, and Hub-status badges required by the model README checker. Set the Hub badge from package-local scripts/publish_to_hub.py presence using [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership). -->
 
 # Model Card for <model-id>
 
@@ -86,7 +86,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## Supported Checkpoints
 
-<!-- Use the model issue's checkpoint/dataset/task matrix. Mark an unpublished Hub id as not-published until publication is complete. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
+<!-- Use the model issue's checkpoint/dataset/task matrix. The checkpoint status records whether that Hub id has been published; it is separate from the README Hub badge, which follows package-local publisher presence. Mark an unpublished Hub id as not-published. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
 
 | Checkpoint           | Hub ID                                  | Status        |
 | -------------------- | --------------------------------------- | ------------- |
@@ -120,7 +120,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## How to Get Started with the Model
 
-<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until they are published. -->
+<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until publication completes; the Hub badge follows package-local publisher presence. -->
 
 Install the package and its unpublished workspace dependencies together.
 
@@ -132,6 +132,8 @@ pip install \
 
 <!-- Include posgen in the same pip command when required, and preserve required shared-package extras. -->
 
+When a Git URL would recursively fetch vendor submodules, use a source archive URL with a subdirectory fragment instead. Pin the archive to the same commit as custom pipeline code in published Hub instructions.
+
 For local conversion and reproduction, use the repository checkout. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
 
 ```bash
@@ -141,12 +143,15 @@ uv sync --package <member-name>
 uv run --package <member-name> python
 ```
 
+<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments. -->
+
 ```python
 from <package_name> import <PipelineOrModelClass>
 
 pipe = <PipelineOrModelClass>.from_pretrained(
     ".cache/<slug>/converted/<local-checkpoint-dir>",
 )
+pipe.to("cuda")
 # After Hub publication: from_pretrained("creative-graphic-design/<hub-repo-id>")
 out = pipe(batch_size=1, seed=0)
 

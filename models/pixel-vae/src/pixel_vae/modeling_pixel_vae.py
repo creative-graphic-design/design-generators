@@ -51,7 +51,7 @@ class PixelVAEOutput(ModelOutput):
 
 
 class PixelVAEBatchNorm2d(nn.Module):
-    """Batch normalization with population variance and moving averages."""
+    """Batch normalization with biased outputs and unbiased moving variance."""
 
     running_mean: Float[torch.Tensor, "channels"]
     running_var: Float[torch.Tensor, "channels"]
@@ -69,7 +69,7 @@ class PixelVAEBatchNorm2d(nn.Module):
     def forward(
         self, inputs: Float[torch.Tensor, "batch channels height width"]
     ) -> Float[torch.Tensor, "batch channels height width"]:
-        """Normalize with population variance and Keras EMA semantics."""
+        """Normalize with population variance and update corrected moving variance."""
         if self.training:
             mean = inputs.mean(dim=(0, 2, 3))
             variance = (
@@ -77,12 +77,17 @@ class PixelVAEBatchNorm2d(nn.Module):
                 .square()
                 .mean(dim=(0, 2, 3))
             )
+            sample_count = inputs.numel() // inputs.shape[1]
+            moving_variance = variance.detach()
+            if sample_count > 1:
+                moving_variance = moving_variance * (sample_count / (sample_count - 1))
+
             with torch.no_grad():
                 self.running_mean.mul_(self.momentum).add_(
                     mean.detach(), alpha=1 - self.momentum
                 )
                 self.running_var.mul_(self.momentum).add_(
-                    variance.detach(), alpha=1 - self.momentum
+                    moving_variance, alpha=1 - self.momentum
                 )
         else:
             mean = self.running_mean
@@ -229,13 +234,13 @@ class PixelVAEMobileNetV2(nn.Module):
 
         for block_id in range(17):
             prefix = "expanded_conv_" if block_id == 0 else f"block_{block_id}_"
+            residual = x
             expand_name = f"{prefix}expand"
             if expand_name in self.layers:
                 x = self._apply_conv(expand_name, x)
                 x = F.relu6(self.layers[f"{prefix}expand_BN"](x))
 
             depthwise_name = f"{prefix}depthwise"
-            residual = x
             stride = self._layer_strides[depthwise_name]
             x = self._apply_conv(depthwise_name, x)
             x = F.relu6(self.layers[f"{prefix}depthwise_BN"](x))
@@ -497,9 +502,12 @@ def pixelvae_reconstruction_loss(
     if logits.shape != (*targets.shape, QUANTIZATION_LEVELS):
         raise ValueError("logits must have shape [batch, 256, 256, 4, 16]")
 
+    # Keep the class axis last, as in the TensorFlow sparse cross entropy.
     per_channel = F.cross_entropy(
-        logits.permute(0, 4, 1, 2, 3), targets, reduction="none"
-    )
+        logits.reshape(-1, QUANTIZATION_LEVELS),
+        targets.reshape(-1),
+        reduction="none",
+    ).reshape_as(targets)
     rgb_mask = (targets[..., 3:4] > 0).to(per_channel.dtype)
     rgb_loss = per_channel[..., :3] * rgb_mask
     alpha_loss = per_channel[..., 3:4]

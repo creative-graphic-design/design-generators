@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO, TypeAlias, cast
 from types import ModuleType, SimpleNamespace
@@ -33,6 +34,7 @@ from torch.utils.data import DataLoader, Dataset, IterableDataset
 
 from laygen.common.randomness import resolve_torch_generator
 from laygen.modeling_outputs import LayoutGenerationOutput
+from layoutganpp.datasets import labels_for_dataset
 from traingen_parity.compare import (
     BatchStreamReport,
     OptimizerStepReport,
@@ -74,23 +76,14 @@ from training_adapter import vendor_forward_trace  # noqa: E402
 
 OUTPUT_ROOT = ROOT / ".cache" / "layoutganpp" / "stage-evidence"
 DATA_ROOT = ROOT / ".cache" / "layoutganpp" / "data" / "magazine"
-SOURCE_MANIFEST = DATA_ROOT / "source-manifest.json"
 VENDOR_ROOT = ROOT / "vendor" / "const-layout"
 VENDOR_WORK = ROOT / ".cache" / "layoutganpp" / "vendor-work"
 AUDIT_VENV = ROOT / ".cache" / "layoutganpp" / "runtime" / "audit-venv"
 AUDIT_FREEZE = ROOT / ".cache" / "layoutganpp" / "runtime" / "pip-freeze.txt"
 WHEEL_ROOT = ROOT / ".cache" / "layoutganpp" / "runtime" / "wheels"
-CHECKPOINT = (
-    ROOT / ".cache" / "layoutganpp" / "original" / "layoutganpp_magazine.pth.tar"
-)
-CONVERTED = ROOT / ".cache" / "layoutganpp" / "converted" / "layoutganpp-magazine"
-VENDOR_CHECKPOINT = VENDOR_WORK / "pretrained" / "layoutganpp_magazine.pth.tar"
-VENDOR_LAYOUTNET = VENDOR_WORK / "pretrained" / "layoutnet_magazine.pth.tar"
-ASSET_ACQUISITION = ROOT / ".cache" / "layoutganpp" / "original" / "acquisition.json"
+ASSET_ACQUISITION = ROOT / ".cache" / "layoutganpp" / "s5" / "evaluation-assets.json"
 VENDOR_BATCH_SIZE = 64
 WEIGHT_BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
-CHECKPOINT_URL = f"{WEIGHT_BASE_URL}/layoutganpp_magazine.pth.tar"
-LAYOUTNET_URL = f"{WEIGHT_BASE_URL}/layoutnet_magazine.pth.tar"
 LATENT_SIZE = 4
 INIT_SEED = 42975
 S1_LATENT_SEED = 42001
@@ -103,6 +96,64 @@ S3_REPEATS = 2
 S3_WORKER_HASH_STEPS = 20
 PREDICTION_ATOL = 0.0
 RELATIVE_LOSS_LIMIT = 1.0e-3
+
+
+@dataclass(frozen=True)
+class EvaluationDataset:
+    vendor_name: str
+    data_root: Path
+    checkpoint: Path
+    vendor_checkpoint: Path
+    layoutnet: Path
+    converted: Path
+    checkpoint_url: str
+    layoutnet_url: str
+
+
+S4_DATASETS = {
+    "magazine": EvaluationDataset(
+        vendor_name="magazine",
+        data_root=ROOT / ".cache" / "layoutganpp" / "data" / "magazine",
+        checkpoint=ROOT
+        / ".cache"
+        / "layoutganpp"
+        / "original"
+        / "layoutganpp_magazine.pth.tar",
+        vendor_checkpoint=VENDOR_WORK / "pretrained" / "layoutganpp_magazine.pth.tar",
+        layoutnet=VENDOR_WORK / "pretrained" / "layoutnet_magazine.pth.tar",
+        converted=ROOT
+        / ".cache"
+        / "layoutganpp"
+        / "converted"
+        / "layoutganpp-magazine",
+        checkpoint_url=f"{WEIGHT_BASE_URL}/layoutganpp_magazine.pth.tar",
+        layoutnet_url=f"{WEIGHT_BASE_URL}/layoutnet_magazine.pth.tar",
+    ),
+    "rico13": EvaluationDataset(
+        vendor_name="rico",
+        data_root=ROOT / ".cache" / "layoutganpp" / "data" / "rico13",
+        checkpoint=VENDOR_WORK / "pretrained" / "layoutganpp_rico.pth.tar",
+        vendor_checkpoint=VENDOR_WORK / "pretrained" / "layoutganpp_rico.pth.tar",
+        layoutnet=VENDOR_WORK / "pretrained" / "layoutnet_rico.pth.tar",
+        converted=ROOT / ".cache" / "layoutganpp" / "converted" / "layoutganpp-rico13",
+        checkpoint_url=f"{WEIGHT_BASE_URL}/layoutganpp_rico.pth.tar",
+        layoutnet_url=f"{WEIGHT_BASE_URL}/layoutnet_rico.pth.tar",
+    ),
+    "publaynet": EvaluationDataset(
+        vendor_name="publaynet",
+        data_root=ROOT / ".cache" / "layoutganpp" / "data" / "publaynet",
+        checkpoint=VENDOR_WORK / "pretrained" / "layoutganpp_publaynet.pth.tar",
+        vendor_checkpoint=VENDOR_WORK / "pretrained" / "layoutganpp_publaynet.pth.tar",
+        layoutnet=VENDOR_WORK / "pretrained" / "layoutnet_publaynet.pth.tar",
+        converted=ROOT
+        / ".cache"
+        / "layoutganpp"
+        / "converted"
+        / "layoutganpp-publaynet",
+        checkpoint_url=f"{WEIGHT_BASE_URL}/layoutganpp_publaynet.pth.tar",
+        layoutnet_url=f"{WEIGHT_BASE_URL}/layoutnet_publaynet.pth.tar",
+    ),
+}
 
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
@@ -143,7 +194,9 @@ def _rng_digest() -> str:
     ).hexdigest()
 
 
-def _asset_record(path: Path, url: str, asset_name: str) -> dict[str, JsonValue]:
+def _asset_record(
+    path: Path, url: str, dataset_name: str, role: str
+) -> dict[str, JsonValue]:
     if not ASSET_ACQUISITION.exists():
         raise FileNotFoundError(
             f"missing asset acquisition record: {ASSET_ACQUISITION}"
@@ -152,26 +205,39 @@ def _asset_record(path: Path, url: str, asset_name: str) -> dict[str, JsonValue]
         dict[str, JsonValue], json.loads(ASSET_ACQUISITION.read_text())
     )
     assets = acquisition_manifest.get("assets")
-    if not isinstance(assets, dict) or not isinstance(assets.get(asset_name), dict):
-        raise ValueError(f"asset acquisition record lacks {asset_name}")
-    acquisition = cast(dict[str, JsonValue], assets[asset_name])
+    if not isinstance(assets, list):
+        raise ValueError("asset acquisition record must contain an asset list")
+    acquisition = next(
+        (
+            cast(dict[str, JsonValue], asset)
+            for asset in assets
+            if isinstance(asset, dict)
+            and asset.get("dataset") == dataset_name
+            and asset.get("role") == role
+        ),
+        None,
+    )
+    if acquisition is None:
+        raise ValueError(f"asset acquisition record lacks {dataset_name}/{role}")
     if acquisition.get("url") != url:
-        raise ValueError(f"asset acquisition URL does not match {asset_name}")
+        raise ValueError(f"asset acquisition URL does not match {dataset_name}/{role}")
+    if acquisition.get("path") != str(path.relative_to(ROOT)):
+        raise ValueError(f"asset acquisition path does not match {dataset_name}/{role}")
     available = path.exists()
     if available:
-        if acquisition.get("size_bytes") != path.stat().st_size:
+        if acquisition.get("bytes") != path.stat().st_size:
             raise ValueError(
-                f"asset size does not match acquisition record: {asset_name}"
+                f"asset size does not match acquisition record: {dataset_name}/{role}"
             )
         if acquisition.get("sha256") != _sha256(path):
             raise ValueError(
-                f"asset hash does not match acquisition record: {asset_name}"
+                f"asset hash does not match acquisition record: {dataset_name}/{role}"
             )
     return {
         "url": url,
         "path": str(path.relative_to(ROOT)),
         "available": available,
-        "size_bytes": path.stat().st_size if available else None,
+        "bytes": path.stat().st_size if available else None,
         "sha256": _sha256(path) if available else None,
         "acquisition": acquisition,
     }
@@ -198,15 +264,27 @@ def _audit_runtime() -> dict[str, JsonValue]:
     }
 
 
-def _source_manifest() -> tuple[dict[str, JsonValue], str]:
-    if not SOURCE_MANIFEST.exists():
-        raise FileNotFoundError(f"missing Magazine source manifest: {SOURCE_MANIFEST}")
-    manifest = cast(dict[str, JsonValue], json.loads(SOURCE_MANIFEST.read_text()))
-    required = {"source_id", "source_revision", "acquisition_command"}
+def _source_manifest(
+    dataset_name: str = "magazine",
+) -> tuple[dict[str, JsonValue], str]:
+    source_manifest = S4_DATASETS[dataset_name].data_root / "source-manifest.json"
+    if not source_manifest.exists():
+        raise FileNotFoundError(
+            f"missing {dataset_name} source manifest: {source_manifest}"
+        )
+    manifest = cast(dict[str, JsonValue], json.loads(source_manifest.read_text()))
+    required = {"dataset", "source_id", "source_revision"}
     missing = sorted(required.difference(manifest))
     if missing:
         raise ValueError(f"source manifest is missing {missing}")
-    return manifest, _sha256(SOURCE_MANIFEST)
+    if manifest["dataset"] != dataset_name:
+        raise ValueError(f"source manifest does not identify {dataset_name}")
+    provenance_fields = {"acquisition_command", "source_files", "source_arrow_shards"}
+    if not provenance_fields.intersection(manifest):
+        raise ValueError(
+            f"source manifest lacks acquisition provenance for {dataset_name}"
+        )
+    return manifest, _sha256(source_manifest)
 
 
 def _record(stage: str, started: float, **values: JsonValue) -> dict[str, JsonValue]:
@@ -220,8 +298,12 @@ def _record(stage: str, started: float, **values: JsonValue) -> dict[str, JsonVa
     }
 
 
-def _write(stage: str, payload: dict[str, JsonValue]) -> Path:
+def _write(
+    stage: str, payload: dict[str, JsonValue], *, dataset_name: str | None = None
+) -> Path:
     output_dir = OUTPUT_ROOT / stage
+    if dataset_name is not None:
+        output_dir /= dataset_name
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "summary.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
@@ -437,7 +519,7 @@ def _float_field(record: Mapping[str, JsonValue], key: str) -> float:
 
 def _rss_bytes() -> int:
     page_size = os.sysconf("SC_PAGE_SIZE")
-    with Path("/proc/self/statm").open() as handle:
+    with Path(os.sep, "proc", "self", "statm").open() as handle:
         resident_pages = int(handle.read().split()[1])
     return resident_pages * page_size
 
@@ -1168,15 +1250,36 @@ def _stage_s2(device: torch.device) -> Path:
     return _write("s2-one-step", payload)
 
 
-def _vendor_rows(split: str) -> list[Data]:
+def _vendor_rows(split: str, dataset_name: str = "magazine") -> list[Data]:
+    paths = S4_DATASETS[dataset_name]
     VENDOR_WORK.mkdir(parents=True, exist_ok=True)
-    dataset_root = VENDOR_WORK / "data" / "dataset" / "magazine"
+    dataset_root = VENDOR_WORK / "data" / "dataset" / paths.vendor_name
     raw_root = dataset_root / "raw"
     raw_root.parent.mkdir(parents=True, exist_ok=True)
     if raw_root.exists() and not raw_root.is_symlink():
-        raise RuntimeError(f"vendor raw path is not the expected symlink: {raw_root}")
+        raw_source_names = {
+            "magazine": ("layoutdata",),
+            "rico13": ("semantic_annotations",),
+            "publaynet": ("publaynet",),
+        }[dataset_name]
+        raw_entries = {entry.name: entry for entry in raw_root.iterdir()}
+        source_entries = {name: paths.data_root / name for name in raw_source_names}
+        if (
+            set(raw_entries) != set(source_entries)
+            or any(not source.exists() for source in source_entries.values())
+            or any(
+                not raw_entries[name].is_symlink()
+                or raw_entries[name].resolve() != source.resolve()
+                for name, source in source_entries.items()
+            )
+        ):
+            raise RuntimeError(
+                f"vendor raw directory does not link to the approved {dataset_name} data"
+            )
+    if raw_root.is_symlink() and raw_root.resolve() != paths.data_root.resolve():
+        raise RuntimeError(f"vendor raw path points to the wrong data root: {raw_root}")
     if not raw_root.exists():
-        raw_root.symlink_to(DATA_ROOT.resolve(), target_is_directory=True)
+        raw_root.symlink_to(paths.data_root.resolve(), target_is_directory=True)
     old_cwd = Path.cwd()
     old_path = list(sys.path)
     old_env = os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD")
@@ -1184,11 +1287,14 @@ def _vendor_rows(split: str) -> list[Data]:
     sys.path.insert(0, str(VENDOR_ROOT))
     os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     try:
-        from data.magazine import Magazine
+        from data import get_dataset
         from data.util import LexicographicSort
 
         transform = LexicographicSort() if split == "train" else None
-        return cast(list[Data], list(Magazine(split, transform=transform)))
+        return cast(
+            list[Data],
+            list(get_dataset(paths.vendor_name, split, transform=transform)),
+        )
     finally:
         os.chdir(old_cwd)
         sys.path[:] = old_path
@@ -1196,6 +1302,25 @@ def _vendor_rows(split: str) -> list[Data]:
             os.environ.pop("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", None)
         else:
             os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = old_env
+
+
+def _vendor_label_names(dataset_name: str) -> list[str]:
+    old_cwd = Path.cwd()
+    old_path = list(sys.path)
+    os.chdir(VENDOR_WORK)
+    sys.path.insert(0, str(VENDOR_ROOT))
+    try:
+        module_name, class_name = {
+            "magazine": ("data.magazine", "Magazine"),
+            "rico13": ("data.rico", "Rico"),
+            "publaynet": ("data.publaynet", "PubLayNet"),
+        }[dataset_name]
+        module = importlib.import_module(module_name)
+        dataset_class = getattr(module, class_name)
+        return [str(label) for label in dataset_class.labels]
+    finally:
+        os.chdir(old_cwd)
+        sys.path[:] = old_path
 
 
 def _dense_vendor_batch(
@@ -1215,11 +1340,13 @@ def _dense_vendor_batch(
     }
 
 
-def _package_loader(split: str, seed: int) -> DataLoader[LayoutRow]:
+def _package_loader(
+    split: str, seed: int, dataset_name: str = "magazine"
+) -> DataLoader[LayoutRow]:
     dataset = LayoutGANPPDataset(
-        dataset_name="magazine",
+        dataset_name=dataset_name,
         split=split,
-        data_root=DATA_ROOT,
+        data_root=S4_DATASETS[dataset_name].data_root,
         synthetic_size=0,
         seed=seed,
     )
@@ -1233,10 +1360,16 @@ def _package_loader(split: str, seed: int) -> DataLoader[LayoutRow]:
     )
 
 
-def _vendor_loader(split: str, seed: int, *, num_workers: int = 0) -> Iterable[Data]:
+def _vendor_loader(
+    split: str,
+    seed: int,
+    *,
+    num_workers: int = 0,
+    dataset_name: str = "magazine",
+) -> Iterable[Data]:
     from torch_geometric.data import DataLoader as VendorLoader
 
-    rows = _vendor_rows(split)
+    rows = _vendor_rows(split, dataset_name)
     if num_workers:
         return VendorLoader(
             rows,
@@ -1420,15 +1553,21 @@ def _compare_loader_streams(
     split: str = "train",
     seed: int = S3_BATCH_SEED,
     vendor_num_workers: int = 0,
+    dataset_name: str = "magazine",
 ) -> BatchStreamReport:
     package_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
-        for batch in _loader_stream(_package_loader(split, seed))
+        for batch in _loader_stream(_package_loader(split, seed, dataset_name))
     )
     vendor_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
         for batch in _loader_stream(
-            _vendor_loader(split, seed, num_workers=vendor_num_workers)
+            _vendor_loader(
+                split,
+                seed,
+                num_workers=vendor_num_workers,
+                dataset_name=dataset_name,
+            )
         )
     )
     del device
@@ -1436,11 +1575,21 @@ def _compare_loader_streams(
 
 
 def _loader_stream_summary(
-    device: torch.device, split: str, seed: int
+    device: torch.device,
+    split: str,
+    seed: int,
+    dataset_name: str = "magazine",
 ) -> dict[str, JsonValue]:
-    row_count = len(load_rows("magazine", DATA_ROOT, split))
+    data_root = S4_DATASETS[dataset_name].data_root
+    row_count = len(load_rows(dataset_name, data_root, split))
     expected_batches = (row_count + VENDOR_BATCH_SIZE - 1) // VENDOR_BATCH_SIZE
-    report = _compare_loader_streams(device, expected_batches, split=split, seed=seed)
+    report = _compare_loader_streams(
+        device,
+        expected_batches,
+        split=split,
+        seed=seed,
+        dataset_name=dataset_name,
+    )
     return {
         "passed": report.passed and report.checked_steps == expected_batches,
         "checked_batches": report.checked_steps,
@@ -1452,9 +1601,11 @@ def _loader_stream_summary(
     }
 
 
-def _all_loader_streams(device: torch.device, seed: int) -> dict[str, JsonValue]:
+def _all_loader_streams(
+    device: torch.device, seed: int, dataset_name: str = "magazine"
+) -> dict[str, JsonValue]:
     return {
-        split: _loader_stream_summary(device, split, seed)
+        split: _loader_stream_summary(device, split, seed, dataset_name)
         for split in ("train", "val", "test")
     }
 
@@ -2332,22 +2483,26 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             )
             + "\n"
         )
-    production_path = OUTPUT_ROOT / "s3-lockstep" / "production-cli-smoke.txt"
+    production_path = OUTPUT_ROOT / "s3-lockstep" / "package-cli-smoke.txt"
     command = [
         sys.executable,
         "-m",
         "traingen.lightning.cli",
         "fit",
         "--config",
-        "models/layoutganpp/configs/training/layoutganpp_magazine.yaml",
-        "--trainer.limit_train_batches=1",
-        "--trainer.limit_val_batches=0",
+        "models/layoutganpp/configs/training/smoke.yaml",
         "--trainer.default_root_dir=.cache/layoutganpp/stage-evidence/s3-lockstep/production",
     ]
     process = subprocess.run(
         command, cwd=ROOT, text=True, capture_output=True, check=False
     )
-    production_path.write_text(process.stdout + process.stderr)
+    production_output = process.stdout + process.stderr
+    cli_smoke_passed = (
+        process.returncode == 0
+        and "Received SIGTERM:" not in production_output
+        and "`Trainer.fit` stopped: `max_epochs=1` reached." in production_output
+    )
+    production_path.write_text(production_output)
     summary = _record(
         "s3-lockstep",
         started,
@@ -2356,7 +2511,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
         and bool(natural_comparison["all_repeats_passed"])
         and seed_boundary_passed
         and first is None
-        and process.returncode == 0
+        and cli_smoke_passed
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
         natural_steps=steps,
@@ -2389,6 +2544,7 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
             "cli_smoke": {
                 "command": " ".join(command),
                 "returncode": process.returncode,
+                "completed": cli_smoke_passed,
                 "artifact": str(production_path.relative_to(ROOT)),
             },
             "metadata_artifact": str(metadata_path.relative_to(ROOT)),
@@ -2403,35 +2559,41 @@ def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path
     return _write("s3-lockstep", summary)
 
 
-def _require_checkpoint_assets() -> None:
-    if not CHECKPOINT.exists():
+def _require_checkpoint_assets(dataset_name: str) -> None:
+    paths = S4_DATASETS[dataset_name]
+    if not paths.checkpoint.exists():
         raise FileNotFoundError(
-            "Magazine checkpoint is required; run models/layoutganpp/scripts/download_original_weights.py"
+            f"{dataset_name} checkpoint is required; acquire the official vendor asset"
         )
-    if not VENDOR_LAYOUTNET.exists():
-        raise FileNotFoundError(
-            "vendor LayoutFID requires pretrained/layoutnet_magazine.pth.tar"
-        )
-    VENDOR_CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
-    if not VENDOR_CHECKPOINT.exists():
-        VENDOR_CHECKPOINT.symlink_to(CHECKPOINT.resolve())
-    if not CONVERTED.exists():
+    if not paths.layoutnet.exists():
+        raise FileNotFoundError(f"vendor LayoutFID requires {paths.layoutnet.name}")
+    paths.vendor_checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    if (
+        paths.vendor_checkpoint != paths.checkpoint
+        and not paths.vendor_checkpoint.exists()
+    ):
+        paths.vendor_checkpoint.symlink_to(paths.checkpoint.resolve())
+    if not paths.converted.exists():
+        environment = os.environ.copy()
+        environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
         subprocess.run(
             [
                 sys.executable,
                 "models/layoutganpp/scripts/convert_original_checkpoint.py",
                 "--input-checkpoint",
-                str(CHECKPOINT.relative_to(ROOT)),
+                str(paths.checkpoint.relative_to(ROOT)),
                 "--output-dir",
-                str(CONVERTED.relative_to(ROOT)),
+                str(paths.converted.relative_to(ROOT)),
             ],
             cwd=ROOT,
             check=True,
+            env=environment,
         )
 
 
-def _clear_vendor_processed_cache() -> bool:
-    processed = VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+def _clear_vendor_processed_cache(dataset_name: str) -> bool:
+    vendor_name = S4_DATASETS[dataset_name].vendor_name
+    processed = VENDOR_WORK / "data" / "dataset" / vendor_name / "processed"
     existed = processed.exists()
     if processed.exists():
         shutil.rmtree(processed)
@@ -2505,26 +2667,35 @@ def _compare_prediction_rows(
     return maximum, None
 
 
-def _stage_s4(device: torch.device) -> Path:
+def _stage_s4(device: torch.device, dataset_name: str = "magazine") -> Path:
     started = time.time()
-    _require_previous("s4-loader-eval", "s3-lockstep")
-    processed_cache_existed = _clear_vendor_processed_cache()
-    vendor_rows = _vendor_rows("test")
-    package_rows = load_rows("magazine", DATA_ROOT, "test")
+    if dataset_name == "magazine":
+        _require_previous("s4-loader-eval", "s3-lockstep")
+    paths = S4_DATASETS[dataset_name]
+    processed_cache_existed = _clear_vendor_processed_cache(dataset_name)
+    vendor_rows = _vendor_rows("test", dataset_name)
+    package_rows = load_rows(dataset_name, paths.data_root, "test")
     package_names = [row.name for row in package_rows]
     vendor_names = [str(row.attr["name"]) for row in vendor_rows]
+    package_labels = [str(label) for label in labels_for_dataset(dataset_name)]
+    vendor_labels = _vendor_label_names(dataset_name)
     if vendor_names != package_names:
         raise RuntimeError(
             "vendor and package TEST rows diverge after cache regeneration"
         )
-    evaluator_dir = OUTPUT_ROOT / "s4-loader-eval"
+    if vendor_labels != package_labels:
+        raise RuntimeError(
+            f"vendor and package {dataset_name} label order differs: "
+            f"{vendor_labels} != {package_labels}"
+        )
+    evaluator_dir = OUTPUT_ROOT / "s4-loader-eval" / dataset_name
     evaluator_dir.mkdir(parents=True, exist_ok=True)
-    source, source_hash = _source_manifest()
-    loader_streams = _all_loader_streams(device, S4_EVALUATION_SEED)
+    source, source_hash = _source_manifest(dataset_name)
+    loader_streams = _all_loader_streams(device, S4_EVALUATION_SEED, dataset_name)
     evaluation_path = evaluator_dir / "evaluation-path.json"
 
     try:
-        _require_checkpoint_assets()
+        _require_checkpoint_assets(dataset_name)
     except FileNotFoundError as error:
         retry_summary = os.environ.get("LAYOUTGANPP_CHECKPOINT_RETRY_SUMMARY")
         blocker = retry_summary or str(error)
@@ -2542,32 +2713,36 @@ def _stage_s4(device: torch.device) -> Path:
             "reason": blocker,
             "weights": {
                 "trained_checkpoint": {
-                    "path": str(CHECKPOINT.relative_to(ROOT)),
-                    "available": CHECKPOINT.exists(),
-                    "sha256": _sha256(CHECKPOINT) if CHECKPOINT.exists() else None,
+                    "path": str(paths.checkpoint.relative_to(ROOT)),
+                    "available": paths.checkpoint.exists(),
+                    "sha256": (
+                        _sha256(paths.checkpoint) if paths.checkpoint.exists() else None
+                    ),
                 },
                 "layoutnet_fid": {
-                    "path": str(VENDOR_LAYOUTNET.relative_to(ROOT)),
-                    "available": VENDOR_LAYOUTNET.exists(),
+                    "path": str(paths.layoutnet.relative_to(ROOT)),
+                    "available": paths.layoutnet.exists(),
                     "sha256": (
-                        _sha256(VENDOR_LAYOUTNET) if VENDOR_LAYOUTNET.exists() else None
+                        _sha256(paths.layoutnet) if paths.layoutnet.exists() else None
                     ),
                 },
             },
             "downloads": {
                 "trained_checkpoint": _asset_record(
-                    CHECKPOINT,
-                    CHECKPOINT_URL,
-                    "trained_checkpoint",
+                    paths.checkpoint,
+                    paths.checkpoint_url,
+                    dataset_name,
+                    "generator",
                 ),
                 "layoutnet_fid": _asset_record(
-                    VENDOR_LAYOUTNET,
-                    LAYOUTNET_URL,
+                    paths.layoutnet,
+                    paths.layoutnet_url,
+                    dataset_name,
                     "layoutnet_fid",
                 ),
             },
             "inputs": {
-                "dataset": "magazine",
+                "dataset": dataset_name,
                 "split": "test",
                 "count": len(package_rows),
                 "source_manifest_sha256": source_hash,
@@ -2618,6 +2793,7 @@ def _stage_s4(device: torch.device) -> Path:
                     "reason": blocker,
                 },
             ),
+            dataset_name=dataset_name,
         )
 
     vendor_pickle = evaluator_dir / "vendor-predictions.pkl"
@@ -2626,7 +2802,7 @@ def _stage_s4(device: torch.device) -> Path:
     vendor_command = [
         sys.executable,
         str((VENDOR_ROOT / "generate.py").resolve()),
-        str(VENDOR_CHECKPOINT.resolve()),
+        str(paths.vendor_checkpoint.resolve()),
         "--batch_size",
         str(VENDOR_BATCH_SIZE),
         "--seed",
@@ -2643,13 +2819,13 @@ def _stage_s4(device: torch.device) -> Path:
         check=True,
         env=vendor_environment,
     )
-    package_pipeline = LayoutGANPPPipeline.from_pretrained(CONVERTED)
+    package_pipeline = LayoutGANPPPipeline.from_pretrained(paths.converted)
     package_pipeline.model.to(device).eval()
     package_loader = DataLoader(
         LayoutGANPPDataset(
-            dataset_name="magazine",
+            dataset_name=dataset_name,
             split="test",
-            data_root=DATA_ROOT,
+            data_root=paths.data_root,
             synthetic_size=0,
             seed=0,
         ),
@@ -2704,7 +2880,7 @@ def _stage_s4(device: torch.device) -> Path:
         command = [
             sys.executable,
             str((VENDOR_ROOT / "eval.py").resolve()),
-            "magazine",
+            paths.vendor_name,
             str(prediction_file.resolve()),
             "--batch_size",
             str(VENDOR_BATCH_SIZE),
@@ -2731,18 +2907,39 @@ def _stage_s4(device: torch.device) -> Path:
         system: out_of_bounds_counts(values) for system, values in predictions.items()
     }
     metric_comparison = _metric_comparison(evaluator_metrics)
-    package_weight_files = sorted(CONVERTED.glob("*.safetensors"))
+    package_weight_files = sorted(paths.converted.glob("*.safetensors"))
     if len(package_weight_files) != 1:
         raise RuntimeError(
-            "converted Magazine checkpoint must contain one safetensors file"
+            f"converted {dataset_name} checkpoint must contain one safetensors file"
         )
     vendor_source_commit = subprocess.check_output(
         ["git", "-C", str(VENDOR_ROOT), "rev-parse", "HEAD"],
         cwd=ROOT,
         text=True,
     ).strip()
+    evaluator_source_paths = {
+        "generate": VENDOR_ROOT / "generate.py",
+        "eval": VENDOR_ROOT / "eval.py",
+    }
+    evaluator_configuration = {
+        "dataset": dataset_name,
+        "vendor_dataset": paths.vendor_name,
+        "split": "test",
+        "batch_size": VENDOR_BATCH_SIZE,
+        "evaluation_seed": S4_EVALUATION_SEED,
+        "generation_entry_point": "generate.py:main",
+        "evaluation_entry_point": "eval.py:main",
+    }
+    evaluator_configuration_hash = hashlib.sha256(
+        json.dumps(evaluator_configuration, sort_keys=True).encode()
+    ).hexdigest()
     prediction_passed = maximum_difference == 0.0 and first_divergence is None
     evaluation_passed = prediction_passed and bool(metric_comparison["passed"])
+    loader_streams_passed = all(
+        isinstance(stream, dict) and stream.get("passed") is True
+        for stream in loader_streams.values()
+    )
+    stage_passed = evaluation_passed and loader_streams_passed
     prediction_files = {
         "vendor": {
             "path": str(vendor_pickle.relative_to(ROOT)),
@@ -2759,7 +2956,9 @@ def _stage_s4(device: torch.device) -> Path:
     }
     checkpoint_args = cast(
         dict[str, JsonValue],
-        torch.load(VENDOR_CHECKPOINT, map_location="cpu", weights_only=False)["args"],
+        torch.load(paths.vendor_checkpoint, map_location="cpu", weights_only=False)[
+            "args"
+        ],
     )
     eval_settings_by_system = {
         system: {
@@ -2775,41 +2974,49 @@ def _stage_s4(device: torch.device) -> Path:
         "source_manifest_sha256": source_hash,
         "weights": {
             "trained_checkpoint": {
-                "path": str(CHECKPOINT.relative_to(ROOT)),
-                "sha256": _sha256(CHECKPOINT),
+                "path": str(paths.checkpoint.relative_to(ROOT)),
+                "sha256": _sha256(paths.checkpoint),
             },
             "vendor": {
-                "path": str(VENDOR_CHECKPOINT.relative_to(ROOT)),
-                "sha256": _sha256(VENDOR_CHECKPOINT),
+                "path": str(paths.vendor_checkpoint.relative_to(ROOT)),
+                "sha256": _sha256(paths.vendor_checkpoint),
             },
             "package": {
                 "path": str(package_weight_files[0].relative_to(ROOT)),
                 "sha256": _sha256(package_weight_files[0]),
-                "converted_directory": str(CONVERTED.relative_to(ROOT)),
+                "converted_directory": str(paths.converted.relative_to(ROOT)),
             },
             "layoutnet_fid": {
-                "path": str(VENDOR_LAYOUTNET.relative_to(ROOT)),
-                "sha256": _sha256(VENDOR_LAYOUTNET),
+                "path": str(paths.layoutnet.relative_to(ROOT)),
+                "sha256": _sha256(paths.layoutnet),
             },
         },
+        "checkpoint_selection_rule": (
+            "Use the official vendor checkpoint for this dataset; no validation-based "
+            "selection is performed in this evaluation-path prerequisite."
+        ),
         "downloads": {
             "trained_checkpoint": _asset_record(
-                CHECKPOINT,
-                CHECKPOINT_URL,
-                "trained_checkpoint",
+                paths.checkpoint,
+                paths.checkpoint_url,
+                dataset_name,
+                "generator",
             ),
             "layoutnet_fid": _asset_record(
-                VENDOR_LAYOUTNET,
-                LAYOUTNET_URL,
+                paths.layoutnet,
+                paths.layoutnet_url,
+                dataset_name,
                 "layoutnet_fid",
             ),
         },
         "inputs": {
             "path": str(input_file.relative_to(ROOT)),
             "sha256": _sha256(input_file),
-            "dataset": "magazine",
+            "dataset": dataset_name,
             "split": "test",
             "count": len(package_rows),
+            "vendor_label_names": vendor_labels,
+            "package_label_names": package_labels,
             "names_sha256": hashlib.sha256(
                 "\n".join(package_names).encode()
             ).hexdigest(),
@@ -2824,6 +3031,8 @@ def _stage_s4(device: torch.device) -> Path:
                 "sampling_seed": _command_option(vendor_command, "--seed"),
             },
             "eval_commands": eval_settings_by_system,
+            "configuration": evaluator_configuration,
+            "configuration_sha256": evaluator_configuration_hash,
         },
         "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
         "evaluator": {
@@ -2849,6 +3058,9 @@ def _stage_s4(device: torch.device) -> Path:
             "vendor_eval_for_package": vendor_source_commit,
             "package": _source_commit(),
         },
+        "evaluator_source_sha256": {
+            name: _sha256(path) for name, path in evaluator_source_paths.items()
+        },
         "prediction_comparison": {
             "passed": prediction_passed,
             "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
@@ -2864,24 +3076,25 @@ def _stage_s4(device: torch.device) -> Path:
     payload = _record(
         "s4-loader-eval",
         started,
-        result="PASS" if evaluation_passed else "FAIL",
+        result="PASS" if stage_passed else "FAIL",
         source_manifest=source,
         source_manifest_sha256=source_hash,
         loader_streams=loader_streams,
+        loader_streams_passed=loader_streams_passed,
         evaluation_path_parity=str(evaluation_path.relative_to(ROOT)),
         weights={
             "source_checkpoint": {
-                "path": str(CHECKPOINT.relative_to(ROOT)),
-                "sha256": _sha256(CHECKPOINT),
+                "path": str(paths.checkpoint.relative_to(ROOT)),
+                "sha256": _sha256(paths.checkpoint),
             },
             "vendor": {
-                "path": str(VENDOR_CHECKPOINT.relative_to(ROOT)),
-                "sha256": _sha256(VENDOR_CHECKPOINT),
+                "path": str(paths.vendor_checkpoint.relative_to(ROOT)),
+                "sha256": _sha256(paths.vendor_checkpoint),
             },
             "package": {
                 "path": str(package_weight_files[0].relative_to(ROOT)),
                 "sha256": _sha256(package_weight_files[0]),
-                "converted_directory": str(CONVERTED.relative_to(ROOT)),
+                "converted_directory": str(paths.converted.relative_to(ROOT)),
             },
         },
         loader={
@@ -2892,12 +3105,16 @@ def _stage_s4(device: torch.device) -> Path:
             "vendor_processed_cache": {
                 "path": str(
                     (
-                        VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+                        VENDOR_WORK
+                        / "data"
+                        / "dataset"
+                        / paths.vendor_name
+                        / "processed"
                     ).relative_to(ROOT)
                 ),
                 "existed_before_clear": processed_cache_existed,
                 "exists_after_vendor_load": (
-                    VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+                    VENDOR_WORK / "data" / "dataset" / paths.vendor_name / "processed"
                 ).exists(),
             },
         },
@@ -2940,8 +3157,9 @@ def _stage_s4(device: torch.device) -> Path:
         },
         metric_comparison=metric_comparison,
         first_divergence=first_divergence,
+        dataset_name=dataset_name,
     )
-    return _write("s4-loader-eval", payload)
+    return _write("s4-loader-eval", payload, dataset_name=dataset_name)
 
 
 def main() -> None:
@@ -2958,6 +3176,7 @@ def main() -> None:
     )
     parser.add_argument("--steps", type=int, default=S3_STEPS)
     parser.add_argument("--rss-report", type=Path)
+    parser.add_argument("--dataset", choices=tuple(S4_DATASETS), default="magazine")
     args = parser.parse_args()
     if args.rss_report is not None and not args.rss_report.is_absolute():
         args.rss_report = ROOT / args.rss_report
@@ -2977,7 +3196,7 @@ def main() -> None:
     elif args.stage == "s3-lockstep":
         path = _stage_s3(device, args.steps, args.rss_report)
     else:
-        path = _stage_s4(device)
+        path = _stage_s4(device, args.dataset)
 
     record = cast(dict[str, JsonValue], json.loads(path.read_text()))
     if record.get("result") != "PASS":

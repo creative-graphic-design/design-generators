@@ -338,10 +338,11 @@ def load_rows(dataset_name: str, data_root: str | Path, split: str) -> list[Layo
         if split == "test":
             return test_rows
 
-        return [
-            _sort_row(train_rows[index])
+        rows = [
+            train_rows[index]
             for index in _split_indices(len(train_rows), canonical, split)
         ]
+        return [_sort_row(row) for row in rows] if split == "train" else rows
 
     raise ValueError(f"Unsupported LayoutGAN++ dataset: {dataset_name}")
 
