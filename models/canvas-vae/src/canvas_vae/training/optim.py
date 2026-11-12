@@ -27,13 +27,22 @@ def clip_gradients_by_norm(parameters: Iterable[nn.Parameter], max_norm: float) 
         >>> weight.grad.tolist()
         [0.6000000238418579, 0.800000011920929]
     """
+    gradients: list[Float[torch.Tensor, "..."]] = []
+    clips: list[Float[torch.Tensor, ""]] = []
+    denominators: list[Float[torch.Tensor, ""]] = []
     for param in parameters:
         if param.grad is None:
             continue
 
         norm = param.grad.square().sum().sqrt()
         clip = torch.tensor(max_norm, dtype=norm.dtype, device=norm.device)
-        param.grad.copy_(param.grad * clip / torch.maximum(norm, clip))
+        gradients.append(param.grad)
+        clips.append(clip)
+        denominators.append(torch.maximum(norm, clip))
+
+    if gradients:
+        torch._foreach_mul_(gradients, clips)
+        torch._foreach_div_(gradients, denominators)
 
 
 def l2_penalty(model: nn.Module, weight: float) -> Float[torch.Tensor, ""]:
