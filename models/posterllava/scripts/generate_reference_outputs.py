@@ -18,7 +18,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--json-file", type=Path, required=True)
     parser.add_argument("--data-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--device", default="0")
+    parser.add_argument(
+        "--device", required=True, help="CUDA device id exposed to vendor inference."
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--max-new-tokens", type=int, default=1024)

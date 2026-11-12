@@ -2218,7 +2218,7 @@ def test_s3_radm_deterministic_multi_batch_parity() -> None:
     previous_deterministic_algorithms = torch.are_deterministic_algorithms_enabled()
     torch.use_deterministic_algorithms(True)
     try:
-        # The supported V100 same-op ROI control found nonzero default backward
+        # The supported same-op ROI control found nonzero default backward
         # deltas but exact gradients with this setting; both paired paths must
         # observe the same global algorithm policy.
         assert torch.are_deterministic_algorithms_enabled()
