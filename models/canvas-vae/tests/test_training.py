@@ -63,6 +63,92 @@ def test_clip_is_per_tensor():
     torch.testing.assert_close(large.grad, torch.tensor([0.6, 0.8]))
 
 
+def test_foreach_clipping_and_keras_adam_match_per_parameter_reference_bitwise():
+    generator = torch.Generator().manual_seed(746)
+    shapes = [(2, 3), (4,), ()]
+    actual = [nn.Parameter(torch.randn(shape, generator=generator)) for shape in shapes]
+    reference = [nn.Parameter(param.detach().clone()) for param in actual]
+    learning_rate, betas, epsilon, max_norm = 0.003, (0.85, 0.97), 2e-7, 1.0
+    optimizer = KerasAdam(actual, lr=learning_rate, betas=betas, eps=epsilon)
+    reference_steps = [0 for _ in reference]
+    reference_exp_avg = [torch.zeros_like(param) for param in reference]
+    reference_exp_avg_sq = [torch.zeros_like(param) for param in reference]
+
+    def assert_bitwise_equal(actual_tensor, expected_tensor, label):
+        difference = (actual_tensor - expected_tensor).abs()
+        assert torch.equal(actual_tensor, expected_tensor), (
+            f"{label}: max abs difference={float(difference.max())}"
+        )
+
+    for update in range(3):
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            if update == 1 and index == 2:
+                param.grad = reference_param.grad = None
+                continue
+
+            scale = (0.25, 1.0, 10.0)[index]
+            gradient = torch.randn(param.shape, generator=generator) * scale
+            param.grad = gradient.clone()
+            reference_param.grad = gradient.clone()
+
+        clip_gradients_by_norm(actual, max_norm)
+        for param in reference:
+            if param.grad is None:
+                continue
+
+            norm = param.grad.square().sum().sqrt()
+            clip = torch.tensor(max_norm, dtype=norm.dtype, device=norm.device)
+            param.grad.copy_(param.grad * clip / torch.maximum(norm, clip))
+
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            if param.grad is not None:
+                assert_bitwise_equal(
+                    param.grad, reference_param.grad, f"clipped gradient {index}"
+                )
+
+        optimizer.step()
+        with torch.no_grad():
+            for index, param in enumerate(reference):
+                if param.grad is None:
+                    continue
+
+                reference_steps[index] += 1
+                step = torch.tensor(
+                    float(reference_steps[index]),
+                    dtype=param.dtype,
+                    device=param.device,
+                )
+                beta1_power = torch.pow(
+                    torch.tensor(betas[0], dtype=param.dtype, device=param.device), step
+                )
+                beta2_power = torch.pow(
+                    torch.tensor(betas[1], dtype=param.dtype, device=param.device), step
+                )
+                lr = torch.tensor(learning_rate, dtype=param.dtype, device=param.device)
+                alpha = lr * torch.sqrt(1 - beta2_power) / (1 - beta1_power)
+                grad = param.grad
+                exp_avg = reference_exp_avg[index]
+                exp_avg_sq = reference_exp_avg_sq[index]
+                exp_avg.add_((grad - exp_avg) * (1 - betas[0]))
+                exp_avg_sq.add_((grad.square() - exp_avg_sq) * (1 - betas[1]))
+                param.sub_((exp_avg * alpha) / (exp_avg_sq.sqrt() + epsilon))
+
+        for index, (param, reference_param) in enumerate(zip(actual, reference)):
+            assert_bitwise_equal(param, reference_param, f"parameter {index}")
+            state = optimizer.state[param]
+            assert state["step"] == reference_steps[index]
+            assert_bitwise_equal(
+                state["exp_avg"],
+                reference_exp_avg[index],
+                f"first moment {index}",
+            )
+            assert_bitwise_equal(
+                state["exp_avg_sq"],
+                reference_exp_avg_sq[index],
+                f"second moment {index}",
+            )
+
+
 def test_l2_penalty_covers_dense_and_embedding_only():
     model = nn.Sequential(nn.Embedding(2, 2), nn.Linear(2, 1), nn.LayerNorm(1))
     for param in model.parameters():
@@ -93,6 +179,31 @@ def test_cross_epoch_sampler_default_order_matches_random_stream():
 
     expected = [expected_stream[index : index + 2] for index in range(0, 12, 2)]
     assert list(sampler) + list(sampler) == expected
+
+
+def test_cross_epoch_sampler_repeats_the_s4_order_across_batches():
+    sampler = CrossEpochBatchSampler(
+        5,
+        2,
+        torch.Generator().manual_seed(0),
+        ordered_indices=list(range(5)),
+        repeat_ordered_indices=True,
+    )
+
+    assert list(sampler) == [[0, 1], [2, 3], [4, 0]]
+    assert list(sampler) == [[1, 2], [3, 4], [0, 1]]
+
+
+@pytest.mark.parametrize("ordered_indices", [None, []])
+def test_cross_epoch_sampler_requires_order_to_repeat(ordered_indices):
+    with pytest.raises(ValueError, match="repeated ordered stream"):
+        CrossEpochBatchSampler(
+            5,
+            2,
+            torch.Generator().manual_seed(0),
+            ordered_indices=ordered_indices,
+            repeat_ordered_indices=True,
+        )
 
 
 def test_rico_scale_stream_constants():
@@ -198,6 +309,49 @@ def test_final_checkpoint_is_saved_when_validation_worsens(tmp_path):
             max_epochs=2,
             expected_global_step=2,
         )
+
+
+@pytest.mark.training
+def test_non_finite_training_loss_stops_after_its_batch(tmp_path):
+    from lightning.pytorch import LightningModule, Trainer
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from canvas_vae.training.callbacks import StopOnNonFiniteLoss
+
+    class NonFiniteSecondBatch(LightningModule):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(()))
+
+        def training_step(
+            self, batch: tuple[torch.Tensor, ...], batch_idx: int
+        ) -> torch.Tensor:
+            del batch
+            loss = self.weight.square()
+            return loss * float("nan") if batch_idx == 1 else loss
+
+        def configure_optimizers(self) -> torch.optim.Optimizer:
+            return torch.optim.SGD(self.parameters(), lr=0.1)
+
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=3,
+        limit_train_batches=3,
+        num_sanity_val_steps=0,
+        default_root_dir=tmp_path / "trainer",
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        callbacks=[StopOnNonFiniteLoss()],
+    )
+    trainer.fit(
+        NonFiniteSecondBatch(),
+        train_dataloaders=DataLoader(TensorDataset(torch.ones(3, 1)), batch_size=1),
+    )
+
+    assert trainer.global_step == 2
 
 
 @pytest.mark.training

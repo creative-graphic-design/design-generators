@@ -1,0 +1,3358 @@
+"""Execute one pinned CanvasVAE dataset seed on a named Colab session.
+
+The queue supervisor invokes this script once per run. It verifies both the
+local source and the remote checkout before starting the artifact-syncing
+wrapper, then lets the bundled wrapper upload results and release the session.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import re
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+import uuid
+from pathlib import Path, PurePosixPath
+from typing import TypeAlias, cast
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_MANIFEST = (
+    REPOSITORY_ROOT / ".cache" / "canvas-vae" / "full-run" / "rico" / "manifest.json"
+)
+COLAB_COMMAND = ["mise", "exec", "--", "colab"]
+COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+RUN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+HUB_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+LOCKSTEP_PROBE_STEPS = 300
+LOCKSTEP_LOSS_RELATIVE_LIMIT = 1e-3
+LOCKSTEP_PROBE_SCRIPT = (
+    Path("models")
+    / "canvas-vae"
+    / "tests"
+    / "vendor_parity"
+    / "crello_lockstep_probe.py"
+)
+TRAINING_UV_ENVIRONMENT = "/content/canvas-vae-training-env"
+POSTPROCESS_UV_ENVIRONMENT = "/content/canvas-vae-postprocess-env"
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
+JsonObject: TypeAlias = dict[str, JsonValue]
+LocalUpload: TypeAlias = tuple[Path, str, str | None]
+
+
+class ExecutorError(Exception):
+    """A run precondition or Colab operation failed."""
+
+
+def validate_hub_prefix(value: str | None, option: str) -> str | None:
+    if value is None:
+        return None
+    if HUB_PREFIX_PATTERN.fullmatch(value) is None or any(
+        part in {".", ".."} for part in value.split("/")
+    ):
+        raise ExecutorError(f"--{option} must be a relative Hub path prefix")
+
+    return value.strip("/")
+
+
+def validate_lockstep_probe_inputs(value: JsonValue) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ExecutorError(
+            "Crello original seed 0 needs explicit lockstep probe inputs"
+        )
+    for field in ("package_data_dir", "fixture_dir"):
+        path_value = value.get(field)
+        if (
+            not isinstance(path_value, str)
+            or Path(path_value).is_absolute()
+            or ".." in Path(path_value).parts
+            or "." in Path(path_value).parts
+            or "{" in path_value
+            or "}" in path_value
+        ):
+            raise ExecutorError(
+                f"Crello lockstep {field} must be a resolved repository-relative path"
+            )
+
+    for field in ("package_data_archive", "fixture_archive"):
+        archive_config = value.get(field)
+        if archive_config is None and field == "package_data_archive":
+            continue
+        if not isinstance(archive_config, dict):
+            raise ExecutorError(f"Crello lockstep {field} metadata is missing")
+        prefix = archive_config.get("prefix")
+        revision = archive_config.get("revision")
+        archive = archive_config.get("archive")
+        if (
+            not isinstance(prefix, str)
+            or validate_hub_prefix(prefix, f"lockstep-{field}-prefix") is None
+        ):
+            raise ExecutorError(f"Crello lockstep {field} prefix is missing")
+        if (
+            not isinstance(revision, str)
+            or not revision
+            or "{" in revision
+            or "}" in revision
+        ):
+            raise ExecutorError(f"Crello lockstep {field} revision is missing")
+        if not isinstance(archive, dict):
+            raise ExecutorError(f"Crello lockstep {field} archive metadata is missing")
+        filename = archive.get("filename")
+        sha256 = archive.get("sha256")
+        archive_path = PurePosixPath(filename) if isinstance(filename, str) else None
+        if (
+            archive_path is None
+            or archive_path.is_absolute()
+            or ".." in archive_path.parts
+            or "." in archive_path.parts
+            or not archive_path.parts
+            or not isinstance(sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+        ):
+            raise ExecutorError(f"Crello lockstep {field} file hash is invalid")
+
+    return cast(JsonObject, value)
+
+
+def validate_training_attribution_reference(value: JsonValue) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ExecutorError("Crello training needs a hashed attribution artifact")
+    prefix = value.get("prefix")
+    revision = value.get("revision")
+    filename = value.get("filename")
+    sha256 = value.get("sha256")
+    archive_path = PurePosixPath(filename) if isinstance(filename, str) else None
+    if (
+        not isinstance(prefix, str)
+        or validate_hub_prefix(prefix, "training-attribution-prefix") is None
+        or not isinstance(revision, str)
+        or not revision
+        or "{" in revision
+        or "}" in revision
+        or not isinstance(filename, str)
+        or archive_path is None
+        or archive_path.is_absolute()
+        or ".." in archive_path.parts
+        or "." in archive_path.parts
+        or not archive_path.parts
+        or "{" in filename
+        or "}" in filename
+        or not isinstance(sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+    ):
+        raise ExecutorError("Crello training attribution reference is incomplete")
+
+    return cast(JsonObject, value)
+
+
+def resolve_runtime_prefixes(
+    value: JsonValue,
+    input_prefix: str | None,
+    output_prefix: str | None,
+    probe_fixture_prefix: str | None = None,
+) -> JsonValue:
+    if isinstance(value, str):
+        if "{input_prefix}" in value:
+            if input_prefix is None:
+                raise ExecutorError("--input-prefix is required by this manifest")
+            value = value.replace("{input_prefix}", input_prefix.strip("/"))
+        if "{probe_fixture_prefix}" in value:
+            if probe_fixture_prefix is None:
+                raise ExecutorError(
+                    "--probe-fixture-prefix is required by this manifest"
+                )
+            value = value.replace(
+                "{probe_fixture_prefix}", probe_fixture_prefix.strip("/")
+            )
+        if "{output_prefix}" in value:
+            if output_prefix is None:
+                raise ExecutorError("--output-prefix is required by this manifest")
+            value = value.replace("{output_prefix}", output_prefix.strip("/"))
+        return value
+    if isinstance(value, list):
+        return [
+            resolve_runtime_prefixes(
+                item, input_prefix, output_prefix, probe_fixture_prefix
+            )
+            for item in value
+        ]
+    if isinstance(value, dict):
+        return {
+            key: resolve_runtime_prefixes(
+                item, input_prefix, output_prefix, probe_fixture_prefix
+            )
+            for key, item in value.items()
+        }
+
+    return value
+
+
+def load_json(path: Path) -> JsonObject:
+    try:
+        value: JsonValue = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ExecutorError(f"cannot read JSON file {path}: {error}") from error
+
+    if not isinstance(value, dict):
+        raise ExecutorError(f"JSON file must contain an object: {path}")
+
+    return value
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def validate_local_uploads(
+    uploads: tuple[LocalUpload, ...],
+    exec_files: tuple[Path, ...] = (),
+) -> None:
+    for local_path, remote_path, expected_sha256 in uploads:
+        if not local_path.is_file():
+            raise ExecutorError(
+                f"local upload for {remote_path} is missing: {local_path}"
+            )
+        if expected_sha256 is None:
+            continue
+        if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+            raise ExecutorError(
+                f"local upload for {remote_path} has an invalid expected SHA-256"
+            )
+        if sha256_file(local_path) != expected_sha256:
+            raise ExecutorError(
+                f"local upload SHA-256 differs for {remote_path}: {local_path}"
+            )
+
+    for local_path in exec_files:
+        if not local_path.is_file():
+            raise ExecutorError(f"local Colab exec file is missing: {local_path}")
+
+
+def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None:
+    if manifest.get("dataset") != "crello":
+        return
+
+    runtime_plan = manifest.get("runtime_plan")
+    if isinstance(runtime_plan, dict) and runtime_plan.get("cpu_runtime_smoke") is True:
+        return
+
+    validate_training_attribution_reference(manifest.get("training_attribution"))
+    rehearsal = manifest.get("cpu_rehearsal")
+    if (
+        not isinstance(rehearsal, dict)
+        or rehearsal.get("status") != "passed"
+        or rehearsal.get("source_commit") != pinned_commit
+    ):
+        raise ExecutorError(
+            "Crello training dispatch requires a same-environment CPU rehearsal for the pinned commit"
+        )
+    rehearsal_path = rehearsal.get("artifact_path")
+    rehearsal_sha256 = rehearsal.get("sha256")
+    if (
+        not isinstance(rehearsal_path, str)
+        or not isinstance(rehearsal_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
+    ):
+        raise ExecutorError("Crello CPU rehearsal needs a report path and SHA-256")
+    rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+    try:
+        rehearsal_file.relative_to(REPOSITORY_ROOT)
+    except ValueError as error:
+        raise ExecutorError(
+            "Crello CPU rehearsal report must stay inside the repository"
+        ) from error
+    if not rehearsal_file.is_file() or sha256_file(rehearsal_file) != rehearsal_sha256:
+        raise ExecutorError(
+            "Crello CPU rehearsal report is missing or its SHA-256 differs"
+        )
+
+
+def validate_lockstep_probe_report(
+    summary: JsonObject,
+    records: list[JsonObject],
+    *,
+    required_steps: int,
+    expected_commit: str,
+) -> None:
+    if (
+        summary.get("protocol") != "crello-real-scale-lockstep-v2"
+        or summary.get("status") != "completed"
+        or summary.get("source_commit") != expected_commit
+        or summary.get("required_steps") != required_steps
+        or summary.get("completed_steps_per_phase") != required_steps
+        or summary.get("relative_loss_limit") != LOCKSTEP_LOSS_RELATIVE_LIMIT
+    ):
+        raise ExecutorError(
+            "Crello lockstep probe summary is incomplete or inconsistent"
+        )
+    if (
+        summary.get("gate_fields") != ["finite_metrics", "noise_floor_attribution"]
+        or summary.get("throughput_fields_are_report_only") is not True
+    ):
+        raise ExecutorError("Crello lockstep probe gate metadata is inconsistent")
+    if summary.get("initial_state_sha256") != summary.get(
+        "noise_floor_initial_state_sha256"
+    ):
+        raise ExecutorError("Crello package noise-floor initialization is inconsistent")
+    perturbed_parameter_values = summary.get("noise_floor_perturbed_parameter_values")
+    if (
+        isinstance(perturbed_parameter_values, bool)
+        or not isinstance(perturbed_parameter_values, int)
+        or perturbed_parameter_values <= 0
+    ):
+        raise ExecutorError("Crello package noise-floor initialization is inconsistent")
+
+    phase_names = ("cross_system", "noise_floor")
+    expected_comparisons = {
+        "cross_system": "tensorflow_vs_package",
+        "noise_floor": "package_vs_one_ulp_perturbed_package",
+    }
+    if len(records) != 2 * required_steps:
+        raise ExecutorError("Crello lockstep JSONL does not contain both full phases")
+    expected_phase_order = [
+        *("cross_system" for _ in range(required_steps)),
+        *("noise_floor" for _ in range(required_steps)),
+    ]
+    if [record.get("phase") for record in records] != expected_phase_order:
+        raise ExecutorError("Crello lockstep JSONL phases are missing or out of order")
+
+    phase_records = {
+        phase: [record for record in records if record.get("phase") == phase]
+        for phase in phase_names
+    }
+    numeric_fields = (
+        "loss_left",
+        "loss_right",
+        "relative_loss_difference",
+        "gradient_norm_left",
+        "gradient_norm_right",
+        "parameter_max_abs_difference",
+        "step_seconds_report_only",
+        "documents_per_second_report_only",
+    )
+    for phase, rows in phase_records.items():
+        if len(rows) != required_steps:
+            raise ExecutorError(f"Crello {phase} JSONL has an incorrect step count")
+        for step, record in enumerate(rows, start=1):
+            if (
+                record.get("step") != step
+                or record.get("comparison") != expected_comparisons[phase]
+            ):
+                raise ExecutorError(f"Crello {phase} JSONL has invalid step metadata")
+            numeric_values: dict[str, float] = {}
+            for field in numeric_fields:
+                value = record.get(field)
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                ):
+                    raise ExecutorError(
+                        f"Crello {phase} JSONL contains a non-finite metric"
+                    )
+                numeric_values[field] = float(value)
+            if (
+                numeric_values["relative_loss_difference"] < 0
+                or numeric_values["parameter_max_abs_difference"] < 0
+            ):
+                raise ExecutorError(
+                    f"Crello {phase} JSONL contains a negative difference"
+                )
+            parameter_name = record.get("parameter_with_max_difference")
+            if parameter_name is not None and not isinstance(parameter_name, str):
+                raise ExecutorError(f"Crello {phase} JSONL has an invalid state name")
+            if not isinstance(record.get("sampler_state"), dict):
+                raise ExecutorError(f"Crello {phase} JSONL lacks sampler state")
+
+    for cross_record, noise_record in zip(
+        phase_records["cross_system"], phase_records["noise_floor"], strict=True
+    ):
+        if cross_record["sampler_state"] != noise_record["sampler_state"]:
+            raise ExecutorError(
+                "Crello noise-floor batches or posterior noise differ from the cross-system probe"
+            )
+
+    phases = summary.get("phases")
+    if not isinstance(phases, dict):
+        raise ExecutorError("Crello lockstep probe summary lacks phase results")
+
+    def first_over(rows: list[JsonObject]) -> JsonObject | None:
+        record = next(
+            (
+                item
+                for item in rows
+                if cast(float, item["relative_loss_difference"])
+                > LOCKSTEP_LOSS_RELATIVE_LIMIT
+            ),
+            None,
+        )
+        if record is None:
+            return None
+
+        return {
+            "step": record["step"],
+            "relative_loss_difference": record["relative_loss_difference"],
+            "parameter_with_max_difference": record["parameter_with_max_difference"],
+            "parameter_max_abs_difference": record["parameter_max_abs_difference"],
+        }
+
+    def summary_first_matches(actual: JsonValue, expected: JsonObject | None) -> bool:
+        if expected is None:
+            return actual is None
+        if not isinstance(actual, dict):
+            return False
+
+        return all(
+            actual.get(key) == expected.get(key)
+            for key in (
+                "step",
+                "relative_loss_difference",
+                "parameter_with_max_difference",
+                "parameter_max_abs_difference",
+            )
+        )
+
+    first_steps: dict[str, JsonObject | None] = {}
+    for phase in phase_names:
+        phase_summary = phases.get(phase)
+        first = first_over(phase_records[phase])
+        if (
+            not isinstance(phase_summary, dict)
+            or phase_summary.get("required_steps") != required_steps
+            or phase_summary.get("completed_steps") != required_steps
+            or not summary_first_matches(
+                phase_summary.get("first_step_over_tolerance"), first
+            )
+        ):
+            raise ExecutorError(
+                f"Crello {phase} summary is incomplete or has an incorrect first exceedance"
+            )
+
+        batch_hashes: list[str] = []
+        for row in phase_records[phase]:
+            sampler_state = row.get("sampler_state")
+            batch_sha256 = (
+                sampler_state.get("batch_sha256")
+                if isinstance(sampler_state, dict)
+                else None
+            )
+            if not isinstance(batch_sha256, str):
+                raise ExecutorError(f"Crello {phase} JSONL has an invalid batch hash")
+            batch_hashes.append(batch_sha256)
+        expected_batch_hash = hashlib.sha256(
+            "\n".join(batch_hashes).encode("ascii")
+        ).hexdigest()
+        if phase_summary.get("sampler_batch_sha256") != expected_batch_hash:
+            raise ExecutorError(f"Crello {phase} sampler hash differs from its JSONL")
+        first_steps[phase] = first
+
+    cross_first = first_steps["cross_system"]
+    noise_first = first_steps["noise_floor"]
+    cross_step = cast(int, cross_first["step"]) if cross_first is not None else None
+    noise_step = cast(int, noise_first["step"]) if noise_first is not None else None
+    attribution_passed = cross_step is None or (
+        noise_step is not None and cross_step >= noise_step
+    )
+    if (
+        not summary_first_matches(summary.get("first_step_over_tolerance"), cross_first)
+        or not summary_first_matches(
+            summary.get("noise_floor_first_step_over_tolerance"), noise_first
+        )
+        or summary.get("noise_floor_attribution_passed") is not attribution_passed
+    ):
+        raise ExecutorError("Crello lockstep probe attribution summary is inconsistent")
+    if not attribution_passed:
+        raise ExecutorError(
+            "Crello cross-system divergence exceeds the package-only noise floor: "
+            + json.dumps(
+                {"cross_system_first": cross_first, "noise_floor_first": noise_first},
+                sort_keys=True,
+            )
+        )
+
+
+def git_output(*args: str) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=REPOSITORY_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise ExecutorError(f"git {' '.join(args)} failed")
+
+    return result.stdout.strip()
+
+
+def verify_local_source(pinned_commit: str) -> None:
+    if not COMMIT_PATTERN.fullmatch(pinned_commit):
+        raise ExecutorError("source_commit must be a full 40-character commit")
+    if git_output("rev-parse", "HEAD") != pinned_commit:
+        raise ExecutorError("source gate failed: local HEAD differs from source_commit")
+    if git_output("status", "--porcelain"):
+        raise ExecutorError("source gate failed: local worktree is dirty")
+
+
+def require_token_file() -> Path:
+    token_value = os.environ.get("S5_HF_TOKEN_FILE")
+    if token_value is None:
+        raise ExecutorError("S5_HF_TOKEN_FILE must name a restricted token file")
+
+    token_path = Path(token_value).expanduser().resolve()
+    if not token_path.is_file() or stat.S_IMODE(token_path.stat().st_mode) != 0o600:
+        raise ExecutorError("the Hugging Face token file must be mode 0600")
+    if not token_path.read_text(encoding="utf-8").strip().startswith("hf_"):
+        raise ExecutorError("the restricted Hugging Face token file is malformed")
+
+    return token_path
+
+
+def colab(
+    *args: str,
+    capture: bool = False,
+    output_path: Path | None = None,
+    timeout: float = 120.0,
+) -> str:
+    command = [*COLAB_COMMAND, *args]
+    if output_path is None:
+        result = subprocess.run(
+            command,
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=capture,
+            text=True,
+            timeout=timeout,
+        )
+    else:
+        with output_path.open("w", encoding="utf-8") as output:
+            result = subprocess.run(
+                command,
+                cwd=REPOSITORY_ROOT,
+                check=False,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=timeout,
+            )
+    if result.returncode != 0:
+        raise ExecutorError(
+            f"Colab command {args[0]} failed with exit code {result.returncode}"
+        )
+
+    return result.stdout.strip() if capture else ""
+
+
+def hub_python(
+    token_path: Path,
+    source: str,
+    temporary_directory: Path,
+    extra_environment: dict[str, str] | None = None,
+) -> str:
+    environment = os.environ.copy()
+    if extra_environment is not None:
+        environment.update(extra_environment)
+    environment["S5_HF_TOKEN_FILE"] = str(token_path)
+    environment["S5_HF_TEMP_DIR"] = str(temporary_directory)
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--no-project",
+            "--with",
+            "huggingface_hub",
+            "--",
+            "python",
+            "-c",
+            source,
+        ],
+        cwd=REPOSITORY_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+    if result.returncode != 0:
+        raise ExecutorError("private Hub verification failed: " + result.stderr.strip())
+
+    return result.stdout.strip()
+
+
+def verify_checkpoint_on_hub(
+    token_path: Path,
+    hub_repository: str,
+    checkpoint_hub_path: str,
+    system: str,
+) -> None:
+    source = "\n".join(
+        [
+            "import json, os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "files = HfApi(token=token).list_repo_files(repository, repo_type='model')",
+            "prefix = os.environ['S5_CHECKPOINT_HUB_PATH']",
+            "print(json.dumps([path for path in files if path == prefix or path.startswith(prefix + '.')]))",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-checkpoint-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_CHECKPOINT_HUB_PATH": checkpoint_hub_path,
+            },
+        )
+    try:
+        files = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise ExecutorError(
+            "private Hub checkpoint listing was not valid JSON"
+        ) from error
+
+    if not isinstance(files, list) or not all(isinstance(path, str) for path in files):
+        raise ExecutorError("private Hub checkpoint listing returned invalid paths")
+    if system == "package":
+        present = checkpoint_hub_path in files
+    else:
+        present = checkpoint_hub_path + ".index" in files and any(
+            path.startswith(checkpoint_hub_path + ".data-") for path in files
+        )
+    if not present:
+        raise ExecutorError(
+            f"epoch-500 {system} checkpoint is missing from the private Hub: {checkpoint_hub_path}"
+        )
+
+
+def verify_hub_paths(
+    token_path: Path,
+    hub_repository: str,
+    expected_paths: list[str],
+    description: str,
+) -> None:
+    source = "\n".join(
+        [
+            "import json, os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "files = HfApi(token=token).list_repo_files(repository, repo_type='model')",
+            "expected = json.loads(os.environ['S5_EXPECTED_HUB_PATHS'])",
+            "print(json.dumps([path for path in expected if path in files]))",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-artifacts-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_EXPECTED_HUB_PATHS": json.dumps(expected_paths),
+            },
+        )
+    try:
+        present_paths = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise ExecutorError(
+            f"private Hub {description} listing was not valid JSON"
+        ) from error
+    if present_paths != expected_paths:
+        missing = sorted(set(expected_paths) - set(present_paths))
+        raise ExecutorError(f"private Hub {description} is missing: {missing}")
+
+
+def upload_smoke_result(
+    token_path: Path,
+    hub_repository: str,
+    result_path: Path,
+    hub_path: str,
+) -> None:
+    source = "\n".join(
+        [
+            "import os",
+            "from pathlib import Path",
+            "from huggingface_hub import HfApi",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "HfApi(token=token).upload_file(path_or_fileobj=os.environ['S5_SMOKE_RESULT_PATH'], path_in_repo=os.environ['S5_SMOKE_HUB_PATH'], repo_id=repository, repo_type='model', commit_message='Record CanvasVAE S5 executor CPU smoke')",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-smoke-result-") as temporary:
+        hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_SMOKE_RESULT_PATH": str(result_path),
+                "S5_SMOKE_HUB_PATH": hub_path,
+            },
+        )
+
+    verify_hub_paths(token_path, hub_repository, [hub_path], "CPU smoke result")
+
+
+def redact_hf_tokens(value: bytes) -> tuple[bytes, int]:
+    token_pattern = re.compile(rb"hf_[A-Za-z0-9]{30,}")
+    matches = token_pattern.findall(value)
+    return token_pattern.sub(b"[REDACTED_HF_TOKEN]", value), len(matches)
+
+
+def upload_preflight_failure_artifacts(
+    token_path: Path,
+    hub_repository: str,
+    hub_prefix: str,
+    job_name: str,
+    safe_log: bytes,
+    exit_code: int,
+    safe_cli_error: str | None,
+    redaction_count: int,
+) -> None:
+    artifact_prefix = f"{hub_prefix.rstrip('/')}/logs/staged-preflight/{job_name}"
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-staged-preflight-") as temporary:
+        artifact_directory = Path(temporary) / "artifacts"
+        artifact_directory.mkdir()
+        log_path = artifact_directory / "preflight.log"
+        log_path.write_bytes(safe_log)
+        exit_path = artifact_directory / "exit_code"
+        exit_path.write_text(f"{exit_code}\n", encoding="utf-8")
+        report_path = artifact_directory / "report.json"
+        report = {
+            "job_name": job_name,
+            "phase": "staged-input-preflight",
+            "exit_code": exit_code,
+            "redaction_count": redaction_count,
+            "sanitized_log_sha256": hashlib.sha256(safe_log).hexdigest(),
+            "colab_cli_error": safe_cli_error,
+        }
+        report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        source = "\n".join(
+            [
+                "import os",
+                "from pathlib import Path",
+                "from huggingface_hub import HfApi",
+                "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+                "api = HfApi(token=token)",
+                "api.upload_folder(folder_path=os.environ['S5_PREFLIGHT_FAILURE_DIRECTORY'], path_in_repo=os.environ['S5_PREFLIGHT_FAILURE_PREFIX'], repo_id=os.environ['S5_HF_REPOSITORY'], repo_type='model', commit_message='Record staged-input preflight failure')",
+            ]
+        )
+        hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_PREFLIGHT_FAILURE_DIRECTORY": str(artifact_directory),
+                "S5_PREFLIGHT_FAILURE_PREFIX": artifact_prefix,
+            },
+        )
+
+    verify_hub_paths(
+        token_path,
+        hub_repository,
+        [
+            f"{artifact_prefix}/preflight.log",
+            f"{artifact_prefix}/exit_code",
+            f"{artifact_prefix}/report.json",
+        ],
+        "staged-input preflight failure artifacts",
+    )
+
+
+def read_hub_exit_code(token_path: Path, hub_repository: str, hub_path: str) -> int:
+    source = "\n".join(
+        [
+            "import os",
+            "from pathlib import Path",
+            "from huggingface_hub import hf_hub_download",
+            "token = Path(os.environ['S5_HF_TOKEN_FILE']).read_text().strip()",
+            "repository = os.environ['S5_HF_REPOSITORY']",
+            "artifact = hf_hub_download(repo_id=repository, filename=os.environ['S5_EXIT_CODE_HUB_PATH'], repo_type='model', revision='main', token=token, local_dir=os.environ['S5_HF_TEMP_DIR'])",
+            "print(Path(artifact).read_text().strip())",
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-hub-exit-") as temporary:
+        output = hub_python(
+            token_path,
+            source,
+            Path(temporary),
+            {
+                "S5_HF_REPOSITORY": hub_repository,
+                "S5_EXIT_CODE_HUB_PATH": hub_path,
+            },
+        )
+    try:
+        exit_code = int(output)
+    except ValueError as error:
+        raise ExecutorError(
+            f"Hub wrapper exit code is not an integer: {hub_path}"
+        ) from error
+    if not 0 <= exit_code <= 255:
+        raise ExecutorError(f"Hub wrapper exit code is out of range: {hub_path}")
+
+    return exit_code
+
+
+def record_smoke_exit_code(
+    run_id: str,
+    session_type: str,
+    session_name: str,
+    job_name: str,
+    hub_prefix: str,
+    exit_code: int,
+) -> None:
+    result_path_value = os.environ.get("CANVAS_VAE_S5_SMOKE_RESULT_PATH")
+    if result_path_value is None:
+        return
+    result_path = Path(result_path_value).resolve()
+    try:
+        result_path.relative_to(REPOSITORY_ROOT / ".cache" / "canvas-vae" / "s5")
+    except ValueError as error:
+        raise ExecutorError(
+            "smoke result path must stay under the training cache"
+        ) from error
+    result = load_json(result_path)
+    session_exit_codes = result.get("session_exit_codes")
+    if not isinstance(session_exit_codes, dict):
+        raise ExecutorError("smoke result is missing its session_exit_codes object")
+    session_exit_codes[f"{run_id}:{session_type}"] = {
+        "run_id": run_id,
+        "session_name": session_name,
+        "job_name": job_name,
+        "hub_exit_code_path": f"{hub_prefix}/logs/{job_name}/exit_code",
+        "exit_code": exit_code,
+    }
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+
+def assert_session_is_free(session_name: str) -> None:
+    sessions = colab("sessions", capture=True)
+    if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
+        raise ExecutorError(
+            f"named session {session_name!r} already exists; it was not touched"
+        )
+
+
+def remote_preflight_source() -> str:
+    return """from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import struct
+import subprocess
+import tarfile
+from pathlib import Path
+from pathlib import PurePosixPath
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+def download_probe_archive(archive_config, archive_label):
+    if not isinstance(archive_config, dict):
+        raise SystemExit(f"Crello lockstep {archive_label} archive is missing")
+    prefix = archive_config.get("prefix")
+    revision = archive_config.get("revision")
+    archive = archive_config.get("archive")
+    if not isinstance(prefix, str) or not isinstance(revision, str):
+        raise SystemExit(f"Crello lockstep {archive_label} Hub reference is incomplete")
+    if not isinstance(archive, dict):
+        raise SystemExit(f"Crello lockstep {archive_label} archive metadata is missing")
+    filename = archive.get("filename")
+    expected_sha256 = archive.get("sha256")
+    if not isinstance(filename, str) or not isinstance(expected_sha256, str):
+        raise SystemExit(f"Crello lockstep {archive_label} hash is missing")
+    hub_path = prefix.rstrip("/") + "/" + filename
+    probe_stage = Path("/content/s5-probe-inputs")
+    subprocess.run(
+        ["uvx", "--from", "huggingface_hub", "hf", "download",
+         config["hub_repository"], "--repo-type", "model", "--revision",
+         revision, "--include", hub_path, "--local-dir", str(probe_stage)],
+        check=True, env=environment,
+    )
+    archive_path = probe_stage / hub_path
+    if not archive_path.is_file() or file_sha256(archive_path) != expected_sha256:
+        raise SystemExit(f"Crello lockstep {archive_label} archive SHA-256 mismatch")
+
+    return archive_path
+
+def verify_training_attribution(reference):
+    if not isinstance(reference, dict):
+        raise SystemExit("Crello training attribution reference is missing")
+    prefix = reference.get("prefix")
+    filename = reference.get("filename")
+    revision = reference.get("revision")
+    expected_sha256 = reference.get("sha256")
+    if not all(isinstance(value, str) and value for value in (prefix, filename, revision, expected_sha256)):
+        raise SystemExit("Crello training attribution reference is incomplete")
+    hub_path = prefix.rstrip("/") + "/" + filename
+    attribution_stage = Path("/content/s5-training-attribution")
+    subprocess.run(
+        ["uvx", "--from", "huggingface_hub", "hf", "download",
+         config["hub_repository"], "--repo-type", "model", "--revision",
+         revision, "--include", hub_path, "--local-dir", str(attribution_stage)],
+        check=True, env=environment,
+    )
+    artifact_path = attribution_stage / hub_path
+    if not artifact_path.is_file() or file_sha256(artifact_path) != expected_sha256:
+        raise SystemExit("Crello training attribution artifact SHA-256 mismatch")
+    print("training_attribution_hash_verified")
+
+def extract_archive_root(archive_path, target, archive_root, label):
+    root = PurePosixPath(archive_root)
+    if root.is_absolute() or ".." in root.parts or not root.parts:
+        raise SystemExit(f"Crello lockstep {label} archive root is invalid")
+    if target.exists():
+        raise SystemExit(f"refusing to overwrite Crello lockstep {label}: {target}")
+    target.mkdir(parents=True)
+    extracted_files = 0
+    with tarfile.open(archive_path, "r:*") as bundle:
+        members = bundle.getmembers()
+        seen = set()
+        for member in members:
+            path = PurePosixPath(member.name)
+            if (path.is_absolute() or ".." in path.parts
+                    or member.issym() or member.islnk() or member.isdev()
+                    or not (member.isfile() or member.isdir())
+                    or member.name in seen
+                    or path.parts[:len(root.parts)] != root.parts):
+                raise SystemExit(f"Crello lockstep {label} archive contains an unsafe member")
+            seen.add(member.name)
+            relative = path.parts[len(root.parts):]
+            if not relative:
+                if member.isfile():
+                    raise SystemExit(f"Crello lockstep {label} archive root is a file")
+                continue
+            destination = target.joinpath(*relative)
+            if member.isdir():
+                destination.mkdir(parents=True, exist_ok=True)
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            source = bundle.extractfile(member)
+            if source is None:
+                raise SystemExit(f"Crello lockstep {label} archive member is unreadable")
+            with source, destination.open("xb") as output:
+                shutil.copyfileobj(source, output)
+            extracted_files += 1
+    if extracted_files == 0:
+        raise SystemExit(f"Crello lockstep {label} archive is empty")
+
+def validate_original_document_counts(
+    original_data_manifest, count_data, record_counts
+):
+    original_counts = original_data_manifest.get("document_counts")
+    if (
+        not isinstance(original_counts, dict)
+        or set(original_counts) != {"train", "val", "test"}
+        or not all(
+            type(count) is int and count > 0 for count in original_counts.values()
+        )
+        or count_data != original_counts
+    ):
+        raise SystemExit("Crello original document counts differ from their manifest")
+    for split in ("train", "val", "test"):
+        if record_counts.get(split) != original_counts[split]:
+            raise SystemExit(
+                f"Crello original {split} record count differs from manifest"
+            )
+
+    return original_counts
+
+config = json.loads(Path("/content/s5-preflight.json").read_text())
+repository = Path("/content/repo")
+setup_command = [
+    "bash", "/content/colab-uv-setup.sh",
+    "--source-url", config["source_url"],
+    "--source-branch", config["source_branch"],
+    "--source-commit", config["source_commit"],
+    "--repo-dir", str(repository),
+    "--package", "canvas-vae",
+    "--uv-environment", config["uv_environment"],
+]
+for extra in config["uv_extras"]:
+    setup_command.extend(("--extra", extra))
+if config["initialize_vendor_submodule"]:
+    setup_command.append("--submodules")
+subprocess.run(setup_command, check=True)
+head = config["source_commit"]
+config_path = repository / config["training_config"]
+if not config_path.is_file():
+    raise SystemExit(f"source gate failed: training config is missing: {config_path}")
+if config["config_sha256"] is not None:
+    digest = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    if digest != config["config_sha256"]:
+        raise SystemExit("source gate failed: training config hash differs from the manifest")
+print(f"source_gate_passed commit={head}")
+
+if config["download_inputs"]:
+    token_path = Path("/content/s5-download-token")
+    if token_path.stat().st_mode & 0o777 != 0o600:
+        raise SystemExit("input token file must have mode 0600")
+    environment = os.environ.copy()
+    environment["HF_TOKEN"] = token_path.read_text().strip()
+    stage = Path("/content/s5-inputs")
+    if config["dataset"] == "crello":
+        data = config["input_data"]
+        archive = data["archive"]
+        hub_path = data["prefix"].rstrip("/") + "/" + archive["filename"]
+        subprocess.run(
+            ["uvx", "--from", "huggingface_hub", "hf", "download",
+             config["hub_repository"], "--repo-type", "model", "--revision",
+             data["revision"], "--include", hub_path, "--local-dir", str(stage)],
+            check=True, env=environment,
+        )
+        archive_path = stage / hub_path
+        digest = hashlib.sha256()
+        with archive_path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != archive["sha256"]:
+            raise SystemExit("Crello input archive SHA-256 mismatch")
+        paths = config["dataset_paths"]
+        package_data = repository / paths["package_data_dir"]
+        package_fixture = repository / paths["package_fixture_dir"]
+        original_fixture = repository / paths["original_fixture_dir"]
+        original_data = repository / paths["original_data_dir"]
+        for destination in (
+            package_data,
+            package_fixture,
+            original_fixture,
+            original_data,
+        ):
+            if destination.exists():
+                raise SystemExit(f"refusing to overwrite existing Crello input: {destination}")
+        with tarfile.open(archive_path, "r:gz") as bundle:
+            members = bundle.getmembers()
+            seen = set()
+            allowed_roots = (
+                PurePosixPath(paths["package_data_dir"]),
+                PurePosixPath(paths["package_fixture_dir"]),
+                PurePosixPath(paths["original_fixture_dir"]),
+                PurePosixPath(paths["original_data_dir"]),
+            )
+            for member in members:
+                path = PurePosixPath(member.name)
+                if (path.is_absolute() or ".." in path.parts
+                        or member.issym() or member.islnk() or member.isdev()
+                        or not (member.isfile() or member.isdir())
+                        or member.name in seen
+                        or not any(path == root or root in path.parents for root in allowed_roots)):
+                    raise SystemExit("Crello archive contains an unsafe member")
+                seen.add(member.name)
+            bundle.extractall(repository, members=members)
+        required = [
+            package_data / "vocabulary.json",
+            package_data / "count.json",
+            package_data / "crello-manifest.json",
+            package_fixture / "manifest.json",
+            package_fixture / "manifest.sha256",
+            package_fixture / "posterior_means.npy",
+            original_fixture / "manifest.json",
+            original_fixture / "manifest.sha256",
+            original_fixture / "posterior_means.npy",
+            original_data / "vocabulary.json",
+            original_data / "count.json",
+            original_data / "crello-s5-manifest.json",
+        ]
+        for split in ("train", "val", "test"):
+            required.extend((package_data / f"{split}.jsonl",))
+            if not list(original_data.glob(f"{split}-*.tfrecord")):
+                raise SystemExit(f"Crello archive is missing original {split} records")
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            raise SystemExit("Crello archive is missing required inputs: " + ", ".join(missing))
+        package_counts = {"train": 18768, "val": 2315, "test": 2278}
+        if json.loads((package_data / "count.json").read_text()) != package_counts:
+            raise SystemExit("Crello package document counts differ")
+        original_data_manifest = json.loads(
+            (original_data / "crello-s5-manifest.json").read_text()
+        )
+
+        if (
+            original_data_manifest["source_archive_sha256"]
+            != data["source_archive_sha256"]
+        ):
+            raise SystemExit("Crello materialized records use unexpected source data")
+
+        def tfrecord_record_count(path):
+            count = 0
+            with path.open("rb") as source:
+                while True:
+                    length_bytes = source.read(8)
+                    if not length_bytes:
+                        break
+                    if len(length_bytes) != 8 or len(source.read(4)) != 4:
+                        raise SystemExit(f"truncated TFRecord header: {path}")
+                    record_length = struct.unpack("<Q", length_bytes)[0]
+                    if len(source.read(record_length)) != record_length or len(source.read(4)) != 4:
+                        raise SystemExit(f"truncated TFRecord payload: {path}")
+                    count += 1
+
+            return count
+
+        record_counts = {}
+        for split in ("train", "val", "test"):
+            files = sorted(original_data.glob(f"{split}-*.tfrecord"))
+            record_counts[split] = sum(tfrecord_record_count(path) for path in files)
+        original_counts = validate_original_document_counts(
+            original_data_manifest,
+            json.loads((original_data / "count.json").read_text()),
+            record_counts,
+        )
+        canonical_ids = json.loads(
+            (package_data / "crello-manifest.json").read_text()
+        )["document_stage_image_ids_first_occurrence"]
+        if len(canonical_ids) != 114007:
+            raise SystemExit("Crello canonical visual-element count differs")
+        fixture_manifests = []
+        for fixture in (package_fixture, original_fixture):
+            manifest_path = fixture / "manifest.json"
+            if hashlib.sha256(manifest_path.read_bytes()).hexdigest() != (
+                fixture / "manifest.sha256"
+            ).read_text().strip():
+                raise SystemExit(f"Crello fixture manifest hash differs: {fixture}")
+            fixture_manifest = json.loads(manifest_path.read_text())
+            array_path = fixture / "posterior_means.npy"
+            array_hash = file_sha256(array_path)
+            if (
+                fixture_manifest["dtype"] != "<f4"
+                or fixture_manifest["shape"] != [114007, 256]
+                or [row["image_id"] for row in fixture_manifest["records"]]
+                != canonical_ids
+                or fixture_manifest["array_sha256"] != array_hash
+                or fixture_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+            ):
+                raise SystemExit(f"Crello fixture does not match its encoder data: {fixture}")
+            fixture_manifests.append(fixture_manifest)
+        if (
+            fixture_manifests[0]["source_archive_sha256"]
+            != fixture_manifests[1]["source_archive_sha256"]
+            or original_data_manifest["original_embedding_manifest_sha256"]
+            != hashlib.sha256((original_fixture / "manifest.json").read_bytes()).hexdigest()
+            or original_data_manifest["original_embedding_array_sha256"]
+            != file_sha256(original_fixture / "posterior_means.npy")
+        ):
+            raise SystemExit("Crello data and encoder caches have inconsistent hashes")
+
+        probe_inputs = config.get("lockstep_probe_inputs")
+        if probe_inputs is not None:
+            if not isinstance(probe_inputs, dict):
+                raise SystemExit("Crello lockstep probe inputs must be an object")
+            probe_data_dir = repository / probe_inputs["package_data_dir"]
+            data_archive = probe_inputs.get("package_data_archive")
+            if data_archive is not None:
+                data_archive_path = download_probe_archive(data_archive, "data")
+                extract_archive_root(
+                    data_archive_path,
+                    probe_data_dir,
+                    "package-run-1",
+                    "data",
+                )
+            if not probe_data_dir.is_dir():
+                raise SystemExit("Crello lockstep package data directory is missing")
+            fixture_archive_path = download_probe_archive(
+                probe_inputs["fixture_archive"], "fixture"
+            )
+            fixture_dir = repository / probe_inputs["fixture_dir"]
+            extract_archive_root(
+                fixture_archive_path,
+                fixture_dir.parent,
+                "original-encoder-cache",
+                "fixture",
+            )
+            probe_data_manifest = json.loads(
+                (probe_data_dir / "crello-manifest.json").read_text()
+            )
+            probe_fixture_manifest_path = fixture_dir / "manifest.json"
+            probe_fixture_manifest = json.loads(
+                probe_fixture_manifest_path.read_text()
+            )
+            if (
+                probe_data_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+                or probe_fixture_manifest["source_archive_sha256"]
+                != data["source_archive_sha256"]
+                or hashlib.sha256(probe_fixture_manifest_path.read_bytes()).hexdigest()
+                != (fixture_dir / "manifest.sha256").read_text().strip()
+                or file_sha256(fixture_dir / "posterior_means.npy")
+                != probe_fixture_manifest["array_sha256"]
+            ):
+                raise SystemExit(
+                    "Crello lockstep probe data and fixture sources or hashes differ"
+                )
+    else:
+        subprocess.run(
+            ["uvx", "--from", "huggingface_hub", "hf", "download",
+             config["hub_repository"], "--repo-type", "model", "--revision",
+             config["hub_revision"], "--include", config["hub_prefix"] + "/data/rico/**",
+             "--include", config["hub_prefix"] + "/original/data/rico/**",
+             "--local-dir", str(stage)],
+            check=True, env=environment,
+        )
+        sources = (
+            (stage / config["hub_prefix"] / "data" / "rico",
+             repository / ".cache/canvas-vae/data/rico"),
+            (stage / config["hub_prefix"] / "original" / "data" / "rico",
+             repository / ".cache/canvas-vae/original/data/rico"),
+        )
+        for source, target in sources:
+            if not source.is_dir() or not any(source.iterdir()):
+                raise SystemExit(f"input preflight is empty: {source}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source, target)
+    attribution = config.get("training_attribution")
+    if attribution is not None:
+        verify_training_attribution(attribution)
+    print("input_preflight_passed")
+
+checkpoint_download = config.get("checkpoint_download")
+if checkpoint_download is not None:
+    if not isinstance(checkpoint_download, dict):
+        raise SystemExit("checkpoint download settings must be an object")
+    token_path = Path("/content/s5-download-token")
+    try:
+        if token_path.stat().st_mode & 0o777 != 0o600:
+            raise SystemExit("checkpoint download token file must have mode 0600")
+        environment = os.environ.copy()
+        environment["HF_TOKEN"] = token_path.read_text().strip()
+        stage = Path("/content/s5-training-artifacts")
+        checkpoint_glob = checkpoint_download["hub_glob"]
+        checkpoint_prefix = checkpoint_download["hub_prefix"]
+        subprocess.run(
+            ["uvx", "--from", "huggingface_hub", "hf", "download",
+             checkpoint_download["hub_repository"], "--repo-type", "model",
+             "--revision", checkpoint_download["revision"], "--include",
+             checkpoint_glob, "--local-dir", str(stage)],
+            check=True, env=environment,
+        )
+        source_prefix = stage / checkpoint_prefix
+        destination_prefix = Path(checkpoint_download["local_checkpoint"])
+        if destination_prefix.exists():
+            raise SystemExit(f"refusing to overwrite downloaded checkpoint: {destination_prefix}")
+        destination_prefix.parent.mkdir(parents=True, exist_ok=True)
+        if checkpoint_download["system"] == "package":
+            if not source_prefix.is_file():
+                raise SystemExit(f"package checkpoint is missing: {source_prefix}")
+            shutil.copy2(source_prefix, destination_prefix)
+        else:
+            sidecars = sorted(source_prefix.parent.glob(source_prefix.name + ".*"))
+            if not any(path.suffix == ".index" for path in sidecars):
+                raise SystemExit(f"TensorFlow checkpoint index is missing: {source_prefix}")
+            for sidecar in sidecars:
+                shutil.copy2(
+                    sidecar,
+                    destination_prefix.with_name(destination_prefix.name + sidecar.name[len(source_prefix.name):]),
+                )
+        print(f"checkpoint_download_passed path={destination_prefix}")
+    finally:
+        token_path.unlink(missing_ok=True)
+else:
+    Path("/content/s5-download-token").unlink(missing_ok=True)
+
+"""
+
+
+def temporary_files(
+    temporary_directory: Path,
+    manifest: JsonObject,
+    run: JsonObject,
+    pinned_commit: str,
+    hub_repository: str,
+    download_inputs: bool,
+    checkpoint_download: JsonObject | None = None,
+    phase: str = "training",
+) -> tuple[Path, Path, Path]:
+    input_data = manifest.get("input_data")
+    if not isinstance(input_data, dict):
+        raise ExecutorError("manifest input_data must be an object")
+    plan = manifest.get("runtime_plan")
+    if not isinstance(plan, dict):
+        raise ExecutorError("manifest runtime_plan must be an object")
+    cpu_runtime_smoke = plan.get("cpu_runtime_smoke") is True
+    crello_original_seed0 = (
+        manifest.get("dataset") == "crello"
+        and run.get("system") == "original"
+        and run.get("seed") == 0
+        and run.get("cpu_postprocess") is not True
+    )
+
+    training_config = manifest.get("config")
+    source_branch = plan.get("source_branch")
+    if not isinstance(training_config, str) or not isinstance(source_branch, str):
+        raise ExecutorError("manifest must define its config and source branch")
+
+    preflight_config: JsonObject = {
+        "source_url": "https://github.com/creative-graphic-design/design-generators.git",
+        "source_branch": source_branch,
+        "source_commit": pinned_commit,
+        "uv_extras": [
+            "training",
+            *(
+                ["vendor"]
+                if run.get("system") == "original" and phase == "training"
+                else []
+            ),
+            *(
+                ["convert"]
+                if run.get("system") == "original" and phase == "postprocess"
+                else []
+            ),
+        ],
+        "uv_environment": (
+            TRAINING_UV_ENVIRONMENT
+            if phase == "training"
+            else POSTPROCESS_UV_ENVIRONMENT
+        ),
+        "training_config": training_config,
+        "config_sha256": manifest.get("config_sha256"),
+        "download_inputs": download_inputs,
+        "dataset": manifest.get("dataset"),
+        "dataset_paths": manifest.get("dataset_paths"),
+        "input_data": input_data,
+        "lockstep_probe_inputs": (
+            run.get("lockstep_probe_inputs")
+            if cpu_runtime_smoke and crello_original_seed0
+            else None
+        ),
+        "training_attribution": (
+            validate_training_attribution_reference(
+                manifest.get("training_attribution")
+            )
+            if crello_original_seed0 and not cpu_runtime_smoke
+            else None
+        ),
+        "initialize_vendor_submodule": run.get("system") == "original"
+        and run.get("cpu_postprocess") is not True,
+        "hub_repository": hub_repository,
+        "hub_revision": input_data.get("revision"),
+        "hub_prefix": input_data.get("prefix"),
+        "checkpoint_download": checkpoint_download,
+    }
+    preflight_path = temporary_directory / f"{phase}-preflight.json"
+    preflight_path.write_text(json.dumps(preflight_config, indent=2) + "\n")
+    preflight_script = temporary_directory / f"{phase}-preflight.py"
+    preflight_script.write_text(remote_preflight_source(), encoding="utf-8")
+    return (
+        preflight_path,
+        preflight_script,
+        temporary_directory / f"{phase}-run-job.sh",
+    )
+
+
+def build_run_job(
+    manifest: JsonObject,
+    run: JsonObject,
+    pinned_commit: str,
+    segment_id: str,
+    resume_checkpoint: Path | None,
+    failure_exit_code: int | None = None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
+) -> str:
+    run_id = run.get("run_id")
+    system = run.get("system")
+    seed = run.get("seed")
+    config = manifest.get("config")
+    if (
+        not isinstance(run_id, str)
+        or not isinstance(system, str)
+        or not isinstance(seed, int)
+    ):
+        raise ExecutorError("run metadata must include run_id, system, and seed")
+    if not isinstance(config, str):
+        raise ExecutorError("manifest config is required")
+    training_config = run.get("training_config_override", config)
+    if not isinstance(training_config, str):
+        raise ExecutorError("training_config_override must be a path string")
+    device = run.get("device")
+    if not isinstance(device, str) or device not in {"cpu", "cuda"}:
+        raise ExecutorError("run device must be cpu or cuda")
+    cuda_visible_devices = {"cpu": "", "cuda": "0"}[device]
+    output_template = run.get("runtime_output_root")
+    if not isinstance(output_template, str):
+        raise ExecutorError("run needs a runtime_output_root template")
+    output_root = output_template.format(run_id=run_id, segment_id=segment_id)
+    expected_output_root = f"/content/out/checkpoints/{run_id}/{segment_id}"
+    if output_root != expected_output_root:
+        raise ExecutorError(
+            "run runtime_output_root must be unique under its run and segment"
+        )
+    training_root = f"{output_root}/training"
+    log_root = f"/content/out/logs/{run_id}/{segment_id}"
+    epoch_500_checkpoint = f"{output_root}/epoch-500.ckpt"
+    checkpoint_max_epochs: int | None = None
+    checkpoint_global_step: int | None = None
+    package_checkpoint_selection: JsonObject | None = None
+    env_lines = (
+        "set -Eeuo pipefail",
+        "cd /content/repo",
+        f'test "$(git rev-parse HEAD)" = {shlex.quote(pinned_commit)}',
+        'test -z "$(git status --porcelain)"',
+        "unset MPLBACKEND",
+        "test ! -e /content/repo/.venv && test ! -L /content/repo/.venv || { echo 'repository .venv exists; refusing environment drift' >&2; exit 78; }",
+        f"export UV_PROJECT_ENVIRONMENT={shlex.quote(TRAINING_UV_ENVIRONMENT)}",
+        f'test "$UV_PROJECT_ENVIRONMENT" = {shlex.quote(TRAINING_UV_ENVIRONMENT)}',
+        "export NVIDIA_TF32_OVERRIDE=0",
+        "export TF_ENABLE_ONEDNN_OPTS=0",
+        f"export CUDA_VISIBLE_DEVICES={shlex.quote(cuda_visible_devices)}",
+        f"for output_path in {shlex.quote(output_root)} {shlex.quote(log_root)}; do test ! -e \"$output_path\" || {{ echo 'run output exists; refusing overwrite' >&2; exit 78; }}; done",
+        f"mkdir -p {shlex.quote(training_root)} {shlex.quote(log_root)}",
+    )
+
+    if system == "package":
+        training_args = [
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "traingen",
+            "fit",
+            "--config",
+            training_config,
+            f"--seed_everything={seed}",
+            "--trainer.devices=1",
+            "--trainer.precision=32-true",
+            f"--trainer.default_root_dir={training_root}",
+        ]
+        if resume_checkpoint is not None:
+            training_args.append("--ckpt_path=/content/out/resume/checkpoint.ckpt")
+        selection = run.get(
+            "package_checkpoint_selection",
+            manifest.get("package_checkpoint_selection"),
+        )
+        if selection is not None:
+            if not isinstance(selection, dict):
+                raise ExecutorError("package_checkpoint_selection must be an object")
+            filename = selection.get("filename")
+            monitor = selection.get("monitor")
+            mode = selection.get("mode")
+            save_top_k = selection.get("save_top_k")
+            if (
+                not isinstance(filename, str)
+                or Path(filename).name != filename
+                or not filename.endswith(".ckpt")
+                or not isinstance(monitor, str)
+                or not isinstance(mode, str)
+                or mode not in {"min", "max"}
+                or type(save_top_k) is not int
+                or save_top_k != 1
+            ):
+                raise ExecutorError(
+                    "package checkpoint selection needs a filename, monitor, mode, and save_top_k=1"
+                )
+            package_checkpoint_selection = selection
+            checkpoint_path = f"{training_root}/checkpoints/{filename}"
+        else:
+            checkpoint_path = f"{training_root}/checkpoints/last.ckpt"
+            checkpoint_expectation = run.get(
+                "package_checkpoint_expectation",
+                manifest.get("package_checkpoint_expectation"),
+            )
+            if not isinstance(checkpoint_expectation, dict):
+                raise ExecutorError(
+                    "manifest package_checkpoint_expectation is required"
+                )
+            max_epochs = checkpoint_expectation.get("max_epochs")
+            global_step = checkpoint_expectation.get("global_step")
+            if (
+                type(max_epochs) is not int
+                or type(global_step) is not int
+                or max_epochs < 1
+                or global_step < 0
+            ):
+                raise ExecutorError(
+                    "package checkpoint expectation needs positive max_epochs and a nonnegative global_step"
+                )
+            checkpoint_max_epochs = max_epochs
+            checkpoint_global_step = global_step
+    elif system == "original":
+        if resume_checkpoint is not None:
+            raise ExecutorError(
+                "original TensorFlow runs do not support optimizer-state resume"
+            )
+        original_args = run.get("train_original_arguments")
+        if not isinstance(original_args, list) or not all(
+            isinstance(value, str) for value in original_args
+        ):
+            raise ExecutorError(
+                "original run is missing resolved train_original.py arguments"
+            )
+        resolved = [
+            value.format(seed=seed, output_root=output_root) for value in original_args
+        ]
+        training_args = [
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "--extra",
+            "vendor",
+            "python",
+            "models/canvas-vae/scripts/train_original.py",
+            *resolved,
+        ]
+        training_root = f"{output_root}/original-training"
+        env_lines += (f"mkdir -p {shlex.quote(training_root)}",)
+        checkpoint_path = f"{training_root}/checkpoints/final.ckpt"
+    else:
+        raise ExecutorError(f"unsupported CanvasVAE run system: {system}")
+
+    lockstep_probe_commands: list[str] = []
+    runtime_plan = manifest.get("runtime_plan")
+    cpu_runtime_smoke = (
+        isinstance(runtime_plan, dict) and runtime_plan.get("cpu_runtime_smoke") is True
+    )
+    if (
+        manifest.get("dataset") == "crello"
+        and system == "original"
+        and seed == 0
+        and cpu_runtime_smoke
+    ):
+        if not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+            raise ExecutorError("Crello lockstep probe steps must be between 1 and 300")
+        dataset_paths = manifest.get("dataset_paths")
+        if not isinstance(dataset_paths, dict):
+            raise ExecutorError("Crello lockstep probe requires dataset_paths")
+        probe_inputs = validate_lockstep_probe_inputs(run.get("lockstep_probe_inputs"))
+        package_data = probe_inputs.get("package_data_dir")
+        original_data = dataset_paths.get("original_data_dir")
+        fixture_dir = probe_inputs.get("fixture_dir")
+        for value in (package_data, original_data, fixture_dir):
+            if (
+                not isinstance(value, str)
+                or Path(value).is_absolute()
+                or ".." in Path(value).parts
+            ):
+                raise ExecutorError(
+                    "Crello lockstep probe input paths must be repository-relative"
+                )
+
+        probe_jsonl = f"{log_root}/lockstep-probe.jsonl"
+        probe_summary = f"{log_root}/lockstep-probe-summary.json"
+        probe_arguments = [
+            "uv",
+            "run",
+            "--frozen",
+            "--no-sync",
+            "--project",
+            "/content/repo",
+            "--package",
+            "canvas-vae",
+            "--extra",
+            "training",
+            "--extra",
+            "vendor",
+            "python",
+            str(LOCKSTEP_PROBE_SCRIPT),
+            "--data-dir",
+            f"/content/repo/{package_data}",
+            "--original-data-dir",
+            f"/content/repo/{original_data}",
+            "--fixture-dir",
+            f"/content/repo/{fixture_dir}",
+            "--device",
+            device,
+            "--steps",
+            str(lockstep_probe_steps),
+            "--batch-size",
+            "1024",
+            "--seed",
+            str(seed),
+            "--jsonl-output",
+            probe_jsonl,
+            "--summary-output",
+            probe_summary,
+        ]
+        probe_validation_script = "\n".join(
+            (
+                "import json, runpy",
+                "from pathlib import Path",
+                f"summary = json.loads(Path({probe_summary!r}).read_text(encoding='utf-8'))",
+                f"records = [json.loads(line) for line in Path({probe_jsonl!r}).read_text(encoding='utf-8').splitlines()]",
+                "executor = runpy.run_path('/content/repo/models/canvas-vae/scripts/s5_seed_executor.py')",
+                "executor['validate_lockstep_probe_report'](",
+                "    summary,",
+                "    records,",
+                f"    required_steps={lockstep_probe_steps},",
+                f"    expected_commit={pinned_commit!r},",
+                ")",
+                "print('crello_lockstep_probe_validation_passed')",
+            )
+        )
+        lockstep_probe_commands.extend(
+            (
+                shlex.join(probe_arguments),
+                "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training --extra vendor python - <<'PY'\n"
+                + probe_validation_script
+                + "\nPY",
+            )
+        )
+
+    if system == "package":
+        if package_checkpoint_selection is not None:
+            filename = cast(str, package_checkpoint_selection["filename"])
+            post_train_lines = [
+                'selected_checkpoints="$(find '
+                + shlex.quote(training_root)
+                + " -path "
+                + shlex.quote(f"*/checkpoints/{filename}")
+                + ' -type f -print)"',
+                'test "$(printf \'%s\\n\' "$selected_checkpoints" | wc -l)" -eq 1',
+                'test -s "$selected_checkpoints"',
+                f'cp -- "$selected_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
+            ]
+        else:
+            if checkpoint_max_epochs is None or checkpoint_global_step is None:
+                raise ExecutorError("package checkpoint gate was not configured")
+
+            checkpoint_gate = (
+                "uv run --frozen --no-sync --project /content/repo --package canvas-vae --extra training "
+                'python -m canvas_vae.training.checkpoints "$last_checkpoints" '
+                f"--max-epochs {checkpoint_max_epochs} "
+                f"--expected-global-step {checkpoint_global_step}"
+            )
+            post_train_lines = [
+                f"last_checkpoints=\"$(find {shlex.quote(training_root)} -path '*/checkpoints/last.ckpt' -type f -print)\"",
+                'test "$(printf \'%s\\n\' "$last_checkpoints" | wc -l)" -eq 1',
+                'test -s "$last_checkpoints"',
+                checkpoint_gate,
+                f'cp -- "$last_checkpoints" {shlex.quote(epoch_500_checkpoint)}',
+            ]
+    else:
+        post_train_lines = [
+            f"checkpoint_prefix={shlex.quote(checkpoint_path or '')}",
+            'test -s "${checkpoint_prefix}.index"',
+            'for part in "${checkpoint_prefix}".*; do test -f "$part" || continue; suffix="${part#"${checkpoint_prefix}"}"; cp -- "$part" "'
+            + epoch_500_checkpoint
+            + '${suffix}"; done',
+            f"test -s {shlex.quote(epoch_500_checkpoint + '.index')}",
+        ]
+    training_overrides = run.get("training_overrides", [])
+    if not isinstance(training_overrides, list) or not all(
+        isinstance(value, str) for value in training_overrides
+    ):
+        raise ExecutorError("training_overrides must be a list of strings")
+    training_args.extend(training_overrides)
+    pre_training_commands = run.get("pre_training_commands", [])
+    if not isinstance(pre_training_commands, list) or not all(
+        isinstance(value, str) for value in pre_training_commands
+    ):
+        raise ExecutorError("pre_training_commands must be a list of shell commands")
+
+    command_lines = [
+        *env_lines,
+        *lockstep_probe_commands,
+        *pre_training_commands,
+        f"{shlex.join(training_args)} > {log_root}/train.log 2>&1",
+        *post_train_lines,
+    ]
+    if failure_exit_code is not None:
+        command_lines.append(f"exit {failure_exit_code}")
+
+    return "\n".join(line for line in command_lines if line) + "\n"
+
+
+def build_postprocess_job(
+    manifest: JsonObject,
+    run: JsonObject,
+    segment_id: str,
+    pinned_commit: str,
+    failure_exit_code: int | None = None,
+) -> str:
+    run_id = run.get("run_id")
+    system = run.get("system")
+    evaluator = run.get("evaluator_command", manifest.get("evaluator_command"))
+    if not isinstance(run_id, str) or system not in {"package", "original"}:
+        raise ExecutorError("postprocess run metadata is invalid")
+    if not isinstance(evaluator, list):
+        raise ExecutorError("manifest evaluator_command is required")
+    converted_template = run.get("converted_output_root")
+    evaluation_template = run.get("evaluation_output")
+    checkpoint_template = run.get("epoch_500_checkpoint")
+    if (
+        not isinstance(converted_template, str)
+        or not isinstance(evaluation_template, str)
+        or not isinstance(checkpoint_template, str)
+    ):
+        raise ExecutorError(
+            "run needs checkpoint, converted, and evaluation output templates"
+        )
+    converted_root = converted_template.format(run_id=run_id, segment_id=segment_id)
+    evaluation_output = evaluation_template.format(run_id=run_id, segment_id=segment_id)
+    checkpoint_input = "/content/s5-training-checkpoint/epoch-500.ckpt"
+    if converted_root != f"/content/out/converted/{run_id}/{segment_id}":
+        raise ExecutorError(
+            "run converted_output_root must be unique under its run and segment"
+        )
+    if (
+        evaluation_output
+        != f"/content/out/results/{run_id}/{segment_id}/evaluation.json"
+    ):
+        raise ExecutorError(
+            "run evaluation_output must be unique under its run and segment"
+        )
+    if (
+        checkpoint_template.format(run_id=run_id, segment_id=segment_id)
+        != f"/content/out/checkpoints/{run_id}/{segment_id}/epoch-500.ckpt"
+    ):
+        raise ExecutorError(
+            "run epoch_500_checkpoint must be unique under its run and segment"
+        )
+    log_root = f"/content/out/logs/{run_id}/{segment_id}"
+    result_root = f"/content/out/results/{run_id}/{segment_id}"
+    dataset = manifest.get("dataset")
+    dataset_paths = manifest.get("dataset_paths")
+    if dataset == "crello":
+        if not isinstance(dataset_paths, dict):
+            raise ExecutorError("Crello manifest needs dataset_paths")
+        vocabulary_key = (
+            "package_vocabulary" if system == "package" else "original_vocabulary"
+        )
+        vocabulary_value = dataset_paths.get(vocabulary_key)
+        if (
+            not isinstance(vocabulary_value, str)
+            or Path(vocabulary_value).is_absolute()
+        ):
+            raise ExecutorError(f"Crello manifest needs relative {vocabulary_key}")
+        vocabulary = f"/content/repo/{vocabulary_value}"
+    elif system == "package":
+        vocabulary = "/content/repo/.cache/canvas-vae/data/rico/vocabulary.json"
+    else:
+        vocabulary = (
+            "/content/repo/.cache/canvas-vae/original/data/rico/vocabulary.json"
+        )
+    converter_args = [
+        "uv",
+        "run",
+        "--frozen",
+        "--no-sync",
+        "--project",
+        "/content/repo",
+        "--package",
+        "canvas-vae",
+    ]
+    if system == "package":
+        converter_args.extend(["--extra", "training"])
+    else:
+        converter_args.extend(["--extra", "convert"])
+    converter_args.extend(
+        [
+            "models/canvas-vae/scripts/convert_original_checkpoint.py",
+            "--checkpoint",
+            checkpoint_input,
+            "--vocabulary",
+            vocabulary,
+            "--output-dir",
+            converted_root,
+        ]
+    )
+    if dataset == "crello":
+        converter_args.extend(["--dataset", "crello"])
+    evaluator_args: list[str] = []
+    for part in evaluator:
+        if not isinstance(part, str):
+            raise ExecutorError("evaluator_command elements must be strings")
+        evaluator_args.append(
+            part.format(
+                run_id=run_id,
+                converted_checkpoint=converted_root,
+                evaluation_output=evaluation_output,
+                repository="/content/repo",
+                segment_id=segment_id,
+            )
+        )
+    checkpoint_for_hash = checkpoint_input
+    if system == "original":
+        checkpoint_for_hash += ".index"
+    return (
+        "\n".join(
+            [
+                "set -Eeuo pipefail",
+                "cd /content/repo",
+                'test -z "$(git status --porcelain)"',
+                "test ! -e /content/repo/.venv && test ! -L /content/repo/.venv || { echo 'repository .venv exists; refusing environment drift' >&2; exit 78; }",
+                f"export UV_PROJECT_ENVIRONMENT={shlex.quote(POSTPROCESS_UV_ENVIRONMENT)}",
+                f'test "$UV_PROJECT_ENVIRONMENT" = {shlex.quote(POSTPROCESS_UV_ENVIRONMENT)}',
+                "unset MPLBACKEND",
+                "export NVIDIA_TF32_OVERRIDE=0",
+                "export TF_ENABLE_ONEDNN_OPTS=0",
+                "export CUDA_VISIBLE_DEVICES=''",
+                f"for output_path in {shlex.quote(converted_root)} {shlex.quote(result_root)} {shlex.quote(log_root)}; do test ! -e \"$output_path\" || {{ echo 'postprocess output exists; refusing overwrite' >&2; exit 78; }}; done",
+                f"mkdir -p {shlex.quote(converted_root)} {shlex.quote(result_root)} {shlex.quote(log_root)}",
+                f"test -s {shlex.quote(checkpoint_for_hash)}",
+                *(
+                    [f"exit {failure_exit_code}"]
+                    if failure_exit_code is not None
+                    else []
+                ),
+                f"{shlex.join(converter_args)} 2>&1 | tee {shlex.quote(log_root + '/convert.log')}",
+                f"{shlex.join(evaluator_args)} 2>&1 | tee {shlex.quote(log_root + '/evaluate.log')}",
+                f"test -s {shlex.quote(evaluation_output)}",
+                f"sha256sum {shlex.quote(checkpoint_for_hash)} {shlex.quote(evaluation_output)} > {shlex.quote(result_root + '/artifact-hashes.txt')}",
+            ]
+        )
+        + "\n"
+    )
+
+
+def cpu_smoke_training_config(run_id: str, segment_id: str) -> str:
+    training_root = f"/content/out/checkpoints/{run_id}/{segment_id}/training"
+    return (
+        "seed_everything: 0\n"
+        "trainer:\n"
+        "  accelerator: cpu\n"
+        "  devices: 1\n"
+        "  precision: 32-true\n"
+        "  max_epochs: 1\n"
+        "  limit_train_batches: 2\n"
+        "  limit_val_batches: 1\n"
+        "  check_val_every_n_epoch: 1\n"
+        "  num_sanity_val_steps: 0\n"
+        "  logger: false\n"
+        "  enable_checkpointing: true\n"
+        f"  default_root_dir: {training_root}\n"
+        "  callbacks:\n"
+        "    - class_path: lightning.pytorch.callbacks.ModelCheckpoint\n"
+        "      init_args:\n"
+        f"        dirpath: {training_root}/checkpoints\n"
+        "        save_top_k: 0\n"
+        "        save_last: true\n"
+        "model:\n"
+        "  class_path: canvas_vae.training.CanvasVAETrainingModule\n"
+        "  init_args:\n"
+        "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
+        "    latent_dim: 256\n"
+        "    num_blocks: 1\n"
+        "    num_heads: 8\n"
+        "    dropout: 0.1\n"
+        "    kl_weight: 16.0\n"
+        "    l2_weight: 1.0e-6\n"
+        "    learning_rate: 0.001\n"
+        "    clip_norm: 1.0\n"
+        "data:\n"
+        "  class_path: canvas_vae.training.CanvasVAEDataModule\n"
+        "  init_args:\n"
+        "    data_dir: /content/repo/.cache/canvas-vae/data/rico\n"
+        "    batch_size: 2\n"
+        "    num_workers: 0\n"
+    )
+
+
+def cpu_smoke_case_specs(
+    dataset: str,
+) -> list[tuple[str, str, str | None, bool, dict[str, int]]]:
+    if dataset == "crello":
+        return [
+            (
+                "original-success",
+                "original",
+                None,
+                True,
+                {"training_session": 0, "cpu_postprocess_session": 0},
+            )
+        ]
+    if dataset != "rico":
+        raise ExecutorError(f"unsupported CPU smoke dataset: {dataset}")
+
+    return [
+        (
+            "package-success",
+            "package",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        (
+            "original-success",
+            "original",
+            None,
+            True,
+            {"training_session": 0, "cpu_postprocess_session": 0},
+        ),
+        ("training-failure", "package", "training", False, {"training_session": 37}),
+        (
+            "postprocess-failure",
+            "package",
+            "postprocess",
+            False,
+            {"training_session": 0, "cpu_postprocess_session": 37},
+        ),
+    ]
+
+
+def make_wrapper_cell(
+    job_name: str,
+    hub_repository: str,
+    hub_prefix: str,
+    ttl: str,
+    sync_paths: list[str],
+) -> str:
+    launcher_sync_paths = [path for path in sync_paths if path != "/content/out/logs"]
+    launcher_sync_paths.append("/content/out/logs")
+    command = [
+        "bash",
+        "/content/colab-job.sh",
+        "--job",
+        job_name,
+        "--hub-repo",
+        hub_repository,
+        "--hub-prefix",
+        hub_prefix,
+        "--hub-token-file",
+        "/content/s5-upload-token",
+        *[part for path in launcher_sync_paths for part in ("--sync-path", path)],
+        "--sync-interval",
+        "15m",
+        "--ttl",
+        ttl,
+        "--env-file",
+        "/content/s5-run.env",
+        "--",
+        "bash",
+        "/content/s5-exec-step.sh",
+    ]
+
+    return (
+        "import subprocess\nsubprocess.run(" + json.dumps(command) + ", check=True)\n"
+    )
+
+
+def make_colab_exec_cell(command: list[str], exit_code_path: str, log_path: str) -> str:
+    if not command:
+        raise ExecutorError("Colab exec step command must not be empty")
+
+    return "\n".join(
+        (
+            "from pathlib import Path",
+            "import subprocess",
+            "import traceback",
+            f"command = {json.dumps(command)}",
+            f"exit_code_path = Path({json.dumps(exit_code_path)})",
+            f"log_path = Path({json.dumps(log_path)})",
+            "exit_code = 1",
+            "try:",
+            "    exit_code_path.parent.mkdir(parents=True, exist_ok=True)",
+            "    log_path.parent.mkdir(parents=True, exist_ok=True)",
+            "    with log_path.open('w', encoding='utf-8') as log:",
+            "        result = subprocess.run(",
+            "            command, stdout=log, stderr=subprocess.STDOUT, check=False",
+            "        )",
+            "    exit_code = result.returncode",
+            "except BaseException:",
+            "    log_path.write_text(traceback.format_exc(), encoding='utf-8')",
+            "finally:",
+            "    exit_code_path.write_text(f'{exit_code}\\n', encoding='ascii')",
+            "if exit_code != 0:",
+            "    raise SystemExit(exit_code)",
+            "",
+        )
+    )
+
+
+def make_exec_step_script(command: list[str], exit_code_path: str) -> str:
+    if not command:
+        raise ExecutorError("Colab exec step command must not be empty")
+
+    command_line = shlex.join(command)
+    exit_path = shlex.quote(exit_code_path)
+    exit_parent = shlex.quote(str(PurePosixPath(exit_code_path).parent))
+
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -uo pipefail\n"
+        "set +e\n"
+        f"{command_line}\n"
+        "exit_code=$?\n"
+        f"mkdir -p {exit_parent}\n"
+        f"printf '%s\\n' \"$exit_code\" > {exit_path}\n"
+        'exit "$exit_code"\n'
+    )
+
+
+def read_exit_code_file(path: Path, step_name: str) -> int:
+    try:
+        exit_code = int(path.read_text(encoding="ascii").strip())
+    except (OSError, ValueError) as error:
+        raise ExecutorError(
+            f"Colab exec step {step_name!r} did not produce an exit-code file"
+        ) from error
+    if not 0 <= exit_code <= 255:
+        raise ExecutorError(
+            f"Colab exec step {step_name!r} wrote an out-of-range exit code"
+        )
+
+    return exit_code
+
+
+def run_named_session(
+    session_name: str,
+    gpu: str | None,
+    wrapper_path: Path,
+    token_path: Path,
+    preflight_path: Path,
+    preflight_script: Path,
+    run_script: Path,
+    job_name: str,
+    hub_prefix: str,
+    ttl: str,
+    run_command: str,
+    sync_paths: tuple[str, ...],
+    run_env: Path,
+    output_capture: Path,
+    hub_repository: str,
+    resume_checkpoint: Path | None = None,
+    download_inputs: bool = True,
+    additional_uploads: tuple[LocalUpload, ...] = (),
+) -> int:
+    create_args = ["new", "--session", session_name]
+    if gpu is not None:
+        create_args.extend(["--gpu", gpu])
+    exec_step_status_path = f"/content/out/logs/colab-exec/{job_name}/exit_code"
+    exec_step_script = preflight_path.with_name(f"{job_name}-exec-step.sh")
+    exec_step_script.write_text(
+        make_exec_step_script(shlex.split(run_command), exec_step_status_path),
+        encoding="utf-8",
+    )
+    exec_step_script.chmod(0o700)
+    preflight_command = (
+        "set -Eeuo pipefail\n"
+        "restricted=(/content/s5-upload-token /content/s5-run.env)\n"
+        "if [ -e /content/s5-download-token ]; then "
+        "restricted+=(/content/s5-download-token); fi\n"
+        'chmod 600 "${restricted[@]}"\n'
+        "chmod 700 /content/colab-job.sh /content/colab-uv-setup.sh "
+        "/content/run-job.sh /content/s5-exec-step.sh\n"
+        "mkdir -p /content/out/resume\n"
+        "python /content/s5-preflight.py"
+    )
+    cell_path = preflight_path.with_name("preflight-cell.py")
+    cell_path.write_text(
+        make_colab_exec_cell(
+            ["bash", "-lc", preflight_command],
+            "/content/s5-preflight-exit-code",
+            "/content/s5-preflight.log",
+        ),
+        encoding="utf-8",
+    )
+    launch_cell = preflight_path.with_name("launch-cell.py")
+    launch_cell.write_text(
+        make_wrapper_cell(
+            job_name,
+            hub_repository,
+            hub_prefix,
+            ttl,
+            list(sync_paths),
+        ),
+        encoding="utf-8",
+    )
+    uploads: list[LocalUpload] = [
+        (wrapper_path, "/content/colab-job.sh", None),
+        (
+            Path(__file__).with_name("colab_uv_setup.sh"),
+            "/content/colab-uv-setup.sh",
+            None,
+        ),
+        (preflight_path, "/content/s5-preflight.json", None),
+        (preflight_script, "/content/s5-preflight.py", None),
+        (run_script, "/content/run-job.sh", None),
+        (exec_step_script, "/content/s5-exec-step.sh", None),
+        (run_env, "/content/s5-run.env", None),
+        (token_path, "/content/s5-upload-token", None),
+        *additional_uploads,
+    ]
+    if download_inputs:
+        uploads.append((token_path, "/content/s5-download-token", None))
+    deferred_uploads: list[LocalUpload] = []
+    if resume_checkpoint is not None:
+        deferred_uploads.append(
+            (resume_checkpoint, "/content/out/resume/checkpoint.ckpt", None)
+        )
+    validate_local_uploads(
+        tuple((*uploads, *deferred_uploads)),
+        exec_files=(cell_path, launch_cell),
+    )
+    assert_session_is_free(session_name)
+    colab(*create_args, timeout=300)
+
+    wrapper_started = False
+    try:
+        for local_path, remote_path, _ in uploads:
+            colab("upload", "--session", session_name, str(local_path), remote_path)
+
+        preflight_cli_error: ExecutorError | subprocess.SubprocessError | None = None
+        try:
+            colab(
+                "exec",
+                "--session",
+                session_name,
+                "--timeout",
+                "1800",
+                "-f",
+                str(cell_path.resolve()),
+                timeout=1900,
+            )
+        except (ExecutorError, subprocess.SubprocessError) as error:
+            preflight_cli_error = error
+
+        remote_preflight_exit = preflight_path.with_name("remote-preflight-exit-code")
+        colab(
+            "download",
+            "--session",
+            session_name,
+            "/content/s5-preflight-exit-code",
+            str(remote_preflight_exit),
+        )
+        preflight_exit_code = read_exit_code_file(
+            remote_preflight_exit, "staged-input preflight"
+        )
+        if preflight_exit_code != 0 or preflight_cli_error is not None:
+            remote_preflight_log = preflight_path.with_name("remote-preflight.log")
+            colab(
+                "download",
+                "--session",
+                session_name,
+                "/content/s5-preflight.log",
+                str(remote_preflight_log),
+            )
+            safe_log, log_redactions = redact_hf_tokens(
+                remote_preflight_log.read_bytes()
+            )
+            cli_error_text = (
+                f"{type(preflight_cli_error).__name__}: {preflight_cli_error}"
+                if preflight_cli_error is not None
+                else None
+            )
+            safe_cli_error_bytes, cli_redactions = redact_hf_tokens(
+                cli_error_text.encode("utf-8") if cli_error_text is not None else b""
+            )
+            safe_cli_error = (
+                safe_cli_error_bytes.decode("utf-8")
+                if cli_error_text is not None
+                else None
+            )
+            redactions = log_redactions + cli_redactions
+            upload_preflight_failure_artifacts(
+                token_path,
+                hub_repository,
+                hub_prefix,
+                job_name,
+                safe_log,
+                preflight_exit_code,
+                safe_cli_error,
+                redactions,
+            )
+            log_text = safe_log.decode("utf-8", errors="replace")[-8000:]
+            cli_detail = (
+                f"; Colab CLI error: {safe_cli_error}"
+                if safe_cli_error is not None
+                else ""
+            )
+            raise ExecutorError(
+                "remote staged-input preflight failed with exit code "
+                f"{preflight_exit_code}{cli_detail} "
+                f"(redaction_count={redactions}):\n{log_text}"
+            )
+
+        for local_path, remote_path, _ in deferred_uploads:
+            colab(
+                "upload",
+                "--session",
+                session_name,
+                str(local_path),
+                remote_path,
+            )
+
+        wrapper_started = True
+        wrapper_cli_error: ExecutorError | subprocess.SubprocessError | None = None
+        try:
+            colab(
+                "exec",
+                "--session",
+                session_name,
+                "--timeout",
+                "7800",
+                "-f",
+                str(launch_cell.resolve()),
+                output_path=output_capture,
+                timeout=7920,
+            )
+        except (ExecutorError, subprocess.SubprocessError) as error:
+            # A nonzero wrapper exit is read from its authoritative Hub artifact below.
+            wrapper_cli_error = error
+    except (ExecutorError, OSError, subprocess.SubprocessError):
+        if not wrapper_started:
+            colab("stop", "--session", session_name, timeout=300)
+
+        # A retained endpoint may still be the only result copy after a failed final upload.
+        raise
+
+    exit_code = read_hub_exit_code(
+        token_path, hub_repository, f"{hub_prefix}/logs/{job_name}/exit_code"
+    )
+    exec_step_exit_code = read_hub_exit_code(
+        token_path,
+        hub_repository,
+        f"{hub_prefix}/logs/colab-exec/{job_name}/exit_code",
+    )
+    if exec_step_exit_code != exit_code:
+        raise ExecutorError(
+            "Colab exec step exit code differs from its wrapper exit code: "
+            f"{exec_step_exit_code} != {exit_code}"
+        )
+    sessions = colab("sessions", capture=True)
+    if re.search(rf"(?m)^\s*{re.escape(session_name)}(?:\s|$)", sessions):
+        raise ExecutorError(
+            f"wrapper exit code {exit_code} is on the Hub but session {session_name!r} was not released"
+        )
+    if wrapper_cli_error is not None and exit_code == 0:
+        raise ExecutorError(
+            f"Colab reported a wrapper error although Hub recorded exit code 0: {wrapper_cli_error}"
+        )
+
+    return exit_code
+
+
+def execute_run(
+    manifest_path: Path,
+    run_id: str,
+    segment_id: str,
+    hub_repository: str,
+    resume_checkpoint: Path | None,
+    input_prefix: str | None,
+    output_prefix: str | None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
+    probe_fixture_prefix: str | None = None,
+    colab_accelerator: str | None = None,
+) -> None:
+    manifest = cast(
+        JsonObject,
+        resolve_runtime_prefixes(
+            load_json(manifest_path),
+            input_prefix,
+            output_prefix,
+            probe_fixture_prefix,
+        ),
+    )
+    runtime_plan = manifest.get("runtime_plan")
+    if not isinstance(runtime_plan, dict):
+        raise ExecutorError("manifest runtime_plan must be an object")
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    if not cpu_runtime_smoke and (
+        not isinstance(colab_accelerator, str) or not colab_accelerator.strip()
+    ):
+        raise ExecutorError(
+            "--colab-accelerator is required for a non-smoke Colab launch"
+        )
+
+    pinned = manifest.get("source_commit")
+    if not isinstance(pinned, str):
+        raise ExecutorError("manifest source_commit must be finalized")
+    verify_local_source(pinned)
+    if manifest.get("queue_status") != "ready":
+        raise ExecutorError(
+            "manifest queue_status is not ready; refusing training dispatch"
+        )
+    config_digest = manifest.get("config_sha256")
+    if not isinstance(config_digest, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", config_digest
+    ):
+        raise ExecutorError("manifest config_sha256 must be a full SHA-256 digest")
+
+    raw_runs = manifest.get("runs")
+    if not isinstance(raw_runs, list):
+        raise ExecutorError("manifest runs must be an array")
+    for field in (
+        "run_id",
+        "session_name",
+        "cpu_session_name",
+        "artifact_prefix",
+        "runtime_output_root",
+        "epoch_500_checkpoint",
+        "epoch_500_checkpoint_hub_path",
+        "converted_output_root",
+        "evaluation_output",
+        "training_artifact_prefix",
+        "postprocess_artifact_prefix",
+    ):
+        values = [
+            candidate.get(field)
+            for candidate in raw_runs
+            if isinstance(candidate, dict)
+        ]
+        if (
+            len(values) != len(raw_runs)
+            or not all(isinstance(value, str) and value for value in values)
+            or len(values) != len(set(values))
+        ):
+            raise ExecutorError(f"manifest runs need unique {field} values")
+    session_names = [
+        session_name
+        for candidate in raw_runs
+        if isinstance(candidate, dict)
+        for session_name in (
+            candidate.get("session_name"),
+            candidate.get("cpu_session_name"),
+        )
+        if isinstance(session_name, str)
+    ]
+    if len(session_names) != 2 * len(raw_runs) or len(session_names) != len(
+        set(session_names)
+    ):
+        raise ExecutorError(
+            "manifest GPU and CPU session names must be globally unique"
+        )
+    matches = [
+        run for run in raw_runs if isinstance(run, dict) and run.get("run_id") == run_id
+    ]
+    if len(matches) != 1 or not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ExecutorError(f"manifest must define exactly one valid run_id {run_id!r}")
+    run = matches[0]
+    system = run.get("system")
+    if system not in {"package", "original"}:
+        raise ExecutorError("run system must be package or original")
+    if resume_checkpoint is not None and system != "package":
+        raise ExecutorError("original TensorFlow runs cannot resume optimizer state")
+    if resume_checkpoint is not None and not resume_checkpoint.is_file():
+        raise ExecutorError("resume requires an existing explicit checkpoint file")
+    if not RUN_ID_PATTERN.fullmatch(segment_id):
+        raise ExecutorError(
+            "segment_id must use lowercase letters, digits, and hyphens"
+        )
+    if resume_checkpoint is not None and segment_id == "segment-001":
+        raise ExecutorError(
+            "resume requires a new segment_id to keep prior artifacts immutable"
+        )
+
+    runner = manifest.get("runner_command")
+    if runner != ["python3", "models/canvas-vae/scripts/s5_seed_executor.py"]:
+        raise ExecutorError("manifest runner_command does not identify this executor")
+    verify_crello_launch_gates(manifest, pinned)
+    if runtime_plan.get("source_commit") != pinned:
+        raise ExecutorError(
+            "runtime_plan source_commit must match the manifest source_commit"
+        )
+    planned_probe_steps = runtime_plan.get("lockstep_probe_steps")
+    if manifest.get("dataset") == "crello" and (
+        type(planned_probe_steps) is not int
+        or planned_probe_steps != lockstep_probe_steps
+        or not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS
+        or (not cpu_runtime_smoke and lockstep_probe_steps != LOCKSTEP_PROBE_STEPS)
+    ):
+        raise ExecutorError(
+            "Crello lockstep probe steps must match the runtime plan and production requires 300"
+        )
+    expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
+    if (
+        runtime_plan.get("gpu") != expected_gpu
+        or runtime_plan.get("one_named_gpu_session_per_run") is not True
+        or runtime_plan.get("one_named_cpu_session_per_run") is not True
+    ):
+        raise ExecutorError("runtime must name one GPU and one CPU session per run")
+    if cpu_runtime_smoke and (
+        not run_id.startswith("cpu-smoke-") or run.get("cpu_smoke") is not True
+    ):
+        raise ExecutorError("CPU runtime smoke accepts only bounded smoke runs")
+    if runtime_plan.get("one_training_run_at_a_time") is not True:
+        raise ExecutorError("runtime must execute only one training run at a time")
+    if runtime_plan.get("queue_supervisor_sequential") is not True:
+        raise ExecutorError("queue supervisor must execute runs sequentially")
+    if (
+        runtime_plan.get("self_release") is not True
+        or runtime_plan.get("sync_interval") != "15m"
+    ):
+        raise ExecutorError("runtime must self-release and sync every 15 minutes")
+    gpu_ttls = runtime_plan.get("gpu_wrapper_ttl_by_system")
+    if (
+        not isinstance(gpu_ttls, dict)
+        or not all(
+            isinstance(gpu_ttls.get(system_name), str)
+            and re.fullmatch(r"[1-9][0-9]*m", gpu_ttls[system_name])
+            for system_name in ("package", "original")
+        )
+        or not isinstance(runtime_plan.get("cpu_wrapper_ttl"), str)
+        or not re.fullmatch(r"[1-9][0-9]*m", runtime_plan["cpu_wrapper_ttl"])
+        or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
+    ):
+        raise ExecutorError("runtime wrapper TTLs must define bounded GPU and CPU jobs")
+    resume_policy = runtime_plan.get("resume_policy")
+    if (
+        not isinstance(resume_policy, dict)
+        or resume_policy.get("explicit_download_required") is not True
+        or resume_policy.get("downloaded_checkpoint_path")
+        != "${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
+        or resume_policy.get("package_resume_flag")
+        != "--ckpt_path=${S5_RUNTIME_ROOT}/out/resume/checkpoint.ckpt"
+        or resume_policy.get("implicit_latest_checkpoint_resume") is not False
+    ):
+        raise ExecutorError(
+            "runtime resume policy must require an explicit checkpoint path"
+        )
+    if runtime_plan.get("source_gate_before_artifact_sync") is not True:
+        raise ExecutorError("source gate must pass before artifact synchronization")
+    if (
+        runtime_plan.get("require_hub_wrapper_exit_code_after_each_session") is not True
+        or runtime_plan.get("hub_wrapper_exit_code_path") != "logs/<job>/exit_code"
+        or runtime_plan.get("checkpoint_presence_gate_before_cpu_dispatch") is not True
+        or runtime_plan.get("branch_must_remain_frozen_while_s5_running") is not True
+    ):
+        raise ExecutorError(
+            "runtime must verify Hub completion/checkpoint artifacts and freeze the source branch"
+        )
+    expected_gpu_sync_paths = [
+        "${S5_RUNTIME_ROOT}/out/checkpoints",
+        "${S5_RUNTIME_ROOT}/out/logs",
+    ]
+    expected_cpu_sync_paths = [
+        "${S5_RUNTIME_ROOT}/out/converted",
+        "${S5_RUNTIME_ROOT}/out/results",
+        "${S5_RUNTIME_ROOT}/out/logs",
+    ]
+    if runtime_plan.get("gpu_sync_paths") != expected_gpu_sync_paths:
+        raise ExecutorError("GPU runtime must sync only checkpoints and logs")
+    if runtime_plan.get("cpu_sync_paths") != expected_cpu_sync_paths:
+        raise ExecutorError(
+            "CPU runtime must sync converted weights, results, and logs"
+        )
+    wrapper_value = os.environ.get("S5_WRAPPER_PATH")
+    if wrapper_value is None:
+        raise ExecutorError("S5_WRAPPER_PATH must name the installed bundled wrapper")
+    wrapper_path = Path(wrapper_value).expanduser()
+    if not wrapper_path.is_file():
+        raise ExecutorError("installed bundled wrapper was not found")
+    token_path = require_token_file()
+    session_name = run.get("session_name")
+    cpu_session_name = run.get("cpu_session_name")
+    artifact_prefix = run.get("artifact_prefix")
+    if not all(
+        isinstance(value, str)
+        for value in (session_name, cpu_session_name, artifact_prefix)
+    ):
+        raise ExecutorError(
+            "run needs named GPU and CPU sessions and a unique Hub artifact prefix"
+        )
+    if not RUN_ID_PATTERN.fullmatch(session_name) or not RUN_ID_PATTERN.fullmatch(
+        cpu_session_name
+    ):
+        raise ExecutorError(
+            "runtime session names must use lowercase letters, digits, and hyphens"
+        )
+    failure_stage = run.get("smoke_failure_stage")
+    failure_exit_code = run.get("smoke_failure_exit_code")
+    if failure_stage is not None and (
+        not cpu_runtime_smoke
+        or failure_stage not in {"training", "postprocess"}
+        or not isinstance(failure_exit_code, int)
+        or not 1 <= failure_exit_code <= 125
+    ):
+        raise ExecutorError("smoke failure injection must be a bounded nonzero status")
+    if cpu_runtime_smoke and failure_stage is None and failure_exit_code is not None:
+        raise ExecutorError("smoke failure code requires an injected stage")
+
+    with tempfile.TemporaryDirectory(prefix="cvae-s5-run-") as temporary:
+        temporary_directory = Path(temporary)
+        additional_training_uploads: tuple[LocalUpload, ...] = ()
+        training_config_override = run.get("training_config_override")
+        if cpu_runtime_smoke and system == "package":
+            if training_config_override != "/content/s5-smoke.yaml":
+                raise ExecutorError("CPU package smoke must use its tiny config")
+            smoke_config_path = temporary_directory / "s5-smoke.yaml"
+            smoke_config_path.write_text(
+                cpu_smoke_training_config(run_id, segment_id), encoding="utf-8"
+            )
+            additional_training_uploads = (
+                (smoke_config_path, "/content/s5-smoke.yaml", None),
+            )
+        if cpu_runtime_smoke and system == "original":
+            original_arguments = run.get("train_original_arguments")
+            if not isinstance(original_arguments, list):
+                raise ExecutorError(
+                    "CPU original smoke needs explicit trainer arguments"
+                )
+            if (
+                "--num-epochs" not in original_arguments
+                or "1" not in original_arguments
+            ):
+                raise ExecutorError("CPU original smoke must train for one epoch")
+        preflight_path, preflight_script, run_path = temporary_files(
+            temporary_directory,
+            manifest,
+            run,
+            pinned,
+            hub_repository,
+            download_inputs=True,
+            phase="training",
+        )
+        run_path.write_text(
+            build_run_job(
+                manifest,
+                run,
+                pinned,
+                segment_id,
+                resume_checkpoint,
+                failure_exit_code if failure_stage == "training" else None,
+                lockstep_probe_steps,
+            ),
+            encoding="utf-8",
+        )
+        run_env = temporary_directory / "run.env"
+        run_env.write_text(
+            "CANVAS_VAE_S5_SOURCE_COMMIT="
+            + pinned
+            + "\n"
+            + "CANVAS_VAE_S5_RUN_ID="
+            + run_id
+            + "\n",
+            encoding="utf-8",
+        )
+        run_env.chmod(0o600)
+        dataset = manifest.get("dataset")
+        if not isinstance(dataset, str):
+            raise ExecutorError("manifest dataset must be a string")
+        capture_path = (
+            REPOSITORY_ROOT
+            / ".cache"
+            / "canvas-vae"
+            / "full-run"
+            / dataset
+            / "executor-logs"
+            / f"{run_id}-{segment_id}.log"
+        )
+        capture_path.parent.mkdir(parents=True, exist_ok=True)
+        job_name = f"cvae-s5-{run_id}-{segment_id}"
+        training_prefix = run.get("training_artifact_prefix")
+        postprocess_prefix = run.get("postprocess_artifact_prefix")
+        if not isinstance(training_prefix, str) or not isinstance(
+            postprocess_prefix, str
+        ):
+            raise ExecutorError(
+                "run needs separate training and postprocess Hub prefixes"
+            )
+        training_prefix = training_prefix.format(run_id=run_id, segment_id=segment_id)
+        postprocess_prefix = postprocess_prefix.format(
+            run_id=run_id, segment_id=segment_id
+        )
+        expected_training_prefix = f"{artifact_prefix}/train/{segment_id}"
+        expected_postprocess_prefix = f"{artifact_prefix}/postprocess/{segment_id}"
+        if (
+            training_prefix != expected_training_prefix
+            or postprocess_prefix != expected_postprocess_prefix
+        ):
+            raise ExecutorError(
+                "training and postprocess Hub prefixes must be unique per run and segment"
+            )
+        checkpoint_template = run.get("epoch_500_checkpoint")
+        checkpoint_hub_template = run.get("epoch_500_checkpoint_hub_path")
+        if not isinstance(checkpoint_template, str) or not isinstance(
+            checkpoint_hub_template, str
+        ):
+            raise ExecutorError("run needs an epoch-500 checkpoint path and Hub path")
+        checkpoint_hub_path = checkpoint_hub_template.format(
+            run_id=run_id, segment_id=segment_id
+        )
+        expected_checkpoint_hub_path = (
+            f"{training_prefix}/checkpoints/{run_id}/{segment_id}/epoch-500.ckpt"
+        )
+        if checkpoint_hub_path != expected_checkpoint_hub_path:
+            raise ExecutorError(
+                "checkpoint Hub path must name this run's epoch-500 artifact"
+            )
+        checkpoint_download: JsonObject = {
+            "hub_repository": hub_repository,
+            "revision": "main",
+            "hub_prefix": checkpoint_hub_path,
+            "hub_glob": checkpoint_hub_path
+            if system == "package"
+            else checkpoint_hub_path + ".*",
+            "local_checkpoint": "/content/s5-training-checkpoint/epoch-500.ckpt",
+            "system": system,
+        }
+        cpu_run = dict(run)
+        cpu_run["cpu_postprocess"] = True
+        cpu_preflight_path, cpu_preflight_script, cpu_run_path = temporary_files(
+            temporary_directory,
+            manifest,
+            cpu_run,
+            pinned,
+            hub_repository,
+            download_inputs=True,
+            checkpoint_download=checkpoint_download,
+            phase="postprocess",
+        )
+        cpu_run_path.write_text(
+            build_postprocess_job(
+                manifest,
+                run,
+                segment_id,
+                pinned,
+                failure_exit_code if failure_stage == "postprocess" else None,
+            ),
+            encoding="utf-8",
+        )
+        cpu_env = temporary_directory / "cpu-run.env"
+        cpu_env.write_text(
+            "CANVAS_VAE_S5_SOURCE_COMMIT="
+            + pinned
+            + "\nCANVAS_VAE_S5_RUN_ID="
+            + run_id
+            + "\n",
+            encoding="utf-8",
+        )
+        cpu_env.chmod(0o600)
+        cpu_capture_path = capture_path.with_name(f"{run_id}-{segment_id}-cpu.log")
+        expected_gpu_ttl = gpu_ttls.get(system)
+        gpu_ttl = run.get("gpu_wrapper_ttl")
+        cpu_ttl = run.get("cpu_wrapper_ttl")
+        if (
+            not isinstance(expected_gpu_ttl, str)
+            or not isinstance(gpu_ttl, str)
+            or not isinstance(cpu_ttl, str)
+            or gpu_ttl != expected_gpu_ttl
+            or cpu_ttl != runtime_plan.get("cpu_wrapper_ttl")
+        ):
+            raise ExecutorError(
+                "per-run wrapper TTLs must match the validated runtime plan"
+            )
+        training_exit_code = run_named_session(
+            session_name,
+            None if cpu_runtime_smoke else colab_accelerator,
+            wrapper_path,
+            token_path,
+            preflight_path,
+            preflight_script,
+            run_path,
+            job_name,
+            training_prefix,
+            gpu_ttl,
+            "bash /content/run-job.sh",
+            (
+                "/content/out/checkpoints",
+                "/content/out/logs",
+            ),
+            run_env,
+            capture_path,
+            hub_repository,
+            resume_checkpoint,
+            additional_uploads=additional_training_uploads,
+        )
+        if cpu_runtime_smoke:
+            record_smoke_exit_code(
+                run_id,
+                "training_session",
+                session_name,
+                job_name,
+                training_prefix,
+                training_exit_code,
+            )
+        if training_exit_code != 0:
+            raise ExecutorError(
+                f"training wrapper failed with Hub exit code {training_exit_code}"
+            )
+        verify_checkpoint_on_hub(
+            token_path, hub_repository, checkpoint_hub_path, system
+        )
+        postprocess_exit_code = run_named_session(
+            cpu_session_name,
+            None,
+            wrapper_path,
+            token_path,
+            cpu_preflight_path,
+            cpu_preflight_script,
+            cpu_run_path,
+            f"{job_name}-postprocess",
+            postprocess_prefix,
+            str(cpu_ttl),
+            "bash /content/run-job.sh",
+            (
+                "/content/out/converted",
+                "/content/out/results",
+                "/content/out/logs",
+            ),
+            cpu_env,
+            cpu_capture_path,
+            hub_repository,
+        )
+        if cpu_runtime_smoke:
+            record_smoke_exit_code(
+                run_id,
+                "cpu_postprocess_session",
+                cpu_session_name,
+                f"{job_name}-postprocess",
+                postprocess_prefix,
+                postprocess_exit_code,
+            )
+        if postprocess_exit_code != 0:
+            raise ExecutorError(
+                f"CPU postprocess wrapper failed with Hub exit code {postprocess_exit_code}"
+            )
+        verify_hub_paths(
+            token_path,
+            hub_repository,
+            [
+                f"{postprocess_prefix}/results/{run_id}/{segment_id}/evaluation.json",
+                f"{postprocess_prefix}/results/{run_id}/{segment_id}/artifact-hashes.txt",
+            ],
+            "CPU evaluation artifacts",
+        )
+
+
+def execute_cpu_smoke(
+    session_name: str,
+    source_commit: str,
+    hub_repository: str,
+    output_prefix: str,
+    manifest_path: Path = DEFAULT_MANIFEST,
+    input_prefix: str | None = None,
+    lockstep_probe_steps: int = LOCKSTEP_PROBE_STEPS,
+    probe_fixture_prefix: str | None = None,
+) -> None:
+    if not RUN_ID_PATTERN.fullmatch(session_name):
+        raise ExecutorError("CPU smoke requires a valid smoke identifier")
+    if not COMMIT_PATTERN.fullmatch(source_commit):
+        raise ExecutorError("CPU smoke source must be a full commit SHA")
+    if not 1 <= lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+        raise ExecutorError("CPU smoke lockstep probe steps must be between 1 and 300")
+    verify_local_source(source_commit)
+
+    wrapper_value = os.environ.get("S5_WRAPPER_PATH")
+    if wrapper_value is None:
+        raise ExecutorError("S5_WRAPPER_PATH must name the installed bundled wrapper")
+    wrapper_path = Path(wrapper_value).expanduser()
+    if not wrapper_path.is_file():
+        raise ExecutorError("installed bundled wrapper was not found")
+    token_path = require_token_file()
+    base_manifest = cast(
+        JsonObject,
+        resolve_runtime_prefixes(
+            load_json(manifest_path.resolve()),
+            input_prefix,
+            output_prefix,
+            probe_fixture_prefix,
+        ),
+    )
+    dataset = base_manifest.get("dataset")
+    if dataset not in {"rico", "crello"}:
+        raise ExecutorError("CPU smoke supports only RICO and Crello manifests")
+    dataset_paths = base_manifest.get("dataset_paths")
+    if dataset == "crello" and not isinstance(dataset_paths, dict):
+        raise ExecutorError("Crello CPU smoke needs manifest dataset_paths")
+
+    raw_runs = base_manifest.get("runs")
+    if not isinstance(raw_runs, list):
+        raise ExecutorError(
+            "training manifest does not define its source run templates"
+        )
+    package_template = next(
+        (
+            run
+            for run in raw_runs
+            if isinstance(run, dict) and run.get("system") == "package"
+        ),
+        None,
+    )
+    original_template = next(
+        (
+            run
+            for run in raw_runs
+            if isinstance(run, dict) and run.get("system") == "original"
+        ),
+        None,
+    )
+    if package_template is None or original_template is None:
+        raise ExecutorError(
+            "training manifest must define package and original run templates"
+        )
+
+    smoke_id = uuid.uuid4().hex[:8]
+    smoke_root = (
+        REPOSITORY_ROOT
+        / ".cache"
+        / "canvas-vae"
+        / "s5"
+        / f"cpu-e2e-{session_name}-{smoke_id}"
+    )
+    smoke_root.mkdir(parents=True, exist_ok=False)
+    hub_prefix = f"{output_prefix.strip('/')}/cpu-smoke/{session_name}-{smoke_id}"
+    result_path = smoke_root / "smoke-result.json"
+    result: JsonObject = {
+        "source_commit": source_commit,
+        "dataset": dataset,
+        "hub_prefix": hub_prefix,
+        "session_exit_codes": {},
+        "cases": {},
+    }
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+    raw_runtime_plan = base_manifest.get("runtime_plan")
+    if not isinstance(raw_runtime_plan, dict):
+        raise ExecutorError("training manifest runtime_plan must be an object")
+    runtime_plan = dict(raw_runtime_plan)
+    runtime_root = "${S5_RUNTIME_ROOT}"
+    runtime_plan.update(
+        {
+            "cpu_runtime_smoke": True,
+            "lockstep_probe_steps": lockstep_probe_steps,
+            "gpu": "CPU",
+            "source_commit": source_commit,
+            "one_named_gpu_session_per_run": True,
+            "one_named_cpu_session_per_run": True,
+            "one_training_run_at_a_time": True,
+            "queue_supervisor_sequential": True,
+            "self_release": True,
+            "sync_interval": "15m",
+            "wrapper_script": "${S5_WRAPPER_PATH}",
+            "gpu_wrapper_ttl_by_system": {"package": "30m", "original": "30m"},
+            "cpu_wrapper_ttl": "30m",
+            "gpu_sync_paths": [
+                f"{runtime_root}/out/checkpoints",
+                f"{runtime_root}/out/logs",
+            ],
+            "cpu_sync_paths": [
+                f"{runtime_root}/out/converted",
+                f"{runtime_root}/out/results",
+                f"{runtime_root}/out/logs",
+            ],
+            "source_gate_before_artifact_sync": True,
+        }
+    )
+
+    def make_run(
+        template: JsonObject,
+        case_id: str,
+        system: str,
+        failure_stage: str | None = None,
+    ) -> JsonObject:
+        run_id = f"cpu-smoke-{smoke_id}-{case_id}"
+        artifact_prefix = f"{hub_prefix}/{run_id}"
+        training_prefix = f"{artifact_prefix}/train/{{segment_id}}"
+        postprocess_prefix = f"{artifact_prefix}/postprocess/{{segment_id}}"
+        run: JsonObject = dict(template)
+        if dataset == "rico":
+            run["evaluator_command"] = [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "--package",
+                "canvas-vae",
+                "--extra",
+                "training",
+                "models/canvas-vae/scripts/evaluate.py",
+                "--checkpoint",
+                "{converted_checkpoint}",
+                "--data-dir",
+                "/content/repo/.cache/canvas-vae/data/rico",
+                "--seeds",
+                "0",
+                "--batch-size",
+                "1024",
+                "--device",
+                "cpu",
+                "--output",
+                "{evaluation_output}",
+            ]
+
+        run.update(
+            {
+                "run_id": run_id,
+                "system": system,
+                "seed": 0,
+                "session_name": f"cvae-s5-{smoke_id}-{case_id}-a",
+                "cpu_session_name": f"cvae-s5-{smoke_id}-{case_id}-c",
+                "artifact_prefix": artifact_prefix,
+                "runtime_output_root": f"/content/out/checkpoints/{run_id}/{{segment_id}}",
+                "epoch_500_checkpoint": f"/content/out/checkpoints/{run_id}/{{segment_id}}/epoch-500.ckpt",
+                "epoch_500_checkpoint_hub_path": (
+                    f"{training_prefix}/checkpoints/{run_id}/{{segment_id}}/epoch-500.ckpt"
+                ),
+                "converted_output_root": f"/content/out/converted/{run_id}/{{segment_id}}",
+                "evaluation_output": f"/content/out/results/{run_id}/{{segment_id}}/evaluation.json",
+                "training_artifact_prefix": training_prefix,
+                "postprocess_artifact_prefix": postprocess_prefix,
+                "gpu_wrapper_ttl": "30m",
+                "cpu_wrapper_ttl": "30m",
+                "device": "cpu",
+                "cpu_smoke": True,
+            }
+        )
+        if dataset == "crello" and system == "original":
+            if not isinstance(dataset_paths, dict):
+                raise ExecutorError("Crello CPU smoke needs manifest dataset_paths")
+            original_data_dir = dataset_paths.get("original_data_dir")
+            if (
+                not isinstance(original_data_dir, str)
+                or Path(original_data_dir).is_absolute()
+                or ".." in Path(original_data_dir).parts
+                or Path(original_data_dir).parts[:3]
+                != (".cache", "canvas-vae", "original")
+            ):
+                raise ExecutorError("Crello original data path must stay in cache")
+            original_data_dir = f"/content/repo/{original_data_dir}"
+            original_arguments = template.get("train_original_arguments")
+            if not isinstance(original_arguments, list) or not all(
+                isinstance(value, str) for value in original_arguments
+            ):
+                raise ExecutorError("Crello original run is missing trainer arguments")
+            resolved_arguments = list(original_arguments)
+            replacements = {
+                "--data-dir": original_data_dir,
+                "--batch-size": "2",
+                "--num-epochs": "1",
+                "--validation-freq": "1",
+            }
+            for option, value in replacements.items():
+                try:
+                    position = resolved_arguments.index(option) + 1
+                except ValueError as error:
+                    raise ExecutorError(
+                        f"Crello original trainer arguments are missing {option}"
+                    ) from error
+                resolved_arguments[position] = value
+            run["train_original_arguments"] = [
+                value.replace("{seed}", "0") for value in resolved_arguments
+            ]
+        elif system == "original":
+            smoke_data_dir = (
+                f"/content/repo/.cache/canvas-vae/original-smoke/{run_id}/data/rico"
+            )
+            run["train_original_arguments"] = [
+                "--data-dir",
+                smoke_data_dir,
+                "--job-dir",
+                "{output_root}/original-training",
+                "--seed",
+                "0",
+                "--",
+                "--batch-size",
+                "1024",
+                "--num-epochs",
+                "1",
+                "--validation-freq",
+                "1",
+            ]
+            run["pre_training_commands"] = [
+                "python - <<'PY'\n"
+                "import json, shutil\n"
+                "from pathlib import Path\n"
+                "import tensorflow as tf\n"
+                "source = Path('/content/repo/.cache/canvas-vae/original/data/rico')\n"
+                f"target = Path({smoke_data_dir!r})\n"
+                "target.mkdir(parents=True, exist_ok=False)\n"
+                "counts = {}\n"
+                "for split in ('train', 'val', 'test'):\n"
+                "    files = sorted(source.glob(split + '-*.tfrecord'))\n"
+                "    if not files:\n"
+                "        raise SystemExit(f'missing downloaded {split} TFRecords')\n"
+                "    output = target / f'{split}-00000-of-00001.tfrecord'\n"
+                "    count = 0\n"
+                "    with tf.io.TFRecordWriter(str(output)) as writer:\n"
+                "        for record in tf.data.TFRecordDataset([str(path) for path in files]).take(4):\n"
+                "            writer.write(record.numpy())\n"
+                "            count += 1\n"
+                "    if count != 4:\n"
+                "        raise SystemExit(f'expected 4 {split} records, got {count}')\n"
+                "    counts[split] = count\n"
+                "shutil.copy2(source / 'vocabulary.json', target / 'vocabulary.json')\n"
+                "(target / 'count.json').write_text(json.dumps(counts), encoding='utf-8')\n"
+                "print(f'bounded_input_archive_ready counts={counts}')\n"
+                "PY",
+            ]
+        else:
+            run["training_config_override"] = "/content/s5-smoke.yaml"
+            if system == "package":
+                run["package_checkpoint_selection"] = None
+                run["package_checkpoint_expectation"] = {
+                    "max_epochs": 1,
+                    "global_step": 2,
+                }
+                run["training_overrides"] = ["--trainer.enable_checkpointing=true"]
+            if dataset == "rico":
+                run["training_overrides"] = []
+        if failure_stage is not None:
+            run["smoke_failure_stage"] = failure_stage
+            run["smoke_failure_exit_code"] = 37
+
+        return run
+
+    def write_case_manifest(case_id: str, runs: list[JsonObject]) -> Path:
+        manifest = dict(base_manifest)
+        manifest.update(
+            {
+                "queue_status": "ready",
+                "source_commit": source_commit,
+                "runtime_plan": runtime_plan,
+                "runs": runs,
+            }
+        )
+        manifest_path = smoke_root / f"{case_id}.manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
+
+        return manifest_path
+
+    def run_case(
+        case_id: str,
+        runs: list[JsonObject],
+        expected_queue_success: bool,
+        expected_session_codes: dict[str, int],
+    ) -> None:
+        manifest_path = write_case_manifest(case_id, runs)
+        log_path = smoke_root / f"{case_id}.queue.log"
+        environment = os.environ.copy()
+        environment["CANVAS_VAE_S5_SMOKE_RESULT_PATH"] = str(result_path)
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    REPOSITORY_ROOT
+                    / "models"
+                    / "canvas-vae"
+                    / "scripts"
+                    / "s5_seed_queue.py"
+                ),
+                "--manifest",
+                str(manifest_path),
+                "--launch",
+                "--hub-repo",
+                hub_repository,
+            ],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+            timeout=21600,
+        )
+        combined_output = completed.stdout + completed.stderr
+        log_path.write_text(combined_output, encoding="utf-8")
+        queue_records = []
+        for line in completed.stdout.splitlines():
+            try:
+                decoded = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(decoded, dict):
+                queue_records.append(decoded)
+        event_names = [record.get("event") for record in queue_records]
+        dispatched_run_ids = [
+            record.get("run_id")
+            for record in queue_records
+            if record.get("event") == "run_dispatch"
+        ]
+        smoke_result = load_json(result_path)
+        all_session_codes = smoke_result.get("session_exit_codes")
+        if not isinstance(all_session_codes, dict):
+            raise ExecutorError(f"{case_id} did not record Hub exit codes")
+        run_id = runs[0]["run_id"]
+        actual_codes = {
+            key.split(":", 1)[1]: value.get("exit_code")
+            for key, value in all_session_codes.items()
+            if key.startswith(f"{run_id}:") and isinstance(value, dict)
+        }
+        if actual_codes != expected_session_codes:
+            raise ExecutorError(
+                f"{case_id} Hub exit-code evidence differs from expectation: {actual_codes}"
+            )
+        if expected_queue_success:
+            if completed.returncode != 0 or "queue_complete" not in event_names:
+                raise ExecutorError(f"{case_id} queue did not complete successfully")
+            if dispatched_run_ids != [run_id]:
+                raise ExecutorError(f"{case_id} dispatched an unexpected run sequence")
+        else:
+            sentinel_id = runs[1]["run_id"]
+            if (
+                completed.returncode == 0
+                or "run_failed" not in event_names
+                or dispatched_run_ids != [run_id]
+                or sentinel_id in dispatched_run_ids
+            ):
+                raise ExecutorError(
+                    f"{case_id} did not stop the queue after its injected session failure"
+                )
+        cases = smoke_result.get("cases")
+        if not isinstance(cases, dict):
+            raise ExecutorError("smoke result is missing its cases object")
+        cases[case_id] = {
+            "system": runs[0]["system"],
+            "run_id": run_id,
+            "queue_return_code": completed.returncode,
+            "queue_events": event_names,
+            "dispatched_run_ids": dispatched_run_ids,
+            "session_exit_codes": actual_codes,
+            "hub_training_prefix": runs[0]["training_artifact_prefix"],
+            "hub_postprocess_prefix": runs[0]["postprocess_artifact_prefix"],
+            "queue_log": str(log_path.relative_to(REPOSITORY_ROOT)),
+        }
+        result_path.write_text(
+            json.dumps(smoke_result, indent=2) + "\n", encoding="utf-8"
+        )
+
+    for case_id, system, failure_stage, success, expected_codes in cpu_smoke_case_specs(
+        cast(str, dataset)
+    ):
+        template = original_template if system == "original" else package_template
+        target = make_run(template, case_id, system, failure_stage)
+        runs = [target]
+        if not success:
+            runs.append(make_run(package_template, f"{case_id}-sentinel", "package"))
+        run_case(case_id, runs, success, expected_codes)
+
+    result = load_json(result_path)
+    result["status"] = "passed"
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    hub_result_path = f"{hub_prefix}/smoke-result.json"
+    upload_smoke_result(token_path, hub_repository, result_path, hub_result_path)
+    print(
+        json.dumps(
+            {
+                "cpu_e2e_smoke": "passed",
+                "result": str(result_path),
+                "hub_prefix": hub_prefix,
+                "hub_result_path": hub_result_path,
+            },
+            sort_keys=True,
+        )
+    )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--hub-repo", required=True)
+    parser.add_argument("--input-prefix")
+    parser.add_argument("--probe-fixture-prefix")
+    parser.add_argument("--output-prefix")
+    parser.add_argument("--run-id")
+    parser.add_argument("--segment-id", default="segment-001")
+    parser.add_argument("--resume-checkpoint", type=Path)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--cpu-smoke", action="store_true")
+    parser.add_argument(
+        "--lockstep-probe-steps", type=int, default=LOCKSTEP_PROBE_STEPS
+    )
+    parser.add_argument("--session-name")
+    parser.add_argument("--source-commit")
+    parser.add_argument("--colab-accelerator")
+    args = parser.parse_args()
+    if not args.hub_repo.strip():
+        parser.error("--hub-repo must not be empty")
+    if not 1 <= args.lockstep_probe_steps <= LOCKSTEP_PROBE_STEPS:
+        parser.error("--lockstep-probe-steps must be between 1 and 300")
+    try:
+        args.input_prefix = validate_hub_prefix(args.input_prefix, "input-prefix")
+        args.probe_fixture_prefix = validate_hub_prefix(
+            args.probe_fixture_prefix, "probe-fixture-prefix"
+        )
+        args.output_prefix = validate_hub_prefix(args.output_prefix, "output-prefix")
+    except ExecutorError as error:
+        parser.error(str(error))
+
+    return args
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        if args.dry_run:
+            if args.cpu_smoke or args.resume_checkpoint is not None:
+                raise ExecutorError(
+                    "dry-run cannot be combined with --cpu-smoke or --resume-checkpoint"
+                )
+            if args.run_id is None:
+                raise ExecutorError("--run-id is required for a dry run")
+
+            manifest = cast(
+                JsonObject,
+                resolve_runtime_prefixes(
+                    load_json(args.manifest.resolve()),
+                    args.input_prefix,
+                    args.output_prefix,
+                    args.probe_fixture_prefix,
+                ),
+            )
+            pinned_commit = args.source_commit or manifest.get("source_commit")
+            if not isinstance(pinned_commit, str):
+                raise ExecutorError("dry-run requires a full source_commit")
+            verify_local_source(pinned_commit)
+            raw_runs = manifest.get("runs")
+            if not isinstance(raw_runs, list):
+                raise ExecutorError("manifest must define a runs list")
+            run = next(
+                (
+                    candidate
+                    for candidate in raw_runs
+                    if isinstance(candidate, dict)
+                    and candidate.get("run_id") == args.run_id
+                ),
+                None,
+            )
+            if run is None:
+                raise ExecutorError(f"manifest has no run {args.run_id!r}")
+            if not RUN_ID_PATTERN.fullmatch(args.run_id):
+                raise ExecutorError(f"invalid run_id {args.run_id!r}")
+            if not RUN_ID_PATTERN.fullmatch(args.segment_id):
+                raise ExecutorError(f"invalid segment_id {args.segment_id!r}")
+            checkpoint_template = run.get("epoch_500_checkpoint")
+            checkpoint_hub_template = run.get("epoch_500_checkpoint_hub_path")
+            if not isinstance(checkpoint_template, str) or not isinstance(
+                checkpoint_hub_template, str
+            ):
+                raise ExecutorError("run is missing checkpoint output templates")
+            try:
+                checkpoint_path = checkpoint_template.format(
+                    run_id=args.run_id,
+                    segment_id=args.segment_id,
+                )
+                checkpoint_hub_path = checkpoint_hub_template.format(
+                    run_id=args.run_id,
+                    segment_id=args.segment_id,
+                )
+            except (KeyError, ValueError) as error:
+                raise ExecutorError(
+                    "run checkpoint output templates are invalid"
+                ) from error
+            expected_checkpoint_path = f"/content/out/checkpoints/{args.run_id}/{args.segment_id}/epoch-500.ckpt"
+            artifact_prefix = run.get("artifact_prefix")
+            expected_checkpoint_hub_path = (
+                f"{artifact_prefix}/train/{args.segment_id}/checkpoints/"
+                f"{args.run_id}/{args.segment_id}/epoch-500.ckpt"
+            )
+            if checkpoint_path != expected_checkpoint_path or (
+                checkpoint_hub_path != expected_checkpoint_hub_path
+            ):
+                raise ExecutorError(
+                    "run checkpoint paths do not match the selected run and segment"
+                )
+
+            run_job = build_run_job(
+                manifest,
+                run,
+                pinned_commit,
+                args.segment_id,
+                resume_checkpoint=None,
+            )
+            has_package_checkpoint_gate = (
+                "canvas_vae.training.checkpoints" in run_job
+                or "selected_checkpoints=" in run_job
+            )
+            if run.get("system") == "package" and not has_package_checkpoint_gate:
+                raise ExecutorError(
+                    "package dry-run is missing the checkpoint-selection gate"
+                )
+            result: JsonObject = {
+                "event": "executor_dry_run_passed",
+                "source_commit": pinned_commit,
+                "run_id": args.run_id,
+                "segment_id": args.segment_id,
+                "epoch_500_checkpoint": checkpoint_path,
+                "epoch_500_checkpoint_hub_path": checkpoint_hub_path,
+                "system": run.get("system"),
+                "seed": run.get("seed"),
+                "training_job_contains_checkpoint_gate": has_package_checkpoint_gate,
+            }
+            if run.get("system") == "package":
+                selection = run.get(
+                    "package_checkpoint_selection",
+                    manifest.get("package_checkpoint_selection"),
+                )
+                if selection is not None:
+                    if not isinstance(selection, dict):
+                        raise ExecutorError(
+                            "package_checkpoint_selection must be an object"
+                        )
+                    result["checkpoint_selection"] = selection
+                else:
+                    expectation = run.get(
+                        "package_checkpoint_expectation",
+                        manifest.get("package_checkpoint_expectation"),
+                    )
+                    if not isinstance(expectation, dict):
+                        raise ExecutorError(
+                            "manifest package_checkpoint_expectation is required"
+                        )
+                    max_epochs = expectation.get("max_epochs")
+                    global_step = expectation.get("global_step")
+                    if type(max_epochs) is not int or type(global_step) is not int:
+                        raise ExecutorError("package checkpoint expectation is invalid")
+                    result["checkpoint_gate"] = {
+                        "expected_epoch": max_epochs - 1,
+                        "expected_global_step": global_step,
+                    }
+            print(json.dumps(result, sort_keys=True))
+        elif args.cpu_smoke:
+            if args.session_name is None or args.source_commit is None:
+                raise ExecutorError(
+                    "CPU smoke requires --session-name and --source-commit"
+                )
+            if args.output_prefix is None:
+                raise ExecutorError("CPU smoke requires --output-prefix")
+            execute_cpu_smoke(
+                args.session_name,
+                args.source_commit,
+                args.hub_repo,
+                args.output_prefix,
+                args.manifest,
+                args.input_prefix,
+                args.lockstep_probe_steps,
+                args.probe_fixture_prefix,
+            )
+        else:
+            if args.run_id is None:
+                raise ExecutorError("--run-id is required for a queue run")
+            execute_run(
+                args.manifest.resolve(),
+                args.run_id,
+                args.segment_id,
+                args.hub_repo,
+                args.resume_checkpoint,
+                args.input_prefix,
+                args.output_prefix,
+                args.lockstep_probe_steps,
+                args.probe_fixture_prefix,
+                args.colab_accelerator,
+            )
+    except (ExecutorError, OSError, subprocess.SubprocessError) as error:
+        print(f"Full-run seed failed closed: {error}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
