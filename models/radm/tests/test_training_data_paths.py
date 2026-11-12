@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader, Dataset
 from radm.training.config import effective_radm_config
 from radm.training.datamodule import RADMAspectRatioBatchSampler, RADMDataModule
 from radm.training.data_paths import validate_dot_free_data_root
-from radm.training.dataset import RADMCOCODataset
+from radm.training.dataset import RADMCOCODataset, load_text_features
 from radm.training.launch_manifest import CGLS5SourceProvenance
 
 
@@ -188,6 +188,23 @@ def test_dot_free_data_root_rejects_dotted_components(suffix: str) -> None:
 def test_dot_free_data_root_rejects_empty_input() -> None:
     with pytest.raises(ValueError, match="must not be empty"):
         validate_dot_free_data_root("")
+
+
+def test_missing_text_features_use_zero_features_and_padding_mask(
+    tmp_path: Path,
+) -> None:
+    effective = effective_radm_config()
+
+    features, mask = load_text_features(
+        "missing.jpg",
+        root=tmp_path,
+        effective=effective,
+        allow_missing=True,
+    )
+
+    assert torch.equal(features, torch.zeros_like(features))
+    assert mask.dtype is torch.bool
+    assert not mask.any()
 
 
 @pytest.mark.parametrize("arm", ("original", "package"))
