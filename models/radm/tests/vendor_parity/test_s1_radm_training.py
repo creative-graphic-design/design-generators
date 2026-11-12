@@ -22,6 +22,7 @@ import torch
 from PIL import Image
 
 from radm import RADMConfig, RADMDenoiser
+from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.lightning_module import (
     RADMTarget,
     RADMTrainingModule,
@@ -372,7 +373,9 @@ _REAL_BACKBONE_IMAGE_IDS = (
 @pytest.mark.vendor_parity
 def test_s1_radm_real_batch16_backbone_bitwise_parity() -> None:
     """Compare the five source/package backbone outputs on the R-50 fixture."""
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     text_root = data_root / "text_features"
     weights_path = Path(
         os.environ.get("RADM_R50_WEIGHTS", ".cache/radm/weights/R-50.pkl")
@@ -2215,7 +2218,7 @@ def test_s3_radm_deterministic_multi_batch_parity() -> None:
     previous_deterministic_algorithms = torch.are_deterministic_algorithms_enabled()
     torch.use_deterministic_algorithms(True)
     try:
-        # The supported V100 same-op ROI control found nonzero default backward
+        # The supported same-op ROI control found nonzero default backward
         # deltas but exact gradients with this setting; both paired paths must
         # observe the same global algorithm policy.
         assert torch.are_deterministic_algorithms_enabled()

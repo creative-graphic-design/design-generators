@@ -46,7 +46,9 @@ import numpy as np  # noqa: E402
 from jaxtyping import Shaped  # noqa: E402
 from laygen.common.vendor import vendor_root  # noqa: E402
 from traingen_parity.tensorflow_compat import (  # noqa: E402
+    install_assert_all_finite_compat,
     install_keras_preprocessing_compat,
+    install_sparse_categorical_accuracy_compat,
 )
 
 if TYPE_CHECKING:
@@ -195,6 +197,8 @@ def run_beam(archive: Path, output_dir: Path) -> None:
 def import_original():
     """Import the original trainer with the TensorFlow 2.15 shims installed."""
     install_keras_preprocessing_compat()
+    install_sparse_categorical_accuracy_compat()
+    install_assert_all_finite_compat()
     import tensorflow as tf
 
     base = tf.keras.layers.BatchNormalization
@@ -212,6 +216,13 @@ def import_original():
     from canvasvae.models import encoder
 
     return tf, spec, encoder
+
+
+def disable_tensorflow_tf32(tf) -> None:
+    """Disable TensorFlow TF32 and verify the framework reports it off."""
+    tf.config.experimental.enable_tensor_float_32_execution(False)
+    if tf.config.experimental.tensor_float_32_execution_enabled():
+        raise RuntimeError("TensorFlow float32 TF32 execution must be disabled")
 
 
 def recording_spec(tf, spec):

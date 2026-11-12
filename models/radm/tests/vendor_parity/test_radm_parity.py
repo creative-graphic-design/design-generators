@@ -13,6 +13,7 @@ import pytest
 import torch
 from radm import RADMConfig
 from radm.modeling_radm import RADMGeometryRelationAwareModule, _apply_box_deltas
+from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.lightning_module import _generalized_box_iou
 from torchvision.ops import batched_nms, box_area
 
@@ -318,7 +319,9 @@ def test_inference_image_502_head_is_bitwise_with_vendor() -> None:
             ".cache/radm/s5/cgl/original-seed-1/model_final.pth",
         )
     )
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     if (
         not weights_path.is_file()
         or not (data_root / "annotations" / "test.json").is_file()

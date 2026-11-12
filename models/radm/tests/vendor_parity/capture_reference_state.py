@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from radm.training.data_paths import validate_dot_free_data_root
 from reference_adapter import RADMReferenceAdapter, write_reference_metadata
 
 
@@ -12,15 +13,25 @@ def main() -> None:
     """Build the selected reference graph and write metadata to a cache path."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--vendor-root", type=Path, required=True)
-    parser.add_argument("--dataset-root", type=Path)
-    parser.add_argument("--text-feature-root", type=Path)
+    parser.add_argument("--dataset-root")
+    parser.add_argument("--text-feature-root")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    dataset_root = (
+        validate_dot_free_data_root(args.dataset_root)
+        if args.dataset_root is not None
+        else None
+    )
+    text_feature_root = (
+        validate_dot_free_data_root(args.text_feature_root)
+        if args.text_feature_root is not None
+        else None
+    )
     state = RADMReferenceAdapter(
         vendor_root=args.vendor_root,
-        dataset_root=args.dataset_root,
-        text_feature_root=args.text_feature_root,
+        dataset_root=dataset_root,
+        text_feature_root=text_feature_root,
         device=args.device,
     ).build_initialized_state()
     write_reference_metadata(state, args.output)

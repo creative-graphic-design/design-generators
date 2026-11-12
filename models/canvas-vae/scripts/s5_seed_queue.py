@@ -1,4 +1,4 @@
-"""Plan or supervise the CanvasVAE RICO full-run seed queue.
+"""Plan or supervise a CanvasVAE full-run seed queue.
 
 The queue pins one clean source commit and checks it before every run. Its
 per-run executor is intentionally supplied only after all launch gates,
@@ -29,6 +29,7 @@ DEFAULT_MANIFEST = (
 )
 BLOCKED_EXIT = 78
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+HUB_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
@@ -42,7 +43,7 @@ class QueueRun(TypedDict):
     seed: int
     session_name: str
     cpu_session_name: str
-    a100_wrapper_ttl: str
+    gpu_wrapper_ttl: str
     cpu_wrapper_ttl: str
     artifact_prefix: str
     runtime_output_root: str
@@ -68,8 +69,10 @@ class QueueManifest(TypedDict):
     queue_status: str
     source_commit: str | None
     evaluation_path_parity: ParityArtifact
+    cpu_rehearsal: dict[str, JsonValue] | None
     runner_command: list[str] | None
     runtime_plan: dict[str, JsonValue]
+    input_data: dict[str, JsonValue]
     runs: list[QueueRun]
 
 
@@ -113,6 +116,17 @@ def sha256_file(path: Path) -> str:
             digest.update(block)
 
     return digest.hexdigest()
+
+
+def validate_hub_prefix(value: str | None, name: str) -> str:
+    if (
+        value is None
+        or HUB_PREFIX_PATTERN.fullmatch(value) is None
+        or any(part in {".", ".."} for part in value.split("/"))
+    ):
+        raise QueueError(f"--{name} must be a non-empty relative Hub path prefix")
+
+    return value.strip("/")
 
 
 def source_gate(run: QueueRun, pinned_commit: str, require_clean: bool) -> None:
@@ -170,6 +184,14 @@ def load_manifest(path: Path) -> QueueManifest:
     runtime_plan = decoded.get("runtime_plan")
     if not isinstance(runtime_plan, dict):
         raise QueueError("manifest runtime_plan must be an object")
+    input_data = decoded.get("input_data")
+    if not isinstance(input_data, dict):
+        raise QueueError("manifest input_data must be an object")
+    cpu_rehearsal = decoded.get("cpu_rehearsal")
+    if dataset == "crello" and not isinstance(cpu_rehearsal, dict):
+        raise QueueError("Crello manifest needs a cpu_rehearsal object")
+    if cpu_rehearsal is not None and not isinstance(cpu_rehearsal, dict):
+        raise QueueError("manifest cpu_rehearsal must be an object or null")
 
     raw_runs = decoded.get("runs")
     if not isinstance(raw_runs, list) or not raw_runs:
@@ -185,7 +207,7 @@ def load_manifest(path: Path) -> QueueManifest:
         seed = raw_run.get("seed")
         session_name = raw_run.get("session_name")
         cpu_session_name = raw_run.get("cpu_session_name")
-        a100_wrapper_ttl = raw_run.get("a100_wrapper_ttl")
+        gpu_wrapper_ttl = raw_run.get("gpu_wrapper_ttl")
         cpu_wrapper_ttl = raw_run.get("cpu_wrapper_ttl")
         artifact_prefix = raw_run.get("artifact_prefix")
         runtime_output_root = raw_run.get("runtime_output_root")
@@ -202,7 +224,7 @@ def load_manifest(path: Path) -> QueueManifest:
                 system,
                 session_name,
                 cpu_session_name,
-                a100_wrapper_ttl,
+                gpu_wrapper_ttl,
                 cpu_wrapper_ttl,
                 artifact_prefix,
                 runtime_output_root,
@@ -215,7 +237,7 @@ def load_manifest(path: Path) -> QueueManifest:
             )
         ) or not isinstance(seed, int):
             raise QueueError(
-                "each run needs named A100/CPU runtimes, unique output templates, and an integer seed"
+                "each run needs named GPU/CPU runtimes, unique output templates, and an integer seed"
             )
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", run_id):
             raise QueueError(f"invalid run_id {run_id!r}")
@@ -264,7 +286,7 @@ def load_manifest(path: Path) -> QueueManifest:
                 "seed": seed,
                 "session_name": session_name,
                 "cpu_session_name": cpu_session_name,
-                "a100_wrapper_ttl": a100_wrapper_ttl,
+                "gpu_wrapper_ttl": gpu_wrapper_ttl,
                 "cpu_wrapper_ttl": cpu_wrapper_ttl,
                 "artifact_prefix": artifact_prefix,
                 "runtime_output_root": runtime_output_root,
@@ -300,21 +322,27 @@ def load_manifest(path: Path) -> QueueManifest:
         for session_name in (run["session_name"], run["cpu_session_name"])
     ]
     if len(session_names) != len(set(session_names)):
-        raise QueueError("manifest A100 and CPU session names must be globally unique")
+        raise QueueError("manifest GPU and CPU session names must be globally unique")
 
     return {
         "dataset": dataset,
         "queue_status": queue_status,
         "source_commit": source_commit,
         "evaluation_path_parity": {"path": parity_path, "sha256": parity_sha256},
+        "cpu_rehearsal": cpu_rehearsal,
         "runner_command": runner,
         "runtime_plan": runtime_plan,
+        "input_data": input_data,
         "runs": runs,
     }
 
 
 def launch_preconditions(
-    manifest: QueueManifest, manifest_path: Path, hub_repository: str
+    manifest: QueueManifest,
+    manifest_path: Path,
+    hub_repository: str,
+    input_prefix: str | None = None,
+    output_prefix: str | None = None,
 ) -> tuple[str, list[str]]:
     pinned_commit = manifest.get("source_commit")
     if not isinstance(pinned_commit, str) or not COMMIT_PATTERN.fullmatch(
@@ -326,71 +354,145 @@ def launch_preconditions(
             "launch refused: manifest queue_status is not ready", BLOCKED_EXIT
         )
 
-    parity = manifest["evaluation_path_parity"]
-    parity_path = parity.get("path")
-    parity_sha256 = parity.get("sha256")
-    if not isinstance(parity_path, str) or not parity_path:
-        raise QueueError(
-            "launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT
-        )
-    if not isinstance(parity_sha256, str) or not re.fullmatch(
-        r"[0-9a-f]{64}", parity_sha256
-    ):
-        raise QueueError(
-            "launch refused: evaluation_path_parity SHA-256 is missing", BLOCKED_EXIT
-        )
-    parity_file = (REPOSITORY_ROOT / parity_path).resolve()
-    try:
-        parity_file.relative_to(REPOSITORY_ROOT)
-    except ValueError as error:
-        raise QueueError(
-            "evaluation_path_parity path must stay inside the repository"
-        ) from error
-    if not parity_file.is_file():
-        raise QueueError(
-            "launch refused: evaluation_path_parity artifact is not present",
-            BLOCKED_EXIT,
-        )
-    digest = sha256_file(parity_file)
-    if digest != parity_sha256:
-        raise QueueError(
-            "launch refused: evaluation_path_parity SHA-256 does not match",
-            BLOCKED_EXIT,
-        )
+    runtime_plan = manifest["runtime_plan"]
+    cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
+    cpu_crello_smoke = manifest["dataset"] == "crello" and cpu_runtime_smoke
+    if manifest["dataset"] == "crello":
+        probe_steps = runtime_plan.get("lockstep_probe_steps")
+        if (
+            type(probe_steps) is not int
+            or not 1 <= probe_steps <= 300
+            or (not cpu_crello_smoke and probe_steps != 300)
+        ):
+            raise QueueError(
+                "launch refused: Crello lockstep probe requires 300 production steps",
+                BLOCKED_EXIT,
+            )
+    if not cpu_crello_smoke:
+        parity = manifest["evaluation_path_parity"]
+        parity_path = parity.get("path")
+        parity_sha256 = parity.get("sha256")
+        if not isinstance(parity_path, str) or not parity_path:
+            raise QueueError(
+                "launch refused: evaluation_path_parity path is missing", BLOCKED_EXIT
+            )
+        if not isinstance(parity_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", parity_sha256
+        ):
+            raise QueueError(
+                "launch refused: evaluation_path_parity SHA-256 is missing",
+                BLOCKED_EXIT,
+            )
+        parity_file = (REPOSITORY_ROOT / parity_path).resolve()
+        try:
+            parity_file.relative_to(REPOSITORY_ROOT)
+        except ValueError as error:
+            raise QueueError(
+                "evaluation_path_parity path must stay inside the repository"
+            ) from error
+        if not parity_file.is_file():
+            raise QueueError(
+                "launch refused: evaluation_path_parity artifact is not present",
+                BLOCKED_EXIT,
+            )
+        digest = sha256_file(parity_file)
+        if digest != parity_sha256:
+            raise QueueError(
+                "launch refused: evaluation_path_parity SHA-256 does not match",
+                BLOCKED_EXIT,
+            )
+
+    if manifest["dataset"] == "crello" and not cpu_crello_smoke:
+        rehearsal = manifest["cpu_rehearsal"]
+        if (
+            not isinstance(rehearsal, dict)
+            or rehearsal.get("status") != "passed"
+            or rehearsal.get("source_commit") != pinned_commit
+        ):
+            raise QueueError(
+                "launch refused: a same-environment CPU rehearsal is missing for this commit",
+                BLOCKED_EXIT,
+            )
+
+        rehearsal_path = rehearsal.get("artifact_path")
+        rehearsal_sha256 = rehearsal.get("sha256")
+        if (
+            not isinstance(rehearsal_path, str)
+            or not rehearsal_path
+            or not isinstance(rehearsal_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", rehearsal_sha256)
+        ):
+            raise QueueError(
+                "launch refused: CPU rehearsal artifact path and SHA-256 are required",
+                BLOCKED_EXIT,
+            )
+        rehearsal_file = (REPOSITORY_ROOT / rehearsal_path).resolve()
+        try:
+            rehearsal_file.relative_to(REPOSITORY_ROOT)
+        except ValueError as error:
+            raise QueueError(
+                "cpu_rehearsal artifact path must stay inside the repository"
+            ) from error
+        if (
+            not rehearsal_file.is_file()
+            or sha256_file(rehearsal_file) != rehearsal_sha256
+        ):
+            raise QueueError(
+                "launch refused: CPU rehearsal artifact is missing or its SHA-256 differs",
+                BLOCKED_EXIT,
+            )
 
     runner = manifest.get("runner_command")
     if not isinstance(runner, list) or runner != [
         "python3",
-        "models/canvas-vae/scripts/s5_rico_seed_executor.py",
+        "models/canvas-vae/scripts/s5_seed_executor.py",
     ]:
         raise QueueError(
             "launch refused: runner_command must call the fail-closed per-run executor",
             BLOCKED_EXIT,
         )
     runtime_plan = manifest["runtime_plan"]
-    a100_ttls = runtime_plan.get("a100_wrapper_ttl_by_system")
+    input_data = manifest.get("input_data")
+    if not isinstance(input_data, dict):
+        raise QueueError("manifest input_data must be an object")
+    needs_input_prefix = "{input_prefix}" in str(input_data.get("prefix", ""))
+    needs_output_prefix = any(
+        isinstance(run.get(field), str) and "{output_prefix}" in run[field]
+        for run in manifest["runs"]
+        for field in (
+            "artifact_prefix",
+            "training_artifact_prefix",
+            "postprocess_artifact_prefix",
+            "epoch_500_checkpoint_hub_path",
+        )
+    )
+    if needs_input_prefix:
+        input_prefix = validate_hub_prefix(input_prefix, "input-prefix")
+    if needs_output_prefix:
+        output_prefix = validate_hub_prefix(output_prefix, "output-prefix")
+    gpu_ttls = runtime_plan.get("gpu_wrapper_ttl_by_system")
     cpu_ttl = runtime_plan.get("cpu_wrapper_ttl")
     cpu_runtime_smoke = runtime_plan.get("cpu_runtime_smoke") is True
-    expected_gpu = "CPU" if cpu_runtime_smoke else "A100"
+    expected_gpu = "CPU" if cpu_runtime_smoke else "GPU"
     if (
         runtime_plan.get("source_commit") != pinned_commit
         or runtime_plan.get("gpu") != expected_gpu
-        or runtime_plan.get("one_named_a100_session_per_run") is not True
+        or runtime_plan.get("one_named_gpu_session_per_run") is not True
         or runtime_plan.get("one_named_cpu_session_per_run") is not True
         or runtime_plan.get("one_training_run_at_a_time") is not True
         or runtime_plan.get("queue_supervisor_sequential") is not True
         or runtime_plan.get("self_release") is not True
         or runtime_plan.get("sync_interval") != "15m"
-        or not isinstance(a100_ttls, dict)
+        or not isinstance(gpu_ttls, dict)
         or not all(
-            isinstance(a100_ttls.get(system), str)
-            and re.fullmatch(r"[1-9][0-9]*m", a100_ttls[system])
+            isinstance(gpu_ttls.get(system), str)
+            and re.fullmatch(r"[1-9][0-9]*m", gpu_ttls[system])
             for system in ("package", "original")
         )
         or not isinstance(cpu_ttl, str)
         or not re.fullmatch(r"[1-9][0-9]*m", cpu_ttl)
         or runtime_plan.get("wrapper_script") != "${S5_WRAPPER_PATH}"
-        or runtime_plan.get("a100_sync_paths")
+        or runtime_plan.get("gpu_sync_paths")
         != ["${S5_RUNTIME_ROOT}/out/checkpoints", "${S5_RUNTIME_ROOT}/out/logs"]
         or runtime_plan.get("cpu_sync_paths")
         != [
@@ -403,7 +505,7 @@ def launch_preconditions(
         is not True
         or runtime_plan.get("hub_wrapper_exit_code_path") != "logs/<job>/exit_code"
         or runtime_plan.get("checkpoint_presence_gate_before_cpu_dispatch") is not True
-        or runtime_plan.get("branch_must_remain_frozen_while_b2_running") is not True
+        or runtime_plan.get("branch_must_remain_frozen_while_s5_running") is not True
     ):
         raise QueueError(
             "launch refused: manifest runtime plan is not sequential and fail-closed",
@@ -417,8 +519,8 @@ def launch_preconditions(
             BLOCKED_EXIT,
         )
     for run in manifest["runs"]:
-        expected_a100_ttl = a100_ttls.get(run["system"])
-        if run["a100_wrapper_ttl"] != expected_a100_ttl or run[
+        expected_gpu_ttl = gpu_ttls.get(run["system"])
+        if run["gpu_wrapper_ttl"] != expected_gpu_ttl or run[
             "cpu_wrapper_ttl"
         ] != runtime_plan.get("cpu_wrapper_ttl"):
             raise QueueError(
@@ -433,13 +535,19 @@ def launch_preconditions(
 
     manifest_arg = os.path.relpath(manifest_path.resolve(), REPOSITORY_ROOT)
 
-    return pinned_commit, [
+    command = [
         *runner,
         "--manifest",
         manifest_arg,
         "--hub-repo",
         hub_repository,
     ]
+    if input_prefix is not None:
+        command.extend(["--input-prefix", input_prefix])
+    if output_prefix is not None:
+        command.extend(["--output-prefix", output_prefix])
+
+    return pinned_commit, command
 
 
 def run_queue(
@@ -447,7 +555,19 @@ def run_queue(
     pinned_commit: str,
     runner_command: list[str] | None,
     dry_run: bool,
+    colab_accelerator: str | None = None,
 ) -> None:
+    cpu_runtime_smoke = manifest["runtime_plan"].get("cpu_runtime_smoke") is True
+    if (
+        not dry_run
+        and not cpu_runtime_smoke
+        and (not isinstance(colab_accelerator, str) or not colab_accelerator.strip())
+    ):
+        raise QueueError(
+            "--colab-accelerator is required for a non-smoke queue launch",
+            BLOCKED_EXIT,
+        )
+
     emit(
         {
             "event": "queue_start",
@@ -468,7 +588,6 @@ def run_queue(
             raise QueueError(
                 "launch refused: runner command is not configured", BLOCKED_EXIT
             )
-
         environment = os.environ.copy()
         environment.update(
             {
@@ -482,8 +601,19 @@ def run_queue(
             }
         )
         emit({"event": "run_dispatch", "run_id": run["run_id"]})
+        runner_arguments = [*runner_command, "--run-id", run["run_id"]]
+        if manifest["dataset"] == "crello":
+            runner_arguments.extend(
+                [
+                    "--lockstep-probe-steps",
+                    str(manifest["runtime_plan"]["lockstep_probe_steps"]),
+                ]
+            )
+        if not cpu_runtime_smoke:
+            assert isinstance(colab_accelerator, str)
+            runner_arguments.extend(["--colab-accelerator", colab_accelerator])
         result = subprocess.run(
-            [*runner_command, "--run-id", run["run_id"]],
+            runner_arguments,
             cwd=REPOSITORY_ROOT,
             check=False,
             env=environment,
@@ -509,6 +639,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--hub-repo")
+    parser.add_argument("--input-prefix")
+    parser.add_argument("--output-prefix")
+    parser.add_argument("--colab-accelerator")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--launch", action="store_true")
@@ -535,10 +668,26 @@ def main() -> int:
             raise QueueError("source gate requires a clean worktree")
 
         if args.launch:
+            runtime_plan = manifest.get("runtime_plan")
+            cpu_runtime_smoke = (
+                isinstance(runtime_plan, dict)
+                and runtime_plan.get("cpu_runtime_smoke") is True
+            )
+            if not cpu_runtime_smoke and (
+                not args.colab_accelerator or not args.colab_accelerator.strip()
+            ):
+                raise QueueError(
+                    "--colab-accelerator is required for a non-smoke queue launch",
+                    BLOCKED_EXIT,
+                )
             if args.hub_repo is None or not args.hub_repo.strip():
                 raise QueueError("--hub-repo is required for a launch", BLOCKED_EXIT)
             pinned_commit, runner_command = launch_preconditions(
-                manifest, manifest_path, args.hub_repo
+                manifest,
+                manifest_path,
+                args.hub_repo,
+                args.input_prefix,
+                args.output_prefix,
             )
             if current_commit != pinned_commit:
                 raise QueueError(
@@ -556,7 +705,13 @@ def main() -> int:
             if args.test_source_mismatch:
                 pinned_commit = "0" * 40
 
-        run_queue(manifest, pinned_commit, runner_command, args.dry_run)
+        run_queue(
+            manifest,
+            pinned_commit,
+            runner_command,
+            args.dry_run,
+            args.colab_accelerator,
+        )
     except QueueError as error:
         print(f"queue stopped: {error}", file=sys.stderr)
         return error.exit_code

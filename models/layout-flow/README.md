@@ -165,7 +165,7 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 | ---------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------: | --------------------------------------------------------------------- |
 | PubLayNet              | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field |                           1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`)      |
 | RICO25                 | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field |                           1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`)      |
-| Training parity stages | LightningCLI training wrapper vs. original-implementation training protocol        | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
+| Training parity stages | LightningCLI training wrapper vs. original-implementation training protocol        | 1 synthetic PubLayNet-shaped batch on selected CUDA device | static state exact, fixed-batch trace exact, one optimizer step exact |
 
 Agreement checks compare the released checkpoints against the original `LayoutDMBackbone` vector-field path. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed agreement check compares an Euler trajectory against the original implementation.
 

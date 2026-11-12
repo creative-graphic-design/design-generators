@@ -69,9 +69,24 @@ def test_violation_for_module_rejects_hf_core_wrong_suffix(tmp_path: Path) -> No
 def test_violation_for_module_accepts_package_specific_modules(
     tmp_path: Path,
 ) -> None:
+    crello_paths = [
+        write_module(tmp_path, "canvas-vae", name)
+        for name in (
+            "crello_schema.py",
+            "run_metadata.py",
+            "update_trace.py",
+        )
+    ]
     lt_path = write_module(tmp_path, "ltnet", "modeling_lt_compatible.py")
     smarttext_path = write_module(tmp_path, "smarttext", "modeling_basnet.py")
 
+    assert all(
+        check_module_naming.violation_for_module(
+            check_module_naming.ModuleRecord("canvas_vae", path, tmp_path)
+        )
+        is None
+        for path in crello_paths
+    )
     assert (
         check_module_naming.violation_for_module(
             check_module_naming.ModuleRecord("ltnet", lt_path, tmp_path)
