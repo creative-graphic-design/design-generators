@@ -232,7 +232,7 @@ The ROI path now explicitly allocates the package `_roi_features` output contigu
 
 Historical raw gradient probes identify the tensors separately. Run-058 and run-066 report the package stage0 level0 output-gradient as contiguous `[12544, 49, 7, 1]`. They report the source tensor as channels-last `[12544, 1, 1792, 256]`; that diagnostic is not bitwise. The exact-head S2 and 300-step lockstep are the backward and trajectory checks, and all their recorded comparisons pass.
 
-The head path now applies the vendor `xavier_uniform_`, focal-prior, GRAM/final-layer, and time-MLP initialization schemes at construction. `test_s0_radm_init_scheme_matches_vendor` compares all `445` mapped rows and fails closed on any mismatch (`models/radm/tests/vendor_parity/test_s0_radm_topology.py#L223`; vendor_parity, not run by default). These are package fixes.
+The head path now applies the vendor `xavier_uniform_`, focal-prior, GRAM/final-layer, and time-MLP initialization schemes at construction. `test_s0_radm_init_scheme_matches_vendor` compares all `445` mapped rows. It fails closed on any mismatch (`models/radm/tests/vendor_parity/test_s0_radm_topology.py#L223`; vendor_parity, not run by default). These are package fixes.
 
 The S1-S3 fixtures feed batches through the vendor `dataset_mapper`; they bypass the changed package mapper path, which is exercised by the S4 full-stream comparison and mapper-oracle test. The five fixes and their tests are covered by ancestor commits `49544780e4cd98fd990fc03e08aec9108db5e2a6`, `d1d596db6fab41178a8d60d9bb98a16cb0ad18c5`, `63837415c53d0b14eaaa2fb9c117f816895ebfc8`, `722bdd55fdeb9c9afbb489e84075a91eef666c30`, and `41bfead59988cb953636043d9a0ef95de635d63f`.
 
