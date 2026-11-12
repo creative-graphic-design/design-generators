@@ -305,13 +305,16 @@ The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `e
 
 ### Paper Table 2 Context
 
-These values are from Table 2 of the [CanvasVAE ICCV 2021 paper](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html); they are context only and are not part of the asserted S5 comparison. They are reported in percentage points as shown in the paper.
+These values are the "Oneshot Trans x1" rows of Table 2 in the [CanvasVAE ICCV 2021 paper](https://openaccess.thecvf.com/content/ICCV2021/html/Yamaguchi_CanvasVAE_Learning_To_Generate_Vector_Graphic_Documents_ICCV_2021_paper.html), one row per dataset. That row is the configuration both systems here train: a one-shot decoder with one Transformer block (`num_blocks: 1`, the original `--num-blocks` default). The values are context only and are not part of the asserted S5 comparison.
 
-| Metric      | Paper Table 2 (pp) |
-| ----------- | ------------------ |
-| Sreconst    | 94.35              |
-| layout mIoU | 60.42              |
-| Sgen        | 93.90              |
+They are not directly comparable with the results above. The paper grid-searches each model's KL weight and keeps the model with the best validation Sgen. Both systems here instead use the fixed KL weights from the original README: 16 for RICO and 32 for Crello. The Crello comparison here also uses an image-embedding cache built from untrained PixelVAE weights.
+
+The paper reports the values in percent; they are written here in pp to match the RICO tables. The Crello comparison above reports fractions, so multiply those by 100 to compare.
+
+| Dataset | Sreconst (pp) | layout mIoU (pp) | Sgen (pp) |
+| ------- | ------------- | ---------------- | --------- |
+| RICO    | 94.35         | 60.42            | 93.90     |
+| Crello  | 88.67         | 47.02            | 87.57     |
 
 ### S5 Evidence Hashes
 
