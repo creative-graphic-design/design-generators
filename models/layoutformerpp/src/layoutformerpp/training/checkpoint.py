@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias
 
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -15,37 +15,74 @@ from traingen.checkpointing import (
     SafeValue,
     capture_rng_state,
     is_safe_mapping,
-    load_weights_only_checkpoint,
     publish_checkpoint_bundle,
+    resolve_durable_root,
     retain_checkpoint_bundles,
     restore_rng_state,
+    safe_string_mapping,
 )
 
 
-def _identity() -> dict[str, SafeValue]:
+Identity: TypeAlias = dict[str, str | None]
+_IDENTITY_KEYS = {
+    "config_sha256",
+    "source_commit",
+    "vendor_source_commit",
+    "device",
+    "checkpoint_dirpath",
+    "campaign_root",
+}
+
+
+def _identity() -> Identity:
     raw = os.environ.get("LAYOUTFORMERPP_CHECKPOINT_IDENTITY")
     if not raw:
-        return {}
+        raise RuntimeError("LAYOUTFORMERPP_CHECKPOINT_IDENTITY is required")
 
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("LAYOUTFORMERPP_CHECKPOINT_IDENTITY must be an object")
 
-    return cast(dict[str, SafeValue], value)
-
-
-def _string_mapping(value: SafeValue, name: str) -> dict[str, SafeValue]:
-    if not is_safe_mapping(value):
-        raise TypeError(f"{name} must be a safe mapping")
-
-    result: dict[str, SafeValue] = {}
+    identity: Identity = {}
     for key, item in value.items():
-        if not isinstance(key, str):
-            raise TypeError(f"{name} keys must be strings")
+        if not isinstance(key, str) or (item is not None and not isinstance(item, str)):
+            raise ValueError("checkpoint identity values must be strings or null")
 
-        result[key] = item
+        identity[key] = item
 
-    return result
+    if set(identity) != _IDENTITY_KEYS:
+        raise ValueError("checkpoint identity must contain the complete identity")
+
+    if any(not identity[key] for key in _IDENTITY_KEYS - {"vendor_source_commit"}):
+        raise ValueError("checkpoint identity contains an empty value")
+
+    return identity
+
+
+def _checkpoint_dirpath(identity: Identity) -> Path:
+    raw_dirpath = identity["checkpoint_dirpath"]
+    if raw_dirpath is None:
+        raise ValueError("checkpoint identity has no checkpoint dirpath")
+
+    path = Path(raw_dirpath)
+    if path.is_absolute():
+        return path.resolve()
+
+    campaign_root = os.environ.get("CAMPAIGN_ROOT")
+    if not campaign_root:
+        raise RuntimeError(
+            "CAMPAIGN_ROOT is required for a relative checkpoint dirpath"
+        )
+
+    return (Path(campaign_root) / path).resolve()
+
+
+def _validate_identity(dirpath: str | Path) -> Identity:
+    identity = _identity()
+    if Path(dirpath).resolve() != _checkpoint_dirpath(identity):
+        raise RuntimeError("checkpoint identity mismatch: checkpoint_dirpath")
+
+    return identity
 
 
 class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
@@ -61,12 +98,11 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         save_last: bool = False,
     ) -> None:
         """Initialize a callback with an owner-selected checkpoint directory."""
-        pinned_dirpath = dirpath or os.environ.get("LAYOUTFORMERPP_CHECKPOINT_DIR")
-        if not pinned_dirpath:
+        if dirpath is None:
             raise ValueError("LayoutFormer++ checkpoint dirpath must be pinned")
 
         super().__init__(
-            dirpath=pinned_dirpath,
+            dirpath=dirpath,
             monitor=monitor,
             mode=mode,
             save_top_k=save_top_k,
@@ -81,17 +117,15 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         pl_module: LightningModule,
         checkpoint: dict[str, SafeValue],
     ) -> None:
-        """Add package RNG, loader, and launch identity state to the save."""
-        del pl_module
-        datamodule = getattr(trainer, "datamodule", None)
-        if datamodule is not None and hasattr(datamodule, "sampler_epoch"):
-            datamodule.sampler_epoch = trainer.current_epoch
+        """Add package RNG and launch identity state to the save."""
+        del trainer, pl_module
+        identity = _validate_identity(self.dirpath or "")
+        identity_state: dict[str, SafeValue] = {}
+        for key, value in identity.items():
+            identity_state[key] = value
 
-        checkpoint["layoutformerpp_identity"] = _identity()
+        checkpoint["layoutformerpp_identity"] = identity_state
         checkpoint["layoutformerpp_rng"] = capture_rng_state()
-        checkpoint["layoutformerpp_datamodule"] = (
-            datamodule.state_dict() if datamodule is not None else {}
-        )
 
     def on_load_checkpoint(
         self,
@@ -99,20 +133,17 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         pl_module: LightningModule,
         checkpoint: dict[str, SafeValue],
     ) -> None:
-        """Restore package RNG and loader state before native Lightning resume."""
-        del pl_module
+        """Restore package RNG and validate launch identity before resume."""
+        del trainer, pl_module
         identity = checkpoint.get("layoutformerpp_identity")
-        if identity is not None and identity != _identity():
+        if not is_safe_mapping(identity):
+            raise RuntimeError("checkpoint identity is missing or invalid")
+
+        if identity != _validate_identity(self.dirpath or ""):
             raise RuntimeError("checkpoint identity mismatch")
 
         rng = checkpoint.get("layoutformerpp_rng")
-        if rng is not None:
-            restore_rng_state(_string_mapping(rng, "layoutformerpp_rng"))
-
-        datamodule = getattr(trainer, "datamodule", None)
-        state = checkpoint.get("layoutformerpp_datamodule")
-        if datamodule is not None and state is not None:
-            datamodule.load_state_dict(_string_mapping(state, "datamodule state"))
+        restore_rng_state(safe_string_mapping(rng, "checkpoint RNG state"))
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Save a complete safe-to-load checkpoint after every epoch."""
@@ -129,40 +160,42 @@ class LayoutFormerPPModelCheckpoint(ModelCheckpoint):
         trainer.save_checkpoint(str(path), weights_only=False)
         self._last_epoch_saved = trainer.current_epoch
         self._retain_epoch_checkpoints()
-        self._publish(path)
+        self._publish(path, trainer.current_epoch)
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Publish a newly selected best checkpoint without changing evaluation."""
         previous_best = self.best_model_path
         super().on_validation_end(trainer, pl_module)
         if self.best_model_path and self.best_model_path != previous_best:
-            self._publish(Path(self.best_model_path), best=True)
+            self._publish(Path(self.best_model_path), trainer.current_epoch, best=True)
 
     def _retain_epoch_checkpoints(self) -> None:
         if self.dirpath is None:
             return
 
         paths = sorted(Path(self.dirpath).glob("epoch-*.ckpt"))
-        keep = set(paths[-2:])
-        if self.best_model_path:
-            keep.add(Path(self.best_model_path))
+        for path in paths[:-2]:
+            path.unlink()
 
-        for path in paths:
-            if path not in keep:
-                path.unlink()
-
-    def _publish(self, path: Path, *, best: bool = False) -> None:
+    def _publish(self, path: Path, epoch: int, *, best: bool = False) -> None:
         manifest = os.environ.get("LAYOUTFORMERPP_LAUNCH_MANIFEST")
         durable = os.environ.get("LAYOUTFORMERPP_DURABLE_ROOT")
         track = os.environ.get("LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE")
+        if not manifest and not durable and not track:
+            raise RuntimeError("durable checkpoint publishing is required")
+
         if not manifest or not durable or not track:
-            return
+            raise RuntimeError("durable checkpoint publishing is partially configured")
 
-        relative = Path(track) / (Path("best") / path.stem if best else path.stem)
-        publish_checkpoint_bundle(
-            {"checkpoint.ckpt": path}, Path(manifest), Path(durable), relative
+        durable_root = resolve_durable_root(
+            durable, env_var="LAYOUTFORMERPP_DURABLE_ROOT"
         )
-        retain_checkpoint_bundles(Path(durable), track)
+        suffix = "-best" if best else ""
+        relative = Path(track) / f"epoch-{epoch:06d}{suffix}"
+        publish_checkpoint_bundle(
+            {"checkpoint.ckpt": path}, Path(manifest), durable_root, relative
+        )
+        retain_checkpoint_bundles(durable_root, track)
 
 
-__all__ = ["LayoutFormerPPModelCheckpoint", "load_weights_only_checkpoint"]
+__all__ = ["LayoutFormerPPModelCheckpoint"]
