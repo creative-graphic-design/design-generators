@@ -53,6 +53,20 @@ def _evaluator() -> dict[str, object]:
     )
 
 
+def _assert_workspace_source_paths(paths: dict[str, str]) -> None:
+    assert set(paths) == {
+        "radm",
+        "laygen",
+        "posgen",
+        "traingen",
+        "traingen_parity",
+    }
+    checkout_root = Path(__file__).parents[3].resolve()
+    assert all(
+        Path(path).resolve().is_relative_to(checkout_root) for path in paths.values()
+    )
+
+
 @pytest.mark.parametrize("omp_threads", ["", "4,2"])
 def test_runtime_metadata_falls_back_for_invalid_omp_threads(
     monkeypatch: pytest.MonkeyPatch,
@@ -202,6 +216,8 @@ def test_missing_text_features_use_zero_features_and_padding_mask(
         allow_missing=True,
     )
 
+    assert features.shape == (effective.max_text_num, effective.text_feature_dim)
+    assert mask.shape == (effective.max_text_num, 1)
     assert torch.equal(features, torch.zeros_like(features))
     assert mask.dtype is torch.bool
     assert not mask.any()
@@ -533,6 +549,7 @@ def test_s5_launcher_writes_manifest_before_training(
             manifest_source_paths = cast(
                 dict[str, str], manifest["workspace_source_paths"]
             )
+            _assert_workspace_source_paths(manifest_source_paths)
             assert manifest["radm_source_path"] == manifest_source_paths["radm"]
             assert manifest["runtime"]["torch_version"] == "2.8.0+cu128"
             assert manifest["runtime"]["torchvision_version"] == "0.23.0+cu128"
@@ -644,6 +661,7 @@ def test_s5_launcher_writes_manifest_before_training(
             workspace_source_paths = cast(
                 dict[str, str], validation["workspace_source_paths"]
             )
+            _assert_workspace_source_paths(workspace_source_paths)
             assert validation["radm_source_path"] == workspace_source_paths["radm"]
 
             with pytest.raises(RuntimeError, match="training_seed"):
