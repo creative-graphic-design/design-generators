@@ -8,6 +8,8 @@ import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
+
 from typing_extensions import TypedDict
 
 import numpy as np
@@ -20,8 +22,7 @@ from torch.utils.data import DataLoader, Dataset, get_worker_info
 from torch.optim.lr_scheduler import LRScheduler
 
 from traingen.checkpointing import (
-    SafeValue,
-    is_safe_mapping,
+    safe_value_type,
     safe_string_mapping,
 )
 
@@ -61,7 +62,7 @@ class LayoutFormerPPTrainingConfig(TypedDict, total=False):
 
 
 class _LayoutFormerPPConfigInput(TypedDict, total=False, closed=True):
-    """Closed kwargs passed to the converted model configuration."""
+    """Closed view used only to type-check kwargs forwarded to the config."""
 
     dataset: str
     task: str
@@ -75,57 +76,6 @@ class _LayoutFormerPPConfigInput(TypedDict, total=False, closed=True):
     dim_feedforward: int
     dropout: float
     share_embedding: bool
-
-
-def _config_input(config: LayoutFormerPPTrainingConfig) -> _LayoutFormerPPConfigInput:
-    """Copy the open LightningCLI input into the closed model kwargs."""
-    result: _LayoutFormerPPConfigInput = {}
-    dataset = config.get("dataset")
-    if dataset is not None:
-        if not isinstance(dataset, str):
-            raise TypeError("dataset must be a string")
-
-        result["dataset"] = dataset
-
-    task = config.get("task")
-    if task is not None:
-        if not isinstance(task, str):
-            raise TypeError("task must be a string")
-
-        result["task"] = task
-
-    for key in (
-        "vocab_size",
-        "max_position_embeddings",
-        "d_model",
-        "encoder_layers",
-        "decoder_layers",
-        "encoder_attention_heads",
-        "decoder_attention_heads",
-        "dim_feedforward",
-    ):
-        value = config.get(key)
-        if value is not None:
-            if not isinstance(value, int):
-                raise TypeError(f"{key} must be an integer")
-
-            result[key] = value
-
-    dropout = config.get("dropout")
-    if dropout is not None:
-        if not isinstance(dropout, float):
-            raise TypeError("dropout must be a float")
-
-        result["dropout"] = dropout
-
-    share_embedding = config.get("share_embedding")
-    if share_embedding is not None:
-        if not isinstance(share_embedding, bool):
-            raise TypeError("share_embedding must be a boolean")
-
-        result["share_embedding"] = share_embedding
-
-    return result
 
 
 @dataclass(frozen=True)
@@ -437,14 +387,6 @@ class _LayoutFormerPPSample(TypedDict):
     task_id: int
 
 
-class _LayoutFormerPPRawRecord(TypedDict):
-    """One raw processed source record loaded before task generation."""
-
-    labels: Int[torch.Tensor, "elements"]
-    bboxes: Float[torch.Tensor, "elements coordinates"]
-    name: str
-
-
 class _LayoutFormerPPBatch(TypedDict):
     """One collated package batch consumed by the training hooks."""
 
@@ -485,24 +427,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
         if not isinstance(values, list) or not values:
             raise ValueError(f"LayoutFormer++ processed split is empty: {path}")
 
-        records: list[_LayoutFormerPPRawRecord] = []
-        for value in values:
-            if not isinstance(value, Mapping):
-                raise TypeError(f"processed record is not a mapping: {path}")
-
-            labels = value.get("labels")
-            bboxes = value.get("bboxes")
-            name = value.get("name")
-            if (
-                not isinstance(labels, torch.Tensor)
-                or not isinstance(bboxes, torch.Tensor)
-                or not isinstance(name, str)
-            ):
-                raise TypeError(f"processed record has invalid fields: {path}")
-
-            records.append({"labels": labels, "bboxes": bboxes, "name": name})
-
-        self.data = records
+        self.data = cast(list[_LayoutFormerPPSample], values)
         self._relation_generator = random.Random(1024)
         self._partition_data: dict[int, int] = {}
         self._bucket_tasks: list[list[LayoutFormerPPTask]] = []
@@ -539,12 +464,12 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
     def __len__(self) -> int:
         return len(self.data)
 
-    def state_dict(self) -> dict[str, SafeValue]:
-        """Return task-generation state needed for an exact resumed epoch."""
+    def state_dict(self) -> dict[str, safe_value_type]:
+        """Return the relation generator state needed to resume task generation."""
         return {"relation_generator": self._relation_generator.getstate()}
 
-    def load_state_dict(self, state_dict: Mapping[str, SafeValue]) -> None:
-        """Restore task-generation state from a checkpoint."""
+    def load_state_dict(self, state_dict: Mapping[str, safe_value_type]) -> None:
+        """Restore the relation generator state from a checkpoint."""
         relation_state = state_dict.get("relation_generator")
         if not isinstance(relation_state, tuple) or len(relation_state) != 3:
             raise TypeError("relation generator state is not a tuple")
@@ -720,9 +645,9 @@ class LayoutFormerPPDataModule(LightningDataModule):
         self.val_dataset: _LayoutFormerPPDataset | None = None
         self.tokenizer = _package_tokenizer(self.recipe)
 
-    def state_dict(self) -> dict[str, SafeValue]:
-        """Return sampler, loader, and dataset generator state."""
-        state: dict[str, SafeValue] = {}
+    def state_dict(self) -> dict[str, safe_value_type]:
+        """Return the train and validation relation generator states."""
+        state: dict[str, safe_value_type] = {}
         if self.train_dataset is not None:
             state["train_dataset"] = self.train_dataset.state_dict()
 
@@ -731,17 +656,14 @@ class LayoutFormerPPDataModule(LightningDataModule):
 
         return state
 
-    def load_state_dict(self, state_dict: dict[str, SafeValue]) -> None:
-        """Restore sampler, loader, and dataset generator state."""
+    def load_state_dict(self, state_dict: dict[str, safe_value_type]) -> None:
+        """Restore the train and validation relation generator states."""
         for name, dataset in (
             ("train_dataset", self.train_dataset),
             ("val_dataset", self.val_dataset),
         ):
             dataset_state = state_dict.get(name)
             if dataset is not None and dataset_state is not None:
-                if not is_safe_mapping(dataset_state):
-                    raise TypeError(f"{name} state is not a mapping")
-
                 dataset.load_state_dict(
                     safe_string_mapping(dataset_state, f"{name} state")
                 )
@@ -838,7 +760,9 @@ class LayoutFormerPPTrainingModule(LightningModule):
         """Initialize one immutable recipe and its runtime model."""
         super().__init__()
         self.recipe: LayoutFormerPPTrainingRecipe = get_training_recipe(recipe_name)
-        runtime_config = LayoutFormerPPConfig(**_config_input(config))
+        runtime_config = LayoutFormerPPConfig(
+            **cast(_LayoutFormerPPConfigInput, config)
+        )
         self._validate_config(runtime_config)
         self.layoutformerpp_config = runtime_config
         self.model = model or LayoutFormerPPForConditionalGeneration(runtime_config)
