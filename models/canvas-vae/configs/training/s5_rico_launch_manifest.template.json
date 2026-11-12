@@ -30,7 +30,7 @@
     "--output",
     "{evaluation_output}"
   ],
-  "checkpoint_rule": "Train through epoch 500 on the named A100 session. For package runs, require Lightning last.ckpt at epoch 499 and global_step 22,500 before copying it to epoch-500.ckpt; for original runs, use final.ckpt. On a separate named CPU runtime, download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
+  "checkpoint_rule": "Train through epoch 500 on the named GPU session. For package runs, require Lightning last.ckpt at epoch 499 and global_step 22,500 before copying it to epoch-500.ckpt; for original runs, use final.ckpt. On a separate named CPU runtime, download that exact run artifact, convert it, and evaluate its converted weights into that run and segment’s evaluation.json.",
   "package_checkpoint_expectation": {
     "max_epochs": 500,
     "global_step": 22500
@@ -48,24 +48,24 @@
     "models/canvas-vae/scripts/s5_rico_seed_executor.py"
   ],
   "runtime_plan": {
-    "gpu": "A100",
-    "one_named_a100_session_per_run": true,
+    "gpu": "GPU",
+    "one_named_gpu_session_per_run": true,
     "one_named_cpu_session_per_run": true,
     "one_training_run_at_a_time": true,
-    "session_order": "For each run, the named A100 session trains, syncs checkpoints/logs, and self-releases; the executor reads logs/<job>/exit_code from the private Hub and requires 0, verifies the epoch-500 checkpoint is present on the Hub, then creates a separate named CPU session to download, convert, evaluate, upload results/logs, and self-release. A missing/nonzero Hub status or missing checkpoint stops the run and sequential queue.",
+    "session_order": "For each run, the named GPU session trains, syncs checkpoints/logs, and self-releases; the executor reads logs/<job>/exit_code from the private Hub and requires 0, verifies the epoch-500 checkpoint is present on the Hub, then creates a separate named CPU session to download, convert, evaluate, upload results/logs, and self-release. A missing/nonzero Hub status or missing checkpoint stops the run and sequential queue.",
     "source_branch": "feat/canvas-vae",
     "wrapper_script": "${S5_WRAPPER_PATH}",
-    "a100_wrapper_ttl_by_system": {
+    "gpu_wrapper_ttl_by_system": {
       "package": "55m",
       "original": "50m"
     },
     "cpu_wrapper_ttl": "16m",
     "ttl_margin_seconds": 300,
-    "ttl_formula": "Package A100 TTL = ceil to whole minutes of 22,500 \u00d7 package full-epoch p90 + 25 validation passes \u00d7 24.5 seconds + measured allocation-to-training-start (108 s) + measured finalization/upload reserve (64 s) + 300-second margin = 55m. Original A100 TTL uses original full-epoch p90 with the same validation reserve and measured setup/sync plus a 240-second margin = 50m. CPU TTL = 8-minute conversion/evaluation allowance based on cvae-s5-eval-path-final-retry3 + measured setup/final-sync reserves (108 s + 64 s) + 300-second margin = 16m. The wrapper TTL bounds the command; billed worst-case totals also include measured setup, finalization, and release-tail reserves outside each TTL.",
-    "a100_setup_reserve_seconds": 108,
-    "a100_final_sync_reserve_seconds": 64,
+    "ttl_formula": "Package GPU TTL = ceil to whole minutes of 22,500 \u00d7 package full-epoch p90 + 25 validation passes \u00d7 24.5 seconds + measured allocation-to-training-start (108 s) + measured finalization/upload reserve (64 s) + 300-second margin = 55m. Original GPU TTL uses original full-epoch p90 with the same validation reserve and measured setup/sync plus a 240-second margin = 50m. CPU TTL = 8-minute conversion/evaluation allowance based on cvae-s5-eval-path-final-retry3 + measured setup/final-sync reserves (108 s + 64 s) + 300-second margin = 16m. The wrapper TTL bounds the command; billed worst-case totals also include measured setup, finalization, and release-tail reserves outside each TTL.",
+    "gpu_setup_reserve_seconds": 108,
+    "gpu_final_sync_reserve_seconds": 64,
     "session_termination_after_wrapper_reserve_seconds": 30,
-    "cpu_setup_and_sync_reserve_seconds": "Use the measured A100 allocation-to-training-start (108 s) and finalization/upload reserve (64 s) plus the 30 s release tail as conservative CPU-session billing reserves; CPU sessions use 0.08 CU/hour.",
+    "cpu_setup_and_sync_reserve_seconds": "Use the measured GPU allocation-to-training-start (108 s) and finalization/upload reserve (64 s) plus the 30 s release tail as conservative CPU-session billing reserves; CPU sessions use 0.08 CU/hour.",
     "setup_measurement_source": {
       "method": "Colab CLI history session_created to first package optimizer-step start; reserve is the largest observed interval rounded up to the next second.",
       "observations": [
@@ -85,7 +85,7 @@
     },
     "final_sync_measurement_source": {
       "session_name": "cvae-s5-concurrency-20261005-s5b",
-      "wrapper_log": ".cache/canvas-vae/s5/concurrency-20261005/a100-colab-exec.log",
+      "wrapper_log": ".cache/canvas-vae/s5/concurrency-20261005/gpu-colab-exec.log",
       "wrapper_log_evidence": "After job exit the wrapper reported the final log/output uploads, “results uploaded”, then “releasing the VM”. It does not timestamp upload start.",
       "last_optimizer_step_end_utc": "2026-10-04T19:37:12.600434+00:00",
       "final_hub_commit_times_utc": [
@@ -106,7 +106,7 @@
     },
     "sync_interval": "15m",
     "hub_artifact_prefix": "design-generators/canvas-vae/s5/{run_id}/{train-or-postprocess}/{segment_id}",
-    "a100_sync_paths": [
+    "gpu_sync_paths": [
       "${S5_RUNTIME_ROOT}/out/checkpoints",
       "${S5_RUNTIME_ROOT}/out/logs"
     ],
@@ -126,8 +126,8 @@
     "source_gate_before_artifact_sync": true,
     "queue_supervisor_sequential": true,
     "ttl_margin_seconds_by_system": {
-      "package_a100": 300,
-      "original_a100": 240,
+      "package_gpu": 300,
+      "original_gpu": 240,
       "cpu_postprocess": 300
     },
     "validation_reserve": {
@@ -234,7 +234,7 @@
         "--output",
         "/content/out/results/rico-original-seed0/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "50m",
+      "gpu_wrapper_ttl": "50m",
       "cpu_wrapper_ttl": "16m"
     },
     {
@@ -291,7 +291,7 @@
         "--output",
         "/content/out/results/rico-original-seed1/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "50m",
+      "gpu_wrapper_ttl": "50m",
       "cpu_wrapper_ttl": "16m"
     },
     {
@@ -348,7 +348,7 @@
         "--output",
         "/content/out/results/rico-original-seed2/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "50m",
+      "gpu_wrapper_ttl": "50m",
       "cpu_wrapper_ttl": "16m"
     },
     {
@@ -390,7 +390,7 @@
         "--output",
         "/content/out/results/rico-package-seed0/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "55m",
+      "gpu_wrapper_ttl": "55m",
       "cpu_wrapper_ttl": "16m"
     },
     {
@@ -432,7 +432,7 @@
         "--output",
         "/content/out/results/rico-package-seed1/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "55m",
+      "gpu_wrapper_ttl": "55m",
       "cpu_wrapper_ttl": "16m"
     },
     {
@@ -474,7 +474,7 @@
         "--output",
         "/content/out/results/rico-package-seed2/{segment_id}/evaluation.json"
       ],
-      "a100_wrapper_ttl": "55m",
+      "gpu_wrapper_ttl": "55m",
       "cpu_wrapper_ttl": "16m"
     }
   ],
