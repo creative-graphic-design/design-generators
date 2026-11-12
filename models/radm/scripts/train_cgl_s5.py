@@ -137,7 +137,7 @@ def runtime_metadata(arm: str) -> dict[str, str | int]:
         "gpu_name": torch.cuda.get_device_name(0),
         "num_workers": num_workers,
         "omp_num_threads": int(
-            os.environ.get("OMP_NUM_THREADS", torch.get_num_threads())
+            os.environ.get("OMP_NUM_THREADS") or torch.get_num_threads()
         ),
     }
 

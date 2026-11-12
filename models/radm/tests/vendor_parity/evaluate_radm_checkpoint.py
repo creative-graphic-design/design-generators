@@ -227,6 +227,10 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
+    validation_path = args.output_dir / "validation.json"
+    if validation_path.exists():
+        raise SystemExit(f"refusing to overwrite validation record: {validation_path}")
+
     data_root = validate_dot_free_data_root(args.data_root)
     validation = validate_terminal_checkpoint(
         args.checkpoint,
@@ -235,9 +239,14 @@ def main() -> None:
         data_root=data_root,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / "validation.json").write_text(
-        json.dumps(validation, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    try:
+        with validation_path.open("x", encoding="utf-8") as stream:
+            stream.write(json.dumps(validation, indent=2, sort_keys=True) + "\n")
+    except FileExistsError as exc:
+        raise SystemExit(
+            f"refusing to overwrite validation record: {validation_path}"
+        ) from exc
+
     report = evaluate_package_checkpoint(
         args.checkpoint,
         data_root=Path(data_root),

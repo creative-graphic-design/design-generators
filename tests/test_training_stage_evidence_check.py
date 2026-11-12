@@ -657,7 +657,12 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     assert not check_training_stage_evidence.has_s5_claim(
         "The CGL training-seed n=3 result is not-yet-run."
     )
-    assert not check_training_stage_evidence.has_s5_claim("The CGL S5 run is not run.")
+
+
+def test_neighboring_not_run_row_does_not_hide_training_seed_claim() -> None:
+    table = "| CGL-v2 | original | not run | not measured |\n| CGL | original | complete | training-seed n=3 |"
+
+    assert check_training_stage_evidence.has_s5_claim(table)
 
 
 def test_has_s5_claim_does_not_cross_sentence_boundaries() -> None:

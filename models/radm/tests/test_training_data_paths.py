@@ -53,6 +53,20 @@ def _evaluator() -> dict[str, object]:
     )
 
 
+def test_runtime_metadata_falls_back_when_omp_threads_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launcher = _launcher()
+    runtime_metadata = cast(FunctionType, launcher["runtime_metadata"])
+    monkeypatch.setenv("OMP_NUM_THREADS", "")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "get_device_name", lambda _index: "test GPU")
+    monkeypatch.setattr(torch, "get_num_threads", lambda: 6)
+    monkeypatch.setitem(runtime_metadata.__globals__, "version", lambda _name: "test")
+
+    assert runtime_metadata("package")["omp_num_threads"] == 6
+
+
 def _write_dataset(root: Path, *, empty_split: str | None = None) -> None:
     for split in ("train", "test"):
         (root / "annotations").mkdir(parents=True, exist_ok=True)
@@ -929,6 +943,47 @@ def test_s5_evaluator_writes_validation_record_to_output_dir(
         json.loads((output_dir / "validation.json").read_text(encoding="utf-8"))
         == validation
     )
+
+
+def test_s5_evaluator_refuses_to_overwrite_validation_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evaluator = _evaluator()
+    main = cast(Callable[[], None], evaluator["main"])
+    evaluator_globals = cast(FunctionType, main).__globals__
+    output_dir = tmp_path / "evaluation"
+    output_dir.mkdir()
+    validation_path = output_dir / "validation.json"
+    validation_path.write_text("preserve this record", encoding="utf-8")
+
+    def fail_if_validation_runs(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AssertionError("existing validation record must be checked first")
+
+    monkeypatch.setitem(
+        evaluator_globals, "validate_terminal_checkpoint", fail_if_validation_runs
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_radm_checkpoint.py",
+            "--checkpoint",
+            str(tmp_path / "checkpoint.ckpt"),
+            "--manifest",
+            str(tmp_path / "manifest.json"),
+            "--seed",
+            "2",
+            "--data-root",
+            "/tmp/radm_cgl",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="refusing to overwrite validation record"):
+        main()
+
+    assert validation_path.read_text(encoding="utf-8") == "preserve this record"
 
 
 def test_existing_output_root_fails_before_subprocess(
