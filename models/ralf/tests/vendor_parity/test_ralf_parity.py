@@ -556,9 +556,9 @@ def test_local_pipeline_matches_vendor_golden_cgl_e2e() -> None:  # pragma: no c
         )
     if not torch.cuda.is_available():
         skip_or_fail_vendor_parity(
-            "GPU 0 is required for RALF e2e parity",
-            missing_paths=["CUDA device 0"],
-            regeneration_hint="rerun on a host with GPU 0 and generated RALF assets",
+            "A CUDA device is required for RALF e2e parity",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun with a selected CUDA device and generated RALF assets",
         )
 
     from datasets import load_dataset
@@ -656,9 +656,9 @@ def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
 
     if not torch.cuda.is_available():
         skip_or_fail_vendor_parity(
-            "GPU 0 is required for RALF local-vs-vendor logits parity",
-            missing_paths=["CUDA device 0"],
-            regeneration_hint="rerun on a host with GPU 0 and generated RALF assets",
+            "A CUDA device is required for RALF local-vs-vendor logits parity",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun with a selected CUDA device and generated RALF assets",
         )
     device = torch.device("cuda:0")
     reference_model = _build_vendor_reference_model(converted_model).eval()
