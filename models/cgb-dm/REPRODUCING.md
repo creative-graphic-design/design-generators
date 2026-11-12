@@ -4,6 +4,8 @@ The staged parity workflow defined in [TRAINING.md](https://github.com/creative-
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA commands below.
+
 ### 1. Download Original Assets
 
 ```bash
@@ -13,7 +15,7 @@ uv run --package cgb-dm models/cgb-dm/scripts/download_original_assets.py
 ### 2. Generate Golden Reference Metadata
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm models/cgb-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package cgb-dm models/cgb-dm/scripts/generate_reference_outputs.py \
   --dataset pku_posterlayout \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
@@ -25,7 +27,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm models/cgb-dm/scripts/generate_re
 PARITY_REQUIRE=1 \
 CGB_DM_DATA_ROOT=.cache/cgb-dm/datasets/pku/split \
 CGB_DM_VENDOR_ORDER_MANIFEST=.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json \
-CUDA_VISIBLE_DEVICES=0 \
+CUDA_VISIBLE_DEVICES=<gpu-id> \
 uv run --package cgb-dm --extra vendor --with pytz \
   pytest models/cgb-dm/tests/vendor_parity -m vendor_parity
 ```

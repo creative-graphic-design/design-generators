@@ -6,6 +6,8 @@ agreement checks.
 Workflow order: download or stage assets, generate references, convert
 checkpoints, run parity checks, then smoke-test local loading.
 
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA command below.
+
 ## Download Assets
 
 Place the released BASNet checkpoint outside git before conversion. SmartText
@@ -30,7 +32,7 @@ Generate golden saliency tensors through the reference path and keep the results
 under `.cache/basnet/references`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package basnet --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package basnet --extra vendor \
   models/basnet/scripts/generate_reference_outputs.py \
   --vendor-dir vendor/smarttext \
   --checkpoint .cache/basnet/original/gdi-basnet.pth \

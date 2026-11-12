@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
         "--split", default="test", help="Dataset split used for reference generation."
     )
     parser.add_argument(
-        "--gpu", default="0", help="CUDA device id exposed to vendor inference."
+        "--gpu", required=True, help="CUDA device id exposed to vendor inference."
     )
     parser.add_argument(
         "--condition-type",

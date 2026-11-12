@@ -4,6 +4,8 @@ This guide reproduces the original-implementation agreement checks for the RALF 
 
 Workflow order: download assets, generate references, convert checkpoints, run parity checks, then smoke-test local loading.
 
+Choose a free GPU and substitute its index for `<gpu-id>` in the CUDA commands below.
+
 Prerequisites: run these commands from the repository root. Initialize the original implementation with `git submodule update --init vendor/ralf` before generating vendor references. The regular package path and converter do not import Hydra or OmegaConf; the `vendor` optional extra installs the original implementation dependencies for reference generation and parity only. The command examples keep local artifacts under `.cache/ralf/` and never modify `vendor/ralf`.
 
 Step 1 downloads and unpacks the original cache bundle. Generated metadata is `.cache/ralf/cache_manifest.json`.
