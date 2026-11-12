@@ -18,7 +18,7 @@ from reference_adapter import (
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
 
-def test_s0_reference_adapter_is_lazy_and_source_selected() -> None:
+def test_s0_reference_adapter_is_lazy_and_source_selected(tmp_path: Path) -> None:
     source = (
         Path(__file__).with_name("reference_adapter.py").read_text(encoding="utf-8")
     )
@@ -27,14 +27,15 @@ def test_s0_reference_adapter_is_lazy_and_source_selected() -> None:
     assert source.index('importlib.import_module("train_net")') < source.index(
         "detectron2_modeling.build_model(config)"
     )
+    vendor_root = tmp_path / Path("vendor") / "radm"
+    vendor_root.mkdir(parents=True)
+    (vendor_root / "train_net.py").touch()
     if importlib.util.find_spec("detectron2") is None:
         with pytest.raises(ReferenceUnavailable, match="optional Detectron2"):
-            RADMReferenceAdapter(
-                vendor_root=Path("vendor") / "radm"
-            ).build_initialized_state()
+            RADMReferenceAdapter(vendor_root=vendor_root).build_initialized_state()
     else:
-        adapter = RADMReferenceAdapter(vendor_root=Path("vendor") / "radm")
-        assert adapter.vendor_root == Path("vendor") / "radm"
+        adapter = RADMReferenceAdapter(vendor_root=vendor_root)
+        assert adapter.vendor_root == vendor_root
 
 
 def test_s0_reference_adapter_bridges_detectron2_pillow_symbol() -> None:

@@ -18,6 +18,7 @@ import pytest
 import torch
 
 from radm import RADMConfig, RADMDenoiser
+from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.lightning_module import (
     RADMTrainingModule,
     _dynamic_k_match,
@@ -3983,7 +3984,9 @@ def test_radm_time_mlp_linear_ab() -> None:
     device = torch.device(os.environ.get("RADM_REFERENCE_DEVICE", "cuda:0"))
     if device.type != "cuda":
         pytest.fail("the time-MLP A/B requires a CUDA reference device")
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     weights_path = Path(
         os.environ.get("RADM_R50_WEIGHTS", ".cache/radm/weights/R-50.pkl")
     )
@@ -4014,7 +4017,9 @@ def test_radm_300_step_cgl_lockstep() -> None:
     apply_determinism(DeterminismConfig(seed=seed))
     if not torch.cuda.is_available():
         pytest.fail("the real-scale lockstep requires CUDA")
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    data_root = Path(
+        validate_dot_free_data_root(os.environ.get("RADM_S4_DATA_ROOT", "radm-cgl"))
+    )
     weights_path = Path(
         os.environ.get("RADM_R50_WEIGHTS", ".cache/radm/weights/R-50.pkl")
     )

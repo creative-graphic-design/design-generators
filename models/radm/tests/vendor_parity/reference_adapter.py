@@ -6,6 +6,7 @@ import contextlib
 import importlib
 import inspect
 import json
+import runpy
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ import torch
 from radm.training.config import (
     RADMEffectiveConfig,
 )
+from radm.training.data_paths import validate_dot_free_data_root
 from radm.training.topology import REVIEWED_REFERENCE_STATE_ALLOWLIST
 
 
@@ -203,8 +205,16 @@ class RADMReferenceAdapter:
         device: str = "cpu",
     ) -> None:
         self.vendor_root = Path(vendor_root)
-        self.dataset_root = Path(dataset_root) if dataset_root else None
-        self.text_feature_root = Path(text_feature_root) if text_feature_root else None
+        self.dataset_root = (
+            validate_dot_free_data_root(dataset_root)
+            if dataset_root is not None
+            else None
+        )
+        self.text_feature_root = (
+            validate_dot_free_data_root(text_feature_root)
+            if text_feature_root is not None
+            else None
+        )
         self.device = device
 
     def build_initialized_state(self) -> ReferenceTrainingState:
@@ -226,9 +236,9 @@ class RADMReferenceAdapter:
                 config.defrost()
                 config.MODEL.DEVICE = self.device
                 if self.dataset_root is not None:
-                    config.DATASETS.DATASET_PATH = str(self.dataset_root)
+                    config.DATASETS.DATASET_PATH = self.dataset_root
                 if self.text_feature_root is not None:
-                    config.DATASETS.TEXT_FEATURE_PATH = str(self.text_feature_root)
+                    config.DATASETS.TEXT_FEATURE_PATH = self.text_feature_root
                 config.freeze()
                 for dataset_name in ("layout_train", "layout_val"):
                     if dataset_name in detectron2_data.DatasetCatalog:
@@ -493,10 +503,14 @@ def _legacy_pillow_compat() -> Iterator[None]:
 
     had_linear = hasattr(Image, "LINEAR")
     if not had_linear:
-        resampling = getattr(Image, "Resampling", None)
-        if resampling is None:
-            raise RuntimeError("Pillow has neither Image.LINEAR nor Image.Resampling")
-        setattr(Image, "LINEAR", resampling.BILINEAR)
+        compatibility_module = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "vendor_compat"
+            / "sitecustomize.py"
+        )
+        runpy.run_path(str(compatibility_module))
+
     try:
         yield
     finally:

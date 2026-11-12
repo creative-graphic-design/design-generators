@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 import numpy as np
 import torch
+import yaml
 from PIL import Image
 
 from radm import RADMConfig, RADMDenoiser
@@ -49,6 +50,21 @@ _PROHIBITED_RUNTIME_LANGUAGE = (
     "original simota",
     "original full-model",
 )
+
+
+def test_s0_cgl_production_config_disables_deterministic_algorithms() -> None:
+    """Keep the shipped CGL recipe on the vendor's non-deterministic path."""
+    repository_root = Path(__file__).parents[3]
+    config_path = (
+        repository_root / "models" / "radm" / "configs" / "training" / "radm_cgl.yaml"
+    )
+    config = cast(
+        dict[str, object],
+        yaml.safe_load(config_path.read_text(encoding="utf-8")),
+    )
+    trainer = cast(dict[str, object], config["trainer"])
+
+    assert trainer["deterministic"] is False
 
 
 def _probe_training_namespace(*, block_lightning: bool) -> dict[str, bool]:
@@ -468,6 +484,24 @@ def test_s0_roi_pooler_uses_detectron2_canonical_fpn_levels() -> None:
     levels = RADMProposalHead._assign_pooler_levels(boxes)
 
     assert levels.tolist() == [[0, 1, 2, 3]]
+
+
+def test_s0_roi_pooler_448_pixel_boundary_matches_detectron2() -> None:
+    poolers = pytest.importorskip("detectron2.modeling.poolers")
+    structures = pytest.importorskip("detectron2.structures")
+    normalized_box = torch.tensor(
+        [[0.0, 0.0, 447.99999170 / 800.0, 447.99999170 / 800.0]],
+        dtype=torch.float64,
+    )
+    pixel_boxes = (normalized_box * 800.0).to(dtype=torch.float32).reshape(1, 1, 4)
+
+    package_levels = RADMProposalHead._assign_pooler_levels(pixel_boxes).flatten()
+    reference_levels = poolers.assign_boxes_to_levels(
+        [structures.Boxes(normalized_box * 800.0)], 2, 5, 224, 4
+    )
+
+    assert pixel_boxes[0, 0, 2].item() == 448.0
+    assert torch.equal(package_levels, reference_levels)
 
 
 def test_roi_index_put_uses_contiguous_layout_for_training_and_inference() -> None:

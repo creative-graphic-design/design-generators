@@ -746,9 +746,9 @@ class RADMProposalHead(nn.Module):
         features: Mapping[str, Float[torch.Tensor, "batch channels height width"]],
         boxes_xyxy: Float[torch.Tensor, "batch proposals 4"],
     ) -> Float[torch.Tensor, "batch_proposals channels roi roi"]:
-        absolute_boxes = boxes_xyxy
+        absolute_boxes = boxes_xyxy.to(dtype=torch.float32)
         batch_indices = torch.arange(
-            boxes_xyxy.shape[0], device=boxes_xyxy.device, dtype=boxes_xyxy.dtype
+            boxes_xyxy.shape[0], device=boxes_xyxy.device, dtype=absolute_boxes.dtype
         )
         rois = torch.cat(
             [
