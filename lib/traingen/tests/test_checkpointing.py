@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import shutil
+import stat
 from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
 
+import traingen.checkpointing as checkpointing
 from traingen.checkpointing import (
     capture_rng_state,
     is_safe_mapping,
@@ -65,6 +68,80 @@ def test_checkpoint_bundle_hashes_files_and_publishes_atomically(
     assert not list((bundle.parent).glob("*.tmp"))
 
 
+def test_checkpoint_bundle_fsyncs_created_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = tmp_path / "checkpoint.pt"
+    manifest = tmp_path / "launch_manifest.json"
+    checkpoint.write_bytes(b"checkpoint")
+    manifest.write_text("{}", encoding="utf-8")
+    durable = tmp_path / "durable"
+    durable.mkdir()
+
+    opened_directories: dict[int, Path] = {}
+    fsynced_directories: set[Path] = set()
+    directories_fsynced_before_replace: set[Path] = set()
+    replaced: list[Path] = []
+    original_open = os.open
+    original_fsync = os.fsync
+    original_replace = os.replace
+
+    def recording_open(path: str | os.PathLike[str], flags: int) -> int:
+        descriptor = original_open(path, flags)
+        if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            opened_directories[descriptor] = Path(path)
+
+        return descriptor
+
+    def recording_fsync(descriptor: int) -> None:
+        if descriptor in opened_directories:
+            fsynced_directories.add(opened_directories[descriptor])
+
+        original_fsync(descriptor)
+
+    def recording_replace(
+        source: str | os.PathLike[str], target: str | os.PathLike[str]
+    ) -> None:
+        directories_fsynced_before_replace.update(fsynced_directories)
+        replaced.append(Path(source))
+        original_replace(source, target)
+
+    monkeypatch.setattr(checkpointing.os, "open", recording_open)
+    monkeypatch.setattr(checkpointing.os, "fsync", recording_fsync)
+    monkeypatch.setattr(checkpointing.os, "replace", recording_replace)
+
+    bundle = publish_checkpoint_bundle(
+        {"nested/checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-1"
+    )
+
+    temporary = replaced[0]
+    assert durable in directories_fsynced_before_replace
+    assert temporary in directories_fsynced_before_replace
+    assert temporary / "nested" in directories_fsynced_before_replace
+    assert bundle.parent in fsynced_directories
+
+
+@pytest.mark.parametrize(
+    ("numpy_dtype", "torch_dtype"),
+    [
+        (np.dtype("int8"), torch.int8),
+        (np.dtype("uint16"), torch.uint16),
+        (np.dtype("float16"), torch.float16),
+        (np.dtype("bool"), torch.bool),
+    ],
+)
+def test_numpy_array_dtype_round_trips(
+    tmp_path: Path, numpy_dtype: np.dtype, torch_dtype: torch.dtype
+) -> None:
+    path = tmp_path / "array.pt"
+    save_weights_only_checkpoint(path, {"array": np.array([0, 1], dtype=numpy_dtype)})
+
+    loaded = load_weights_only_checkpoint(path)
+
+    assert isinstance(loaded["array"], torch.Tensor)
+    assert loaded["array"].dtype == torch_dtype
+
+
 def test_checkpoint_bundle_retention_keeps_two_epochs_and_best(tmp_path: Path) -> None:
     track = tmp_path / "track"
     for name in ("epoch-000001", "epoch-000002", "epoch-000003"):
@@ -89,8 +166,10 @@ def test_weights_only_safe_rejects_unsupported_values_and_keys() -> None:
     assert isinstance(
         make_weights_only_safe({"array": np.array([1, 2])})["array"], torch.Tensor
     )
-    assert make_weights_only_safe({"scalar": np.int64(3)})["scalar"] == 3
     assert not is_safe_mapping("not a mapping")
+
+    with pytest.raises(TypeError, match="NumPy scalars are not supported"):
+        make_weights_only_safe({"scalar": np.int64(3)})
 
     with pytest.raises(TypeError, match="checkpoint value"):
         make_weights_only_safe({"value": {"unsupported"}})
@@ -151,10 +230,23 @@ def test_restore_rng_state_validates_cpu_and_cuda_state(
         "set_rng_state_all",
         lambda values: calls.append(values),
     )
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
     cuda_state = torch.zeros(4, dtype=torch.uint8)
     state["torch_cuda"] = [cuda_state]
     restore_rng_state(state)
     assert calls == [[cuda_state]]
+
+
+def test_restore_rng_state_rejects_missing_cuda_devices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = capture_rng_state()
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    state["torch_cuda"] = [torch.zeros(4, dtype=torch.uint8)]
+
+    with pytest.raises(RuntimeError, match="device count"):
+        restore_rng_state(state)
 
 
 def test_load_checkpoint_rejects_non_mapping(tmp_path: Path) -> None:
@@ -226,6 +318,21 @@ def test_publish_bundle_rejects_invalid_paths_and_cleans_temporary_bundle(
             {"checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-3"
         )
     assert published.is_dir()
+
+
+def test_publish_bundle_refuses_missing_durable_root(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "checkpoint.pt"
+    manifest = tmp_path / "launch_manifest.json"
+    checkpoint.write_bytes(b"checkpoint")
+    manifest.write_text("{}", encoding="utf-8")
+    durable = tmp_path / "missing-durable"
+
+    with pytest.raises(ValueError, match="durable root"):
+        publish_checkpoint_bundle(
+            {"checkpoint.pt": checkpoint}, manifest, durable, "track/epoch-000001"
+        )
+
+    assert not durable.exists()
 
 
 def test_publish_bundle_rejects_corrupted_copy(

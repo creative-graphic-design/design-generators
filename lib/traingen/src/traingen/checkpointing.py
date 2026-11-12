@@ -10,7 +10,7 @@ import shutil
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TypeAlias, TypeGuard
+from typing import TypeAlias, TypeGuard, cast
 
 import numpy as np
 import torch
@@ -20,8 +20,6 @@ from typing_extensions import TypeAliasType
 PythonRandomState: TypeAlias = tuple[int, tuple[int, ...], None | float]
 
 
-tensor_value_type = TypeAliasType("tensor_value_type", torch.Tensor)
-numpy_array_value_type = TypeAliasType("numpy_array_value_type", np.ndarray)
 safe_value_type = TypeAliasType(
     "safe_value_type",
     None
@@ -29,7 +27,7 @@ safe_value_type = TypeAliasType(
     | int
     | float
     | str
-    | tensor_value_type
+    | torch.Tensor
     | list["safe_value_type"]
     | tuple["safe_value_type", ...]
     | dict[str, "safe_value_type"]
@@ -39,33 +37,26 @@ safe_value_type = TypeAliasType(
 safe_input_type = TypeAliasType(
     "safe_input_type",
     safe_value_type
-    | numpy_array_value_type
+    | np.ndarray
     | np.generic
     | Mapping[str, "safe_input_type"]
     | list["safe_input_type"]
-    | tuple["safe_input_type", ...]
-    | set["safe_input_type"],
+    | tuple["safe_input_type", ...],
 )
-SafeValue = safe_value_type
-SafeInput = safe_input_type
 
 
 def _is_safe_input_mapping(
-    value: SafeInput,
-) -> TypeGuard[Mapping[str, SafeInput]]:
+    value: safe_input_type,
+) -> TypeGuard[Mapping[str, safe_input_type]]:
     return isinstance(value, Mapping)
 
 
-def _safe_value(value: SafeInput) -> SafeValue:
+def _safe_value(value: safe_input_type) -> safe_value_type:
     if isinstance(value, np.ndarray):
         return torch.as_tensor(value.copy())
 
     if isinstance(value, np.generic):
-        scalar = value.item()
-        if scalar is None or isinstance(scalar, (bool, int, float, str)):
-            return scalar
-
-        raise TypeError(f"checkpoint value is not weights-only-safe: {type(value)!r}")
+        raise TypeError("NumPy scalars are not supported in checkpoint values")
 
     if value is None or isinstance(value, (bool, int, float, str, torch.Tensor)):
         if isinstance(value, torch.Tensor):
@@ -74,7 +65,7 @@ def _safe_value(value: SafeInput) -> SafeValue:
         return value
 
     if _is_safe_input_mapping(value):
-        safe: dict[str | int, SafeValue] = {}
+        safe: dict[str | int, safe_value_type] = {}
         for key, item in value.items():
             if not isinstance(key, (str, int)):
                 raise TypeError(f"checkpoint key is not weights-only-safe: {key!r}")
@@ -92,13 +83,15 @@ def _safe_value(value: SafeInput) -> SafeValue:
     raise TypeError(f"checkpoint value is not weights-only-safe: {type(value)!r}")
 
 
-def make_weights_only_safe(value: Mapping[str, SafeInput]) -> dict[str, SafeValue]:
+def make_weights_only_safe(
+    value: Mapping[str, safe_input_type],
+) -> dict[str, safe_value_type]:
     """Validate and copy a checkpoint mapping into safe primitive containers."""
     safe = _safe_value(value)
     if not is_safe_mapping(safe):
         raise TypeError("checkpoint payload must be a mapping")
 
-    result: dict[str, SafeValue] = {}
+    result: dict[str, safe_value_type] = {}
     for key, item in safe.items():
         if not isinstance(key, str):
             raise TypeError("checkpoint payload keys must be strings")
@@ -109,19 +102,19 @@ def make_weights_only_safe(value: Mapping[str, SafeInput]) -> dict[str, SafeValu
 
 
 def is_safe_mapping(
-    value: SafeValue,
-) -> TypeGuard[dict[str, SafeValue]]:
+    value: safe_value_type,
+) -> TypeGuard[dict[str, safe_value_type]]:
     """Return whether a safe checkpoint value is a dictionary."""
     return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
-def capture_rng_state() -> dict[str, SafeValue]:
+def capture_rng_state() -> dict[str, safe_value_type]:
     """Capture Python, NumPy, Torch CPU, and all available CUDA RNG state."""
     numpy_state = np.random.get_state(legacy=True)
     if not isinstance(numpy_state, tuple) or len(numpy_state) != 5:
         raise RuntimeError("NumPy RNG state is not a legacy tuple")
 
-    cuda_state: list[SafeValue] = []
+    cuda_state: list[safe_value_type] = []
     if torch.cuda.is_available():
         cuda_state = [_safe_value(item) for item in torch.cuda.get_rng_state_all()]
 
@@ -139,7 +132,7 @@ def capture_rng_state() -> dict[str, SafeValue]:
     }
 
 
-def _python_random_state(value: SafeValue) -> PythonRandomState:
+def _python_random_state(value: safe_value_type) -> PythonRandomState:
     if not isinstance(value, tuple) or len(value) != 3:
         raise TypeError("checkpoint Python RNG state has an invalid shape")
 
@@ -153,11 +146,12 @@ def _python_random_state(value: SafeValue) -> PythonRandomState:
     if gaussian is not None and not isinstance(gaussian, float):
         raise TypeError("checkpoint Python RNG state has an invalid shape")
 
-    integer_state = tuple(item for item in internal if isinstance(item, int))
-    return version, integer_state, gaussian
+    return version, cast(tuple[int, ...], internal), gaussian
 
 
-def safe_string_mapping(value: SafeValue, name: str) -> dict[str, SafeValue]:
+def safe_string_mapping(
+    value: safe_value_type, name: str
+) -> dict[str, safe_value_type]:
     """Return a safe mapping after verifying that all keys are strings."""
     if not is_safe_mapping(value):
         raise TypeError(f"{name} must be a safe mapping")
@@ -165,14 +159,14 @@ def safe_string_mapping(value: SafeValue, name: str) -> dict[str, SafeValue]:
     return value
 
 
-def _number(value: SafeValue, name: str) -> int | float:
+def _number(value: safe_value_type, name: str) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"checkpoint NumPy {name} is not numeric")
 
     return value
 
 
-def restore_rng_state(state: Mapping[str, SafeValue]) -> None:
+def restore_rng_state(state: Mapping[str, safe_value_type]) -> None:
     """Restore a mapping produced by :func:`capture_rng_state`."""
     python_state = state["python"]
     numpy_state = state["numpy"]
@@ -212,14 +206,15 @@ def restore_rng_state(state: Mapping[str, SafeValue]) -> None:
         ):
             raise TypeError("checkpoint CUDA RNG state is missing or not a tensor list")
 
-        cuda_tensors = [item for item in cuda_state if isinstance(item, torch.Tensor)]
-        if len(cuda_tensors) != len(cuda_state):
-            raise TypeError("checkpoint CUDA RNG state is not a tensor list")
+        if len(cuda_state) != torch.cuda.device_count():
+            raise RuntimeError("checkpoint CUDA RNG state does not match device count")
 
-        torch.cuda.set_rng_state_all(cuda_tensors)
+        torch.cuda.set_rng_state_all(cast(list[torch.Tensor], cuda_state))
 
 
-def save_weights_only_checkpoint(path: Path, payload: Mapping[str, SafeInput]) -> None:
+def save_weights_only_checkpoint(
+    path: Path, payload: Mapping[str, safe_input_type]
+) -> None:
     """Atomically save a validated payload that loads with ``weights_only=True``."""
     safe_payload = make_weights_only_safe(payload)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -235,7 +230,7 @@ def save_weights_only_checkpoint(path: Path, payload: Mapping[str, SafeInput]) -
         temporary.unlink(missing_ok=True)
 
 
-def load_weights_only_checkpoint(path: Path) -> dict[str, SafeValue]:
+def load_weights_only_checkpoint(path: Path) -> dict[str, safe_value_type]:
     """Load a checkpoint through PyTorch's safe weights-only loader."""
     loaded = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(loaded, Mapping):
@@ -306,7 +301,16 @@ def publish_checkpoint_bundle(
     if destination.exists():
         raise FileExistsError(destination)
 
+    missing_parents: list[Path] = []
+    parent = destination.parent
+    while parent != durable_root and not parent.exists():
+        missing_parents.append(parent)
+        parent = parent.parent
+
     destination.parent.mkdir(parents=True, exist_ok=True)
+    for directory in reversed(missing_parents):
+        _fsync_directory(directory.parent)
+
     temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
     temporary.mkdir(parents=True, exist_ok=False)
     try:
@@ -338,6 +342,14 @@ def publish_checkpoint_bundle(
         with manifest_file.open("rb") as stream:
             os.fsync(stream.fileno())
 
+        for directory in sorted(
+            (path for path in temporary.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.relative_to(temporary).parts),
+            reverse=True,
+        ):
+            _fsync_directory(directory)
+
+        _fsync_directory(temporary)
         os.replace(temporary, destination)
         _fsync_directory(destination.parent)
     finally:
@@ -391,8 +403,6 @@ def retain_checkpoint_bundles(
 
 __all__ = [
     "PythonRandomState",
-    "SafeInput",
-    "SafeValue",
     "capture_rng_state",
     "is_safe_mapping",
     "load_weights_only_checkpoint",
@@ -401,7 +411,9 @@ __all__ = [
     "retain_checkpoint_bundles",
     "resolve_durable_root",
     "restore_rng_state",
+    "safe_input_type",
     "safe_string_mapping",
+    "safe_value_type",
     "save_weights_only_checkpoint",
     "sha256_file",
 ]
