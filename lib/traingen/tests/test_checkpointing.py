@@ -177,7 +177,7 @@ def test_weights_only_safe_rejects_unsupported_values_and_keys() -> None:
         make_weights_only_safe({"scalar": np.int64(3)})
 
     with pytest.raises(TypeError, match="checkpoint value"):
-        make_weights_only_safe({"value": {"unsupported"}})
+        make_weights_only_safe({"value": {"unsupported"}})  # ty: ignore[invalid-argument-type]
 
 
 def test_capture_rng_state_handles_cuda_runtime_failure(
