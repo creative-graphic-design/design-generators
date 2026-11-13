@@ -1,0 +1,107 @@
+name: Code Complexity
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  complexity:
+    name: Code Complexity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Store main-branch octocov history in the octocov branch.
+      pull-requests: write # Best-effort PR comment; forks have read-only tokens.
+      actions: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Measure Python complexity
+        id: measure
+        # Preserve the report even when legacy functions exceed the limit.
+        continue-on-error: true
+        uses: moznion/cccc-action@1d5313811f8451953e46a268c61791a01e40b7df # v1.1.2
+        with:
+          path: lib models scripts tools
+          config: cccc.toml
+          output-file: cccc.json
+
+      - name: Validate result and build octocov custom metrics
+        run: |
+          jq -e '
+            (.summary.function_count | type == "number")
+            and (.summary.cognitive.max | type == "number")
+            and (.summary.cyclomatic.max | type == "number")
+          ' cccc.json
+
+          jq '{
+            key: "python_complexity",
+            name: "Python Complexity",
+            metrics: [
+              {key: "file_count", name: "Files", value: .summary.file_count},
+              {key: "function_count", name: "Functions", value: .summary.function_count},
+              {key: "parse_error_count", name: "Parse errors", value: .summary.parse_error_count},
+              {key: "cognitive_sum", name: "Cognitive total", value: .summary.cognitive.sum},
+              {key: "functions_over_15", name: "Functions cognitive >15", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 15)] | length)},
+              {key: "functions_over_30", name: "Functions cognitive >30", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 30)] | length)},
+              {key: "functions_over_50", name: "Functions cognitive >50", value: ([.files[].functions[] | recurse(.children[]?) | select(.cognitive > 50)] | length)},
+              {key: "cognitive_max", name: "Cognitive max", value: .summary.cognitive.max},
+              {key: "cognitive_p90", name: "Cognitive p90", value: .summary.cognitive.p90},
+              {key: "cognitive_p95", name: "Cognitive p95", value: .summary.cognitive.p95},
+              {key: "cyclomatic_sum", name: "Cyclomatic total", value: .summary.cyclomatic.sum},
+              {key: "cyclomatic_max", name: "Cyclomatic max", value: .summary.cyclomatic.max},
+              {key: "cyclomatic_p90", name: "Cyclomatic p90", value: .summary.cyclomatic.p90},
+              {key: "cyclomatic_p95", name: "Cyclomatic p95", value: .summary.cyclomatic.p95}
+            ]
+          }' cccc.json > octocov-complexity.json
+
+      - name: Report highest-complexity functions
+        run: |
+          {
+            echo "## Top 20 Python functions by cognitive complexity"
+            echo ""
+            echo "| Cognitive | Cyclomatic | Function | Location |"
+            echo "| ---: | ---: | --- | --- |"
+            jq -r '
+              [
+                .files[] | .path as $path |
+                .functions[] | recurse(.children[]?) |
+                {path: $path, name: .name, line: .line, cognitive: .cognitive, cyclomatic: .cyclomatic}
+              ]
+              | sort_by(-.cognitive) | .[:20][]
+              | "| \(.cognitive) | \(.cyclomatic) | `\(.name)` | `\(.path):\(.line)` |"
+            ' cccc.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish code metrics with octocov
+        uses: k1LoW/octocov-action@a167dc0dee441b7ffc45e1b862ab55ec0d87f278 # v1.5.2
+        with:
+          config: .octocov.complexity.yml
+        env:
+          OCTOCOV_CUSTOM_METRICS_COMPLEXITY: octocov-complexity.json
+
+      # Keep the workflow failing while still publishing the octocov report above.
+      - name: Enforce cognitive complexity <= 15
+        if: always()
+        env:
+          CCCC_OUTCOME: ${{ steps.measure.outcome }}
+        run: |
+          if [ "${CCCC_OUTCOME}" != "success" ]; then
+            echo "::error::cccc failed: a Python function exceeded max-cognitive = 15, or analysis failed."
+            if [ -f cccc.json ]; then
+              jq -r '
+                [.files[].functions[] | recurse(.children[]?) | select(.cognitive > 15)]
+                | "Functions exceeding cognitive complexity 15: \(length)"
+              ' cccc.json | tee -a "${GITHUB_STEP_SUMMARY}"
+            fi
+            exit 1
+          fi
