@@ -145,4 +145,6 @@ CUDA_VISIBLE_DEVICES=<device> LAYOUTFORMERPP_PARITY_DATA_ROOT=<your data root> \
   --trainer.devices=1
 ```
 
+Relative callback `dirpath` values resolve under `trainer.default_root_dir`; give each seed a distinct root. Durable resume is opt-in. The launcher sets `CAMPAIGN_ROOT`, `LAYOUTFORMERPP_CHECKPOINT_IDENTITY`, and `LAYOUTFORMERPP_LAUNCH_MANIFEST`. It also sets `LAYOUTFORMERPP_DURABLE_ROOT` and `LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE`. Set the identity's absolute checkpoint path to the callback path resolved from that seed's root. The fit command above needs none of the durable settings.
+
 Do not launch the full-run stage from this document. It remains a separate compute decision after the complete staged ladder and any required evaluation-path parity prerequisite are available.
