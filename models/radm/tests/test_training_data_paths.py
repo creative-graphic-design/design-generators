@@ -1197,17 +1197,18 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
     training_doc = (Path(__file__).parents[1] / "TRAINING.md").read_text(
         encoding="utf-8"
     )
-    s5_command = next(
+    s5_row = next(
         line
         for line in training_doc.splitlines()
         if line.startswith("| S5") and "--arm" in line
     )
+    s5_command_cell = s5_row.split("|", maxsplit=3)[2].strip()
     launch_template = training_doc.split("## Training commands", maxsplit=1)[1]
 
-    assert "--evaluation-path-parity-artifact" not in s5_command
-    assert "evaluation-path-parity:" not in s5_command
+    assert "--evaluation-path-parity-artifact" not in s5_command_cell
+    assert "evaluation-path-parity:" not in s5_command_cell
     assert all(
-        field in s5_command
+        field in s5_command_cell
         for field in (
             "training seed",
             "data-root alias and target",
@@ -1215,10 +1216,10 @@ def test_s5_training_doc_separates_recorded_command_from_launch_template() -> No
             "runtime.omp_num_threads",
         )
     )
-    assert "vendor_compatibility.pythonpath_entry" in s5_command
-    assert "full `PYTHONPATH`" in s5_command
-    assert 'PATH="' not in s5_command
-    assert "PYTHONPATH=" not in s5_command
+    assert "vendor_compatibility.pythonpath_entry" in s5_command_cell
+    assert "full `PYTHONPATH`" in s5_command_cell
+    assert 'PATH="' not in s5_command_cell
+    assert "PYTHONPATH=" not in s5_command_cell
     assert "--evaluation-path-parity-artifact" in launch_template
     assert all(
         setting in launch_template
