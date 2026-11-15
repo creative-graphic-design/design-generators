@@ -162,12 +162,17 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
         assert trainer["gradient_clip_val"] is None
         assert trainer["precision"] == recipe.precision
         checkpoint = trainer["callbacks"][0]["init_args"]
-        assert checkpoint == {
+        expected_checkpoint = {
             "monitor": "val_loss",
             "mode": "min",
             "save_top_k": 1,
             "save_last": False,
         }
+        if recipe.dataset is DatasetName.publaynet:
+            expected_checkpoint["dirpath"] = (
+                f".cache/layoutformerpp/training-runs/{recipe.name}/checkpoints"
+            )
+        assert checkpoint == expected_checkpoint
         assert init_args["recipe_name"] == recipe.name
         assert config_args["dataset"] == str(recipe.dataset)
         assert config_args["vocab_size"] == recipe.vocab_size
@@ -193,7 +198,7 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
                 tuple(sorted(checkpoint.items())),
             )
         )
-    assert len(invariant_wiring) == 1
+    assert len(invariant_wiring) == 7
 
 
 @pytest.mark.parametrize("config_name", sorted(TRAINING_RECIPES_BY_NAME))
