@@ -21,6 +21,12 @@ from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch.utils.data import DataLoader, Dataset, get_worker_info
 from torch.optim.lr_scheduler import LRScheduler
 
+from traingen.checkpointing import (
+    python_random_state,
+    safe_value_type,
+    safe_string_mapping,
+)
+
 from ..configuration_layoutformerpp import LayoutFormerPPConfig
 from ..labels import label_translation_for_dataset
 from ..modeling_layoutformerpp import (
@@ -459,6 +465,15 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
     def __len__(self) -> int:
         return len(self.data)
 
+    def state_dict(self) -> dict[str, safe_value_type]:
+        """Return the relation generator state needed to resume task generation."""
+        return {"relation_generator": self._relation_generator.getstate()}
+
+    def load_state_dict(self, state_dict: Mapping[str, safe_value_type]) -> None:
+        """Restore the relation generator state from a checkpoint."""
+        relation_state = state_dict.get("relation_generator")
+        self._relation_generator.setstate(python_random_state(relation_state))
+
     def _task_for_index(self, index: int) -> LayoutFormerPPTask:
         if self.train and self.recipe.partition_buckets:
             return random.choice(self._bucket_tasks[self._partition_data[index]])
@@ -617,6 +632,29 @@ class LayoutFormerPPDataModule(LightningDataModule):
         self.train_dataset: _LayoutFormerPPDataset | None = None
         self.val_dataset: _LayoutFormerPPDataset | None = None
         self.tokenizer = _package_tokenizer(self.recipe)
+
+    def state_dict(self) -> dict[str, safe_value_type]:
+        """Return the train and validation relation generator states."""
+        state: dict[str, safe_value_type] = {}
+        if self.train_dataset is not None:
+            state["train_dataset"] = self.train_dataset.state_dict()
+
+        if self.val_dataset is not None:
+            state["val_dataset"] = self.val_dataset.state_dict()
+
+        return state
+
+    def load_state_dict(self, state_dict: dict[str, safe_value_type]) -> None:
+        """Restore the train and validation relation generator states."""
+        for name, dataset in (
+            ("train_dataset", self.train_dataset),
+            ("val_dataset", self.val_dataset),
+        ):
+            dataset_state = state_dict.get(name)
+            if dataset is not None and dataset_state is not None:
+                dataset.load_state_dict(
+                    safe_string_mapping(dataset_state, f"{name} state")
+                )
 
     def setup(self, stage: str | None = None) -> None:
         """Load the processed train and validation splits for ``stage``."""
