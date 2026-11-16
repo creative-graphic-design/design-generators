@@ -263,4 +263,8 @@ Run evaluation-path parity for one family with training-seed 0. The runner loads
 FAMILY=label; PARITY_OUTPUT=.cache/layoutformerpp/s5/posthoc-parity/new-attempt/${FAMILY}; CUDA_VISIBLE_DEVICES=<device> "$LAYOUTFORMERPP_AUDIT_VENV/bin/python" models/layoutformerpp/tests/vendor_parity/run_evaluation_path_parity.py --mode orchestrate --vendor-src vendor/ms-layout-generation/LayoutFormer++/src --data-root "$LAYOUTFORMERPP_PARITY_DATA_ROOT" --family "$FAMILY" --seed 0 --output "$PARITY_OUTPUT" # Run the selected family's comparison.
 ```
 
-These recorded results need no new campaign. Start a future RICO25 full-run campaign only after the package has complete S0–S4 evidence and evaluation-path parity and the package owner has recorded a compute allocation decision in [Issue 265](https://github.com/creative-graphic-design/design-generators/issues/265).
+These recorded results need no new campaign. A future RICO25 full-run campaign requires complete S0–S4 evidence and evaluation-path parity. Do not launch that stage from this document. The package owner records a separate compute allocation decision in [Issue 265](https://github.com/creative-graphic-design/design-generators/issues/265) before launch.
+
+Relative callback `dirpath` values resolve under `trainer.default_root_dir`; give each seed a distinct root. Durable resume is opt-in. The launcher sets `CAMPAIGN_ROOT`, `LAYOUTFORMERPP_CHECKPOINT_IDENTITY`, and `LAYOUTFORMERPP_LAUNCH_MANIFEST`. It also sets `LAYOUTFORMERPP_DURABLE_ROOT` and `LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE`. Set the identity's absolute checkpoint path to the callback path resolved from that seed's root. The fit command above needs none of the durable settings.
+
+Do not launch the full-run stage from this document. It remains a separate compute decision after the complete staged ladder and any required evaluation-path parity prerequisite are available.

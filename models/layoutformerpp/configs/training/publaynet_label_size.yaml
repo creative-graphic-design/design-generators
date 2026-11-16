@@ -10,8 +10,13 @@ trainer:
   num_sanity_val_steps: 0
   use_distributed_sampler: false
   callbacks:
-    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
-      init_args: {monitor: val_loss, mode: min, save_top_k: 1, save_last: false}
+    - class_path: layoutformerpp.training.checkpoint.LayoutFormerPPModelCheckpoint
+      init_args:
+        dirpath: .cache/layoutformerpp/training-runs/publaynet_label_size/checkpoints
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 model:
   class_path: layoutformerpp.training.lightning_module.LayoutFormerPPTrainingModule
   init_args:
