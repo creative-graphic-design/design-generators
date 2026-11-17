@@ -262,6 +262,28 @@ def _complete_bundle_checkpoint(
     return bundle / checkpoint_name
 
 
+def _reject_symlinked_directory(path: Path, boundary: Path) -> None:
+    try:
+        relative = path.relative_to(boundary)
+    except ValueError:
+        raise RuntimeError(
+            "resume checkpoint directory is outside its expected root"
+        ) from None
+
+    current = boundary
+    for part in (".", *relative.parts):
+        current = current if part == "." else current / part
+        if current.is_symlink():
+            raise RuntimeError("resume checkpoint directory contains a symlink")
+
+
+def _is_inside(path: Path, directory: Path) -> bool:
+    try:
+        return not path.is_symlink() and path.resolve().is_relative_to(directory)
+    except (OSError, RuntimeError):
+        return False
+
+
 def newest_complete_checkpoint(
     paths: list[Path], identity: Mapping[str, JSONValue], arm: str
 ) -> Path:
@@ -278,7 +300,16 @@ def newest_complete_checkpoint(
             checkpoint = load_weights_only_checkpoint(path)
         except Exception:
             continue
-        if arm == "original" and checkpoint.get("identity") != identity:
+
+        identity_key = "identity" if arm == "original" else "layoutformerpp_identity"
+        checkpoint_identity = checkpoint.get(identity_key)
+        if not isinstance(checkpoint_identity, Mapping):
+            continue
+        try:
+            validate_resume_identity(
+                cast(Mapping[str, JSONValue], checkpoint_identity), identity
+            )
+        except RuntimeError:
             continue
 
         return path
@@ -298,13 +329,20 @@ def resume_checkpoint_candidates(
         pattern = re.compile(r"epoch-\d{6}-step-\d{9}\.resume\.pt")
         checkpoint_path = checkpoint_path / "resume"
         checkpoint_name = "checkpoint.pt"
+    local_track_directory = checkpoint_path.parents[1]
+    _reject_symlinked_directory(checkpoint_path, local_track_directory)
+    resolved_checkpoint_path = checkpoint_path.resolve()
     candidates = [
-        path for path in checkpoint_path.glob("epoch-*") if pattern.fullmatch(path.name)
+        path
+        for path in checkpoint_path.glob("epoch-*")
+        if pattern.fullmatch(path.name) and _is_inside(path, resolved_checkpoint_path)
     ]
     if durable_root is None:
         return candidates
 
     durable_track_directory = durable_root / durable_track
+    _reject_symlinked_directory(durable_track_directory, durable_root)
+    resolved_durable_track = durable_track_directory.resolve()
     if durable_track_directory.is_dir():
         candidates.extend(
             checkpoint
@@ -316,6 +354,7 @@ def resume_checkpoint_candidates(
                 )
             )
             is not None
+            and _is_inside(checkpoint, resolved_durable_track)
         )
 
     return candidates

@@ -128,26 +128,123 @@ def test_resume_launch_rejects_mismatch_and_uses_latest_complete_checkpoint(
     monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
     monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
     monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("test-device", "GPU-test"))
-    monkeypatch.setattr(launch_track, "run", lambda *_args, **_kwargs: 0)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        launch_track,
+        "run",
+        lambda command, *_args, **_kwargs: commands.append(command) or 0,
+    )
 
     track = campaign_root / "label" / "seed-0" / "package"
-    assert launch_track.launch(campaign_rel, "label", 0, "package", 0) == 0
+    checkpoint_directory = track / "lightning" / "package-checkpoints"
+    durable_root = tmp_path / "durable"
+    durable_root.mkdir()
+    assert (
+        launch_track.launch(
+            campaign_rel, "label", 0, "package", 0, durable_root=durable_root
+        )
+        == 0
+    )
+    assert commands[0] == build_argv("label", 0, "package", track, package_environment)[
+        0
+    ] + [f"--trainer.callbacks.init_args.dirpath={checkpoint_directory.resolve()}"]
+    assert "--ckpt_path" not in commands[0]
     manifest_path = track / "launch_manifest.json"
     identity = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    checkpoint_directory = track / "lightning" / "package-checkpoints"
     checkpoint_directory.mkdir(parents=True)
+    checkpoint_identity = json.loads(
+        (track / "checkpoint_identity.json").read_text(encoding="utf-8")
+    )
+    checkpoint_identity["campaign_root"] = str(campaign_root.resolve())
     checkpoint = checkpoint_directory / "epoch-000001-step-000000004.ckpt"
-    torch.save({"state_dict": {}}, checkpoint)
-    (checkpoint_directory / "epoch-000002-step-000000008.ckpt").write_bytes(b"partial")
-    assert launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True) == 0
+    torch.save(
+        {"state_dict": {}, "layoutformerpp_identity": checkpoint_identity}, checkpoint
+    )
+    torch.save(
+        {
+            "state_dict": {},
+            "layoutformerpp_identity": dict(checkpoint_identity, device="other"),
+        },
+        checkpoint_directory / "epoch-000002-step-000000008.ckpt",
+    )
+    torch.save(
+        {"state_dict": {}}, checkpoint_directory / "epoch-000003-step-000000012.ckpt"
+    )
+    (checkpoint_directory / "epoch-000004-step-000000016.ckpt").write_bytes(b"partial")
+    assert (
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+        == 0
+    )
     resumed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert commands[1][-1] == f"--ckpt_path={checkpoint}"
     assert resumed["commands"][0][-1].endswith(checkpoint.name)
+    checkpoint.unlink()
+    with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+    torch.save(
+        {"state_dict": {}, "layoutformerpp_identity": checkpoint_identity}, checkpoint
+    )
     manifest_path.write_text(
         json.dumps(dict(identity, device="other")), encoding="utf-8"
     )
     with pytest.raises(RuntimeError, match="identity mismatch: device"):
-        launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True)
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+
+
+def test_resume_candidates_reject_symlink_escapes(tmp_path: Path) -> None:
+    track = tmp_path / "campaign" / "label" / "seed-0" / "package"
+    checkpoint_directory = track / "lightning" / "package-checkpoints"
+    checkpoint_directory.parent.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    checkpoint_directory.symlink_to(outside, target_is_directory=True)
+    durable_track = Path("label") / "seed-0" / "package"
+    with pytest.raises(RuntimeError, match="symlink"):
+        launch_track.resume_checkpoint_candidates(
+            checkpoint_directory, "package", None, durable_track
+        )
+
+    checkpoint_directory.unlink()
+    checkpoint_directory.mkdir()
+    outside_checkpoint = outside / "epoch-000001-step-000000001.ckpt"
+    outside_checkpoint.write_bytes(b"checkpoint")
+    (checkpoint_directory / outside_checkpoint.name).symlink_to(outside_checkpoint)
+    assert not launch_track.resume_checkpoint_candidates(
+        checkpoint_directory, "package", None, durable_track
+    )
+
+    durable_root = tmp_path / "durable"
+    durable_root.mkdir()
+    (durable_root / "label").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="symlink"):
+        launch_track.resume_checkpoint_candidates(
+            checkpoint_directory, "package", durable_root, durable_track
+        )
 
 
 def test_vendor_best_epoch_is_staged_for_test_and_recorded(tmp_path: Path) -> None:
