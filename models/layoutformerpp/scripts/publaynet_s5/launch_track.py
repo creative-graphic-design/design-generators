@@ -939,6 +939,8 @@ def launch(
         if durable_value
         else None
     )
+    if resume and arm == "package" and durable_path is None:
+        raise RuntimeError("package-arm --resume requires --durable-root")
 
     campaign_root.mkdir(parents=True, exist_ok=True)
     checkpoint_path = track_directory / "vendor-output"
@@ -1190,7 +1192,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="prune old vendor checkpoints on an A100 original track",
     )
-    parser.add_argument("--resume", action="store_true", help="resume a track")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume a track; package arm requires --durable-root",
+    )
     parser.add_argument("--durable-root", type=Path)
     return parser.parse_args(argv)
 

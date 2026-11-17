@@ -104,7 +104,7 @@ def test_publaynet_launcher_argv_and_outputs_keep_data_root_private(
     assert str(fake_root).encode() not in child_log.getvalue()
 
 
-def test_resume_launch_rejects_mismatch_and_uses_latest_complete_checkpoint(
+def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     data_root = tmp_path / "data"
@@ -117,6 +117,7 @@ def test_resume_launch_rejects_mismatch_and_uses_latest_complete_checkpoint(
     monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
     monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
     monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.delenv("LAYOUTFORMERPP_DURABLE_ROOT", raising=False)
     monkeypatch.setattr(
         launch_track.sys, "executable", str(package_environment / "bin" / "python")
     )
@@ -152,26 +153,48 @@ def test_resume_launch_rejects_mismatch_and_uses_latest_complete_checkpoint(
     manifest_path = track / "launch_manifest.json"
     identity = json.loads(manifest_path.read_text(encoding="utf-8"))
 
+    with pytest.raises(RuntimeError, match="--durable-root"):
+        launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True)
+    assert len(commands) == 1
+
     checkpoint_directory.mkdir(parents=True)
     checkpoint_identity = json.loads(
         (track / "checkpoint_identity.json").read_text(encoding="utf-8")
     )
     checkpoint_identity["campaign_root"] = str(campaign_root.resolve())
-    checkpoint = checkpoint_directory / "epoch-000001-step-000000004.ckpt"
     torch.save(
-        {"state_dict": {}, "layoutformerpp_identity": checkpoint_identity}, checkpoint
+        {"state_dict": {}},
+        checkpoint_directory / "epoch-000099-step-000000396.ckpt",
     )
     torch.save(
         {
             "state_dict": {},
             "layoutformerpp_identity": dict(checkpoint_identity, device="other"),
         },
-        checkpoint_directory / "epoch-000002-step-000000008.ckpt",
+        checkpoint_directory / "epoch-000098-step-000000392.ckpt",
     )
+    (checkpoint_directory / "epoch-000097-step-000000388.ckpt").write_bytes(b"partial")
+    durable_track = Path(campaign_rel) / "label" / "seed-0" / "package"
+    bundle = durable_root / durable_track / "epoch-000001"
+    bundle.mkdir(parents=True)
+    checkpoint = bundle / "checkpoint.ckpt"
     torch.save(
-        {"state_dict": {}}, checkpoint_directory / "epoch-000003-step-000000012.ckpt"
+        {"state_dict": {}, "layoutformerpp_identity": checkpoint_identity}, checkpoint
     )
-    (checkpoint_directory / "epoch-000004-step-000000016.ckpt").write_bytes(b"partial")
+    bundled_manifest = bundle / "launch_manifest.json"
+    bundled_manifest.write_bytes(manifest_path.read_bytes())
+    bundle_files = {
+        path.name: launch_track.sha256(path) for path in (checkpoint, bundled_manifest)
+    }
+    (bundle / "bundle_manifest.json").write_text(
+        json.dumps(
+            {
+                "checkpoint": (durable_track / bundle.name).as_posix(),
+                "files": bundle_files,
+            }
+        ),
+        encoding="utf-8",
+    )
     assert (
         launch_track.launch(
             campaign_rel,
