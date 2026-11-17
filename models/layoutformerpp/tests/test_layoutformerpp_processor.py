@@ -15,6 +15,7 @@ from layoutformerpp import (
     LayoutFormerPPTask,
     LayoutGenerationOutput,
     OutputType,
+    LayoutFormerPPTokenizer,
 )
 
 
@@ -34,6 +35,24 @@ def test_processor_label_condition_and_postprocess() -> None:
     assert out.labels.tolist() == [[0]]
     assert out.mask.tolist() == [[True]]
     assert out.id2label[0] == "Text"
+
+
+def test_processor_accepts_ragged_bbox_rows() -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="refinement")
+
+    rows = processor._prepare_bbox(
+        [
+            [[0.1, 0.1, 0.2, 0.2]],
+            [[0.2, 0.2, 0.1, 0.1], [0.3, 0.3, 0.2, 0.2]],
+        ],
+        labels=[[5], [4, 5]],
+        box_format="ltwh",
+    )
+
+    assert rows == [
+        [[12, 12, 25, 25]],
+        [[25, 25, 12, 12], [38, 38, 25, 25]],
+    ]
 
 
 def test_processor_masks_padded_condition_rows_and_normalizes_pixels() -> None:
@@ -98,6 +117,82 @@ def test_processor_condition_aliases_and_error_paths() -> None:
     assert relation["input_ids"].shape[0] == 1
     assert processor.dataset == "rico25"
     assert processor.task == "gen_r"
+
+
+def test_processor_uses_prompt_and_relation_recipe_options(
+    tmp_path: Path,
+) -> None:
+    processor = LayoutFormerPPProcessor.from_config(
+        dataset="publaynet",
+        task="gen_r",
+        add_task_prompt=True,
+        gen_r_add_unk_token=True,
+        gen_r_compact=True,
+    )
+    encoded = processor(
+        condition_type="relation",
+        labels=[["text"]],
+        relations=[[(0, 0, 1, 1, 3)]],
+    )
+    expected = processor.tokenizer.encode_text(
+        "task-gen_r : label_1 <unk> <unk> <unk> <unk> "
+        "<sep_labels_relations> label_1 index_1 relation_3 "
+        "label_0 <sep_relations>"
+    )["input_ids"]
+    assert torch.equal(encoded["input_ids"], expected)
+
+    processor.save_pretrained(tmp_path)
+    loaded = LayoutFormerPPProcessor.from_pretrained(tmp_path)
+    assert loaded.add_task_prompt is True
+    assert loaded.gen_r_add_unk_token is True
+    assert loaded.gen_r_compact is True
+
+
+def test_processor_maps_missing_legacy_task_prompt_to_unk() -> None:
+    tokenizer = LayoutFormerPPTokenizer(
+        tokens=[
+            "label_1",
+            "task-refinement",
+            "task-completion",
+            "task-unconstrained",
+            "task-label-constrained",
+            "task-label-size-constrained",
+            "task-relation-constrained",
+            ":",
+        ]
+    )
+    processor = LayoutFormerPPProcessor(
+        tokenizer=tokenizer,
+        dataset="publaynet",
+        task="gen_r",
+        add_task_prompt=True,
+    )
+
+    encoded = processor(
+        condition_type="relation",
+        labels=[["text"]],
+        relations=[[(0, 0, 0, 0, 0)]],
+    )
+
+    assert tokenizer.convert_tokens_to_ids("task-gen_r") == tokenizer.unk_token_id
+    assert encoded["input_ids"][0, 0].item() == tokenizer.unk_token_id
+
+
+def test_rico25_processor_keeps_task_prompt_disabled_by_default() -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="rico25", task="gen_r")
+    encoded = processor(
+        condition_type="relation",
+        labels=[["Text"]],
+        relations=[[(0, 0, 1, 1, 3)]],
+    )
+
+    assert processor.add_task_prompt is False
+    assert processor.tokenizer.batch_decode(
+        encoded["input_ids"], skip_special_tokens=True
+    ) == [
+        "label_1 <sep_labels_relations> label_1 index_1 <sep_ele_rela_ele> "
+        "relation_3 <sep_ele_rela_ele> label_0 <sep_relations>"
+    ]
 
 
 def test_processor_postprocess_padding_dict_and_errors() -> None:
