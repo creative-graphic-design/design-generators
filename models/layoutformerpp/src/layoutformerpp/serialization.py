@@ -14,6 +14,19 @@ SEP_TOKEN: Final[str] = "|"
 REL_BEG_TOKEN: Final[str] = "<sep_labels_relations>"
 REL_SEP_TOKEN: Final[str] = "<sep_relations>"
 REL_ELE_SEP_TOKEN: Final[str] = "<sep_ele_rela_ele>"
+TASK_PROMPTS: Final[dict[LayoutFormerPPTask, str]] = {
+    LayoutFormerPPTask.refinement: "task-refinement :",
+    LayoutFormerPPTask.completion: "task-completion :",
+    LayoutFormerPPTask.ugen: "task-ugen :",
+    LayoutFormerPPTask.gen_t: "task-gen_t :",
+    LayoutFormerPPTask.gen_ts: "task-gen_ts :",
+    LayoutFormerPPTask.gen_r: "task-gen_r :",
+}
+
+
+def build_task_prompt(task: LayoutFormerPPTask | str, input_text: str) -> str:
+    """Prefix an input sequence with its task name when the recipe requires it."""
+    return f"{TASK_PROMPTS[normalize_layoutformerpp_task(task)]} {input_text}"
 
 
 class RelationType(StrEnum):
@@ -174,16 +187,29 @@ def build_default_tokens(
     task: LayoutFormerPPTask | str,
     grid: int,
     add_sep_token: bool = True,
+    add_task_prompt: bool = False,
 ) -> list[str]:
     """Construct a checkpoint-compatible vocabulary when no `vocab.json` is available."""
     normalized_task = normalize_layoutformerpp_task(task)
     tokens = [f"label_{idx}" for idx in range(1, len(dataset_labels) + 1)]
     tokens.extend(str(idx) for idx in range(grid))
+
     if add_sep_token:
         tokens.append(SEP_TOKEN)
+
     if normalized_task is LayoutFormerPPTask.gen_r:
         tokens.append("label_0")
         tokens.extend(f"relation_{idx}" for idx, _ in enumerate(RELATION_TYPES))
         tokens.extend(f"index_{idx}" for idx in range(1, 21))
         tokens.extend([REL_BEG_TOKEN, REL_SEP_TOKEN, REL_ELE_SEP_TOKEN])
+
+    if add_task_prompt:
+        prompt_tokens: list[str] = []
+        for prompt in TASK_PROMPTS.values():
+            for token in prompt.split():
+                if token not in prompt_tokens:
+                    prompt_tokens.append(token)
+
+        tokens.extend(prompt_tokens)
+
     return tokens

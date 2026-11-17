@@ -86,6 +86,51 @@ def test_s0_publaynet_relation_keeps_effective_six_task_recipe() -> None:
     assert recipe.vocab_size == 178
 
 
+def test_s0_publaynet_inference_input_options_match_vendor_recipes() -> None:
+    common_flags = {
+        "add_sep_token",
+        "load_vocab",
+        "share_embedding",
+        "sort_by_dict",
+    }
+    active_sort_flags = {
+        "unconditional": "ugen_sort_by_pos_before_sort_by_label",
+        "label": "gen_t_sort_by_pos_before_sort_by_label",
+        "label_size": "gen_ts_shuffle_before_sort_by_label",
+        "relation": "gen_r_shuffle_before_sort_by_label",
+        "refinement": "refinement_sort_by_pos_before_sort_by_label",
+        "completion": "completion_sort_by_pos_before_sort_by_label",
+    }
+
+    for family, sort_flag in active_sort_flags.items():
+        flags = TRAINING_RECIPES_BY_NAME[f"publaynet_{family}"].serialization_flags
+        assert common_flags <= flags
+        assert sort_flag in flags
+        assert ("add_task_prompt" in flags) is (family == "relation")
+        assert "add_task_embedding" not in flags
+        assert "add_task_prompt_token_in_model" not in flags
+
+
+def test_s0_publaynet_position_only_flags_match_vendor_families() -> None:
+    position_only_flags = {"completion_sort_by_pos", "ugen_sort_by_pos"}
+
+    for family in ("label", "label_size", "relation", "refinement"):
+        flags = TRAINING_RECIPES_BY_NAME[f"publaynet_{family}"].serialization_flags
+        assert position_only_flags <= flags
+
+    for family in ("completion", "unconditional"):
+        flags = TRAINING_RECIPES_BY_NAME[f"publaynet_{family}"].serialization_flags
+        assert position_only_flags.isdisjoint(flags)
+
+    assert all(
+        "add_task_prompt" not in recipe.serialization_flags
+        for recipe in (
+            TRAINING_RECIPES_BY_NAME[f"rico25_{condition.value}"]
+            for condition in CONDITIONS
+        )
+    )
+
+
 def test_s0_all_rico25_families_share_reviewed_dual_map() -> None:
     expected = {
         0: 1,
