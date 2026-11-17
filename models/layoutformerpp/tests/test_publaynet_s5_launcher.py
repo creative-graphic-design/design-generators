@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+import torch
 
 
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[1] / "scripts" / "publaynet_s5"
@@ -101,6 +102,52 @@ def test_publaynet_launcher_argv_and_outputs_keep_data_root_private(
         == "<REDACTED>"
     )
     assert str(fake_root).encode() not in child_log.getvalue()
+
+
+def test_resume_launch_rejects_mismatch_and_uses_latest_complete_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    environment_file = tmp_path / "data-root.env"
+    environment_file.write_text("LAYOUTFORMERPP_DATA_ROOT=/unused\n", encoding="utf-8")
+    campaign_root = tmp_path / "campaign"
+    package_environment = tmp_path / "runtime"
+    campaign_rel = ".cache/resume-launch-test"
+    monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.setattr(
+        launch_track.sys, "executable", str(package_environment / "bin" / "python")
+    )
+    monkeypatch.setattr(
+        launch_track, "validate_campaign_root", lambda *_: campaign_root
+    )
+    monkeypatch.setattr(launch_track, "read_data_root", lambda: data_root)
+    monkeypatch.setattr(launch_track, "verify_splits", lambda _: {})
+    monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
+    monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
+    monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("test-device", "GPU-test"))
+    monkeypatch.setattr(launch_track, "run", lambda *_args, **_kwargs: 0)
+
+    track = campaign_root / "label" / "seed-0" / "package"
+    assert launch_track.launch(campaign_rel, "label", 0, "package", 0) == 0
+    manifest_path = track / "launch_manifest.json"
+    identity = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    checkpoint_directory = track / "lightning" / "package-checkpoints"
+    checkpoint_directory.mkdir(parents=True)
+    checkpoint = checkpoint_directory / "epoch-000001-step-000000004.ckpt"
+    torch.save({"state_dict": {}}, checkpoint)
+    (checkpoint_directory / "epoch-000002-step-000000008.ckpt").write_bytes(b"partial")
+    assert launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True) == 0
+    resumed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert resumed["commands"][0][-1].endswith(checkpoint.name)
+    manifest_path.write_text(
+        json.dumps(dict(identity, device="other")), encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError, match="identity mismatch: device"):
+        launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True)
 
 
 def test_vendor_best_epoch_is_staged_for_test_and_recorded(tmp_path: Path) -> None:
@@ -389,7 +436,7 @@ def test_pruning_error_stops_process_group_and_is_recorded(
     monkeypatch.setattr(
         launch_track,
         "build_argv",
-        lambda *args: [["bash", str(vendor_script), "train"]],
+        lambda *args, **kwargs: [["bash", str(vendor_script), "train"]],
     )
     monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("NVIDIA A100", "GPU-test"))
     monkeypatch.setattr(launch_track, "write_command_log", lambda *args: None)

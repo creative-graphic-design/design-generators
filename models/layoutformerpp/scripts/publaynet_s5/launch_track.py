@@ -27,6 +27,10 @@ sys.path.insert(0, str(SCRIPT_DIRECTORY.parent))
 
 from generate_vendor_bin import generate  # noqa: E402
 from run_training_parity_campaign import normalized_freeze, sha256  # noqa: E402
+from traingen.checkpointing import (  # noqa: E402
+    load_weights_only_checkpoint,
+    resolve_durable_root,
+)
 
 
 REPOSITORY = Path(__file__).resolve().parents[4]
@@ -57,12 +61,12 @@ FAMILIES = (
     "relation",
 )
 CONFIG_SHA256 = {
-    "unconditional": "9e8dffaf2bd4b9e3646aac189bc50b51c52f8a356970615830cc31015f9b76cb",
-    "completion": "4b872c27133b6a677cb1f26643a83e2d9fa63e318acd074c68c0213d61ea27f8",
-    "refinement": "5b704ade7ae78923b7ee7727f92f7deed7b0832641f6cbbbc959c10541c232a3",
-    "label": "0234c836036f6909ce52c157b2b46e17de23c8975f548063d88fa1bf771c1dd0",
-    "label_size": "2e69325b78304507ef405f4188d3801a7e3eaac5d07c3ca2f2fe205f315502f2",
-    "relation": "99bc2859c5614778aa165277469e8a22234f7eb63b17c4fa1dff3071234c0670",
+    "unconditional": "7987c2d3ec2a51cae692b4df952a9fe93e59b49107ca4b5628d294375a5a66ff",
+    "completion": "e7fd9ab67d0dd782e222dfe33ea2b839eeace6d736090473ca83d3db6a0ba9ca",
+    "refinement": "18e270aac3612f0e05e7aeb8b431d9d44693639637f551df638b9ed375344d3c",
+    "label": "eb894893bec4db7360834423526dbc6c2dd36888b5f798cdbe4ad4f715176eb7",
+    "label_size": "4e3a404d9e2ff5579c65d272eea8e7de3de34ec9e150cb6b596a7782d13483eb",
+    "relation": "bec3d4e340dc8ebf2c3ee585ceb6586e8a29250e5f1a9117a1a301bbd2665edd",
 }
 VENDOR_SCRIPTS = {
     "unconditional": "publaynet_ugen.sh",
@@ -165,20 +169,28 @@ def build_argv(
     arm: str,
     track_directory: Path,
     package_environment: Path,
+    *,
+    resume_path: Path | None = None,
+    checkpoint_path: Path | None = None,
 ) -> list[list[str]]:
     config = config_path(family).relative_to(REPOSITORY).as_posix()
     if arm == "package":
-        return [
-            [
-                str(package_environment / "bin" / "traingen"),
-                "fit",
-                "--config",
-                config,
-                f"--seed_everything={seed}",
-                "--trainer.devices=1",
-                f"--trainer.default_root_dir={track_directory / 'lightning'}",
-            ]
+        command = [
+            str(package_environment / "bin" / "traingen"),
+            "fit",
+            "--config",
+            config,
+            f"--seed_everything={seed}",
+            "--trainer.devices=1",
+            f"--trainer.default_root_dir={track_directory / 'lightning'}",
         ]
+        if checkpoint_path is not None:
+            command.append(
+                f"--trainer.callbacks.init_args.dirpath={checkpoint_path.resolve()}"
+            )
+        if resume_path is not None:
+            command.append(f"--ckpt_path={resume_path}")
+        return [command]
 
     vendor_script = VENDOR_SOURCE / "scripts" / VENDOR_SCRIPTS[family]
     output = track_directory / "vendor-output"
@@ -192,6 +204,121 @@ def build_argv(
         "s5",
     ]
     return [[*base_command[:2], mode, *base_command[2:]] for mode in ("train", "test")]
+
+
+def validate_resume_identity(
+    manifest: Mapping[str, JSONValue], expected: Mapping[str, JSONValue]
+) -> None:
+    keys = (
+        "config_sha256",
+        "source_commit",
+        "vendor_source_commit",
+        "device",
+        "checkpoint_dirpath",
+        "campaign_root",
+    )
+    mismatch = next(
+        (key for key in keys if manifest.get(key) != expected.get(key)), None
+    )
+    if mismatch is not None:
+        raise RuntimeError(f"resume checkpoint identity mismatch: {mismatch}")
+
+
+def _complete_bundle_checkpoint(
+    bundle: Path,
+    durable_track: Path,
+    checkpoint_name: str,
+) -> Path | None:
+    if bundle.is_symlink() or not bundle.is_dir():
+        return None
+
+    manifest_path = bundle / "bundle_manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("checkpoint") != (durable_track / bundle.name).as_posix()
+        or not isinstance(files, dict)
+        or set(files) != {checkpoint_name, "launch_manifest.json"}
+    ):
+        return None
+
+    for name in (checkpoint_name, "launch_manifest.json"):
+        path = bundle / name
+        if path.is_symlink() or not path.is_file():
+            return None
+        try:
+            if sha256(path) != files[name]:
+                return None
+        except OSError:
+            return None
+
+    return bundle / checkpoint_name
+
+
+def newest_complete_checkpoint(
+    paths: list[Path], identity: Mapping[str, JSONValue], arm: str
+) -> Path:
+    def epoch_name(path: Path) -> str:
+        if path.name in ("checkpoint.ckpt", "checkpoint.pt"):
+            return path.parent.name
+
+        return path.name
+
+    for path in sorted(set(paths), key=epoch_name, reverse=True):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            checkpoint = load_weights_only_checkpoint(path)
+        except Exception:
+            continue
+        if arm == "original" and checkpoint.get("identity") != identity:
+            continue
+
+        return path
+    raise RuntimeError("no complete resume checkpoint is available")
+
+
+def resume_checkpoint_candidates(
+    checkpoint_path: Path,
+    arm: str,
+    durable_root: Path | None,
+    durable_track: Path,
+) -> list[Path]:
+    if arm == "package":
+        pattern = re.compile(r"epoch-\d{6}-step-\d{9}\.ckpt")
+        checkpoint_name = "checkpoint.ckpt"
+    else:
+        pattern = re.compile(r"epoch-\d{6}-step-\d{9}\.resume\.pt")
+        checkpoint_path = checkpoint_path / "resume"
+        checkpoint_name = "checkpoint.pt"
+    candidates = [
+        path for path in checkpoint_path.glob("epoch-*") if pattern.fullmatch(path.name)
+    ]
+    if durable_root is None:
+        return candidates
+
+    durable_track_directory = durable_root / durable_track
+    if durable_track_directory.is_dir():
+        candidates.extend(
+            checkpoint
+            for bundle in durable_track_directory.iterdir()
+            if re.fullmatch(r"epoch-\d{6}", bundle.name)
+            if (
+                checkpoint := _complete_bundle_checkpoint(
+                    bundle, durable_track, checkpoint_name
+                )
+            )
+            is not None
+        )
+
+    return candidates
 
 
 def redact_text(value: str, secrets: tuple[str, ...]) -> str:
@@ -385,6 +512,9 @@ def build_environment(
         generate(shim_directory)
         environment["LAYOUTFORMERPP_VENDOR_BOOTSTRAP"] = str(
             SCRIPT_DIRECTORY / "vendor_main_bootstrap.py"
+        )
+        environment["LAYOUTFORMERPP_VENDOR_CACHE"] = str(
+            track_directory / "vendor-cache"
         )
         environment["PATH"] = (
             f"{shim_directory}{os.pathsep}{environment.get('PATH', '')}"
@@ -719,6 +849,8 @@ def launch(
     gpu_index: int,
     *,
     prune_vendor_checkpoints: bool = False,
+    resume: bool = False,
+    durable_root: Path | None = None,
 ) -> int:
     if family not in FAMILIES or arm not in ("original", "package"):
         raise RuntimeError("unsupported family or arm")
@@ -758,56 +890,142 @@ def launch(
         raise RuntimeError("pinned vendor source commit mismatch")
     require_clean_tree()
     source_commit = current_commit()
+    durable_value = (
+        str(durable_root)
+        if durable_root is not None
+        else os.environ.get("LAYOUTFORMERPP_DURABLE_ROOT")
+    )
+    durable_path = (
+        resolve_durable_root(durable_value, env_var="LAYOUTFORMERPP_DURABLE_ROOT")
+        if durable_value
+        else None
+    )
 
     campaign_root.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = track_directory / "vendor-output"
+    if arm == "package":
+        checkpoint_path = track_directory / "lightning" / "package-checkpoints"
+    durable_track = campaign_path / family / f"seed-{seed}" / arm
+    resume_path: Path | None = None
+    identity: dict[str, JSONValue] = {
+        "config_sha256": config_hash,
+        "source_commit": source_commit,
+        "vendor_source_commit": EXPECTED_VENDOR_COMMIT if arm == "original" else None,
+        "device": "",
+        "checkpoint_dirpath": str(checkpoint_path.resolve()),
+        "campaign_root": str(campaign_root.resolve()),
+    }
     secrets = (
         str(data_root),
         str(REPOSITORY),
         str(campaign_root.resolve()),
         str(package_environment),
         str(environment_file),
+        *((str(durable_path),) if durable_path is not None else ()),
     )
-    commands = build_argv(family, seed, arm, track_directory, package_environment)
     schedule = vendor_training_schedule(family) if prune_vendor_checkpoints else None
 
     with ExitStack() as locks:
         lock_file(locks, campaign_root / f".gpu-{gpu_index}.lock")
         device_name, gpu_uuid = gpu_info(gpu_index)
+        identity["device"] = device_name
+        recorded_identity = {
+            **identity,
+            "checkpoint_dirpath": checkpoint_path.relative_to(campaign_root).as_posix(),
+            "campaign_root": campaign_rel,
+        }
         validate_checkpoint_pruning(prune_vendor_checkpoints, arm, device_name)
         pair_directory = track_directory.parent
         pair_directory.mkdir(parents=True, exist_ok=True)
-        if track_directory.exists():
-            raise RuntimeError("track output already exists")
+        if resume:
+            manifest_path = track_directory / "launch_manifest.json"
+            if not track_directory.is_dir() or not manifest_path.is_file():
+                raise RuntimeError("resume launch manifest is unavailable")
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                raise RuntimeError("resume launch manifest is invalid") from None
+            if not isinstance(manifest, dict):
+                raise RuntimeError("resume launch manifest is invalid")
+            validate_resume_identity(manifest, recorded_identity)
+            resume_path = newest_complete_checkpoint(
+                resume_checkpoint_candidates(
+                    checkpoint_path,
+                    arm,
+                    durable_path,
+                    durable_track,
+                ),
+                identity,
+                arm,
+            )
+            checkpoint_root = track_directory
+            if durable_path is not None:
+                durable_track_root = durable_path / durable_track
+                if resume_path.is_relative_to(durable_track_root):
+                    checkpoint_root = durable_track_root
+            manifest["resume_checkpoint"] = {
+                "path": resume_path.relative_to(checkpoint_root).as_posix(),
+                "sha256": sha256(resume_path),
+            }
+        else:
+            if track_directory.exists():
+                raise RuntimeError("track output already exists")
+            track_directory.mkdir()
+            manifest_path = track_directory / "launch_manifest.json"
+            manifest = {
+                "status": "prepared",
+                "created_at": datetime.now().astimezone().isoformat(),
+                "source_commit": source_commit,
+                "vendor_source_commit": EXPECTED_VENDOR_COMMIT
+                if arm == "original"
+                else None,
+                "family": family,
+                "training_seed": seed,
+                "arm": arm,
+                "vendor_checkpoint_pruning": {
+                    "enabled": prune_vendor_checkpoints,
+                    "epoch_count": schedule[0] if schedule is not None else None,
+                    "eval_interval": schedule[1] if schedule is not None else None,
+                },
+                "physical_gpu_index": gpu_index,
+                "gpu_type": device_name,
+                "config": config.relative_to(REPOSITORY).as_posix(),
+                "config_sha256": config_hash,
+                "runtime_freeze": RUNTIME_FREEZE.relative_to(REPOSITORY).as_posix(),
+                "runtime_freeze_sha256": freeze_hash,
+                "inputs": split_records,
+                "output": (campaign_path / family / f"seed-{seed}" / arm).as_posix(),
+            }
+            manifest.update(recorded_identity)
+
+        identity_manifest = track_directory / "checkpoint_identity.json"
+        if durable_path is not None:
+            identity_manifest.write_text(
+                json.dumps(
+                    {
+                        key: value
+                        for key, value in identity.items()
+                        if key != "campaign_root"
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        commands = build_argv(
+            family,
+            seed,
+            arm,
+            track_directory,
+            package_environment,
+            resume_path=resume_path if resume and arm == "package" else None,
+            checkpoint_path=checkpoint_path if arm == "package" else None,
+        )
+        manifest["commands"] = [safe_argument(command, secrets) for command in commands]
         pin_pair_gpu_exclusively(
             pair_directory / "gpu-type.json", family, seed, device_name
         )
-        track_directory.mkdir()
-        manifest_path = track_directory / "launch_manifest.json"
-        manifest: dict[str, JSONValue] = {
-            "status": "prepared",
-            "created_at": datetime.now().astimezone().isoformat(),
-            "source_commit": source_commit,
-            "vendor_source_commit": EXPECTED_VENDOR_COMMIT
-            if arm == "original"
-            else None,
-            "family": family,
-            "training_seed": seed,
-            "arm": arm,
-            "vendor_checkpoint_pruning": {
-                "enabled": prune_vendor_checkpoints,
-                "epoch_count": schedule[0] if schedule is not None else None,
-                "eval_interval": schedule[1] if schedule is not None else None,
-            },
-            "physical_gpu_index": gpu_index,
-            "gpu_type": device_name,
-            "config": config.relative_to(REPOSITORY).as_posix(),
-            "config_sha256": config_hash,
-            "runtime_freeze": RUNTIME_FREEZE.relative_to(REPOSITORY).as_posix(),
-            "runtime_freeze_sha256": freeze_hash,
-            "inputs": split_records,
-            "output": (campaign_path / family / f"seed-{seed}" / arm).as_posix(),
-            "commands": [safe_argument(command, secrets) for command in commands],
-        }
         write_manifest(manifest_path, manifest, secrets)
         training_started = False
         phase = "training"
@@ -832,6 +1050,29 @@ def launch(
                     package_environment=package_environment,
                     track_directory=track_directory,
                 )
+                is_training = arm == "package" or command[2] == "train"
+                for name in (
+                    "LAYOUTFORMERPP_CHECKPOINT_IDENTITY",
+                    "LAYOUTFORMERPP_LAUNCH_MANIFEST",
+                    "LAYOUTFORMERPP_DURABLE_ROOT",
+                    "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE",
+                    "LAYOUTFORMERPP_RESUME_PATH",
+                ):
+                    environment.pop(name, None)
+                if is_training and (arm == "original" or durable_path is not None):
+                    environment["LAYOUTFORMERPP_CHECKPOINT_IDENTITY"] = json.dumps(
+                        identity, sort_keys=True
+                    )
+                    if resume_path is not None:
+                        environment["LAYOUTFORMERPP_RESUME_PATH"] = str(resume_path)
+                if durable_path is not None:
+                    environment.update(
+                        {
+                            "LAYOUTFORMERPP_LAUNCH_MANIFEST": str(identity_manifest),
+                            "LAYOUTFORMERPP_DURABLE_ROOT": str(durable_path),
+                            "LAYOUTFORMERPP_DURABLE_TRACK_RELATIVE": durable_track.as_posix(),
+                        }
+                    )
                 cwd = REPOSITORY if arm == "package" else VENDOR_SOURCE
                 checked_device_name, checked_gpu_uuid = gpu_info(gpu_index)
                 if checked_device_name != device_name or checked_gpu_uuid != gpu_uuid:
@@ -910,6 +1151,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="prune old vendor checkpoints on an A100 original track",
     )
+    parser.add_argument("--resume", action="store_true", help="resume a track")
+    parser.add_argument("--durable-root", type=Path)
     return parser.parse_args(argv)
 
 
@@ -923,6 +1166,8 @@ def main() -> int:
             args.arm,
             args.gpu_index,
             prune_vendor_checkpoints=args.prune_vendor_checkpoints,
+            resume=args.resume,
+            durable_root=args.durable_root,
         )
     except Exception as error:
         secrets = []
