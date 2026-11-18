@@ -9,7 +9,7 @@
 # @arg $5 physical GPU index.
 # @option --prune-vendor-checkpoints Prune old checkpoints on an original A100 track.
 # @option --resume Resume the track from its newest complete checkpoint.
-# @option --durable-root PATH Store and search original checkpoints in this directory.
+# @option --durable-root PATH Store and search durable checkpoints in this directory; package-arm resume requires it.
 # @example
 #   bash models/layoutformerpp/scripts/publaynet_s5/launch_track.sh "$CAMPAIGN_REL" label 0 package "$GPU_INDEX"
 #   bash models/layoutformerpp/scripts/publaynet_s5/launch_track.sh "$CAMPAIGN_REL" label 0 original "$GPU_INDEX" --prune-vendor-checkpoints

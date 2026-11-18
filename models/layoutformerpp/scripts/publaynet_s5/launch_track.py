@@ -934,14 +934,9 @@ def launch(
         raise RuntimeError("pinned vendor source commit mismatch")
     require_clean_tree()
     source_commit = current_commit()
-    durable_value = (
-        str(durable_root)
-        if durable_root is not None
-        else os.environ.get("LAYOUTFORMERPP_DURABLE_ROOT")
-    )
     durable_path = (
-        resolve_durable_root(durable_value, env_var="LAYOUTFORMERPP_DURABLE_ROOT")
-        if durable_value
+        resolve_durable_root(str(durable_root), env_var="LAYOUTFORMERPP_DURABLE_ROOT")
+        if durable_root is not None
         else None
     )
     if resume and arm == "package" and durable_path is None:

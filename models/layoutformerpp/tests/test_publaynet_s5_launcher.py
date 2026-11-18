@@ -143,6 +143,7 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     checkpoint_directory = track / "lightning" / "package-checkpoints"
     durable_root = tmp_path / "durable"
     durable_root.mkdir()
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(durable_root))
     assert (
         launch_track.launch(
             campaign_rel, "label", 0, "package", 0, durable_root=durable_root
