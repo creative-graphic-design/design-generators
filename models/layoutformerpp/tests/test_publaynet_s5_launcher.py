@@ -190,26 +190,37 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     assert len(commands) == 1
 
     durable_track = Path(campaign_rel) / "label" / "seed-0" / "package"
-    bundle = durable_root / durable_track / "epoch-000001"
-    bundle.mkdir(parents=True)
-    checkpoint = bundle / "checkpoint.ckpt"
-    torch.save(
-        {"state_dict": {}, "layoutformerpp_identity": checkpoint_identity}, checkpoint
-    )
-    bundled_manifest = bundle / "launch_manifest.json"
-    bundled_manifest.write_bytes(manifest_path.read_bytes())
-    bundle_files = {
-        path.name: launch_track.sha256(path) for path in (checkpoint, bundled_manifest)
-    }
-    (bundle / "bundle_manifest.json").write_text(
-        json.dumps(
-            {
-                "checkpoint": (durable_track / bundle.name).as_posix(),
-                "files": bundle_files,
-            }
-        ),
-        encoding="utf-8",
-    )
+
+    def write_durable_bundle(
+        epoch: int, bundle_identity: dict[str, JSONValue] | None
+    ) -> Path:
+        bundle = durable_root / durable_track / f"epoch-{epoch:06d}"
+        bundle.mkdir(parents=True, exist_ok=True)
+        checkpoint = bundle / "checkpoint.ckpt"
+        checkpoint_payload: dict[str, JSONValue] = {"state_dict": {}}
+        if bundle_identity is not None:
+            checkpoint_payload["layoutformerpp_identity"] = bundle_identity
+        torch.save(checkpoint_payload, checkpoint)
+        bundled_manifest = bundle / "launch_manifest.json"
+        bundled_manifest.write_bytes(manifest_path.read_bytes())
+        bundle_files = {
+            path.name: launch_track.sha256(path)
+            for path in (checkpoint, bundled_manifest)
+        }
+        (bundle / "bundle_manifest.json").write_text(
+            json.dumps(
+                {
+                    "checkpoint": (durable_track / bundle.name).as_posix(),
+                    "files": bundle_files,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return checkpoint
+
+    checkpoint = write_durable_bundle(1, checkpoint_identity)
+    write_durable_bundle(2, dict(checkpoint_identity, device="other"))
+    write_durable_bundle(3, None)
     assert (
         launch_track.launch(
             campaign_rel,
