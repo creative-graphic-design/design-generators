@@ -118,6 +118,7 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
     monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
     monkeypatch.delenv("LAYOUTFORMERPP_DURABLE_ROOT", raising=False)
+    monkeypatch.setenv("LAYOUTFORMERPP_RESUME_PATH", "/inherited/untrusted.ckpt")
     monkeypatch.setattr(
         launch_track.sys, "executable", str(package_environment / "bin" / "python")
     )
@@ -129,11 +130,13 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
     monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
     monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("test-device", "GPU-test"))
-    commands: list[list[str]] = []
+    commands: list[tuple[list[str], dict[str, str]]] = []
     monkeypatch.setattr(
         launch_track,
         "run",
-        lambda command, *_args, **_kwargs: commands.append(command) or 0,
+        lambda command, _cwd, environment, *_args, **_kwargs: (
+            commands.append((command, dict(environment))) or 0
+        ),
     )
 
     track = campaign_root / "label" / "seed-0" / "package"
@@ -146,10 +149,11 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
         )
         == 0
     )
-    assert commands[0] == build_argv("label", 0, "package", track, package_environment)[
-        0
-    ] + [f"--trainer.callbacks.init_args.dirpath={checkpoint_directory.resolve()}"]
-    assert "--ckpt_path" not in commands[0]
+    assert not any(argument.startswith("--ckpt_path") for argument in commands[0][0])
+    assert commands[0][0] == build_argv(
+        "label", 0, "package", track, package_environment
+    )[0] + [f"--trainer.callbacks.init_args.dirpath={checkpoint_directory.resolve()}"]
+    assert "LAYOUTFORMERPP_RESUME_PATH" not in commands[0][1]
     manifest_path = track / "launch_manifest.json"
     identity = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -239,7 +243,7 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
         == 0
     )
     resumed = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert commands[1][-1] == f"--ckpt_path={checkpoint}"
+    assert commands[1][0][-1] == f"--ckpt_path={checkpoint}"
     assert resumed["commands"][0][-1].endswith(checkpoint.name)
     checkpoint.unlink()
     with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
@@ -299,7 +303,10 @@ def test_resume_candidates_reject_symlink_escapes(tmp_path: Path) -> None:
 
 
 def _prepare_original_resume_launch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    prepare_existing_track: bool = True,
 ) -> tuple[
     str, Path, Path, dict[str, JSONValue], list[tuple[list[str], dict[str, str]]]
 ]:
@@ -314,7 +321,8 @@ def _prepare_original_resume_launch(
     track = campaign_root / "label" / "seed-0" / "original"
     checkpoint_directory = track / "vendor-output"
     resume_directory = checkpoint_directory / "resume"
-    resume_directory.mkdir(parents=True)
+    if prepare_existing_track:
+        resume_directory.mkdir(parents=True)
 
     monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
     monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
@@ -355,9 +363,10 @@ def _prepare_original_resume_launch(
         ).as_posix(),
         "campaign_root": campaign_rel,
     }
-    (track / "launch_manifest.json").write_text(
-        json.dumps(recorded_identity), encoding="utf-8"
-    )
+    if prepare_existing_track:
+        (track / "launch_manifest.json").write_text(
+            json.dumps(recorded_identity), encoding="utf-8"
+        )
     commands: list[tuple[list[str], dict[str, str]]] = []
     monkeypatch.setattr(
         launch_track,
@@ -367,6 +376,43 @@ def _prepare_original_resume_launch(
         ),
     )
     return campaign_rel, track, resume_directory, identity, commands
+
+
+def test_original_fresh_launch_preserves_command_and_scrubs_resume_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    campaign_rel, track, _, _, commands = _prepare_original_resume_launch(
+        tmp_path, monkeypatch, prepare_existing_track=False
+    )
+    monkeypatch.setenv("LAYOUTFORMERPP_RESUME_PATH", "/inherited/untrusted.ckpt")
+
+    assert (
+        launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=False) == 0
+    )
+
+    vendor_script = launch_track.VENDOR_SOURCE / "scripts" / VENDOR_SCRIPTS["label"]
+    output_directory = track / "vendor-output"
+    expected_commands = [
+        [
+            "bash",
+            str(vendor_script),
+            mode,
+            DATA_ROOT_MARKER,
+            str(output_directory),
+            "basic",
+            "1",
+            "s5",
+        ]
+        for mode in ("train", "test")
+    ]
+    assert all(
+        not any(argument.startswith("--ckpt_path") for argument in command)
+        for command, _ in commands
+    )
+    assert [command for command, _ in commands] == expected_commands
+    assert all(
+        "LAYOUTFORMERPP_RESUME_PATH" not in environment for _, environment in commands
+    )
 
 
 def test_original_resume_selects_newest_complete_matching_checkpoint(
