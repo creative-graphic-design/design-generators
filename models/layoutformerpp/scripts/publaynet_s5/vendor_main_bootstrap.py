@@ -11,12 +11,16 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from launch_track import DATA_ROOT_MARKER, JSONValue, read_data_root
+from vendor_resume import prepare_vendor_tree
 
 
 def main() -> None:
     repository = Path(__file__).resolve().parents[4]
-    vendor_source = repository.joinpath(
+    pinned_source = repository.joinpath(
         "vendor", "ms-layout-generation", "LayoutFormer++", "src"
+    )
+    vendor_source = prepare_vendor_tree(
+        pinned_source, Path(os.environ["LAYOUTFORMERPP_VENDOR_CACHE"])
     )
     parity_tools = repository.joinpath(
         "models", "layoutformerpp", "tests", "vendor_parity"
