@@ -332,11 +332,16 @@ def resume_checkpoint_candidates(
     local_track_directory = checkpoint_path.parents[1]
     _reject_symlinked_directory(checkpoint_path, local_track_directory)
     resolved_checkpoint_path = checkpoint_path.resolve()
-    candidates = [
-        path
-        for path in checkpoint_path.glob("epoch-*")
-        if pattern.fullmatch(path.name) and _is_inside(path, resolved_checkpoint_path)
-    ]
+    candidates = (
+        [
+            path
+            for path in checkpoint_path.glob("epoch-*")
+            if pattern.fullmatch(path.name)
+            and _is_inside(path, resolved_checkpoint_path)
+        ]
+        if arm == "original"
+        else []
+    )
     if durable_root is None:
         return candidates
 
