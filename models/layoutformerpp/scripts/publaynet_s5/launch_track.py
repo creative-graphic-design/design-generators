@@ -237,7 +237,7 @@ def _complete_bundle_checkpoint(
         return None
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return None
 
     files = manifest.get("files") if isinstance(manifest, dict) else None
@@ -989,7 +989,7 @@ def launch(
                 raise RuntimeError("resume launch manifest is unavailable")
             try:
                 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+            except (OSError, ValueError):
                 raise RuntimeError("resume launch manifest is invalid") from None
             if not isinstance(manifest, dict):
                 raise RuntimeError("resume launch manifest is invalid")

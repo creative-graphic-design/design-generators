@@ -221,6 +221,11 @@ def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
     checkpoint = write_durable_bundle(1, checkpoint_identity)
     write_durable_bundle(2, dict(checkpoint_identity, device="other"))
     write_durable_bundle(3, None)
+    malformed_manifest = (
+        durable_root / durable_track / "epoch-000004" / "bundle_manifest.json"
+    )
+    malformed_manifest.parent.mkdir(parents=True)
+    malformed_manifest.write_bytes(b"\xff")
     assert (
         launch_track.launch(
             campaign_rel,
