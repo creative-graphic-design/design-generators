@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+import torch
 
 
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[1] / "scripts" / "publaynet_s5"
@@ -101,6 +102,402 @@ def test_publaynet_launcher_argv_and_outputs_keep_data_root_private(
         == "<REDACTED>"
     )
     assert str(fake_root).encode() not in child_log.getvalue()
+
+
+def test_package_resume_requires_durable_root_and_uses_matching_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    environment_file = tmp_path / "data-root.env"
+    environment_file.write_text("LAYOUTFORMERPP_DATA_ROOT=/unused\n", encoding="utf-8")
+    campaign_root = tmp_path / "campaign"
+    package_environment = tmp_path / "runtime"
+    campaign_rel = ".cache/resume-launch-test"
+    monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.delenv("LAYOUTFORMERPP_DURABLE_ROOT", raising=False)
+    monkeypatch.setenv("LAYOUTFORMERPP_RESUME_PATH", "/inherited/untrusted.ckpt")
+    monkeypatch.setattr(
+        launch_track.sys, "executable", str(package_environment / "bin" / "python")
+    )
+    monkeypatch.setattr(
+        launch_track, "validate_campaign_root", lambda *_: campaign_root
+    )
+    monkeypatch.setattr(launch_track, "read_data_root", lambda: data_root)
+    monkeypatch.setattr(launch_track, "verify_splits", lambda _: {})
+    monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
+    monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
+    monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("test-device", "GPU-test"))
+    commands: list[tuple[list[str], dict[str, str]]] = []
+    monkeypatch.setattr(
+        launch_track,
+        "run",
+        lambda command, _cwd, environment, *_args, **_kwargs: (
+            commands.append((command, dict(environment))) or 0
+        ),
+    )
+
+    track = campaign_root / "label" / "seed-0" / "package"
+    checkpoint_directory = track / "lightning" / "package-checkpoints"
+    durable_root = tmp_path / "durable"
+    durable_root.mkdir()
+    monkeypatch.setenv("LAYOUTFORMERPP_DURABLE_ROOT", str(durable_root))
+    assert (
+        launch_track.launch(
+            campaign_rel, "label", 0, "package", 0, durable_root=durable_root
+        )
+        == 0
+    )
+    assert not any(argument.startswith("--ckpt_path") for argument in commands[0][0])
+    assert commands[0][0] == build_argv(
+        "label", 0, "package", track, package_environment
+    )[0] + [f"--trainer.callbacks.init_args.dirpath={checkpoint_directory.resolve()}"]
+    assert "LAYOUTFORMERPP_RESUME_PATH" not in commands[0][1]
+    manifest_path = track / "launch_manifest.json"
+    identity = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    with pytest.raises(RuntimeError, match="--durable-root"):
+        launch_track.launch(campaign_rel, "label", 0, "package", 0, resume=True)
+    assert len(commands) == 1
+
+    checkpoint_directory.mkdir(parents=True)
+    checkpoint_identity = json.loads(
+        (track / "checkpoint_identity.json").read_text(encoding="utf-8")
+    )
+    checkpoint_identity["campaign_root"] = str(campaign_root.resolve())
+    torch.save(
+        {
+            "state_dict": {},
+            "layoutformerpp_identity": checkpoint_identity,
+        },
+        checkpoint_directory / "epoch-000099-step-000000396.ckpt",
+    )
+    torch.save(
+        {
+            "state_dict": {},
+            "layoutformerpp_identity": dict(checkpoint_identity, device="other"),
+        },
+        checkpoint_directory / "epoch-000098-step-000000392.ckpt",
+    )
+    (checkpoint_directory / "epoch-000097-step-000000388.ckpt").write_bytes(b"partial")
+    with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+    assert len(commands) == 1
+
+    durable_track = Path(campaign_rel) / "label" / "seed-0" / "package"
+
+    def write_durable_bundle(
+        epoch: int, bundle_identity: dict[str, JSONValue] | None
+    ) -> Path:
+        bundle = durable_root / durable_track / f"epoch-{epoch:06d}"
+        bundle.mkdir(parents=True, exist_ok=True)
+        checkpoint = bundle / "checkpoint.ckpt"
+        checkpoint_payload: dict[str, JSONValue] = {"state_dict": {}}
+        if bundle_identity is not None:
+            checkpoint_payload["layoutformerpp_identity"] = bundle_identity
+        torch.save(checkpoint_payload, checkpoint)
+        bundled_manifest = bundle / "launch_manifest.json"
+        bundled_manifest.write_bytes(manifest_path.read_bytes())
+        bundle_files = {
+            path.name: launch_track.sha256(path)
+            for path in (checkpoint, bundled_manifest)
+        }
+        (bundle / "bundle_manifest.json").write_text(
+            json.dumps(
+                {
+                    "checkpoint": (durable_track / bundle.name).as_posix(),
+                    "files": bundle_files,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return checkpoint
+
+    checkpoint = write_durable_bundle(1, checkpoint_identity)
+    write_durable_bundle(2, dict(checkpoint_identity, device="other"))
+    write_durable_bundle(3, None)
+    malformed_manifest = (
+        durable_root / durable_track / "epoch-000004" / "bundle_manifest.json"
+    )
+    malformed_manifest.parent.mkdir(parents=True)
+    malformed_manifest.write_bytes(b"\xff")
+    assert (
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+        == 0
+    )
+    resumed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert commands[1][0][-1] == f"--ckpt_path={checkpoint}"
+    assert resumed["commands"][0][-1].endswith(checkpoint.name)
+    checkpoint.unlink()
+    with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+    manifest_path.write_text(
+        json.dumps(dict(identity, device="other")), encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError, match="identity mismatch: device"):
+        launch_track.launch(
+            campaign_rel,
+            "label",
+            0,
+            "package",
+            0,
+            resume=True,
+            durable_root=durable_root,
+        )
+
+
+def test_resume_candidates_reject_symlink_escapes(tmp_path: Path) -> None:
+    track = tmp_path / "campaign" / "label" / "seed-0" / "package"
+    checkpoint_directory = track / "lightning" / "package-checkpoints"
+    checkpoint_directory.parent.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    checkpoint_directory.symlink_to(outside, target_is_directory=True)
+    durable_track = Path("label") / "seed-0" / "package"
+    with pytest.raises(RuntimeError, match="symlink"):
+        launch_track.resume_checkpoint_candidates(
+            checkpoint_directory, "package", None, durable_track
+        )
+
+    checkpoint_directory.unlink()
+    checkpoint_directory.mkdir()
+    outside_checkpoint = outside / "epoch-000001-step-000000001.ckpt"
+    outside_checkpoint.write_bytes(b"checkpoint")
+    (checkpoint_directory / outside_checkpoint.name).symlink_to(outside_checkpoint)
+    assert not launch_track.resume_checkpoint_candidates(
+        checkpoint_directory, "package", None, durable_track
+    )
+
+    durable_root = tmp_path / "durable"
+    durable_root.mkdir()
+    (durable_root / "label").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="symlink"):
+        launch_track.resume_checkpoint_candidates(
+            checkpoint_directory, "package", durable_root, durable_track
+        )
+
+
+def _prepare_original_resume_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    prepare_existing_track: bool = True,
+) -> tuple[
+    str, Path, Path, dict[str, JSONValue], list[tuple[list[str], dict[str, str]]]
+]:
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    environment_file = tmp_path / "data-root.env"
+    environment_file.write_text("LAYOUTFORMERPP_DATA_ROOT=/unused\n", encoding="utf-8")
+    campaign_root = tmp_path / "campaign"
+    campaign_root.mkdir()
+    package_environment = tmp_path / "runtime"
+    campaign_rel = ".cache/original-resume-test"
+    track = campaign_root / "label" / "seed-0" / "original"
+    checkpoint_directory = track / "vendor-output"
+    resume_directory = checkpoint_directory / "resume"
+    if prepare_existing_track:
+        resume_directory.mkdir(parents=True)
+
+    monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
+    monkeypatch.setenv("CAMPAIGN_ROOT", str(campaign_root))
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.delenv("LAYOUTFORMERPP_DURABLE_ROOT", raising=False)
+    monkeypatch.setattr(
+        launch_track.sys, "executable", str(package_environment / "bin" / "python")
+    )
+    monkeypatch.setattr(
+        launch_track, "validate_campaign_root", lambda *_: campaign_root
+    )
+    monkeypatch.setattr(launch_track, "read_data_root", lambda: data_root)
+    monkeypatch.setattr(launch_track, "verify_splits", lambda _: {})
+    monkeypatch.setattr(launch_track, "runtime_freeze_sha256", lambda _: "freeze")
+    monkeypatch.setattr(launch_track, "require_clean_tree", lambda: None)
+    monkeypatch.setattr(
+        launch_track, "vendor_commit", lambda: launch_track.EXPECTED_VENDOR_COMMIT
+    )
+    monkeypatch.setattr(launch_track, "current_commit", lambda: "test-commit")
+    monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("test-device", "GPU-test"))
+    monkeypatch.setattr(launch_track, "generate", lambda _: None)
+    monkeypatch.setattr(
+        launch_track, "stage_original_checkpoint", lambda _: {"source": "test"}
+    )
+
+    identity: dict[str, JSONValue] = {
+        "config_sha256": launch_track.CONFIG_SHA256["label"],
+        "source_commit": "test-commit",
+        "vendor_source_commit": launch_track.EXPECTED_VENDOR_COMMIT,
+        "device": "test-device",
+        "checkpoint_dirpath": str(checkpoint_directory.resolve()),
+        "campaign_root": str(campaign_root.resolve()),
+    }
+    recorded_identity = {
+        **identity,
+        "checkpoint_dirpath": checkpoint_directory.relative_to(
+            campaign_root
+        ).as_posix(),
+        "campaign_root": campaign_rel,
+    }
+    if prepare_existing_track:
+        (track / "launch_manifest.json").write_text(
+            json.dumps(recorded_identity), encoding="utf-8"
+        )
+    commands: list[tuple[list[str], dict[str, str]]] = []
+    monkeypatch.setattr(
+        launch_track,
+        "run",
+        lambda command, _cwd, environment, *_args, **_kwargs: (
+            commands.append((command, dict(environment))) or 0
+        ),
+    )
+    return campaign_rel, track, resume_directory, identity, commands
+
+
+def test_original_fresh_launch_preserves_command_and_scrubs_resume_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    campaign_rel, track, _, _, commands = _prepare_original_resume_launch(
+        tmp_path, monkeypatch, prepare_existing_track=False
+    )
+    monkeypatch.setenv("LAYOUTFORMERPP_RESUME_PATH", "/inherited/untrusted.ckpt")
+
+    assert (
+        launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=False) == 0
+    )
+
+    vendor_script = launch_track.VENDOR_SOURCE / "scripts" / VENDOR_SCRIPTS["label"]
+    output_directory = track / "vendor-output"
+    expected_commands = [
+        [
+            "bash",
+            str(vendor_script),
+            mode,
+            DATA_ROOT_MARKER,
+            str(output_directory),
+            "basic",
+            "1",
+            "s5",
+        ]
+        for mode in ("train", "test")
+    ]
+    assert all(
+        not any(argument.startswith("--ckpt_path") for argument in command)
+        for command, _ in commands
+    )
+    assert [command for command, _ in commands] == expected_commands
+    assert all(
+        "LAYOUTFORMERPP_RESUME_PATH" not in environment for _, environment in commands
+    )
+
+
+def test_original_resume_selects_newest_complete_matching_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    campaign_rel, track, resume_directory, identity, commands = (
+        _prepare_original_resume_launch(tmp_path, monkeypatch)
+    )
+    matching_paths = [
+        resume_directory / "epoch-000002-step-000000008.resume.pt",
+        resume_directory / "epoch-000005-step-000000020.resume.pt",
+    ]
+    for path in matching_paths:
+        torch.save({"state_dict": {}, "identity": identity}, path)
+    torch.save(
+        {
+            "state_dict": {},
+            "identity": dict(identity, device="other"),
+        },
+        resume_directory / "epoch-000006-step-000000024.resume.pt",
+    )
+    torch.save(
+        {"state_dict": {}},
+        resume_directory / "epoch-000007-step-000000028.resume.pt",
+    )
+    (resume_directory / "epoch-000008-step-000000032.resume.pt").write_bytes(b"partial")
+
+    assert (
+        launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=True) == 0
+    )
+
+    selected = matching_paths[-1]
+    assert commands[0][1]["LAYOUTFORMERPP_RESUME_PATH"] == str(selected)
+    manifest = json.loads((track / "launch_manifest.json").read_text(encoding="utf-8"))
+    assert (
+        manifest["resume_checkpoint"]["path"] == selected.relative_to(track).as_posix()
+    )
+
+
+@pytest.mark.parametrize("identity_state", ["mismatched", "identity-less"])
+def test_original_resume_refuses_mismatched_or_identityless_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, identity_state: str
+) -> None:
+    campaign_rel, _, resume_directory, identity, commands = (
+        _prepare_original_resume_launch(tmp_path, monkeypatch)
+    )
+    checkpoint_identity = (
+        dict(identity, device="other") if identity_state == "mismatched" else None
+    )
+    checkpoint: dict[str, JSONValue] = {"state_dict": {}}
+    if checkpoint_identity is not None:
+        checkpoint["identity"] = checkpoint_identity
+    torch.save(
+        checkpoint,
+        resume_directory / "epoch-000001-step-000000004.resume.pt",
+    )
+
+    with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
+        launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=True)
+    assert not commands
+
+
+@pytest.mark.parametrize("escape_kind", ["checkpoint", "directory"])
+def test_original_resume_refuses_symlinked_checkpoint_escapes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, escape_kind: str
+) -> None:
+    campaign_rel, _, resume_directory, identity, commands = (
+        _prepare_original_resume_launch(tmp_path, monkeypatch)
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    checkpoint_name = "epoch-000001-step-000000004.resume.pt"
+    if escape_kind == "directory":
+        resume_directory.rmdir()
+        resume_directory.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(RuntimeError, match="symlink"):
+            launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=True)
+    else:
+        outside_checkpoint = outside / checkpoint_name
+        torch.save({"state_dict": {}, "identity": identity}, outside_checkpoint)
+        (resume_directory / checkpoint_name).symlink_to(outside_checkpoint)
+        with pytest.raises(RuntimeError, match="no complete resume checkpoint"):
+            launch_track.launch(campaign_rel, "label", 0, "original", 0, resume=True)
+    assert not commands
 
 
 def test_vendor_best_epoch_is_staged_for_test_and_recorded(tmp_path: Path) -> None:
@@ -389,7 +786,7 @@ def test_pruning_error_stops_process_group_and_is_recorded(
     monkeypatch.setattr(
         launch_track,
         "build_argv",
-        lambda *args: [["bash", str(vendor_script), "train"]],
+        lambda *args, **kwargs: [["bash", str(vendor_script), "train"]],
     )
     monkeypatch.setattr(launch_track, "gpu_info", lambda _: ("NVIDIA A100", "GPU-test"))
     monkeypatch.setattr(launch_track, "write_command_log", lambda *args: None)
