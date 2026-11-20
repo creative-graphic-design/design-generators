@@ -40,20 +40,31 @@ class RADMPipeline(DiffusionPipeline):
         self,
         denoiser: RADMDenoiser,
         scheduler: RADMScheduler,
-        config: RADMConfig,
         processor: RADMProcessor | None = None,
+        config: RADMConfig | None = None,
     ) -> None:
         """Create a RADM pipeline.
 
         Args:
             denoiser: Proposal denoiser component.
             scheduler: Proposal diffusion scheduler.
-            config: RADM configuration.
-            processor: Optional input/output processor derived from ``config``.
+            processor: Optional input/output processor.
+            config: Optional RADM settings used to construct the processor.
+
+        Raises:
+            ValueError: If neither a config nor a processor is provided.
         """
         super().__init__()
         self.register_modules(denoiser=denoiser, scheduler=scheduler)
-        self.processor = processor or RADMProcessor(config=config)
+        if processor is None:
+            if config is None:
+                raise ValueError(
+                    "Pass config or processor to construct a RADM pipeline."
+                )
+
+            processor = RADMProcessor(config=config)
+
+        self.processor = processor
         self.denoiser.eval()
 
     @torch.no_grad()
@@ -171,7 +182,6 @@ class RADMPipeline(DiffusionPipeline):
             ...     denoiser=RADMDenoiser(config=config),
             ...     scheduler=RADMScheduler(num_train_timesteps=10, num_inference_steps=2),
             ...     config=config,
-            ...     processor=RADMProcessor(config=config),
             ... )
             >>> out = pipe(Image.new("RGB", (16, 16)), seed=0, num_inference_steps=2)
             >>> out.bbox.shape[-1]
