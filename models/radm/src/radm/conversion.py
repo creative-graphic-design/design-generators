@@ -11,7 +11,6 @@ from jaxtyping import Float
 from .configuration_radm import RADMConfig, RADM_DIFFUSION_STATE_KEYS
 from .modeling_radm import RADMDenoiser
 from .pipeline_radm import RADMPipeline
-from .processing_radm import RADMProcessor
 from .scheduling_radm import RADMScheduler
 
 CheckpointPayloadValue: TypeAlias = (
@@ -52,7 +51,6 @@ def build_pipeline(config: RADMConfig) -> RADMPipeline:
         denoiser=denoiser,
         scheduler=scheduler,
         config=config,
-        processor=RADMProcessor(config=config),
     )
 
 
