@@ -60,10 +60,10 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID                                | Status        |
-| ---------- | ------------------------------------- | ------------- |
-| CGL        | `creative-graphic-design/radm-cgl`    | not-published |
-| CGL-v2     | `creative-graphic-design/radm-cgl-v2` | not-published |
+| Checkpoint     | Hub ID                                | Status        |
+| -------------- | ------------------------------------- | ------------- |
+| CGL-Dataset V2 | `creative-graphic-design/radm-cgl`    | not-published |
+| CGL-v2         | `creative-graphic-design/radm-cgl-v2` | not-published |
 
 ## Uses
 
