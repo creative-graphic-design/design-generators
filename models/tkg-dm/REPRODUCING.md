@@ -77,4 +77,4 @@ uv run --package tkg-dm --locked models/tkg-dm/scripts/publish_to_hub.py \
   --revision "$(git rev-parse HEAD)" --dry-run
 ```
 
-The main-branch publication workflow runs the publisher after the package is merged. A real Hub upload requires `creative-graphic-design/tkg-dm` to exist. The shared fine-grained `HF_TOKEN` must have content-write access to the selected published model repositories, including this one.
+The `creative-graphic-design/tkg-dm` destination is available, and the main-branch publication workflow runs the publisher after the package is merged. The shared fine-grained `HF_TOKEN` must have content-write access to the selected published model repositories, including this one.

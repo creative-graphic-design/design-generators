@@ -51,15 +51,15 @@ The paper reports `target_shift=0.07` for both model families, where `0.07` rais
 - **Paper:** [arXiv:2411.15580](https://arxiv.org/abs/2411.15580).
 - **SD 1.5 base weights:** [stable-diffusion-v1-5/stable-diffusion-v1-5](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5).
 - **SDXL base weights:** [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0).
-- **Released TKG-DM weights:** None; when published, the planned Hub repository will contain pipeline code only.
+- **Released TKG-DM weights:** None. The Hub destination is available for code-only publication; base-model checkpoints remain upstream.
 
 ## Supported Checkpoints
 
-| Checkpoint                | Hub ID                                        | Revision                                   | Status                                                      |
-| ------------------------- | --------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------- |
-| Stable Diffusion 1.5 base | `stable-diffusion-v1-5/stable-diffusion-v1-5` | `451f4fe16113bff5a5d2269ed5ad43b0592e9a14` | Upstream base weights; terms apply.                         |
-| SDXL base                 | `stabilityai/stable-diffusion-xl-base-1.0`    | `462165984030d82259a11f4367a4eed129e94a7b` | Upstream base weights; terms apply.                         |
-| TKG-DM pipelines          | `creative-graphic-design/tkg-dm`              | —                                          | Not published; planned as code only, with no model weights. |
+| Checkpoint                | Hub ID                                        | Revision                                   | Status                                                             |
+| ------------------------- | --------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| Stable Diffusion 1.5 base | `stable-diffusion-v1-5/stable-diffusion-v1-5` | `451f4fe16113bff5a5d2269ed5ad43b0592e9a14` | Upstream base weights; terms apply.                                |
+| SDXL base                 | `stabilityai/stable-diffusion-xl-base-1.0`    | `462165984030d82259a11f4367a4eed129e94a7b` | Upstream base weights; terms apply.                                |
+| TKG-DM pipelines          | `creative-graphic-design/tkg-dm`              | —                                          | Code-only Hub destination; base-model checkpoints remain upstream. |
 
 ## Uses
 
