@@ -11,8 +11,27 @@ from radm.modeling_radm import RADMDenoiser
 
 
 def test_build_pipeline_from_config() -> None:
-    pipe = build_pipeline(RADMConfig(num_proposals=2, hidden_dim=8, text_feature_dim=4))
+    config = RADMConfig(
+        num_proposals=2,
+        hidden_dim=8,
+        text_feature_dim=4,
+        image_size=32,
+        size_divisibility=16,
+        pixel_mean=(100.0, 110.0, 120.0),
+        pixel_std=(10.0, 20.0, 30.0),
+        class_threshold=0.42,
+        nms_threshold=0.23,
+        processor_subfolder="tiny_processor",
+    )
+    pipe = build_pipeline(config)
     assert pipe.denoiser.config.num_proposals == 2
+    assert pipe.processor.config.image_size == config.image_size
+    assert pipe.processor.config.size_divisibility == config.size_divisibility
+    assert pipe.processor.config.pixel_mean == config.pixel_mean
+    assert pipe.processor.config.pixel_std == config.pixel_std
+    assert pipe.processor.config.class_threshold == config.class_threshold
+    assert pipe.processor.config.nms_threshold == config.nms_threshold
+    assert pipe.processor.config.processor_subfolder == config.processor_subfolder
 
 
 def test_convert_original_state_dict_supported_prefixes() -> None:
