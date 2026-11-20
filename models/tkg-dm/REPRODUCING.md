@@ -32,7 +32,7 @@ The conditions and acceptance thresholds are fixed before the comparison run. Th
 
 Noise outputs from the same fp16 input latent must satisfy `rtol=1e-5` and `atol=1e-6`. The complete SDXL normalized RGB images must have PSNR of at least 48 dB and MAE no greater than `1/255`. SD 1.5 package inference is repeated with the same seed and settings; the two RGB outputs must be identical. The SDXL image criteria and noise tolerances are not adjusted after results are observed.
 
-The comparison passed on a Colab Tesla T4 using Python 3.13.16, PyTorch 2.13.0+cu130, `diffusers` 0.39.0, and [`🤗transformers`](https://huggingface.co/docs/transformers/index) 5.13.0. The reference was pinned to `6dae8837021e4dd2eeea8e53b9ca7c5c8447bd10`, and both base checkpoints used the revisions listed above. Noise transformation had a maximum absolute error of 0 for both model families. The SDXL package and reference images were pixel-identical at 1024×1024 (PSNR ∞ dB, MAE 0). Repeated SD 1.5 package inference produced identical 512×512 RGB images with SHA-256 `4c76d1b6af804a6660f0a5ca2b3d335118b0af497cb361e997c418c5f6becdc3`. The README example PNG SHA-256 values are `54ce56eb88007f66f186e0d7962586e4ace6f4ea9163aee76adc8e0ccd0c7ea7` for SD 1.5 and `1ca97db64162d18cb78c10473c905d38f0f2b9821e8f2ca221973876ca39b4fe` for SDXL.
+The comparison passed on a Colab Tesla T4 using Python 3.13.16, PyTorch 2.13.0+cu130, `diffusers` 0.39.0, and [`🤗transformers`](https://huggingface.co/docs/transformers/index) 5.13.0. The reference was pinned to `6dae8837021e4dd2eeea8e53b9ca7c5c8447bd10`, and both base checkpoints used the revisions listed above. An independent acceptance rerun confirmed a maximum absolute noise error of 0 for both model families, a pixel-identical SDXL image (PSNR ∞ dB, MAE 0), and pixel-identical repeated SD 1.5 outputs. The original run recorded identical 512×512 SD 1.5 RGB images with SHA-256 `4c76d1b6af804a6660f0a5ca2b3d335118b0af497cb361e997c418c5f6becdc3`. The README example PNG SHA-256 values are `54ce56eb88007f66f186e0d7962586e4ace6f4ea9163aee76adc8e0ccd0c7ea7` for SD 1.5 and `1ca97db64162d18cb78c10473c905d38f0f2b9821e8f2ca221973876ca39b4fe` for SDXL.
 
 ## Colab GPU run
 
@@ -73,8 +73,7 @@ When published, the code-only Hub repository will contain the TKG-DM pipeline an
 
 ```bash
 UV_NO_CONFIG=1 UV_EXCLUDE_NEWER='7 days' \
-uv run --package tkg-dm --locked python \
-  models/tkg-dm/scripts/publish_to_hub.py \
+uv run --package tkg-dm --locked models/tkg-dm/scripts/publish_to_hub.py \
   --revision "$(git rev-parse HEAD)" --dry-run
 ```
 

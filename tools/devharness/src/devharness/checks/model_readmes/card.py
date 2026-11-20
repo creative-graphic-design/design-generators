@@ -919,7 +919,7 @@ def assert_model_index_policy(path: Path, frontmatter: str) -> None:
     if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         if has_model_index:
             raise AssertionError(
-                f"{path}: README for a package without learned checkpoints must not include model-index"
+                f"{path}: prompt-only README must not include model-index"
             )
 
         return
@@ -1110,7 +1110,7 @@ def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
         missing = [snippet for snippet in required if snippet not in get_started]
         if missing:
             raise AssertionError(
-                f"{path}: Get Started is missing local setup for a package without learned checkpoints: {missing}"
+                f"{path}: prompt-only Get Started is missing runnable setup parts {missing}"
             )
 
         return

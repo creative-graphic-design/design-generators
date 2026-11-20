@@ -13,19 +13,24 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
+from typing import Protocol, cast
 
 import numpy as np
 import pytest
 import torch
-from diffusers import (
-    AutoPipelineForText2Image,
-    DDIMScheduler,
-    DiffusionPipeline,
+from diffusers import __version__ as diffusers_version
+from diffusers.pipelines.auto_pipeline import AutoPipelineForText2Image
+from diffusers.pipelines.pipeline_utils import DiffusionPipeline
+from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import (
     StableDiffusionXLPipeline,
 )
-from diffusers import __version__ as diffusers_version
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from PIL import Image
-from tkg_dm import apply_tkg_noise
+from tkg_dm import (
+    TKGStableDiffusionPipeline,
+    TKGStableDiffusionXLPipeline,
+    apply_tkg_noise,
+)
 from transformers import __version__ as transformers_version
 
 AUTHOR_REVISION = "6dae8837021e4dd2eeea8e53b9ca7c5c8447bd10"
@@ -42,6 +47,22 @@ NOISE_ATOL = 1e-6
 SDXL_MIN_PSNR_DB = 48.0
 SDXL_MAX_MAE = 1 / 255
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
+
+
+class ChannelMeanShift(Protocol):
+    """Type of the reference noise-channel shift function."""
+
+    def __call__(
+        self,
+        tensor: torch.Tensor,
+        target_shift: float = 0.07,
+    ) -> torch.Tensor: ...
+
+
+class TKGNoise(Protocol):
+    """Type of the reference noise transformation."""
+
+    def __call__(self, latents: torch.Tensor, *, device: str) -> torch.Tensor: ...
 
 
 @dataclass(frozen=True)
@@ -183,21 +204,29 @@ def test_noise_transformation_matches_author_reference(
     _require_cuda()
     values = torch.linspace(-3, 3, 128 * 128, dtype=torch.float32, device="cuda")
     latents = values.reshape(1, 1, 128, 128).expand(1, 4, -1, -1).to(torch.float16)
-    original_channel_mean_shift = author_modules.utils.channel_mean_shift
+    original_channel_mean_shift = cast(
+        ChannelMeanShift,
+        getattr(author_modules.utils, "channel_mean_shift"),
+    )
+    reference_noise = cast(TKGNoise, getattr(author_modules.utils, "tkg_noise"))
 
     def channel_mean_shift(
         tensor: torch.Tensor,
         target_shift: float = target_shift,
     ) -> torch.Tensor:
-        return original_channel_mean_shift(tensor, target_shift=target_shift)
+        return original_channel_mean_shift(tensor, target_shift)
 
     previous_utils = sys.modules.get("utils")
-    author_modules.utils.channel_mean_shift = channel_mean_shift
+    setattr(author_modules.utils, "channel_mean_shift", channel_mean_shift)
     sys.modules["utils"] = author_modules.utils
     try:
-        reference = author_modules.utils.tkg_noise(latents, device="cuda")
+        reference = reference_noise(latents, device="cuda")
     finally:
-        author_modules.utils.channel_mean_shift = original_channel_mean_shift
+        setattr(
+            author_modules.utils,
+            "channel_mean_shift",
+            original_channel_mean_shift,
+        )
         if previous_utils is None:
             sys.modules.pop("utils", None)
         else:
@@ -234,12 +263,15 @@ def test_sdxl_image_matches_author_reference(
     def pinned_scheduler_loader(
         cls: type[DDIMScheduler],
         pretrained_model_name_or_path: str,
-        *args: object,
+        subfolder: str | None = None,
         **kwargs: object,
     ) -> DDIMScheduler:
         kwargs["revision"] = SDXL_MODEL_REVISION
         return original_scheduler_loader(
-            cls, pretrained_model_name_or_path, *args, **kwargs
+            cls,
+            pretrained_model_name_or_path,
+            subfolder=subfolder,
+            **kwargs,
         )
 
     monkeypatch.setattr(
@@ -252,12 +284,12 @@ def test_sdxl_image_matches_author_reference(
     def pinned_pipeline_loader(
         cls: type[AutoPipelineForText2Image],
         pretrained_model_name_or_path: str,
-        *args: object,
         **kwargs: object,
     ) -> StableDiffusionXLPipeline:
         kwargs["revision"] = SDXL_MODEL_REVISION
-        return original_pipeline_loader(
-            cls, pretrained_model_name_or_path, *args, **kwargs
+        return cast(
+            StableDiffusionXLPipeline,
+            original_pipeline_loader(cls, pretrained_model_name_or_path, **kwargs),
         )
 
     monkeypatch.setattr(
@@ -295,18 +327,21 @@ def test_sdxl_image_matches_author_reference(
     reference_image = reference_images[0].convert("RGB")
     del reference_images, reference_generator
     torch.cuda.empty_cache()
-    package_pipeline = DiffusionPipeline.from_pretrained(
-        SDXL_MODEL_ID,
-        revision=SDXL_MODEL_REVISION,
-        scheduler=DDIMScheduler.from_pretrained(
+    package_pipeline = cast(
+        TKGStableDiffusionXLPipeline,
+        DiffusionPipeline.from_pretrained(
             SDXL_MODEL_ID,
-            subfolder="scheduler",
             revision=SDXL_MODEL_REVISION,
+            scheduler=DDIMScheduler.from_pretrained(
+                SDXL_MODEL_ID,
+                subfolder="scheduler",
+                revision=SDXL_MODEL_REVISION,
+            ),
+            custom_pipeline=str(_local_custom_pipeline(tmp_path / "custom_sdxl")),
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            variant="fp16",
         ),
-        custom_pipeline=str(_local_custom_pipeline(tmp_path / "custom_sdxl")),
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        variant="fp16",
     ).to("cuda")
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
@@ -380,14 +415,17 @@ def test_sd15_package_inference_repeats_with_identical_image_hashes(
         subfolder="scheduler",
         revision=SD15_MODEL_REVISION,
     )
-    pipeline = DiffusionPipeline.from_pretrained(
-        SD15_MODEL_ID,
-        revision=SD15_MODEL_REVISION,
-        scheduler=scheduler,
-        custom_pipeline=str(_local_custom_pipeline(tmp_path / "custom_sd15")),
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        variant="fp16",
+    pipeline = cast(
+        TKGStableDiffusionPipeline,
+        DiffusionPipeline.from_pretrained(
+            SD15_MODEL_ID,
+            revision=SD15_MODEL_REVISION,
+            scheduler=scheduler,
+            custom_pipeline=str(_local_custom_pipeline(tmp_path / "custom_sd15")),
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            variant="fp16",
+        ),
     ).to("cuda")
 
     def generate() -> Image.Image:

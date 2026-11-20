@@ -20,14 +20,14 @@ datasets: []
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![task](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=published-code-only&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)
 
 This package implements TKG-DM to generate foreground assets on a green chroma-key background, so you can key out the background and composite the subject into another design.
 
 Choose either public checkpoint: `stable-diffusion-v1-5/stable-diffusion-v1-5` or `stabilityai/stable-diffusion-xl-base-1.0`. Provide a text prompt; the pipeline returns an RGB image with a green chroma-key background. This package fixes positive shifts to latent channels 2 and 3, producing green. The paper describes changing channels and shift directions to target other colors, which this package does not expose. `target_shift` controls how much the positive-value ratio of two initial-noise channels increases; the pipeline uses `0.07` for SD 1.5 and `0.11` for SDXL.
 
-This package contains no TKG-DM weights; it loads the selected public Stable Diffusion checkpoint. A pinned SDXL comparison with the [author's implementation](https://github.com/ryugo417/TKG-DM) yielded zero measured image error (PSNR ∞ dB, MAE 0); an independent acceptance rerun is pending.
+This package contains no TKG-DM weights; it loads the selected public Stable Diffusion checkpoint. An independent rerun of the pinned SDXL comparison with the [author's implementation](https://github.com/ryugo417/TKG-DM) confirmed zero measured image error (PSNR ∞ dB, MAE 0).
 
 ## Model Details
 
@@ -212,7 +212,7 @@ Noise tensors are compared with `rtol=1e-5` and `atol=1e-6`. SDXL images are con
 
 ### Parity Results
 
-The vendor parity is not verified until an independent acceptance rerun with required assets confirms these results. The acceptance criteria were fixed before running either implementation. Image comparisons use the complete normalized RGB images without cropping.
+An independent acceptance rerun confirmed these parity results. The acceptance criteria were fixed before running either implementation. Image comparisons use the complete normalized RGB images without cropping.
 
 | Check                                 | Cases | Criterion                                                    | Result                                                                                                |
 | ------------------------------------- | ----: | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |

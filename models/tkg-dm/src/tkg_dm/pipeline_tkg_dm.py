@@ -8,24 +8,25 @@ from typing import ClassVar, Final
 import torch
 import torch.nn.functional as F
 from diffusers import (
+    AutoencoderKL,
     DDIMScheduler,
     DiffusionPipeline,
     StableDiffusionPipeline,
     StableDiffusionXLPipeline,
+    UNet2DConditionModel,
 )
-from diffusers.models import AutoencoderKL, UNet2DConditionModel
 from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,
 )
-from diffusers.schedulers import KarrasDiffusionSchedulers
+from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
 from jaxtyping import Float
 from transformers import (
     CLIPImageProcessor,
     CLIPTextModel,
-    CLIPTextModelWithProjection,
     CLIPTokenizer,
     CLIPVisionModelWithProjection,
 )
+from transformers.models.clip.modeling_clip import CLIPTextModelWithProjection
 
 DEFAULT_SD15_TARGET_SHIFT: Final[float] = 0.07
 DEFAULT_SDXL_TARGET_SHIFT: Final[float] = 0.11
@@ -405,11 +406,6 @@ class TKGDMHubPipeline(DiffusionPipeline):
             ValueError: If only one of the two SDXL text-encoder components is set.
             TypeError: If the selected pipeline receives a non-DDIM scheduler.
         """
-        if (text_encoder_2 is None) != (tokenizer_2 is None):
-            raise ValueError(
-                "SDXL loading requires both second text-encoder components"
-            )
-
         from .pipeline_tkg_dm import (
             TKGStableDiffusionPipeline,
             TKGStableDiffusionXLPipeline,
@@ -417,6 +413,11 @@ class TKGDMHubPipeline(DiffusionPipeline):
 
         # The checkpoint's second text encoder identifies the model family.
         if text_encoder_2 is None:
+            if tokenizer_2 is not None:
+                raise ValueError(
+                    "SDXL loading requires both second text-encoder components"
+                )
+
             return TKGStableDiffusionPipeline(
                 vae=vae,
                 text_encoder=text_encoder,
@@ -427,6 +428,11 @@ class TKGDMHubPipeline(DiffusionPipeline):
                 feature_extractor=feature_extractor,
                 image_encoder=image_encoder,
                 requires_safety_checker=requires_safety_checker,
+            )
+
+        if tokenizer_2 is None:
+            raise ValueError(
+                "SDXL loading requires both second text-encoder components"
             )
 
         return TKGStableDiffusionXLPipeline(

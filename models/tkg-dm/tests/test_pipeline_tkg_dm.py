@@ -5,12 +5,16 @@ from typing import cast
 
 import pytest
 import torch
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
-from diffusers.models import AutoencoderKL, UNet2DConditionModel
+from diffusers import (
+    AutoencoderKL,
+    StableDiffusionPipeline,
+    StableDiffusionXLPipeline,
+    UNet2DConditionModel,
+)
 from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,
 )
-from diffusers.schedulers import KarrasDiffusionSchedulers
+from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
 from tkg_dm import (
     DEFAULT_SD15_TARGET_SHIFT,
     DEFAULT_SDXL_TARGET_SHIFT,
@@ -22,9 +26,9 @@ from tkg_dm import (
 from transformers import (
     CLIPImageProcessor,
     CLIPTextModel,
-    CLIPTextModelWithProjection,
     CLIPTokenizer,
 )
+from transformers.models.clip.modeling_clip import CLIPTextModelWithProjection
 
 
 @pytest.mark.parametrize(
@@ -139,18 +143,26 @@ def test_hub_pipeline_routes_to_the_matching_model_family(
         "TKGStableDiffusionXLPipeline",
         PipelineProbe,
     )
-    components: dict[str, object] = {
-        "vae": object(),
-        "text_encoder": object(),
-        "tokenizer": object(),
-        "unet": object(),
-        "scheduler": object(),
-    }
     if sdxl:
-        components["text_encoder_2"] = object()
-        components["tokenizer_2"] = object()
-
-    pipeline = TKGDMHubPipeline.__new__(TKGDMHubPipeline, **components)
+        pipeline = TKGDMHubPipeline.__new__(
+            TKGDMHubPipeline,
+            vae=cast(AutoencoderKL, object()),
+            text_encoder=cast(CLIPTextModel, object()),
+            tokenizer=cast(CLIPTokenizer, object()),
+            unet=cast(UNet2DConditionModel, object()),
+            scheduler=cast(KarrasDiffusionSchedulers, object()),
+            text_encoder_2=cast(CLIPTextModelWithProjection, object()),
+            tokenizer_2=cast(CLIPTokenizer, object()),
+        )
+    else:
+        pipeline = TKGDMHubPipeline.__new__(
+            TKGDMHubPipeline,
+            vae=cast(AutoencoderKL, object()),
+            text_encoder=cast(CLIPTextModel, object()),
+            tokenizer=cast(CLIPTokenizer, object()),
+            unet=cast(UNet2DConditionModel, object()),
+            scheduler=cast(KarrasDiffusionSchedulers, object()),
+        )
 
     assert isinstance(pipeline, PipelineProbe)
     if sdxl:
@@ -163,12 +175,12 @@ def test_hub_pipeline_rejects_a_partial_sdxl_text_encoder_pair() -> None:
     with pytest.raises(ValueError, match="both second text-encoder components"):
         TKGDMHubPipeline.__new__(
             TKGDMHubPipeline,
-            vae=object(),
-            text_encoder=object(),
-            tokenizer=object(),
-            unet=object(),
-            scheduler=object(),
-            text_encoder_2=object(),
+            vae=cast(AutoencoderKL, object()),
+            text_encoder=cast(CLIPTextModel, object()),
+            tokenizer=cast(CLIPTokenizer, object()),
+            unet=cast(UNet2DConditionModel, object()),
+            scheduler=cast(KarrasDiffusionSchedulers, object()),
+            text_encoder_2=cast(CLIPTextModelWithProjection, object()),
             tokenizer_2=None,
         )
 
