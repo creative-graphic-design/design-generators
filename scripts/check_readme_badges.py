@@ -152,6 +152,7 @@ DATASET_LINKS = {
     "PKU-PosterLayout": "https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout",
 }
 PAPER_LINKS = {
+    ("arXiv", "2411.15580"): "https://arxiv.org/abs/2411.15580",
     (
         "paper",
         "CVPR 2019",

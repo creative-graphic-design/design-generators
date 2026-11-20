@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 IGNORE_PATH = ROOT / ".lycheeignore"
-URL_RE = re.compile(r"https?://[^\s<>'\"\\]+")
+URL_RE = re.compile(r"https?://(?:(?!\]\()[^\s<>'\"\\])+")
 VCS_GIT_REVISION_RE = re.compile(
     r"^(?P<repo>https?://[^\s<>'\"\\]+?\.git)@(?P<revision>[^/?#]+)(?:[?#].*)?$"
 )
