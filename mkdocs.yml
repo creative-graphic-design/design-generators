@@ -96,6 +96,7 @@ nav:
           - ralf: api/models/ralf.md
           - smarttext: api/models/smarttext.md
           - structure-diffusion: api/models/structure-diffusion.md
+          - tkg-dm: api/models/tkg-dm.md
 
 markdown_extensions:
   - admonition

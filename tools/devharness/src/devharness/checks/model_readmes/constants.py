@@ -323,6 +323,7 @@ EXPECTED_FRONTMATTER = {
     "smarttext": {"license": "other", "datasets": ["SmartText demo"]},
     "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
     "structure-diffusion": {"license": "apache-2.0", "datasets": []},
+    "tkg-dm": {"license": "apache-2.0", "datasets": []},
 }
 
 EXPECTED_PIPELINE_TAGS = {"pixel-vae": "image-feature-extraction"}
@@ -363,6 +364,7 @@ EXPECTED_MODEL_NAMES = {
     "smarttext": "SmartText",
     "basnet": "BASNet",
     "structure-diffusion": "StructureDiffusion",
+    "tkg-dm": "TKG-DM",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -390,10 +392,11 @@ EXPECTED_REPOSITORY_LINKS = {
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
     "structure-diffusion": "https://github.com/weixi-feng/Structured-Diffusion-Guidance",
+    "tkg-dm": "https://github.com/ryugo417/TKG-DM",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
-CODE_ONLY_SLUGS = {"collage-diffusion"}
+CODE_ONLY_SLUGS = {"collage-diffusion", "tkg-dm"}
 NO_MODEL_WEIGHTS_SLUGS = PROMPT_ONLY_SLUGS | CODE_ONLY_SLUGS
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",

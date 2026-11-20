@@ -74,6 +74,25 @@ def test_extract_urls_from_added_lines_only_reads_added_external_urls() -> None:
     ]
 
 
+def test_extract_urls_from_linked_markdown_image() -> None:
+    image_url = f"{HTTPS}{EXAMPLE_HOST}/images/example.png"
+    diff_text = "\n".join(
+        [
+            "diff --git a/README.md b/README.md",
+            "--- a/README.md",
+            "+++ b/README.md",
+            "@@ -0,0 +1,1 @@",
+            f"+[![Example image]({image_url})]({image_url})",
+            "",
+        ]
+    )
+
+    assert check_changed_urls.extract_urls_from_added_lines(diff_text) == [
+        check_changed_urls.ChangedUrl(url=image_url, source="README.md:1"),
+        check_changed_urls.ChangedUrl(url=image_url, source="README.md:1"),
+    ]
+
+
 def test_extract_urls_from_added_lines_ignores_lycheeignore_patterns() -> None:
     diff_text = "\n".join(
         [
