@@ -36,6 +36,16 @@ task = "image-to-image-generation"
 conditions = ["text", "image"]
 datasets = []
 
+[tool.design-generators.hub-publisher]
+repo-id = "creative-graphic-design/collage-diffusion"
+archive-url-count = 2
+remove-readme-license = true
+preserve-existing-path-prefixes = ["source-assets/"]
+
+[tool.design-generators.hub-publisher.files]
+"README.md" = "README.md"
+"pipeline.py" = "src/collage_diffusion/pipeline_collage_diffusion.py"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
