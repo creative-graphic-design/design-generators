@@ -37,7 +37,7 @@ The method is training-free and retains the usual [`🧨diffusers`](https://hugg
 
 ### Model Description
 
-SAWNA converts normalized `(x1, y1, x2, y2)` boxes to a binary latent-space mask and applies a separable Gaussian blur. It blends the shifted noise with `epsilon_masked = epsilon + mask_blurred * (epsilon_shifted - epsilon)`. Automatic blur uses two percent of the shorter latent-grid side.
+SAWNA converts normalized `(x1, y1, x2, y2)` boxes to a binary latent-space mask and applies a separable Gaussian blur. It blends the shifted noise with `epsilon_masked = epsilon + mask_blurred * (epsilon_shifted - epsilon)`. Automatic blur uses two percent of the shorter latent-grid side. The [pinned Space implementation](https://huggingface.co/spaces/EQUES/Space-Aware_Text-to-Image_Generation/blob/e0a8f843a0b4e62c0650b03d5f335271ecb36d0b/tkg_dm.py#L111-L113) sets this default.
 
 - **Developed by:** Ryugo Morita, Sho Kuno, Ryunosuke Tanaka, Rongzhi Li, Hoang Dai Dinh, and Issey Sukeda.
 - **Shared by:** creative-graphic-design.
