@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import ClassVar, TypedDict, Unpack
+from typing import ClassVar, Protocol, TypedDict, Unpack
 
 import numpy as np
 import torch
@@ -21,7 +21,6 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import (
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import (
     StableDiffusionXLPipelineOutput,
 )
-from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
 from diffusers.utils.torch_utils import randn_tensor
 from jaxtyping import Float
 from PIL import Image
@@ -113,10 +112,14 @@ _SAWNA_CALL_PARAMETERS: ContextVar[_SAWNACallParameters | None] = ContextVar(
 )
 
 
+class _SchedulerWithNoiseSigma(Protocol):
+    init_noise_sigma: float
+
+
 class _SAWNAInitialNoiseMixin:
     """Apply SAWNA to the initial noise while leaving denoising to Diffusers."""
 
-    scheduler: KarrasDiffusionSchedulers
+    scheduler: _SchedulerWithNoiseSigma
     vae_scale_factor: int
 
     def prepare_latents(
