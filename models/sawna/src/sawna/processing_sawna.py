@@ -25,7 +25,8 @@ def apply_sawna_noise(
     """Blend channel-shifted noise into blurred reserved regions.
 
     Args:
-        latents: Four-dimensional initial noise with at least three channels.
+        latents: Four-dimensional floating-point initial noise with a positive
+            batch, at least three channels, and height and width of at least 8.
         bounding_boxes: Normalized ``(x1, y1, x2, y2)`` reserved regions.
         target_shift: Increase in positive-value ratio for TKG-DM channels 1 and 2.
         blur_sigma: Gaussian standard deviation in latent-grid pixels, or ``None``
@@ -35,7 +36,7 @@ def apply_sawna_noise(
         Initial noise with TKG-DM channel shifts blended into the reserved regions.
 
     Raises:
-        ValueError: If ``target_shift``, ``blur_sigma``, or a bounding box is invalid.
+        ValueError: If the latent shape, controls, or a bounding box is invalid.
         TypeError: If ``latents`` is not floating-point.
 
     Examples:
@@ -46,9 +47,6 @@ def apply_sawna_noise(
         True
     """
     _validate_controls(target_shift=target_shift, blur_sigma=blur_sigma)
-
-    if not bounding_boxes:
-        return latents
 
     if latents.ndim != 4:
         raise ValueError("latents must have batch, channel, height, and width axes")
@@ -62,6 +60,9 @@ def apply_sawna_noise(
     height, width = latents.shape[-2:]
     if height < 8 or width < 8:
         raise ValueError("latent height and width must each be at least 8")
+
+    if not bounding_boxes:
+        return latents
 
     mask = _create_blurred_bbox_mask(
         height,

@@ -210,7 +210,7 @@ The evaluation uses the pinned public Space implementation and the three checkpo
 | Package repeatability         |                   3 | Bitwise equality for repeated calls with the same generator                | 3/3 exact matches        |
 | Standard `diffusers` behavior | 2 pipeline families | Empty boxes preserve the normal initial-noise path                         | Covered by package tests |
 
-An independent acceptance rerun on an L4 GPU compared the pinned Space reference with all three package pipelines. Masked initial noise, generated image pixels, and repeated package outputs matched bitwise in all three cases, with no skips; the run used 0.16 Colab units. See [issue #553](https://github.com/creative-graphic-design/design-generators/issues/553) for the recorded result and [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md) for the reproduction procedure.
+An independent acceptance rerun on an L4 GPU compared the pinned Space reference with all three package pipelines. Masked initial noise, generated image pixels, and repeated package outputs matched bitwise in all three cases, with no skips; the run used 0.16 Colab units. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md#recording-results) for the implementation and independent run records.
 
 ## Reproducibility
 

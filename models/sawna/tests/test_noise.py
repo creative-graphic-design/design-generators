@@ -86,18 +86,33 @@ def test_invalid_noise_controls_are_rejected(
         )
 
 
-def test_invalid_latent_shapes_and_dtypes_are_rejected() -> None:
+@pytest.mark.parametrize(
+    "bounding_boxes",
+    [[], [(0.3, 0.3, 0.7, 0.7)]],
+)
+def test_invalid_latent_shapes_and_dtypes_are_rejected(
+    bounding_boxes: Sequence[BoundingBox],
+) -> None:
     with pytest.raises(ValueError, match="batch, channel, height, and width"):
-        apply_sawna_noise(torch.zeros((4, 64, 64)), [(0.3, 0.3, 0.7, 0.7)])
+        apply_sawna_noise(torch.zeros((4, 64, 64)), bounding_boxes)
 
     with pytest.raises(TypeError, match="floating-point"):
         apply_sawna_noise(
             torch.zeros((1, 4, 64, 64), dtype=torch.int64),
-            [(0.3, 0.3, 0.7, 0.7)],
+            bounding_boxes,
         )
 
     with pytest.raises(ValueError, match="at least three channels"):
-        apply_sawna_noise(torch.zeros((1, 2, 64, 64)), [(0.3, 0.3, 0.7, 0.7)])
+        apply_sawna_noise(torch.zeros((1, 2, 64, 64)), bounding_boxes)
+
+    with pytest.raises(ValueError, match="contain a batch"):
+        apply_sawna_noise(torch.zeros((0, 4, 64, 64)), bounding_boxes)
+
+    with pytest.raises(ValueError, match="height and width must each be at least 8"):
+        apply_sawna_noise(torch.zeros((1, 4, 4, 64)), bounding_boxes)
+
+    with pytest.raises(ValueError, match="height and width must each be at least 8"):
+        apply_sawna_noise(torch.zeros((1, 4, 64, 4)), bounding_boxes)
 
 
 @pytest.mark.parametrize(
