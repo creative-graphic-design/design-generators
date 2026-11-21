@@ -37,8 +37,10 @@ def test_shift_tkg_noise_channels_returns_unmasked_channel_shift() -> None:
     assert torch.equal(shifted[:, 3], latents[:, 3])
     assert torch.all(shifted[:, 1] > latents[:, 1])
     assert torch.all(shifted[:, 2] > latents[:, 2])
-    assert torch.unique(shifted[:, 1] - latents[:, 1]).numel() == 1
-    assert torch.unique(shifted[:, 2] - latents[:, 2]).numel() == 1
+    for channel in (1, 2):
+        channel_shift = shifted[:, channel] - latents[:, channel]
+        expected_shift = channel_shift.flatten()[0].expand_as(channel_shift)
+        torch.testing.assert_close(channel_shift, expected_shift, rtol=0, atol=1e-6)
 
 
 def test_zero_channel_shift_returns_the_original_noise() -> None:
