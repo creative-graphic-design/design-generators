@@ -37,6 +37,10 @@ def test_declared_files_pin_archive_links_and_keep_generated_entrypoints(
     )
     if package == "sawna":
         assert files["pipeline.py"] == b"from sawna import SAWNAHubPipeline\n"
+    if package == "tkg-dm":
+        assert (
+            files["pipeline.py"] == b"from .pipeline_tkg_dm import TKGDMHubPipeline\n"
+        )
 
 
 def test_existing_files_ignore_only_archive_revision_changes() -> None:
