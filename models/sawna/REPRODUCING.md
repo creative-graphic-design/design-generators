@@ -17,21 +17,24 @@ The reference source is downloaded to a temporary cache at the pinned Space revi
 
 ## Environment
 
-Use the repository lock and [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) `0.39.0`. Run asset-backed acceptance on one Colab GPU type for all three models. Use fp16, seed `1234`, prompt `A majestic lion in a natural landscape`, box `(0.3, 0.3, 0.7, 0.7)`, target shift `0.07`, automatic blur, 25 steps, guidance scale `7.5`, and no negative prompt.
+The verified environment used Python `3.11.17`, PyTorch `2.13.0+cu130`, and a Colab L4 GPU. It used [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) `0.39.0`, [`🤗transformers`](https://huggingface.co/docs/transformers/index) `5.13.0`, and Hugging Face Hub `1.23.0`. Use fp16, seed `1234`, prompt `A majestic lion in a natural landscape`, box `(0.3, 0.3, 0.7, 0.7)`, target shift `0.07`, automatic blur, 25 steps, guidance scale `7.5`, and no negative prompt.
 
 The default output path is `.cache/sawna/parity`. Set `SAWNA_PARITY_OUTPUT_DIR` to a durable run directory before execution. The result directory contains one PNG and one tensor archive per checkpoint, plus `parity-results.json`. The JSON records source and model revisions, dependency versions, GPU, scheduler hashes, generation arguments, and result hashes.
 
-The full three-checkpoint run is budgeted for one Colab L4 session with a two-hour wall-clock limit. Record the selected GPU, elapsed runtime, and before-and-after compute-unit balance with the run results. Do not purchase compute units for this run.
+The recorded acceptance used two Colab L4 sessions. The SD 1.5 case took `33.032` seconds, and the combined SD 2.1 and SDXL cases took `150.484` seconds. The two acceptance sessions consumed `0.09` compute units, with no compute-unit purchases.
 
 ## Package Tests
 
-From the repository root, run the unit and integration tests with the workspace package selected:
+From the repository root, run the package unit tests. Run the asset-backed acceptance separately with the GPU command below.
 
 ```bash
-uv run --package sawna pytest models/sawna/tests --cov=sawna --cov-report=term-missing
+uv run --package sawna --locked \
+  --with pytest==9.1.1 --with pytest-cov==7.1.0 \
+  python -m pytest models/sawna/tests --cov=sawna --cov-report=term-missing \
+  -m 'not vendor_parity and not integration'
 ```
 
-The suite covers box-mask construction, validation, zero-box behavior, Stable Diffusion and SDXL initial-noise preparation, scheduler scaling, and the custom pipeline component selection. It requires at least 90 percent package coverage.
+The recorded SAWNA run passed 19 tests, deselected the asset-backed parity test, and reported 97 percent package coverage. The affected TKG-DM tests passed 19 tests. The suites cover box-mask construction, validation, zero-box behavior, Stable Diffusion and SDXL initial-noise preparation, scheduler scaling, and custom pipeline component selection.
 
 ## Asset-Backed Acceptance
 
@@ -40,7 +43,9 @@ Run the vendor comparison with `PARITY_REQUIRE=1` so absent GPU access or source
 ```bash
 PARITY_REQUIRE=1 \
 SAWNA_PARITY_OUTPUT_DIR=/content/sawna-parity \
-uv run --package sawna pytest models/sawna/tests/vendor_parity/test_sawna_parity.py -q
+uv run --package sawna --locked \
+  --with pytest==9.1.1 --with pytest-cov==7.1.0 \
+  python -m pytest models/sawna/tests/vendor_parity/test_sawna_parity.py -q
 ```
 
 The test downloads the pinned Space source and each public checkpoint. It compares package `epsilon_masked` tensors with the source output from the same fp16 noise, boxes, target shift, and automatic blur. It then compares image tensors from the source `diffusers` pipeline and the SAWNA pipeline with the same masked latents and sampler-generator state. All three checkpoint cases require bitwise equality. The SAWNA pipeline also runs twice with the same public generator argument to verify repeatability.
@@ -49,6 +54,18 @@ The test saves its generated examples as `sawna-<checkpoint>-lion-seed1234.png`.
 
 ## Recording Results
 
-Record revisions, source hashes, package commit, GPU, runtime, elapsed time, and compute-unit balance. Include dependency versions, scheduler hashes, generation settings, comparison results, and image hashes. Report pass and skip counts separately. A passing run has three exact masked-noise comparisons, three exact generated-image comparisons, and three repeatability comparisons.
+The recorded acceptance used SAWNA commit `a2b100cdcad76ebe8f89b5522823d2a8487586e0` and Space revision `e0a8f843a0b4e62c0650b03d5f335271ecb36d0b`.
+
+The pinned Space `app.py` SHA-256 is `0e162d6e90f288d19731ac67a0cb7c7a77154221c75d71f86495172e205b5ed5`. The pinned Space `tkg_dm.py` SHA-256 is `475c4b7f82e133eb7ff589dd94f08535a88cbe32b3d40ea90e7daafce8a974b7`.
+
+The run used PyTorch `2.13.0+cu130`, `diffusers` `0.39.0`, `transformers` `5.13.0`, and Hugging Face Hub `1.23.0`.
+
+| Checkpoint           | Masked noise | Generated image | Repeatability | Example image SHA-256                                              |
+| -------------------- | ------------ | --------------- | ------------- | ------------------------------------------------------------------ |
+| Stable Diffusion 1.5 | Exact match  | Exact match     | Exact match   | `6815ed8367c172d979ca977d87eea740dee8573c918358f168adef0af414626b` |
+| Stable Diffusion 2.1 | Exact match  | Exact match     | Exact match   | `5cd7a5ecb206921409f7da41b6cf33c8e3b3c53e9b3d0d59c961bea97435e571` |
+| Stable Diffusion XL  | Exact match  | Exact match     | Exact match   | `2442d20ecc3f6820bf0ca7f6f54c8555035b5bb2af21304eb45490efd9caf065` |
+
+Record revisions, source hashes, package commit, GPU, runtime, elapsed time, compute-unit balance, dependency versions, scheduler hashes, generation settings, and pass and skip counts for future runs.
 
 Do not describe parity as verified when the required run is absent or has skipped cases. If a comparison is not bitwise equal, preserve the artifacts and identify the first differing tensor before proposing a tolerance. A tolerance requires a measured numerical cause and written justification before changing the acceptance criterion.

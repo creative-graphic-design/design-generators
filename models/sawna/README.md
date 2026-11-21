@@ -203,14 +203,14 @@ The evaluation uses the pinned public Space implementation and the three checkpo
 
 ### Parity Results
 
-| Check                         |               Cases | Criterion                                                                  | Result                     |
-| ----------------------------- | ------------------: | -------------------------------------------------------------------------- | -------------------------- |
-| Masked initial noise          |                   3 | Bitwise equality against the pinned Space implementation                   | Pending GPU acceptance run |
-| Generated image tensor        |                   3 | Bitwise equality from identical masked latents and sampler generator state | Pending GPU acceptance run |
-| Package repeatability         |                   3 | Bitwise equality for repeated calls with the same generator                | Pending GPU acceptance run |
-| Standard `diffusers` behavior | 2 pipeline families | Empty boxes preserve the normal initial-noise path                         | Covered by package tests   |
+| Check                         |               Cases | Criterion                                                                  | Result                   |
+| ----------------------------- | ------------------: | -------------------------------------------------------------------------- | ------------------------ |
+| Masked initial noise          |                   3 | Bitwise equality against the pinned Space implementation                   | 3/3 exact matches        |
+| Generated image tensor        |                   3 | Bitwise equality from identical masked latents and sampler generator state | 3/3 exact matches        |
+| Package repeatability         |                   3 | Bitwise equality for repeated calls with the same generator                | 3/3 exact matches        |
+| Standard `diffusers` behavior | 2 pipeline families | Empty boxes preserve the normal initial-noise path                         | Covered by package tests |
 
-The vendor parity is not verified until the asset-backed run passes. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md) for the acceptance command and environment record.
+All three pinned checkpoint cases passed the measured asset-backed comparisons, but vendor parity is not verified until an independent acceptance rerun confirms these results. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md) for the measured environment and run record.
 
 ## Reproducibility
 
