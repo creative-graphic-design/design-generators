@@ -21,7 +21,7 @@ The verified environment used Python `3.11.17`, PyTorch `2.13.0+cu130`, and a Co
 
 The default output path is `.cache/sawna/parity`. Set `SAWNA_PARITY_OUTPUT_DIR` to a durable run directory before execution. The result directory contains one PNG and one tensor archive per checkpoint, plus `parity-results.json`. The JSON records source and model revisions, dependency versions, GPU, scheduler hashes, generation arguments, and result hashes.
 
-The recorded acceptance used two Colab L4 sessions. The SD 1.5 case took `33.032` seconds, and the combined SD 2.1 and SDXL cases took `150.484` seconds. The two acceptance sessions consumed `0.09` compute units, with no compute-unit purchases.
+The latest required run used a named Colab L4 session. The no-GPU preflight skipped the GPU-only case in `11.86` seconds; the required parity test passed all three checkpoint cases in `114.91` seconds (`1 passed, 1 warning`). The run was estimated at `0.20` compute units. Across the SAWNA task, the account balance moved from `200.27` to `199.81` units (`0.46` units used); no units were purchased, and `colab sessions` showed no remaining session.
 
 ## Package Tests
 
@@ -48,13 +48,13 @@ uv run --package sawna --locked \
   python -m pytest models/sawna/tests/vendor_parity/test_sawna_parity.py -q
 ```
 
-The test downloads the pinned Space source and each public checkpoint. It compares package `epsilon_masked` tensors with the source output from the same fp16 noise, boxes, target shift, and automatic blur. It then compares image tensors from the source `diffusers` pipeline and the SAWNA pipeline with the same masked latents and sampler-generator state. All three checkpoint cases require bitwise equality. The SAWNA pipeline also runs twice with the same public generator argument to verify repeatability.
+The test loads the pinned Space functions for bounding-box parsing and image generation from `app.py`, then runs the Space image-generation function with the pinned `TKGDMPipeline` from `tkg_dm.py`. It compares the captured masked-noise tensor with the package result, then compares final pixels from the Space and package pipelines. All three pinned checkpoint cases require bitwise equality. Two package calls with identically seeded generators verify repeatability through the public `generator` argument.
 
 The test saves its generated examples as `sawna-<checkpoint>-lion-seed1234.png`. Upload those files to `creative-graphic-design/documentation-images` under `sawna/`, preserving the names used in the README. Verify the uploaded files by downloading each one and comparing its SHA-256 with the local output. Keep the JSON and tensor archives with the run record outside git.
 
 ## Recording Results
 
-The recorded acceptance used SAWNA commit `a2b100cdcad76ebe8f89b5522823d2a8487586e0` and Space revision `e0a8f843a0b4e62c0650b03d5f335271ecb36d0b`.
+The recorded acceptance used SAWNA commit `fafffc06b78210e9ec902ed9549d7bdefc48774d` and Space revision `e0a8f843a0b4e62c0650b03d5f335271ecb36d0b`.
 
 The pinned Space `app.py` SHA-256 is `0e162d6e90f288d19731ac67a0cb7c7a77154221c75d71f86495172e205b5ed5`. The pinned Space `tkg_dm.py` SHA-256 is `475c4b7f82e133eb7ff589dd94f08535a88cbe32b3d40ea90e7daafce8a974b7`.
 
@@ -68,4 +68,4 @@ The run used PyTorch `2.13.0+cu130`, `diffusers` `0.39.0`, `transformers` `5.13.
 
 Record revisions, source hashes, package commit, GPU, runtime, elapsed time, compute-unit balance, dependency versions, scheduler hashes, generation settings, and pass and skip counts for future runs.
 
-Do not describe parity as verified when the required run is absent or has skipped cases. If a comparison is not bitwise equal, preserve the artifacts and identify the first differing tensor before proposing a tolerance. A tolerance requires a measured numerical cause and written justification before changing the acceptance criterion.
+Parity remains unverified until an independent rerun passes every required checkpoint case without skips. If a comparison is not bitwise equal, preserve the artifacts and identify the first differing tensor before proposing a tolerance. A tolerance requires a measured numerical cause and written justification before changing the acceptance criterion.
