@@ -5,7 +5,7 @@ from typing import cast
 import pytest
 import sawna.pipeline_sawna as pipeline_module
 import torch
-from diffusers import AutoencoderKL, UNet2DConditionModel
+from diffusers import AutoencoderKL, DiffusionPipeline, UNet2DConditionModel
 import diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion as sd_pipeline
 import diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl as sdxl_pipeline
 from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
@@ -151,6 +151,24 @@ def test_hub_pipeline_rejects_incomplete_sdxl_components() -> None:
         )
 
 
+def test_hub_pipeline_exposes_components_to_diffusers_loader() -> None:
+    expected_modules, optional_kwargs = DiffusionPipeline._get_signature_keys(
+        SAWNAHubPipeline
+    )
+
+    assert expected_modules == ["scheduler", "text_encoder", "tokenizer", "unet", "vae"]
+    assert set(optional_kwargs) == {
+        "add_watermarker",
+        "feature_extractor",
+        "force_zeros_for_empty_prompt",
+        "image_encoder",
+        "requires_safety_checker",
+        "safety_checker",
+        "text_encoder_2",
+        "tokenizer_2",
+    }
+
+
 def test_hub_pipeline_selects_matching_model_family(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -168,11 +186,10 @@ def test_hub_pipeline_selects_matching_model_family(
         ],
         (None, None, None, None, None),
     )
-    stable = cast(str, SAWNAHubPipeline.__new__(SAWNAHubPipeline, *components))
+    stable = cast(str, SAWNAHubPipeline(*components))
     xl = cast(
         str,
-        SAWNAHubPipeline.__new__(
-            SAWNAHubPipeline,
+        SAWNAHubPipeline(
             *components,
             text_encoder_2=cast(CLIPTextModelWithProjection, object()),
             tokenizer_2=cast(CLIPTokenizer, object()),
