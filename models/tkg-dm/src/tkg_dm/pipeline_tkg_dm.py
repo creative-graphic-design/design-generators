@@ -66,6 +66,94 @@ def _shift_positive_ratio(
     return shifted_latents
 
 
+def _validate_tkg_noise_inputs(
+    latents: Float[torch.Tensor, "batch channel height width"],
+    target_shift: float,
+    *,
+    sigma: float | None = None,
+) -> tuple[int, int, int, int]:
+    if latents.ndim != 4:
+        raise ValueError("latents must have batch, channel, height, and width axes")
+
+    if not latents.is_floating_point():
+        raise TypeError("latents must use a floating-point dtype")
+
+    batch_size, channel_count, height, width = latents.shape
+    if batch_size < 1 or channel_count < 3:
+        raise ValueError("latents must contain a batch and at least three channels")
+
+    if height < 8 or width < 8:
+        raise ValueError("latent height and width must each be at least 8")
+
+    if not math.isfinite(target_shift) or target_shift < 0:
+        raise ValueError("target_shift must be finite and non-negative")
+
+    if sigma is not None and (not math.isfinite(sigma) or sigma <= 0):
+        raise ValueError("sigma must be finite and positive")
+
+    return batch_size, channel_count, height, width
+
+
+def shift_tkg_noise_channels(
+    latents: Float[torch.Tensor, "batch channel height width"],
+    target_shift: float,
+) -> Float[torch.Tensor, "batch channel height width"]:
+    """Shift the TKG-DM noise channels without applying its spatial mask.
+
+    Args:
+        latents: Four-dimensional initial noise with at least three channels and
+            spatial dimensions of at least eight pixels.
+        target_shift: Positive-value-ratio increase applied to channels 1 and 2.
+
+    Returns:
+        Noise with TKG-DM's channel shift and no spatial blending.
+
+    Raises:
+        TypeError: If ``latents`` is not floating-point.
+        ValueError: If tensor dimensions or ``target_shift`` are invalid.
+
+    Examples:
+        The shift changes channels 1 and 2 while retaining the other channels:
+
+        >>> noise = torch.zeros((1, 4, 8, 8))
+        >>> shifted = shift_tkg_noise_channels(noise, target_shift=0.07)
+        >>> torch.equal(shifted[:, 0], noise[:, 0]) and torch.equal(shifted[:, 3], noise[:, 3])
+        True
+    """
+    _validate_tkg_noise_inputs(latents, target_shift)
+    if target_shift == 0:
+        return latents
+
+    shifted_latents = latents.clone()
+    for channel_index in (1, 2):
+        channel = latents[:, channel_index, :, :]
+        initial_ratio = float(_positive_ratio(channel).item())
+        target_ratio = initial_ratio + target_shift
+        if target_ratio > 1.0:
+            raise ValueError(
+                "target_shift cannot raise the channel positive ratio above 1"
+            )
+
+        delta_min, delta_max = -10.0, 10.0
+        delta = 0.0
+        for _ in range(100):
+            delta = (delta_min + delta_max) / 2
+            shifted_channel = latents.clone()[:, channel_index, :, :]
+            shifted_channel += delta
+            current_ratio = float(_positive_ratio(shifted_channel).item())
+            if abs(current_ratio - target_ratio) < 1e-4:
+                break
+
+            if current_ratio < target_ratio:
+                delta_min = delta
+            else:
+                delta_max = delta
+
+        shifted_latents[:, channel_index, :, :] += delta
+
+    return shifted_latents
+
+
 def _gaussian_mask(
     height: int,
     width: int,
@@ -107,24 +195,11 @@ def apply_tkg_noise(
         >>> torch.equal(apply_tkg_noise(noise, target_shift=0.0), noise)
         True
     """
-    if latents.ndim != 4:
-        raise ValueError("latents must have batch, channel, height, and width axes")
-
-    if not latents.is_floating_point():
-        raise TypeError("latents must use a floating-point dtype")
-
-    batch_size, channel_count, height, width = latents.shape
-    if batch_size < 1 or channel_count < 3:
-        raise ValueError("latents must contain a batch and at least three channels")
-
-    if height < 8 or width < 8:
-        raise ValueError("latent height and width must each be at least 8")
-
-    if not math.isfinite(target_shift) or target_shift < 0:
-        raise ValueError("target_shift must be finite and non-negative")
-
-    if not math.isfinite(sigma) or sigma <= 0:
-        raise ValueError("sigma must be finite and positive")
+    batch_size, channel_count, height, width = _validate_tkg_noise_inputs(
+        latents,
+        target_shift,
+        sigma=sigma,
+    )
 
     if target_shift == 0:
         return latents
@@ -364,6 +439,12 @@ class TKGDMHubPipeline(DiffusionPipeline):
         "text_encoder_2",
         "tokenizer_2",
     )
+    stable_pipeline_class: ClassVar[type[StableDiffusionPipeline]] = (
+        TKGStableDiffusionPipeline
+    )
+    sdxl_pipeline_class: ClassVar[type[StableDiffusionXLPipeline]] = (
+        TKGStableDiffusionXLPipeline
+    )
 
     def __new__(
         cls: type[TKGDMHubPipeline],
@@ -406,11 +487,6 @@ class TKGDMHubPipeline(DiffusionPipeline):
             ValueError: If only one of the two SDXL text-encoder components is set.
             TypeError: If the selected pipeline receives a non-DDIM scheduler.
         """
-        from .pipeline_tkg_dm import (
-            TKGStableDiffusionPipeline,
-            TKGStableDiffusionXLPipeline,
-        )
-
         # The checkpoint's second text encoder identifies the model family.
         if text_encoder_2 is None:
             if tokenizer_2 is not None:
@@ -418,7 +494,7 @@ class TKGDMHubPipeline(DiffusionPipeline):
                     "SDXL loading requires both second text-encoder components"
                 )
 
-            return TKGStableDiffusionPipeline(
+            return cls.stable_pipeline_class(
                 vae=vae,
                 text_encoder=text_encoder,
                 tokenizer=tokenizer,
@@ -435,7 +511,7 @@ class TKGDMHubPipeline(DiffusionPipeline):
                 "SDXL loading requires both second text-encoder components"
             )
 
-        return TKGStableDiffusionXLPipeline(
+        return cls.sdxl_pipeline_class(
             vae=vae,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
