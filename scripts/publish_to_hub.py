@@ -49,9 +49,12 @@ def prepare_upload_files(
     files: dict[str, bytes] = {}
     for destination, spec in config["files"].items():
         if destination == "README.md":
-            files[destination] = prepare_readme(
-                (package_directory / spec).read_text(encoding="utf-8"), config, revision
+            readme_text = (
+                (package_directory / spec).read_text(encoding="utf-8")
+                if isinstance(spec, str)
+                else spec["content"]
             )
+            files[destination] = prepare_readme(readme_text, config, revision)
         elif isinstance(spec, str):
             files[destination] = (package_directory / spec).read_bytes()
         else:
@@ -64,15 +67,18 @@ def prepare_readme(readme_text: str, config: PublisherConfig, revision: str) -> 
     if config.get("remove-readme-license", False):
         if not readme_text.startswith("---\n"):
             raise ValueError("package README must begin with YAML frontmatter")
+
         frontmatter, delimiter, body = readme_text[4:].partition("\n---\n")
         if not delimiter:
             raise ValueError("package README has no closing YAML frontmatter delimiter")
+
         metadata_lines = frontmatter.splitlines()
         license_indexes = [
             i for i, line in enumerate(metadata_lines) if line.startswith("license:")
         ]
         if len(license_indexes) != 1:
             raise ValueError("package README must have exactly one frontmatter license")
+
         del metadata_lines[license_indexes[0]]
         readme_text = "---\n" + "\n".join(metadata_lines) + "\n---\n" + body
 
@@ -180,6 +186,7 @@ def publish(
             raise RuntimeError(
                 f"Hub publication changed the existing {prefix} file set"
             )
+
     print(f"Published and verified {', '.join(files)} at {published_revision}.")
 
 
@@ -191,8 +198,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.revision:
         parser.error("--revision or GITHUB_SHA is required")
+
     if not ARCHIVE_REVISION_PATTERN.fullmatch(args.revision):
         parser.error("--revision must be a full lowercase 40-character commit SHA")
+
     package_directory = REPOSITORY_ROOT / args.package_directory
 
     hub_publishing.verify_source_revision(REPOSITORY_ROOT, args.revision)
@@ -201,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         for filename, contents in sorted(files.items()):
             print(f"{filename}: {len(contents)} bytes")
+
         print(f"Hub target: {config['repo-id']}")
         print("Hub write: skipped (--dry-run)")
         return 0
@@ -208,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("HF_TOKEN", "")
     if not token:
         parser.error("HF_TOKEN is required for Hub publication")
+
     publish(
         config=config,
         files=files,
