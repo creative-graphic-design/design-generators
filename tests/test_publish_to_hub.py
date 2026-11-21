@@ -35,27 +35,34 @@ def test_declared_files_pin_archive_links_and_keep_generated_entrypoints(
     assert (
         files["README.md"].count(f"/archive/{REVISION}.zip".encode()) == archive_count
     )
-    if package == "sawna":
-        assert files["pipeline.py"] == b"from sawna import SAWNAHubPipeline\n"
-    if package == "tkg-dm":
-        assert (
-            files["pipeline.py"] == b"from .pipeline_tkg_dm import TKGDMHubPipeline\n"
+    pipeline = {
+        "sawna": b"from sawna import SAWNAHubPipeline\n",
+        "tkg-dm": b"from .pipeline_tkg_dm import TKGDMHubPipeline\n",
+    }.get(package)
+    if pipeline is not None:
+        assert files["pipeline.py"] == pipeline
+
+
+def test_existing_files_ignore_only_generated_archive_revision_changes() -> None:
+    template = b"/archive/" + b"!" * 40 + b".zip\n/archive/" + b"c" * 40 + b".zip"
+    expected = template.replace(b"!" * 40, REVISION.encode())
+    published = template.replace(b"!" * 40, b"b" * 40)
+
+    assert [
+        publisher.files_match_published_revision(
+            {"README.md"},
+            {"README.md": expected},
+            lambda _: readme,
+            template,
         )
-
-
-def test_existing_files_ignore_only_archive_revision_changes() -> None:
-    assert publisher.files_match_published_revision(
-        {"README.md"},
-        {"README.md": b"/archive/" + REVISION.encode() + b".zip"},
-        read_file=lambda _: b"/archive/" + b"b" * 40 + b".zip",
-    )
+        for readme in (published, published.replace(b"c" * 40, b"d" * 40))
+    ] == [True, False]
 
 
 def test_collage_preserves_source_asset_file_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    package_directory = ROOT / "models" / "collage-diffusion"
-    config = publisher.load_config(package_directory)
+    config = publisher.load_config(ROOT / "models" / "collage-diffusion")
     repo_files = iter([["source-assets/a"], ["source-assets/a", "source-assets/b"]])
     api = SimpleNamespace(
         auth_check=lambda **_: None,
@@ -69,9 +76,7 @@ def test_collage_preserves_source_asset_file_set(
     )
 
     monkeypatch.setattr(
-        publisher.hub_publishing,
-        "upload_and_verify",
-        lambda *_args, **_: REVISION,
+        publisher.hub_publishing, "upload_and_verify", lambda *_args, **_: REVISION
     )
     with pytest.raises(RuntimeError, match="changed the existing source-assets"):
         publisher.publish(
@@ -79,4 +84,5 @@ def test_collage_preserves_source_asset_file_set(
             files={"pipeline.py": b"content"},
             token="test-token",
             revision=REVISION,
+            comparison_template=b"",
         )

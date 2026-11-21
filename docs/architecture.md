@@ -39,11 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Hub publication ownership
 
-The repository-owned hub-publish workflow runs on pushes to `main` and calls `scripts/publish_to_hub.py`. Each publishing package declares `[tool.design-generators.hub-publisher]` in `pyproject.toml`. The table maps Hub filenames to package-relative source paths or generated content.
-
-`scripts/select_hub_publishers.py` selects changed packages with this table. README badge checks use the same discovery function in `devharness.hub_publishers`, so table presence determines whether a README uses a published badge. The current mapping is `planned-code-only` (orange) → `published-code-only` (brightgreen); values such as `not-published`, `n/a`, and `blocked` have no published counterpart. Publishers copy the source README into the Hub card.
-
-The shared publisher checks write access to the configured destination, stages only declared files, and verifies uploaded bytes by reading them back. It skips upload when existing files match, ignoring only generated archive revision changes in `README.md`. Configured path prefixes, such as Collage's `source-assets/`, are checked before and after upload. The workflow installs the selected package environment and supplies `huggingface-hub` as a temporary dependency. It passes the fine-grained `HF_TOKEN` only to the publication step; pull requests and merge queue entries do not receive it. Merging a package to `main` approves publication to its configured Hub repository.
+The main-push workflow calls `scripts/publish_to_hub.py` for packages that declare `[tool.design-generators.hub-publisher]`; the table maps Hub filenames to package-relative paths or inline content. `scripts/select_hub_publishers.py` and `devharness.hub_publishers` use table presence for package selection and badge status (`planned-code-only` → `published-code-only`). The publisher copies the source README into the Hub card. It checks write access, uploads declared files, and verifies read-back bytes. It preserves configured prefixes such as Collage's `source-assets/` and skips upload when only generated archive revisions differ. The workflow supplies `huggingface-hub` as a temporary dependency and passes scoped `HF_TOKEN` only to publishing; pull requests and merge queue entries receive no token. Merging a package to `main` approves publication to its configured Hub repository.
 
 ## Dependency environments
 

@@ -25,13 +25,13 @@ def make_model_package(root: Path, name: str, *, publishes: bool) -> None:
     package_directory.mkdir(parents=True)
     pyproject = f"[project]\nname = '{name}'\n"
     if publishes:
-        pyproject += (
-            "\n[tool.design-generators.hub-publisher]\n"
-            f'repo-id = "creative-graphic-design/{name}"\n'
-            "archive-url-count = 1\n"
-            "\n[tool.design-generators.hub-publisher.files]\n"
-            '"README.md" = "README.md"\n'
-        )
+        pyproject += f"""
+[tool.design-generators.hub-publisher]
+repo-id = "creative-graphic-design/{name}"
+archive-url-count = 1
+[tool.design-generators.hub-publisher.files]
+"README.md" = "README.md"
+"""
     (package_directory / "pyproject.toml").write_text(pyproject)
 
 

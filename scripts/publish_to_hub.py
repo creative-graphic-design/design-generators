@@ -1,7 +1,5 @@
 """Publish one model package using its declarative Hub configuration."""
 
-from __future__ import annotations
-
 import argparse
 import os
 import re
@@ -19,6 +17,7 @@ from scripts import hub_publishing  # noqa: E402
 ARCHIVE_URL_MARKER = "/archive/main.zip"
 ARCHIVE_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 PINNED_ARCHIVE_URL_PATTERN = re.compile(rb"/archive/[0-9a-f]{40}\.zip")
+GENERATED_ARCHIVE_PLACEHOLDER_PATTERN = re.compile(rb"/archive/!{40}\.zip")
 
 
 FileContent = TypedDict("FileContent", {"content": str})
@@ -49,12 +48,10 @@ def prepare_upload_files(
     files: dict[str, bytes] = {}
     for destination, spec in config["files"].items():
         if destination == "README.md":
-            readme_text = (
-                (package_directory / spec).read_text(encoding="utf-8")
-                if isinstance(spec, str)
-                else spec["content"]
+            assert isinstance(spec, str)
+            files[destination] = prepare_readme(
+                (package_directory / spec).read_text(encoding="utf-8"), config, revision
             )
-            files[destination] = prepare_readme(readme_text, config, revision)
         elif isinstance(spec, str):
             files[destination] = (package_directory / spec).read_bytes()
         else:
@@ -65,21 +62,17 @@ def prepare_upload_files(
 
 def prepare_readme(readme_text: str, config: PublisherConfig, revision: str) -> bytes:
     if config.get("remove-readme-license", False):
-        if not readme_text.startswith("---\n"):
-            raise ValueError("package README must begin with YAML frontmatter")
+        if not readme_text.startswith("---\n") or "\n---\n" not in readme_text[4:]:
+            raise ValueError("package README must have complete YAML frontmatter")
 
-        frontmatter, delimiter, body = readme_text[4:].partition("\n---\n")
-        if not delimiter:
-            raise ValueError("package README has no closing YAML frontmatter delimiter")
+        frontmatter, _, body = readme_text[4:].partition("\n---\n")
 
         metadata_lines = frontmatter.splitlines()
-        license_indexes = [
-            i for i, line in enumerate(metadata_lines) if line.startswith("license:")
-        ]
-        if len(license_indexes) != 1:
+        license_lines = [line for line in metadata_lines if line.startswith("license:")]
+        if len(license_lines) != 1:
             raise ValueError("package README must have exactly one frontmatter license")
 
-        del metadata_lines[license_indexes[0]]
+        metadata_lines.remove(license_lines[0])
         readme_text = "---\n" + "\n".join(metadata_lines) + "\n---\n" + body
 
     if readme_text.count(ARCHIVE_URL_MARKER) != config["archive-url-count"]:
@@ -97,18 +90,28 @@ def files_match_published_revision(
     repository_files: set[str],
     files: dict[str, bytes],
     read_file: Callable[[str], bytes],
+    comparison_template: bytes,
 ) -> bool:
-    return set(files).issubset(repository_files) and all(
-        _comparison_bytes(name, read_file(name)) == _comparison_bytes(name, contents)
-        for name, contents in files.items()
-    )
+    if not set(files).issubset(repository_files):
+        return False
 
+    for filename, expected in files.items():
+        published = read_file(filename)
+        if filename == "README.md":
+            for match in GENERATED_ARCHIVE_PLACEHOLDER_PATTERN.finditer(
+                comparison_template
+            ):
+                start, end = match.span()
+                if not PINNED_ARCHIVE_URL_PATTERN.fullmatch(published[start:end]):
+                    return False
 
-def _comparison_bytes(filename: str, contents: bytes) -> bytes:
-    if filename == "README.md":
-        return PINNED_ARCHIVE_URL_PATTERN.sub(b"/archive/{revision}.zip", contents)
+                published = published[:start] + match.group() + published[end:]
+                expected = expected[:start] + match.group() + expected[end:]
 
-    return contents
+        if published != expected:
+            return False
+
+    return True
 
 
 def publish(
@@ -117,6 +120,7 @@ def publish(
     files: dict[str, bytes],
     token: str,
     revision: str,
+    comparison_template: bytes,
 ) -> None:
     from huggingface_hub import HfApi, hf_hub_download
 
@@ -149,6 +153,7 @@ def publish(
         repository_files,
         files,
         lambda name: read_hub_file(name, parent_commit),
+        comparison_template,
     ):
         print(f"Hub files already match {parent_commit}; upload skipped.")
         return
@@ -196,11 +201,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--revision", default=os.environ.get("GITHUB_SHA"))
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    if not args.revision:
-        parser.error("--revision or GITHUB_SHA is required")
-
-    if not ARCHIVE_REVISION_PATTERN.fullmatch(args.revision):
-        parser.error("--revision must be a full lowercase 40-character commit SHA")
+    if not args.revision or not ARCHIVE_REVISION_PATTERN.fullmatch(args.revision):
+        parser.error(
+            "--revision or GITHUB_SHA must be a full lowercase 40-character commit SHA"
+        )
 
     package_directory = REPOSITORY_ROOT / args.package_directory
 
@@ -219,11 +223,15 @@ def main(argv: list[str] | None = None) -> int:
     if not token:
         parser.error("HF_TOKEN is required for Hub publication")
 
+    comparison_template = prepare_upload_files(package_directory, config, "!" * 40)[
+        "README.md"
+    ]
     publish(
         config=config,
         files=files,
         token=token,
         revision=args.revision,
+        comparison_template=comparison_template,
     )
     return 0
 

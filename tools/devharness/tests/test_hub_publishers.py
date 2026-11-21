@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from devharness.hub_publishers import (
     HUB_BADGE_COLORS,
     HUB_BADGE_STATUS_PAIRS,
     assert_hub_badge_matches_publisher,
-    discover_publishers,
 )
 
 
@@ -31,12 +28,6 @@ def test_hub_badge_status_pairs_are_explicit() -> None:
 def test_hub_badge_status_matches_publisher_presence(
     package: str, message: str, publishers: set[str]
 ) -> None:
-    if package == "collage-diffusion":
-        publishers = {
-            publisher.directory.name
-            for publisher in discover_publishers(Path(__file__).resolve().parents[3])
-        }
-
     assert_hub_badge_matches_publisher(package, [message], publishers)
 
 
