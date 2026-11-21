@@ -1,0 +1,39 @@
+# Complexity history is intentionally separate from the existing Codecov reports.
+# The repository suffix gives this report a distinct PR comment identifier.
+repository: ${GITHUB_REPOSITORY}/complexity
+
+# Coverage is measured by the per-member pytest/Codecov jobs in CI, not here.
+coverage:
+  if: false
+testExecutionTime:
+  if: false
+
+codeToTestRatio:
+  code:
+    - 'lib/*/src/**/*.py'
+    - 'models/*/src/**/*.py'
+    - 'models/*/scripts/**/*.py'
+    - 'tools/*/src/**/*.py'
+    - 'scripts/**/*.py'
+  test:
+    - 'lib/*/tests/**/*.py'
+    - 'models/*/tests/**/*.py'
+    - 'tools/*/tests/**/*.py'
+    - 'scripts/tests/**/*.py'
+
+comment:
+  if: is_pull_request
+  updatePrevious: true
+
+summary:
+  if: true
+
+# Store only default-branch history: PR tokens (especially forks) are read-only.
+report:
+  if: is_default_branch
+  datastores:
+    - github://${GITHUB_REPOSITORY}@octocov/complexity-reports
+
+diff:
+  datastores:
+    - github://${GITHUB_REPOSITORY}@octocov/complexity-reports
