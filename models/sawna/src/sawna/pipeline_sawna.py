@@ -21,6 +21,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_output import (
 from diffusers.pipelines.stable_diffusion_xl.pipeline_output import (
     StableDiffusionXLPipelineOutput,
 )
+from diffusers.schedulers.scheduling_utils import KarrasDiffusionSchedulers
 from diffusers.utils.torch_utils import randn_tensor
 from jaxtyping import Float
 from PIL import Image
@@ -114,6 +115,9 @@ _SAWNA_CALL_PARAMETERS: ContextVar[_SAWNACallParameters | None] = ContextVar(
 
 class _SAWNAInitialNoiseMixin:
     """Apply SAWNA to the initial noise while leaving denoising to Diffusers."""
+
+    scheduler: KarrasDiffusionSchedulers
+    vae_scale_factor: int
 
     def prepare_latents(
         self,

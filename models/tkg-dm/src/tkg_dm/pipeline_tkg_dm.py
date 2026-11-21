@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import ClassVar, Final
+from typing import ClassVar, Final, Protocol, cast
 
 import torch
 import torch.nn.functional as F
@@ -30,6 +30,40 @@ from transformers.models.clip.modeling_clip import CLIPTextModelWithProjection
 
 DEFAULT_SD15_TARGET_SHIFT: Final[float] = 0.07
 DEFAULT_SDXL_TARGET_SHIFT: Final[float] = 0.11
+
+
+class _StablePipelineFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        vae: AutoencoderKL,
+        text_encoder: CLIPTextModel,
+        tokenizer: CLIPTokenizer,
+        unet: UNet2DConditionModel,
+        scheduler: KarrasDiffusionSchedulers,
+        safety_checker: StableDiffusionSafetyChecker | None,
+        feature_extractor: CLIPImageProcessor | None,
+        image_encoder: CLIPVisionModelWithProjection | None,
+        requires_safety_checker: bool,
+    ) -> DiffusionPipeline: ...
+
+
+class _StableDiffusionXLFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        vae: AutoencoderKL,
+        text_encoder: CLIPTextModel,
+        text_encoder_2: CLIPTextModelWithProjection,
+        tokenizer: CLIPTokenizer,
+        tokenizer_2: CLIPTokenizer,
+        unet: UNet2DConditionModel,
+        scheduler: KarrasDiffusionSchedulers,
+        image_encoder: CLIPVisionModelWithProjection | None,
+        feature_extractor: CLIPImageProcessor | None,
+        force_zeros_for_empty_prompt: bool,
+        add_watermarker: bool | None,
+    ) -> DiffusionPipeline: ...
 
 
 def _positive_ratio(
@@ -494,7 +528,10 @@ class TKGDMHubPipeline(DiffusionPipeline):
                     "SDXL loading requires both second text-encoder components"
                 )
 
-            return cls.stable_pipeline_class(
+            stable_pipeline_factory = cast(
+                _StablePipelineFactory, cls.stable_pipeline_class
+            )
+            return stable_pipeline_factory(
                 vae=vae,
                 text_encoder=text_encoder,
                 tokenizer=tokenizer,
@@ -511,7 +548,8 @@ class TKGDMHubPipeline(DiffusionPipeline):
                 "SDXL loading requires both second text-encoder components"
             )
 
-        return cls.sdxl_pipeline_class(
+        sdxl_pipeline_factory = cast(_StableDiffusionXLFactory, cls.sdxl_pipeline_class)
+        return sdxl_pipeline_factory(
             vae=vae,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
