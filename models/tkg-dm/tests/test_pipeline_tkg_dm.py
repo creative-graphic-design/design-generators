@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 from typing import cast
 
 import pytest
@@ -136,13 +135,8 @@ def test_hub_pipeline_routes_to_the_matching_model_family(
         def __init__(self, **components: object) -> None:
             self.components = components
 
-    pipeline_module = importlib.import_module("tkg_dm.pipeline_tkg_dm")
-    monkeypatch.setattr(pipeline_module, "TKGStableDiffusionPipeline", PipelineProbe)
-    monkeypatch.setattr(
-        pipeline_module,
-        "TKGStableDiffusionXLPipeline",
-        PipelineProbe,
-    )
+    monkeypatch.setattr(TKGDMHubPipeline, "stable_pipeline_class", PipelineProbe)
+    monkeypatch.setattr(TKGDMHubPipeline, "sdxl_pipeline_class", PipelineProbe)
     if sdxl:
         pipeline = TKGDMHubPipeline.__new__(
             TKGDMHubPipeline,

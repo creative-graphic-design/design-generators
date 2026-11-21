@@ -199,6 +199,7 @@ PAPER_LINKS = {
     ("arXiv", "1907.10719"): "https://arxiv.org/abs/1907.10719",
     ("arXiv", "2003.06988"): "https://arxiv.org/abs/2003.06988",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",
+    ("DOI", "10.1145/3721250.3743023"): "https://doi.org/10.1145/3721250.3743023",
     ("paper", "TMM 2021"): "https://ieeexplore.ieee.org/document/9520053",
 }
 HUB_LINKS = {
@@ -212,6 +213,7 @@ HUB_LINKS = {
     "layoutformerpp": "https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label",
     "layoutganpp": "https://huggingface.co/creative-graphic-design/layoutganpp-rico",
     "parse-then-place": "https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune",
+    "sawna": "https://huggingface.co/creative-graphic-design/sawna",
 }
 
 

@@ -7,6 +7,7 @@ from tkg_dm.pipeline_tkg_dm import (
     TKGStableDiffusionPipeline,
     TKGStableDiffusionXLPipeline,
     apply_tkg_noise,
+    shift_tkg_noise_channels,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "TKGStableDiffusionPipeline",
     "TKGStableDiffusionXLPipeline",
     "apply_tkg_noise",
+    "shift_tkg_noise_channels",
 ]

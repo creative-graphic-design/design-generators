@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 import torch
-from tkg_dm import apply_tkg_noise
+from tkg_dm import apply_tkg_noise, shift_tkg_noise_channels
 
 
 def test_apply_tkg_noise_shifts_only_color_channels() -> None:
@@ -24,6 +24,31 @@ def test_zero_shift_returns_the_same_noise() -> None:
     transformed = apply_tkg_noise(latents, target_shift=0.0)
 
     torch.testing.assert_close(transformed, latents, rtol=0, atol=0)
+
+
+def test_shift_tkg_noise_channels_returns_unmasked_channel_shift() -> None:
+    latents = torch.linspace(-1, 1, 16 * 16).reshape(1, 1, 16, 16).expand(1, 4, -1, -1)
+
+    shifted = shift_tkg_noise_channels(latents, target_shift=0.07)
+
+    assert shifted.shape == latents.shape
+    assert shifted.dtype == latents.dtype
+    assert torch.equal(shifted[:, 0], latents[:, 0])
+    assert torch.equal(shifted[:, 3], latents[:, 3])
+    assert torch.all(shifted[:, 1] > latents[:, 1])
+    assert torch.all(shifted[:, 2] > latents[:, 2])
+    for channel in (1, 2):
+        channel_shift = shifted[:, channel] - latents[:, channel]
+        expected_shift = channel_shift.flatten()[0].expand_as(channel_shift)
+        torch.testing.assert_close(channel_shift, expected_shift, rtol=0, atol=1e-6)
+
+
+def test_zero_channel_shift_returns_the_original_noise() -> None:
+    latents = torch.arange(-128, 128, dtype=torch.float32).reshape(1, 4, 8, 8)
+
+    shifted = shift_tkg_noise_channels(latents, target_shift=0.0)
+
+    assert shifted is latents
 
 
 @pytest.mark.parametrize(
