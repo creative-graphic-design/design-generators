@@ -20,6 +20,15 @@ task = "text-to-image-generation"
 conditions = ["prompt"]
 datasets = []
 
+[tool.design-generators.hub-publisher]
+repo-id = "creative-graphic-design/tkg-dm"
+archive-url-count = 1
+
+[tool.design-generators.hub-publisher.files]
+"README.md" = "README.md"
+"pipeline.py" = { content = "from .pipeline_tkg_dm import TKGDMHubPipeline\n" }
+"pipeline_tkg_dm.py" = "src/tkg_dm/pipeline_tkg_dm.py"
+
 [tool.pytest.ini_options]
 markers = [
     "integration: requires model weights or external assets",

@@ -28,6 +28,16 @@ task = "text-to-image-generation"
 conditions = ["prompt"]
 datasets = []
 
+[tool.design-generators.hub-publisher]
+repo-id = "creative-graphic-design/structure-diffusion"
+archive-url-count = 1
+
+[tool.design-generators.hub-publisher.files]
+"README.md" = "README.md"
+"pipeline.py" = "src/structure_diffusion/pipeline_structure_diffusion.py"
+"modeling_structure_diffusion.py" = "src/structure_diffusion/modeling_structure_diffusion.py"
+"processing_structure_diffusion.py" = "src/structure_diffusion/processing_structure_diffusion.py"
+
 [tool.pytest.ini_options]
 markers = [
     "integration: requires downloaded Stable Diffusion weights and parser models",

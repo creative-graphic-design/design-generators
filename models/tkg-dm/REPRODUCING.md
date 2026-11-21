@@ -73,8 +73,8 @@ When published, the code-only Hub repository will contain the TKG-DM pipeline an
 
 ```bash
 UV_NO_CONFIG=1 UV_EXCLUDE_NEWER='7 days' \
-uv run --package tkg-dm --locked models/tkg-dm/scripts/publish_to_hub.py \
-  --revision "$(git rev-parse HEAD)" --dry-run
+uv run --package tkg-dm --locked scripts/publish_to_hub.py \
+  --package-directory models/tkg-dm --revision "$(git rev-parse HEAD)" --dry-run
 ```
 
 The `creative-graphic-design/tkg-dm` destination is available, and the main-branch publication workflow runs the publisher after the package is merged. The shared fine-grained `HF_TOKEN` must have content-write access to the selected published model repositories, including this one.

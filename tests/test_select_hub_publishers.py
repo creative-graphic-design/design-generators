@@ -23,11 +23,16 @@ LOADER.exec_module(SELECTOR)
 def make_model_package(root: Path, name: str, *, publishes: bool) -> None:
     package_directory = root / "models" / name
     package_directory.mkdir(parents=True)
-    (package_directory / "pyproject.toml").write_text(f"[project]\nname = '{name}'\n")
+    pyproject = f"[project]\nname = '{name}'\n"
     if publishes:
-        publisher_path = package_directory / "scripts" / "publish_to_hub.py"
-        publisher_path.parent.mkdir()
-        publisher_path.write_text("raise SystemExit(0)\n")
+        pyproject += (
+            "\n[tool.design-generators.hub-publisher]\n"
+            f'repo-id = "creative-graphic-design/{name}"\n'
+            "archive-url-count = 1\n"
+            "\n[tool.design-generators.hub-publisher.files]\n"
+            '"README.md" = "README.md"\n'
+        )
+    (package_directory / "pyproject.toml").write_text(pyproject)
 
 
 def test_selects_only_changed_packages_with_a_publisher(tmp_path: Path) -> None:
