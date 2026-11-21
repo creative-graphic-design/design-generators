@@ -16,12 +16,15 @@ from typing import NoReturn, Protocol, cast
 
 import pytest
 import torch
-from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
+import diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion as sd_pipeline
+import diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl as sdxl_pipeline
 from huggingface_hub import snapshot_download
 from PIL import Image
 from sawna import SAWNAStableDiffusionPipeline, SAWNAStableDiffusionXLPipeline
 from sawna.processing_sawna import apply_sawna_noise
 
+StableDiffusionPipeline = sd_pipeline.StableDiffusionPipeline
+StableDiffusionXLPipeline = sdxl_pipeline.StableDiffusionXLPipeline
 SPACE_ID = "EQUES/Space-Aware_Text-to-Image_Generation"
 SPACE_REVISION = "e0a8f843a0b4e62c0650b03d5f335271ecb36d0b"
 PROMPT = "A majestic lion in a natural landscape"
@@ -107,7 +110,7 @@ def _reference_app(
 ) -> tuple[Callable[..., Image.Image], str]:
     source = source_path.read_bytes()
     tree = ast.parse(source, filename=str(source_path))
-    functions = [
+    functions: list[ast.stmt] = [
         node
         for node in tree.body
         if isinstance(node, ast.FunctionDef)
@@ -208,6 +211,7 @@ def test_pinned_space_noise_and_checkpoint_outputs_are_bitwise_equal(
         snapshot_download(repo_id=SPACE_ID, repo_type="space", revision=SPACE_REVISION)
     )
     tkgdm, source_hash = _reference_tkgdm(space_root / "tkg_dm.py")
+    app_hash = _sha256_bytes((space_root / "app.py").read_bytes())
     results: list[dict[str, object]] = []
     requested = os.environ.get("SAWNA_PARITY_MODELS")
     selected = (
@@ -307,7 +311,7 @@ def test_pinned_space_noise_and_checkpoint_outputs_are_bitwise_equal(
                 )
                 return space_pipeline
 
-            generate_space_image, app_hash = _reference_app(
+            generate_space_image, _ = _reference_app(
                 space_root / "app.py",
                 create_space_pipeline,
             )
@@ -457,10 +461,11 @@ def test_pinned_space_noise_and_checkpoint_outputs_are_bitwise_equal(
         "gpu": torch.cuda.get_device_name(),
         "models": results,
     }
+    result_names = "-".join(cast(str, result["name"]) for result in results)
     result_name = (
         "parity-results.json"
         if selected_models == MODELS
-        else f"parity-results-{'-'.join(result['name'] for result in results)}.json"
+        else f"parity-results-{result_names}.json"
     )
     (output_root / result_name).write_text(
         json.dumps(run, indent=2, sort_keys=True) + "\n",

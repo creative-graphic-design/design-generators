@@ -25,7 +25,7 @@ datasets: []
 
 ![task: text-to-image](https://img.shields.io/static/v1?label=task&message=text-to-image&color=purple&style=flat-square)
 
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-verified&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 
 [![hub: published-code-only](https://img.shields.io/static/v1?label=hub&message=published-code-only&color=brightgreen&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/sawna)
 
@@ -210,7 +210,7 @@ The evaluation uses the pinned public Space implementation and the three checkpo
 | Package repeatability         |                   3 | Bitwise equality for repeated calls with the same generator                | 3/3 exact matches        |
 | Standard `diffusers` behavior | 2 pipeline families | Empty boxes preserve the normal initial-noise path                         | Covered by package tests |
 
-All three pinned checkpoint cases passed the measured asset-backed comparisons, but vendor parity is not verified until an independent acceptance rerun confirms these results. See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md) for the measured environment and run record.
+An independent acceptance rerun on an L4 GPU compared the pinned Space reference with all three package pipelines. Masked initial noise, generated image pixels, and repeated package outputs matched bitwise in all three cases, with no skips; the run used 0.16 Colab units. See [issue #553](https://github.com/creative-graphic-design/design-generators/issues/553) for the recorded result and [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/sawna/REPRODUCING.md) for the reproduction procedure.
 
 ## Reproducibility
 
