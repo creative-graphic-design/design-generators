@@ -324,6 +324,7 @@ EXPECTED_FRONTMATTER = {
     "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
     "structure-diffusion": {"license": "apache-2.0", "datasets": []},
     "tkg-dm": {"license": "apache-2.0", "datasets": []},
+    "sawna": {"license": "apache-2.0", "datasets": []},
 }
 
 EXPECTED_PIPELINE_TAGS = {"pixel-vae": "image-feature-extraction"}
@@ -365,6 +366,7 @@ EXPECTED_MODEL_NAMES = {
     "basnet": "BASNet",
     "structure-diffusion": "StructureDiffusion",
     "tkg-dm": "TKG-DM",
+    "sawna": "SAWNA",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -393,10 +395,11 @@ EXPECTED_REPOSITORY_LINKS = {
     "housegan": "https://github.com/ennauata/housegan",
     "structure-diffusion": "https://github.com/weixi-feng/Structured-Diffusion-Guidance",
     "tkg-dm": "https://github.com/ryugo417/TKG-DM",
+    "sawna": "https://huggingface.co/spaces/EQUES/Space-Aware_Text-to-Image_Generation",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
-CODE_ONLY_SLUGS = {"collage-diffusion", "tkg-dm"}
+CODE_ONLY_SLUGS = {"collage-diffusion", "sawna", "tkg-dm"}
 NO_MODEL_WEIGHTS_SLUGS = PROMPT_ONLY_SLUGS | CODE_ONLY_SLUGS
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",

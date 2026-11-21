@@ -223,7 +223,9 @@ posterllava = { workspace = true }
 postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
+sawna = { workspace = true }
 smarttext = { workspace = true }
+tkg-dm = { workspace = true }
 traingen = { workspace = true }
 traingen-parity = { workspace = true }
 pixel-vae = { workspace = true }
