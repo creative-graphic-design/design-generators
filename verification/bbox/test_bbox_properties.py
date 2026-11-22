@@ -52,4 +52,3 @@ def test_ltwh_xywh_roundtrip(boxes: list[Box4]) -> None:
     recovered = xywh_to_ltwh(ltwh_to_xywh(tensor))
     assert recovered.shape == tensor.shape
     torch.testing.assert_close(recovered, tensor, rtol=0, atol=1e-12)
-

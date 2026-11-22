@@ -20,7 +20,7 @@ uv run --locked --package laygen --extra torch --with hypothesis==6.131.0 --with
   python -m pytest verification/bbox/test_bbox_properties.py -q
 
 uv run --locked --package laygen --extra torch --with hypothesis==6.131.0 --with pytest==8.4.2 \
-  python verification/bbox/check_actual_mutation.py
+  python -m verification.bbox.check_actual_mutation
 ```
 
 The mutation is temporary; the script uses `finally` to restore the original `bbox.py` contents. The temporary change is **never committed**.

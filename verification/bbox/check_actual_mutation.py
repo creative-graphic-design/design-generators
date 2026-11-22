@@ -14,7 +14,7 @@ from pathlib import Path
 from laygen.common import bbox
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "lib/laygen/src/laygen/common/bbox.py"
+SOURCE = ROOT / "lib" / "laygen" / "src" / "laygen" / "common" / "bbox.py"
 TEST = "verification/bbox/test_bbox_properties.py::test_xywh_ltrb_roundtrip"
 
 BEFORE = "return torch.stack((x - w / 2, y - h / 2, x + w / 2, y + h / 2), dim=-1)"

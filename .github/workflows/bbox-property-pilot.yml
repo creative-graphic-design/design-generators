@@ -31,4 +31,4 @@ jobs:
       - name: Verify an actual-code mutation fails (and restore source)
         run: |
           uv run --locked --package laygen --extra torch --with hypothesis==6.131.0 --with pytest==8.4.2 \
-            python verification/bbox/check_actual_mutation.py
+            python -m verification.bbox.check_actual_mutation
