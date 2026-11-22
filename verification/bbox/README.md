@@ -17,7 +17,7 @@ The Lean contract maps `xywhToLTRB2` to `xywh_to_ltrb` (with integer inputs and 
 From the repository root:
 
 ```bash
-uv run --locked --package laygen --with hypothesis==6.131.0 \
+uv run --locked --package laygen --extra torch --with hypothesis==6.131.0 --with pytest==8.4.2 \
   python -m pytest verification/bbox/test_bbox_properties.py -q
 ```
 
