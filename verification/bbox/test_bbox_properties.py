@@ -19,12 +19,8 @@ def valid_xywh(draw: DrawFn) -> Box4:
     """Generate a nonempty normalized box contained within the unit canvas."""
     x = draw(st.floats(min_value=0.25, max_value=0.75, allow_nan=False))
     y = draw(st.floats(min_value=0.25, max_value=0.75, allow_nan=False))
-    w = draw(
-        st.floats(min_value=0.0, max_value=2 * min(x, 1 - x), allow_nan=False)
-    )
-    h = draw(
-        st.floats(min_value=0.0, max_value=2 * min(y, 1 - y), allow_nan=False)
-    )
+    w = draw(st.floats(min_value=0.0, max_value=2 * min(x, 1 - x), allow_nan=False))
+    h = draw(st.floats(min_value=0.0, max_value=2 * min(y, 1 - y), allow_nan=False))
     return (x, y, w, h)
 
 
