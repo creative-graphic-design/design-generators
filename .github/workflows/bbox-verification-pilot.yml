@@ -1,0 +1,42 @@
+name: BBox Verification Pilot
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/bbox-verification-pilot.yml"
+      - "verification/bbox/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-properties:
+    name: BBox Python Properties
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+      - name: Exercise the actual laygen implementation
+        run: |
+          uv run --locked --package laygen --with hypothesis==6.131.0 \
+            python -m pytest verification/bbox/test_bbox_properties.py -q
+
+  lean-contract:
+    name: BBox Lean Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: verification/bbox
+          auto-config: false
+          build: true
+          use-mathlib-cache: false

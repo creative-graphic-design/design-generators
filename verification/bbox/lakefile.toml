@@ -1,0 +1,6 @@
+name = "bbox_verification_pilot"
+version = "0.1.0"
+defaultTargets = ["BBoxContracts"]
+
+[[lean_lib]]
+name = "BBoxContracts"
