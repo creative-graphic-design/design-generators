@@ -29,3 +29,14 @@ lake build
 ```
 
 A dedicated GitHub Actions workflow runs both checks on this pilot's changes, without adding any mandatory gate to the existing main CI. The Hypothesis suite uses a fixed execution profile (60 examples per property, `derandomize=True`) and does not require GPU or vendor assets. Full model and training reproducibility still require the existing vendor-parity and S0–S5 protocols.
+
+## Incremental value / actual-code mutation experiment
+
+Run the baseline Hypothesis property, temporarily change **the actual** `xywh_to_ltrb` implementation from `x - w / 2` to `x - w / 3`, rerun the same property in a fresh interpreter, and restore the file. The experiment **passes only if** the original implementation passes, the mutant produces a Hypothesis counterexample, and the restored implementation passes again.
+
+```bash
+uv run --locked --package laygen --extra torch --with hypothesis==6.131.0 --with pytest==8.4.2 \\
+  python verification/bbox/check_actual_mutation.py
+```
+
+Lean's separately authored `BBoxContracts.lean` is *not* derived from that Python function; its compilation does not observe the mutation. Consequently, a passing Lean proof adds **no demonstrated protection against Python code drift** in this pilot. Do not require Lean in production CI based on these results alone. Review tool choice and proof-to-implementation linkage before making a merge decision; see #560.
