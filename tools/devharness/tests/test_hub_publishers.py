@@ -44,7 +44,7 @@ def test_hub_badge_status_matches_publisher_presence(
             "another-model",
             "published-code-only",
             set(),
-            "cannot be used without scripts/publish_to_hub.py",
+            r"requires \[tool.design-generators.hub-publisher\] in pyproject.toml",
         ),
     ],
 )

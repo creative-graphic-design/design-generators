@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Select changed model packages with publisher scripts
+      - name: Select changed model packages with publisher metadata
         id: select
         env:
           PYTHONPATH: tools/devharness/src
@@ -114,4 +114,4 @@ jobs:
             echo "::error::Repository secret HF_TOKEN is required to publish changed model packages."
             exit 1
           fi
-          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=1.5.0,<2" "$PACKAGE_DIRECTORY/scripts/publish_to_hub.py" --revision "$GITHUB_SHA"
+          uv run --package "$PACKAGE_NAME" --with "huggingface-hub>=1.5.0,<2" scripts/publish_to_hub.py --package-directory "$PACKAGE_DIRECTORY" --revision "$GITHUB_SHA"
