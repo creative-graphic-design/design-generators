@@ -2,6 +2,7 @@
 
 import torch
 from hypothesis import given, settings, strategies as st
+from hypothesis.strategies import DrawFn
 from laygen.common.bbox import (
     ltrb_to_xywh,
     ltwh_to_xywh,
@@ -10,8 +11,11 @@ from laygen.common.bbox import (
 )
 
 
+Box4 = tuple[float, float, float, float]
+
+
 @st.composite
-def valid_xywh(draw):
+def valid_xywh(draw: DrawFn) -> Box4:
     """Generate a nonempty normalized box contained within the unit canvas."""
     x = draw(st.floats(min_value=0.25, max_value=0.75, allow_nan=False))
     y = draw(st.floats(min_value=0.25, max_value=0.75, allow_nan=False))
@@ -25,7 +29,7 @@ def valid_xywh(draw):
 
 
 @st.composite
-def valid_ltwh(draw):
+def valid_ltwh(draw: DrawFn) -> Box4:
     """Generate a left/top box with edges inside the unit canvas."""
     left = draw(st.floats(min_value=0.0, max_value=0.8, allow_nan=False))
     top = draw(st.floats(min_value=0.0, max_value=0.8, allow_nan=False))
@@ -36,7 +40,7 @@ def valid_ltwh(draw):
 
 @settings(max_examples=60, deadline=None, derandomize=True)
 @given(st.lists(valid_xywh(), min_size=1, max_size=8))
-def test_xywh_ltrb_roundtrip(boxes):
+def test_xywh_ltrb_roundtrip(boxes: list[Box4]) -> None:
     """Round trips should agree up to float64 operation rounding."""
     tensor = torch.tensor(boxes, dtype=torch.float64)
     recovered = ltrb_to_xywh(xywh_to_ltrb(tensor))
@@ -46,7 +50,7 @@ def test_xywh_ltrb_roundtrip(boxes):
 
 @settings(max_examples=60, deadline=None, derandomize=True)
 @given(st.lists(valid_ltwh(), min_size=1, max_size=8))
-def test_ltwh_xywh_roundtrip(boxes):
+def test_ltwh_xywh_roundtrip(boxes: list[Box4]) -> None:
     """The independent left/top conversion should have the same property."""
     tensor = torch.tensor(boxes, dtype=torch.float64)
     recovered = xywh_to_ltwh(ltwh_to_xywh(tensor))
@@ -54,7 +58,7 @@ def test_ltwh_xywh_roundtrip(boxes):
     torch.testing.assert_close(recovered, tensor, rtol=0, atol=1e-12)
 
 
-def test_deliberately_wrong_half_width_is_detected():
+def test_deliberately_wrong_half_width_is_detected() -> None:
     """Negative control: a /3 instead of /2 offset does not preserve boxes."""
     tensor = torch.tensor([[0.5, 0.5, 0.2, 0.4]], dtype=torch.float64)
     x, y, w, h = tensor.unbind(-1)
