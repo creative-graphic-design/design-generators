@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-PUBLISHER_PATH = Path("scripts") / "publish_to_hub.py"
+PUBLISHER_CONFIG = "[tool.design-generators.hub-publisher]"
 HUB_BADGE_STATUS_PAIRS = (("planned-code-only", "published-code-only"),)
 HUB_BADGE_COLORS = {
     "planned-code-only": "orange",
@@ -17,14 +17,14 @@ HUB_BADGE_COLORS = {
 
 @dataclass(frozen=True)
 class HubPublisher:
-    """A model package with its own Hugging Face publication procedure."""
+    """A model package with declarative Hugging Face publisher metadata."""
 
     package: str
     directory: Path
 
 
 def discover_publishers(repository_root: Path) -> list[HubPublisher]:
-    """Return model packages that contain the package-local publisher script."""
+    """Return model packages that declare a Hub publisher table."""
     models_directory = repository_root / "models"
     publishers: list[HubPublisher] = []
 
@@ -35,11 +35,18 @@ def discover_publishers(repository_root: Path) -> list[HubPublisher]:
         if not (package_directory / "pyproject.toml").is_file():
             continue
 
-        if not (package_directory / PUBLISHER_PATH).is_file():
-            continue
-
         pyproject_path = package_directory / "pyproject.toml"
         pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        tool = pyproject.get("tool")
+        design_generators = (
+            tool.get("design-generators") if isinstance(tool, dict) else None
+        )
+        if (
+            not isinstance(design_generators, dict)
+            or "hub-publisher" not in design_generators
+        ):
+            continue
+
         package_name = pyproject.get("project", {}).get("name")
         if not isinstance(package_name, str):
             raise TypeError(f"{pyproject_path} must define project.name")
@@ -71,12 +78,12 @@ def assert_hub_badge_matches_publisher(
         if message not in published_messages:
             expected_messages = ", ".join(sorted(published_messages))
             raise AssertionError(
-                f"models/{package_name}/README.md: hub badge {message!r} must use a published Hub badge for its publisher script; expected one of {expected_messages}"
+                f"models/{package_name}/README.md: hub badge {message!r} must use a published Hub badge for its publisher metadata; expected one of {expected_messages}"
             )
 
         return
 
     if message.startswith("published-"):
         raise AssertionError(
-            f"models/{package_name}/README.md: hub badge {message!r} cannot be used without {PUBLISHER_PATH.as_posix()}"
+            f"models/{package_name}/README.md: hub badge {message!r} requires {PUBLISHER_CONFIG} in pyproject.toml"
         )

@@ -20,6 +20,14 @@ task = "text-to-image-generation"
 conditions = ["prompt"]
 datasets = []
 
+[tool.design-generators.hub-publisher]
+repo-id = "creative-graphic-design/sawna"
+archive-url-count = 2
+
+[tool.design-generators.hub-publisher.files]
+"README.md" = "README.md"
+"pipeline.py" = { content = "from sawna import SAWNAHubPipeline\n" }
+
 [tool.pytest.ini_options]
 markers = [
     "integration: requires model weights or external assets",

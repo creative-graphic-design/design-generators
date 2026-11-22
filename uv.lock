@@ -3140,6 +3140,7 @@ evaluation = [
 dev = [
     { name = "beartype" },
     { name = "devharness" },
+    { name = "huggingface-hub" },
     { name = "pre-commit" },
     { name = "pylint" },
     { name = "pytest" },
@@ -3172,6 +3173,7 @@ provides-extras = ["evaluation"]
 dev = [
     { name = "beartype", specifier = ">=0.22.9,<0.23" },
     { name = "devharness", editable = "tools/devharness" },
+    { name = "huggingface-hub", specifier = ">=1.5.0,<2" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pylint", specifier = ">=4.0.0" },
     { name = "pytest", specifier = ">=6.0.0" },
