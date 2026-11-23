@@ -48,7 +48,9 @@ Before implementing a fix, state the cause as a hypothesis, name a measurement t
 
 For a package defect, follow only the protocol path. Add a regression check and confirm it fails before the package fix. Fix the package behavior and confirm that check passes. Apply the protocol's [Regression Rule](docs/training-reproduction.md#regression-rule) by rerunning the evidence ladder from the lowest affected stage. After that ladder passes, rerun the failed gate.
 
-Never offer continuing training, waiving the gate, or reinterpreting its result as an alternative. A deviation exists only through an amendment recorded as required by the protocol. Ask the user only about decisions the protocol assigns to them, such as additional GPU compute or an amendment. Never ask whether to follow the protocol.
+If loss-envelope measurements show no check-script or package defect, collect more original production seeds per [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording).
+
+Never offer continuing package training, waiving a gate, or reinterpreting a gate as alternatives. A deviation exists only through an amendment recorded as required by the protocol. Ask the user only about decisions the protocol assigns to them, such as additional GPU compute or an amendment. Never ask whether to follow the protocol.
 
 Before launching S5, write one launch manifest with `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The [protocol](docs/training-reproduction.md#checkpoint-smoke-before-full-runs) defines the required checked-in configuration. In the S5 Comparison Scope table in `TRAINING.md`, the `Evaluator` cell must equal the manifest's `evaluator_command`, and the `Checkpoint-selection rule` cell must equal `checkpoint_rule`.
 
