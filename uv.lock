@@ -3815,6 +3815,12 @@ vendor-tf = [
     { name = "traingen-parity" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "beartype" },
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "dacite", marker = "extra == 'vendor-tf'" },
@@ -3843,6 +3849,12 @@ requires-dist = [
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]
 provides-extras = ["data", "convert", "vendor-tf"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "beartype", specifier = ">=0.22.9,<0.23" },
+    { name = "pytest", specifier = ">=8.3" },
+]
 
 [[package]]
 name = "fonttools"
