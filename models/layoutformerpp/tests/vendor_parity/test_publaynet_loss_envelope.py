@@ -106,6 +106,10 @@ def test_entrypoints_capture_exact_objectives(
     assert "--train_log_step 1" in Path(run.call_args_list[0].args[0][1]).read_text()
     assert "--trainer.max_steps=2" in run.call_args_list[1].args[0]
     assert "LAYOUTFORMERPP_OBJECTIVE_TRACE" in run.call_args_list[0].kwargs["env"]
+    assert (
+        run.call_args_list[0].kwargs["env"]["LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES"]
+        == "2"
+    )
     assert "install_original_objective_capture()" in ENVELOPE._sitecustomize_source()
     original_rows = [
         json.loads(line)

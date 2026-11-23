@@ -209,6 +209,7 @@ def _run_original(
     child_environment["LAYOUTFORMERPP_OBJECTIVE_TRACE"] = str(
         directory / "objectives.jsonl"
     )
+    child_environment["LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES"] = str(UPDATES)
     completed = subprocess.run(
         command,
         cwd=campaign.VENDOR_SOURCE,
