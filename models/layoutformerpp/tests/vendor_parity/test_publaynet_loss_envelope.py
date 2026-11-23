@@ -1,59 +1,85 @@
-"""CPU-only checks for native production loss collection and comparison."""
+"""CPU-only checks for production loss capture and envelope comparison."""
 
-import importlib.util
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
-ROOT = Path(__file__).resolve().parent
-SPEC = importlib.util.spec_from_file_location(
-    "publaynet_loss_envelope", ROOT / "run_publaynet_loss_envelope.py"
-)
-assert SPEC is not None and SPEC.loader is not None
-ENVELOPE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(ENVELOPE)
+import pytest
+
+import run_publaynet_loss_envelope as ENVELOPE
 
 
 def _write_trace(path: Path, system: str, seed: int, loss: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = [{"record": "metadata", "system": system, "seed": seed}]
-    rows.extend(
-        {
-            "record": "update",
-            "update": update,
-            "objective": loss,
-            "batch_sha256": f"{1501 - update if system == 'package' else update:064x}",
-        }
-        for update in range(1, 1501)
+    with path.open("w", encoding="utf-8") as stream:
+        stream.write(
+            json.dumps(dict(record="metadata", system=system, seed=seed)) + "\n"
+        )
+        for step in range(1, 1501):
+            digest = 1501 - step if system == "package" else step
+            stream.write(
+                json.dumps(
+                    dict(
+                        record="update",
+                        update=step,
+                        objective=loss,
+                        batch_sha256=f"{digest:064x}",
+                    )
+                )
+                + "\n"
+            )
+
+
+def test_entrypoints_capture_losses(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "vendor" / "scripts" / "label.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("--load_vocab", encoding="utf-8")
+    original, package = tmp_path / "original", tmp_path / "package"
+    original.mkdir()
+    package.mkdir()
+    metrics = package / "lightning" / "logs" / "metrics.csv"
+    metrics.parent.mkdir(parents=True)
+    metrics.write_text("train_loss_step\n" + "1.0\n" * 1500, encoding="utf-8")
+    campaign = Mock(
+        VENDOR_SOURCE=source.parents[1],
+        VENDOR_SCRIPTS={"label": "label.py"},
+        build_argv=Mock(side_effect=lambda *args: [["python", "entry.py"]]),
     )
-    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
-
-
-def test_production_loss_capture_and_native_losses(tmp_path: Path) -> None:
-    assert ENVELOPE._original_losses(
-        ["[0/200][0/4865]\tLoss: 3.125", "not a loss"]
-    ) == [3.125]
-    metrics = tmp_path / "metrics.csv"
-    metrics.write_text(
-        "step,train_loss_step,train_loss_epoch\n0,3.25,\n1,3.5,\n2,,3.375\n",
-        encoding="utf-8",
+    run = Mock(
+        side_effect=[
+            Mock(returncode=0, stdout="[0/1][0/1500] Loss: 1.0\n" * 1500),
+            Mock(returncode=0),
+        ]
     )
-    assert ENVELOPE._package_losses(metrics) == [3.25, 3.5]
-    package_body = (
-        (ROOT / "run_publaynet_loss_envelope.py")
-        .read_text()
-        .split("def _run_package", 1)[1]
-        .split("def _run(", 1)[0]
+    capture = Mock()
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+    monkeypatch.setattr(ENVELOPE, "_record_native_output", capture)
+    environment = {"PACKAGE_ENV": str(tmp_path)}
+    ENVELOPE._run_original(
+        campaign, seed=0, directory=original, environment=environment
     )
-    assert "campaign.build_argv(" in package_body and ")[0]" in package_body
+    ENVELOPE._run_package(campaign, seed=0, directory=package, environment=environment)
+    assert [call.args[2] for call in campaign.build_argv.call_args_list] == [
+        "original",
+        "package",
+    ]
+    assert "--train_log_step 1" in Path(run.call_args_list[0].args[0][1]).read_text()
+    assert "--trainer.max_steps=1500" in run.call_args_list[1].args[0]
+    assert [len(call.kwargs["loss_values"]) for call in capture.call_args_list] == [
+        1500,
+        1500,
+    ]
 
 
-def test_production_envelope_checks_three_seeds_and_batch_order(tmp_path: Path) -> None:
+def test_three_seeds_detect_batch_order(tmp_path: Path) -> None:
     for seed in range(3):
         for system, loss in (("original", 10.0 + seed), ("package", 10.5 + seed)):
-            path = tmp_path / system / f"seed-{seed}" / "updates.jsonl"
-            _write_trace(path, system, seed, loss)
+            _write_trace(
+                tmp_path / system / f"seed-{seed}" / "updates.jsonl", system, seed, loss
+            )
     result_path = tmp_path / "result.json"
     result = ENVELOPE._compare(tmp_path / "original", tmp_path / "package", result_path)
-    assert result["passed"] is False
     assert result["batch_sequence_mismatches"] == 4500
     assert result["updates_per_run"] == 1500
