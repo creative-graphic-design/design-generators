@@ -3800,6 +3800,8 @@ convert = [
 ]
 data = [
     { name = "datasets" },
+]
+training = [
     { name = "tfrecord" },
 ]
 vendor-tf = [
@@ -3837,14 +3839,14 @@ requires-dist = [
     { name = "tensorflow", extras = ["and-cuda"], marker = "extra == 'vendor-tf'", specifier = "==2.15.1" },
     { name = "tensorflow-cpu", marker = "extra == 'convert'", specifier = "==2.15.1" },
     { name = "tensorflow-probability", marker = "extra == 'vendor-tf'", specifier = "==0.23.0" },
-    { name = "tfrecord", marker = "extra == 'data'", specifier = "==1.14.7" },
+    { name = "tfrecord", marker = "extra == 'training'", specifier = ">=1.14.6,<1.14.7" },
     { name = "tinycss", marker = "extra == 'vendor-tf'" },
     { name = "torch", specifier = ">=2.1" },
     { name = "tqdm", marker = "extra == 'vendor-tf'" },
     { name = "traingen-parity", marker = "extra == 'vendor-tf'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]
-provides-extras = ["data", "convert", "vendor-tf"]
+provides-extras = ["data", "training", "convert", "vendor-tf"]
 
 [[package]]
 name = "fonttools"
@@ -20174,7 +20176,7 @@ wheels = [
 
 [[package]]
 name = "tfrecord"
-version = "1.14.7"
+version = "1.14.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "crc32c" },
@@ -20184,10 +20186,7 @@ dependencies = [
     { name = "protobuf", version = "4.25.9", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-10-canvas-vae-convert' or extra == 'extra-10-canvas-vae-vendor' or extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or extra == 'extra-9-pixel-vae-vendor' or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
     { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-6-laygen-agents' or extra == 'project-10-layout-gpt' or extra == 'project-14-layoutprompter' or extra == 'project-7-postero' or (extra == 'extra-10-canvas-vae-convert' and extra == 'extra-10-canvas-vae-vendor') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-10-canvas-vae-vendor' and extra == 'extra-9-pixel-vae-vendor') or (extra == 'extra-6-basnet-vendor' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-9-pixel-vae-vendor') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra != 'extra-10-canvas-vae-convert' and extra != 'extra-10-canvas-vae-vendor' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra != 'extra-9-pixel-vae-vendor')" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/75/f33457b4b227c5f9ee61d228efdeff7d309b65b144e811aed6c1c8017a63/tfrecord-1.14.7.tar.gz", hash = "sha256:1f3ee9ef73926ee64e264e287c390de4891cdac8320cf79d324f62f1d77864e5", size = 22002, upload-time = "2026-11-03T09:20:10.384Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/12/39582437c108d351ee439f5f7eb674797f108231544a1db6d0564c8eed4d/tfrecord-1.14.7-py3-none-any.whl", hash = "sha256:e4ed8f66681572dbd8f542e90a139094909fec6197283f2a1fc66e63e9f93adc", size = 16911, upload-time = "2026-11-03T09:20:08.988Z" },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/aa/94b34b93e4d2ab81464a95784dd1cb5ad752944b984247496ee5eae30130/tfrecord-1.14.6.tar.gz", hash = "sha256:03483dd1745b80239dc4510e22decc4c97aa5178704bdfa2d01d1636edf9f5c7", size = 16107, upload-time = "2025-05-15T19:55:22.623Z" }
 
 [[package]]
 name = "thinc"

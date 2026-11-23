@@ -1,11 +1,33 @@
 """Flex-DM training TFRecord reader tests."""
 
 import json
+from io import BytesIO
 
 import numpy as np
+import pytest
 from flex_dm.training import dataset as dataset_module
 from flex_dm.training.dataset import FlexDmTfrecordDataset
 from tfrecord.writer import TFRecordWriter
+
+
+def test_read_record_validates_both_checksums() -> None:
+    payload = b"sequence example"
+    length_bytes = len(payload).to_bytes(8, "little")
+    record = (
+        length_bytes
+        + TFRecordWriter.masked_crc(length_bytes)
+        + payload
+        + TFRecordWriter.masked_crc(payload)
+    )
+
+    assert dataset_module._read_record(BytesIO(record)) == payload
+    bad_length_checksum = length_bytes + bytes(4) + payload + record[-4:]
+    with pytest.raises(RuntimeError, match="Invalid length checksum"):
+        dataset_module._read_record(BytesIO(bad_length_checksum))
+
+    bad_payload_checksum = record[:-4] + bytes(4)
+    with pytest.raises(RuntimeError, match="Invalid payload checksum"):
+        dataset_module._read_record(BytesIO(bad_payload_checksum))
 
 
 def _write_rico_record(

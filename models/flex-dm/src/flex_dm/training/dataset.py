@@ -2,17 +2,19 @@
 
 import json
 import os
+import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import BinaryIO, cast
 
 import numpy as np
 import torch
 from jaxtyping import Int, Shaped
-from tfrecord import _record, example_pb2
+from tfrecord import example_pb2
 from tfrecord.reader import extract_feature_dict
 from tfrecord.tools.tfrecord2idx import create_index
+from tfrecord.writer import TFRecordWriter
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 
@@ -40,6 +42,37 @@ _DISCRETIZATION = {
 _FREQUENCY_LOOKUPS = {"font_family", "icon", "text_button"}
 _INTEGER_LOOKUPS = {"canvas_width", "canvas_height"}
 _FEATURE_TYPES = {"string": "byte", "int64": "int", "float32": "float"}
+
+
+def _read_record(record_file: BinaryIO) -> bytes | None:
+    offset = record_file.tell()
+    length_bytes = record_file.read(8)
+    if not length_bytes:
+        return None
+
+    if len(length_bytes) != 8:
+        raise RuntimeError(f"Failed to read the record size at byte {offset}.")
+
+    length_crc = record_file.read(4)
+    if len(length_crc) != 4:
+        raise RuntimeError(f"Failed to read the length checksum at byte {offset}.")
+
+    if length_crc != TFRecordWriter.masked_crc(length_bytes):
+        raise RuntimeError(f"Invalid length checksum at byte {offset}.")
+
+    (length,) = struct.unpack("<Q", length_bytes)
+    payload = record_file.read(length)
+    if len(payload) != length:
+        raise RuntimeError(f"Failed to read the record at byte {offset}.")
+
+    payload_crc = record_file.read(4)
+    if len(payload_crc) != 4:
+        raise RuntimeError(f"Failed to read the payload checksum at byte {offset}.")
+
+    if payload_crc != TFRecordWriter.masked_crc(payload):
+        raise RuntimeError(f"Invalid payload checksum at byte {offset}.")
+
+    return payload
 
 
 def _read_json(path: Path) -> dict[str, FlexDmConfigValue]:
@@ -209,7 +242,7 @@ class FlexDmTfrecordDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."]]]):
         record_path, _record_index, offset = self._records[index]
         with record_path.open("rb") as record_file:
             record_file.seek(offset)
-            payload = _record.read_record(record_file)
+            payload = _read_record(record_file)
 
         if payload is None:
             raise ValueError(
