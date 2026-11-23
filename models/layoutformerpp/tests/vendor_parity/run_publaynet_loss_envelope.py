@@ -7,64 +7,47 @@ import csv
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 
+from publaynet_precheck_support import capture_provenance
+
 UPDATES = 1500
 SEEDS = (0, 1, 2)
-LOSS_LINE = re.compile(r"\[\d+/\d+\]\[(\d+)/(\d+)\]\s+Loss:\s+([\d.eE+-]+)")
 RUNNER_DIRECTORY = Path(__file__).resolve().parent
 REPOSITORY = RUNNER_DIRECTORY.parents[3]
 OUTPUT_ROOT = REPOSITORY / ".cache" / "layoutformerpp" / "s5" / "prechecks"
 
 
-def batch_sha256(value: object) -> str:
-    """Digest one production batch without writing sample contents."""
-    import torch
-
-    digest = hashlib.sha256()
-
-    def update(item: object) -> None:
-        if isinstance(item, torch.Tensor):
-            tensor = item.detach().contiguous().cpu()
-            digest.update(str(tensor.dtype).encode())
-            digest.update(repr(tuple(tensor.shape)).encode())
-            digest.update(tensor.view(torch.uint8).numpy().tobytes())
-        elif isinstance(item, Mapping):
-            for key in sorted(item):
-                update(key)
-                update(item[key])
-        elif isinstance(item, (tuple, list)):
-            digest.update(b"[")
-            for child in item:
-                update(child)
-            digest.update(b"]")
-        elif isinstance(item, bytes):
-            digest.update(item)
-        elif isinstance(item, str):
-            digest.update(item.encode("utf-8"))
-        else:
-            digest.update(repr(item).encode("utf-8"))
-        digest.update(b"\0")
-
-    update(value)
-    return digest.hexdigest()
+def sample_ids_sha256(batch: object) -> str:
+    """Digest the shared per-layout identity sequence in one batch."""
+    if not isinstance(batch, Mapping):
+        raise RuntimeError("training batch has no sample identity mapping")
+    key = "name" if "name" in batch else "names" if "names" in batch else None
+    sample_ids = batch.get(key) if key is not None else None
+    if not isinstance(sample_ids, Sequence) or isinstance(sample_ids, (str, bytes)):
+        raise RuntimeError("training batch has no sample identity sequence")
+    if any(not isinstance(sample_id, str) for sample_id in sample_ids):
+        raise RuntimeError("training batch sample identities must be strings")
+    encoded = json.dumps(list(sample_ids), ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _sitecustomize_source() -> str:
     return """import json
 import os
 from torch.utils.data import DataLoader
-from run_publaynet_loss_envelope import batch_sha256
+from run_publaynet_loss_envelope import sample_ids_sha256
+from publaynet_precheck_support import install_original_objective_capture
 
 _original_iter = DataLoader.__iter__
 _trace_path = os.environ.get("LAYOUTFORMERPP_BATCH_TRACE")
 _limit = int(os.environ.get("LAYOUTFORMERPP_BATCH_LIMIT", "1500"))
 _started = False
+install_original_objective_capture()
 
 def _recording_iter(loader):
     global _started
@@ -79,32 +62,44 @@ def _recording_iter(loader):
             if count == _limit:
                 raise SystemExit(0)
             count += 1
-            stream.write(json.dumps({"update": count, "batch_sha256": batch_sha256(batch)}) + "\\n")
+            digest = sample_ids_sha256(batch)
+            stream.write(json.dumps({"update": count, "batch_sha256": digest}) + "\\n")
             yield batch
 
 DataLoader.__iter__ = _recording_iter
 """
 
 
-def _original_losses(lines: Sequence[str]) -> list[float]:
-    values: list[float] = []
-    for line in lines:
-        match = LOSS_LINE.search(line)
-        if match is None:
-            continue
-        value = float(match.group(3))
-        values.append(value)
+def _original_objectives(path: Path) -> list[tuple[int, float]]:
+    values: list[tuple[int, float]] = []
+    for expected_update, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        row = json.loads(line)
+        if (
+            row.get("record") != "update"
+            or row.get("update") != expected_update
+            or type(row.get("logger_step")) is not int
+        ):
+            raise RuntimeError("original objective trace has invalid native indices")
+        values.append((row["logger_step"], float(row["objective"])))
+    if len(values) != UPDATES:
+        raise RuntimeError(f"original objective trace expected {UPDATES} updates")
     return values
 
 
-def _package_losses(path: Path) -> list[float]:
-    values: list[float] = []
+def _package_objectives(path: Path) -> list[tuple[int, float]]:
+    values: list[tuple[int, float]] = []
     for row in csv.DictReader(path.open(encoding="utf-8", newline="")):
         raw_value = row.get("train_loss_step")
         if raw_value is None or raw_value == "":
             continue
-        value = float(raw_value)
-        values.append(value)
+        raw_step = row.get("step")
+        if raw_step is None or raw_step == "":
+            raise RuntimeError("package objective is missing its native logger index")
+        values.append((int(raw_step), float(raw_value)))
+    if len(values) != UPDATES:
+        raise RuntimeError(f"package objective trace expected {UPDATES} updates")
     return values
 
 
@@ -113,7 +108,7 @@ def _record_native_output(
     system: str,
     seed: int,
     directory: Path,
-    loss_values: Sequence[float],
+    objectives: Sequence[tuple[int, float]],
 ) -> None:
     batch_rows = [
         json.loads(line)
@@ -124,17 +119,34 @@ def _record_native_output(
     records: list[dict[str, object]] = [
         {"record": "metadata", "system": system, "seed": seed}
     ]
-    for update, (loss, row) in enumerate(zip(loss_values, batch_rows, strict=True), 1):
+    for update, ((logger_step, objective), row) in enumerate(
+        zip(objectives, batch_rows, strict=True), 1
+    ):
         records.append(
             {
                 "record": "update",
                 "update": update,
-                "objective": loss,
+                "logger_step": logger_step,
+                "objective": objective,
                 "batch_sha256": row["batch_sha256"],
             }
         )
     with (directory / "updates.jsonl").open("x", encoding="utf-8") as stream:
         stream.writelines(json.dumps(row) + "\n" for row in records)
+
+
+def _require_native_logger_alignment(original: Path, package: Path) -> None:
+    def steps(directory: Path) -> list[int]:
+        rows = [
+            json.loads(line)
+            for line in (directory / "updates.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()[1:]
+        ]
+        return [row["logger_step"] for row in rows]
+
+    if steps(original) != steps(package):
+        raise RuntimeError("production objectives use different native logger indices")
 
 
 def _compare(original: Path, package: Path, result_path: Path) -> dict[str, object]:
@@ -194,6 +206,9 @@ def _run_original(
     command[1] = str(script_copy)
     child_environment = dict(environment)
     child_environment["LAYOUTFORMERPP_BATCH_TRACE"] = str(directory / "batches.jsonl")
+    child_environment["LAYOUTFORMERPP_OBJECTIVE_TRACE"] = str(
+        directory / "objectives.jsonl"
+    )
     completed = subprocess.run(
         command,
         cwd=campaign.VENDOR_SOURCE,
@@ -202,13 +217,13 @@ def _run_original(
         text=True,
         check=False,
     )
-    losses = _original_losses(completed.stdout.splitlines())
-    if completed.returncode != 0 or len(losses) != UPDATES:
+    if completed.returncode != 0:
         raise RuntimeError(
             f"original production entry stopped before {UPDATES} updates"
         )
+    objectives = _original_objectives(directory / "objectives.jsonl")
     _record_native_output(
-        system="original", seed=seed, directory=directory, loss_values=losses
+        system="original", seed=seed, directory=directory, objectives=objectives
     )
 
 
@@ -246,9 +261,9 @@ def _run_package(
         raise RuntimeError(
             f"package seed {seed}: expected one native Lightning metrics file"
         )
-    losses = _package_losses(metrics[0])
+    objectives = _package_objectives(metrics[0])
     _record_native_output(
-        system="package", seed=seed, directory=directory, loss_values=losses
+        system="package", seed=seed, directory=directory, objectives=objectives
     )
 
 
@@ -261,7 +276,8 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
     environment_file = Path(os.environ["LAYOUTFORMERPP_DATA_ROOT_ENV_FILE"])
     package_environment = Path(os.environ["PACKAGE_ENV"])
     data_root = campaign.read_data_root()
-    device_name, _ = campaign.gpu_info(gpu_index)
+    provenance = capture_provenance(campaign, "label", data_root)
+    device_name, gpu_uuid = campaign.gpu_info(gpu_index)
     root = output / "runs"
     root.mkdir(parents=True, exist_ok=True)
     sitecustomize = root / "sitecustomize.py"
@@ -276,7 +292,7 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
                 seed=seed,
                 arm=system,
                 gpu_index=gpu_index,
-                gpu_uuid=str(gpu_index),
+                gpu_uuid=gpu_uuid,
                 data_root=data_root,
                 environment_file=environment_file,
                 package_environment=package_environment,
@@ -294,12 +310,15 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
             )
             child_environment["LAYOUTFORMERPP_BATCH_LIMIT"] = str(UPDATES)
             run(campaign, seed=seed, directory=directory, environment=child_environment)
+        _require_native_logger_alignment(
+            root / "original" / f"seed-{seed}", root / "package" / f"seed-{seed}"
+        )
     result_path = output / "result.json"
     result = _compare(root / "original", root / "package", result_path)
     result.update(
         gpu_index=gpu_index,
         gpu_type=device_name,
-        source_commit=campaign.current_commit(),
+        provenance=provenance,
         vendor_source_commit=campaign.vendor_commit(),
         config="models/layoutformerpp/configs/training/publaynet_label.yaml",
         config_sha256=campaign.CONFIG_SHA256["label"],
@@ -307,8 +326,8 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
         original_entrypoint="vendor PubLayNet label script -> main.py; train_log_step=1",
         package_entrypoint="traingen fit; max_steps=1500; log_every_n_steps=1",
         initialization="independent production initialization and optimizer per matched seed",
-        batch_mapping="one loader batch per completed optimizer update; exact digests compared",
-        objective="native training loss; original Loss output and package train_loss_step",
+        batch_mapping="sample identity order digest per loader batch and optimizer update",
+        objective="exact scalar training loss at each system's native logger index",
     )
     return result
 
@@ -318,7 +337,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir", type=Path, default=OUTPUT_ROOT / "loss-envelope"
     )
-    parser.add_argument("--gpu-index", type=int, default=0)
+    parser.add_argument("--gpu-index", type=int, required=True)
     args = parser.parse_args()
     output = args.output_dir.resolve()
     if not output.is_relative_to(OUTPUT_ROOT.resolve()) or output.exists():
