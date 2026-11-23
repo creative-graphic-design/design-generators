@@ -54,12 +54,15 @@ def capture_provenance(
 class NativeObjectiveCapture:
     """Write exact scalar objectives at contiguous native logger indices."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, expected_updates: int) -> None:
         self.path = path
+        self.expected_updates = expected_updates
         self.next_step = 0
 
     def record(self, data: object, step: object) -> None:
         if not isinstance(data, Mapping) or "training_loss" not in data:
+            if type(step) is int and 0 <= step < self.expected_updates:
+                raise RuntimeError(f"expected training objective at logger step {step}")
             return
         if isinstance(step, bool) or not isinstance(step, int):
             raise RuntimeError("training objective has no native logger index")
@@ -92,10 +95,20 @@ class NativeObjectiveCapture:
             stream.write(json.dumps(row, sort_keys=True) + "\n")
         self.next_step += 1
 
+    def require_complete(self) -> None:
+        if self.next_step != self.expected_updates:
+            raise RuntimeError(
+                f"expected {self.expected_updates} objectives, recorded {self.next_step}"
+            )
 
-def instrument_original_objective(wandb: ModuleType, path: Path) -> None:
+
+def instrument_original_objective(
+    wandb: ModuleType, path: Path, *, expected_updates: int
+) -> None:
     """Capture the unrounded training objective passed to the vendor logger."""
-    recorder = NativeObjectiveCapture(path)
+    if expected_updates < 1:
+        raise ValueError("expected objective update count must be positive")
+    recorder = NativeObjectiveCapture(path, expected_updates)
     original_log = getattr(wandb, "log", None)
     if not callable(original_log):
         raise RuntimeError("vendor logger does not expose a callable log function")
@@ -108,6 +121,15 @@ def instrument_original_objective(wandb: ModuleType, path: Path) -> None:
         return typed_original_log(*args, **kwargs)
 
     setattr(wandb, "log", recording_log)
+    original_finish = getattr(wandb, "finish", None)
+    if callable(original_finish):
+        typed_original_finish = cast(Callable[..., object], original_finish)
+
+        def recording_finish(*args: object, **kwargs: object) -> object:
+            recorder.require_complete()
+            return typed_original_finish(*args, **kwargs)
+
+        setattr(wandb, "finish", recording_finish)
 
 
 def install_original_objective_capture() -> None:
@@ -115,7 +137,16 @@ def install_original_objective_capture() -> None:
     trace_value = os.environ.get("LAYOUTFORMERPP_OBJECTIVE_TRACE")
     if not trace_value:
         return
+    updates_value = os.environ.get("LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES")
+    if updates_value is None:
+        raise RuntimeError("expected objective update count is not configured")
+    try:
+        expected_updates = int(updates_value)
+    except ValueError:
+        raise RuntimeError("expected objective update count is invalid") from None
 
     import wandb
 
-    instrument_original_objective(wandb, Path(trace_value))
+    instrument_original_objective(
+        wandb, Path(trace_value), expected_updates=expected_updates
+    )

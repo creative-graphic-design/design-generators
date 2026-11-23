@@ -1,18 +1,21 @@
 """CPU tests for shared PubLayNet pre-check evidence capture."""
 
 import json
+import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
-from unittest.mock import Mock
 
 import pytest
 import torch
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+LAUNCHER_DIRECTORY = ROOT.parents[1] / "scripts" / "publaynet_s5"
+sys.path.insert(0, str(LAUNCHER_DIRECTORY))
+
+import launch_track  # noqa: E402
 
 from publaynet_precheck_support import (  # noqa: E402
     Campaign,
@@ -21,70 +24,102 @@ from publaynet_precheck_support import (  # noqa: E402
 )
 
 
-@dataclass
-class CampaignStub:
-    CONFIG_SHA256: dict[str, str]
-    REPOSITORY: Path
-    config_path: Mock
-    current_commit: Mock
-    require_clean_tree: Mock
-    sha256: Mock
-    verify_splits: Mock
-
-
-def _campaign(root: Path, config_hash: str = "config-hash") -> CampaignStub:
-    return CampaignStub(
-        CONFIG_SHA256={"label": "config-hash"},
-        REPOSITORY=root,
-        config_path=Mock(return_value=root / "publaynet_label.yaml"),
-        current_commit=Mock(return_value="source-revision"),
-        require_clean_tree=Mock(),
-        sha256=Mock(return_value=config_hash),
-        verify_splits=Mock(return_value={"train": {"sha256": "split-hash"}}),
+def _prepare_campaign(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    repository = tmp_path / "repository"
+    config = (
+        repository
+        / "models"
+        / "layoutformerpp"
+        / "configs"
+        / "training"
+        / "publaynet_label.yaml"
+    )
+    config.parent.mkdir(parents=True)
+    config.write_text("family: label\n", encoding="utf-8")
+    tracked_file = repository / "tracked.txt"
+    tracked_file.write_text("clean\n", encoding="utf-8")
+    subprocess.run(["git", "init", "--quiet", str(repository)], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "add", "models", "tracked.txt"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.name=Pre-check test",
+            "-c",
+            "user.email=precheck@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "fixture",
+        ],
+        check=True,
+    )
+    monkeypatch.setattr(launch_track, "REPOSITORY", repository)
+    monkeypatch.setattr(
+        launch_track, "CONFIG_SHA256", {"label": launch_track.sha256(config)}
     )
 
-
-def test_provenance_reuses_launcher_checks(tmp_path: Path) -> None:
-    campaign = _campaign(tmp_path)
-
-    result = capture_provenance(cast(Campaign, campaign), "label", tmp_path)
-
-    campaign.require_clean_tree.assert_called_once_with()
-    campaign.verify_splits.assert_called_once_with(tmp_path)
-    assert result == {
-        "source_commit": "source-revision",
-        "clean_tree": True,
-        "config": "publaynet_label.yaml",
-        "config_sha256": "config-hash",
-        "input_splits": {"train": {"sha256": "split-hash"}},
-    }
+    split_root = tmp_path / "data" / "publaynet" / "pre_processed_20_5"
+    split_root.mkdir(parents=True)
+    expected_splits: dict[str, tuple[int, str]] = {}
+    for split in ("train", "val", "test"):
+        split_path = split_root / f"{split}.pt"
+        torch.save([f"{split}-row-0", f"{split}-row-1"], split_path)
+        expected_splits[split] = (2, launch_track.sha256(split_path))
+    monkeypatch.setattr(launch_track, "EXPECTED_SPLITS", expected_splits)
+    return tmp_path / "data"
 
 
-def test_provenance_rejects_a_changed_resolved_config(tmp_path: Path) -> None:
-    campaign = _campaign(tmp_path, config_hash="changed-hash")
+def test_provenance_uses_real_launcher_git_and_split_checks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    data_root = _prepare_campaign(monkeypatch, tmp_path)
 
-    with pytest.raises(RuntimeError, match="configuration hash"):
-        capture_provenance(cast(Campaign, campaign), "label", tmp_path)
+    result = capture_provenance(cast(Campaign, launch_track), "label", data_root)
 
-    campaign.verify_splits.assert_not_called()
-
-
-def test_provenance_rejects_a_dirty_tracked_tree(tmp_path: Path) -> None:
-    campaign = _campaign(tmp_path)
-    campaign.require_clean_tree.side_effect = RuntimeError("tree is dirty")
-
-    with pytest.raises(RuntimeError, match="tree is dirty"):
-        capture_provenance(cast(Campaign, campaign), "label", tmp_path)
-
-    campaign.config_path.assert_not_called()
+    input_splits = cast(dict[str, dict[str, int | str]], result["input_splits"])
+    assert result["source_commit"] == launch_track.current_commit()
+    assert result["clean_tree"] is True
+    assert result["config_sha256"] == launch_track.CONFIG_SHA256["label"]
+    assert set(input_splits) == {"train", "val", "test"}
 
 
-def test_provenance_rejects_a_changed_processed_split(tmp_path: Path) -> None:
-    campaign = _campaign(tmp_path)
-    campaign.verify_splits.side_effect = RuntimeError("split hash check failed")
+def test_provenance_rejects_changed_resolved_config_hash(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    data_root = _prepare_campaign(monkeypatch, tmp_path)
+    monkeypatch.setattr(launch_track, "CONFIG_SHA256", {"label": "0" * 64})
 
-    with pytest.raises(RuntimeError, match="split hash check failed"):
-        capture_provenance(cast(Campaign, campaign), "label", tmp_path)
+    with pytest.raises(RuntimeError, match="configuration hash mismatch"):
+        capture_provenance(cast(Campaign, launch_track), "label", data_root)
+
+
+def test_provenance_rejects_dirty_tracked_tree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    data_root = _prepare_campaign(monkeypatch, tmp_path)
+    (launch_track.REPOSITORY / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="tracked source tree must be clean"):
+        capture_provenance(cast(Campaign, launch_track), "label", data_root)
+
+
+def test_provenance_rejects_processed_split_hash_mismatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    data_root = _prepare_campaign(monkeypatch, tmp_path)
+    expected_splits = dict(launch_track.EXPECTED_SPLITS)
+    row_count, _ = expected_splits["train"]
+    expected_splits["train"] = (row_count, "0" * 64)
+    monkeypatch.setattr(launch_track, "EXPECTED_SPLITS", expected_splits)
+
+    with pytest.raises(RuntimeError, match="processed train split hash check failed"):
+        capture_provenance(cast(Campaign, launch_track), "label", data_root)
 
 
 def test_objective_hook_records_exact_native_logger_values(tmp_path: Path) -> None:
@@ -95,7 +130,7 @@ def test_objective_hook_records_exact_native_logger_values(tmp_path: Path) -> No
 
     wandb = cast(ModuleType, SimpleNamespace(log=log))
     trace = tmp_path / "updates.jsonl"
-    instrument_original_objective(wandb, trace)
+    instrument_original_objective(wandb, trace, expected_updates=2)
     first = torch.tensor(1.234567890123, dtype=torch.float64)
     second = torch.tensor(2.345678901234, dtype=torch.float64)
 
@@ -116,7 +151,34 @@ def test_objective_hook_fails_if_a_native_logger_index_is_missing(
     tmp_path: Path,
 ) -> None:
     wandb = cast(ModuleType, SimpleNamespace(log=lambda *_args, **_kwargs: None))
-    instrument_original_objective(wandb, tmp_path / "updates.jsonl")
+    instrument_original_objective(wandb, tmp_path / "updates.jsonl", expected_updates=2)
 
     with pytest.raises(RuntimeError, match="contiguous native logger indices"):
         wandb.log({"training_loss": torch.tensor(1.0)}, step=1)
+
+
+def test_objective_hook_rejects_missing_objective_at_expected_update(
+    tmp_path: Path,
+) -> None:
+    wandb = cast(ModuleType, SimpleNamespace(log=lambda *_args, **_kwargs: None))
+    instrument_original_objective(wandb, tmp_path / "updates.jsonl", expected_updates=2)
+
+    with pytest.raises(
+        RuntimeError, match="expected training objective at logger step 0"
+    ):
+        wandb.log({"other_metric": 1.0}, step=0)
+
+
+def test_objective_hook_rejects_missing_final_update(tmp_path: Path) -> None:
+    wandb = cast(
+        ModuleType,
+        SimpleNamespace(
+            log=lambda *_args, **_kwargs: None,
+            finish=lambda: None,
+        ),
+    )
+    instrument_original_objective(wandb, tmp_path / "updates.jsonl", expected_updates=2)
+    wandb.log({"training_loss": torch.tensor(1.0)}, step=0)
+
+    with pytest.raises(RuntimeError, match="expected 2 objectives, recorded 1"):
+        wandb.finish()
