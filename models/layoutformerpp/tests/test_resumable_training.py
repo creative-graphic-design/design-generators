@@ -224,7 +224,7 @@ def test_package_resume_matches_uninterrupted_epoch_boundary(
     assert "layoutformerpp_datamodule" not in payload
     data_state = payload["LayoutFormerPPDataModule"]
     assert is_safe_mapping(data_state)
-    assert data_state.get("training_seed_applied") is True
+    assert "training_seed_applied" not in data_state
     assert list((tmp_path / "split" / "durable" / "track").glob("epoch-*-best"))
     assert uninterrupted_checkpoints[-1].is_file()
 

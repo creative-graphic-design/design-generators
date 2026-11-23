@@ -7,7 +7,10 @@ import json
 import os
 import random
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import ModuleType
+from typing import cast
 
 import numpy as np
 import torch
@@ -20,7 +23,7 @@ patched: set[str] = set()
 
 
 def digests() -> dict[str, str]:
-    state = np.random.get_state()
+    state = cast(tuple[str, np.ndarray, int, int, float], np.random.get_state())
     return {
         "python": hashlib.sha256(repr(random.getstate()).encode()).hexdigest(),
         "numpy": hashlib.sha256(
@@ -101,7 +104,7 @@ def patch_loader() -> None:
 
     loader.__init__ = measured_init
     loader.__iter__ = measured_iter
-    loader._seed_timing_probe = True
+    setattr(loader, "_seed_timing_probe", True)
 
 
 def patch_vendor_task_utils() -> None:
@@ -109,7 +112,7 @@ def patch_vendor_task_utils() -> None:
     if module is None or "tasks.task_utils" in patched:
         return
     patched.add("tasks.task_utils")
-    original_build = module.build_model
+    original_build = module.__dict__["build_model"]
 
     def measured_build(*args, **kwargs):
         snapshot("pre_model")
@@ -117,13 +120,19 @@ def patch_vendor_task_utils() -> None:
         globals()["stage"] = "after_model"
         return model
 
-    module.build_model = measured_build
+    module.__dict__["build_model"] = measured_build
 
 
 original_import = builtins.__import__
 
 
-def instrument_import(name, globals=None, locals=None, fromlist=(), level=0):
+def instrument_import(
+    name: str,
+    globals: Mapping[str, object] | None = None,
+    locals: Mapping[str, object] | None = None,
+    fromlist: Sequence[str] | None = (),
+    level: int = 0,
+) -> ModuleType:
     imported = original_import(name, globals, locals, fromlist, level)
     if arm == "package" and name.startswith("layoutformerpp.training"):
         patch_package_module()
@@ -133,5 +142,5 @@ def instrument_import(name, globals=None, locals=None, fromlist=(), level=0):
     return imported
 
 
-builtins.__import__ = instrument_import
+builtins.__dict__["__import__"] = instrument_import
 patch_loader()
