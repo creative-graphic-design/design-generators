@@ -32,7 +32,23 @@ Use this order for every training-first package:
 
 Before an S5-scale training or evaluation launch, a `parity-verified` label change, or an S5 claim in a README or model card, follow the [checkpoint smoke rule](docs/training-reproduction.md#checkpoint-smoke-before-full-runs).
 
-Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording): use at least 1,500 updates and three matched training seeds, independent production initialization and optimizer stepping, and the S4 stream; gate the median of package per-seed medians against the widened envelope from original production runs and cite the artifact in the S3 Stage Evidence row. A failure calls for diagnosis or more original production seeds; it does not by itself prove a defect.
+Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording): use at least 1,500 updates and three matched training seeds, independent production initialization and optimizer stepping, and the S4 stream; gate the median of package per-seed medians against the widened envelope from original production runs and cite the artifact in the S3 Stage Evidence row.
+
+### Gate Failure Triage
+
+When any staged check or pre-launch gate fails, pause progression and classify the failure before proposing an action. Use captured inputs and measurements from the original and shipped package's real entrypoints, then independently apply the current protocol and any recorded amendment. Classify it as one of these:
+
+- **Check-script defect:** the check measures incorrectly or applies the protocol criterion incorrectly to the real-entrypoint evidence. Correct it against those measurements, then rerun the failed check.
+- **Package defect:** the measurements show that package behavior differs from the original's effective behavior in a way the protocol and recorded amendments do not permit.
+- **Recorded permitted difference:** the measurements show a difference explicitly covered by an existing amendment on the model issue, and the observed case fits that amendment's scope. Cite the amendment and apply its criterion; proceed only if the remaining gate requirements pass.
+
+Do not classify from intent, source-level expectations, or a plausible explanation. If the available measurements do not establish one of these cases, stop and collect evidence before proposing a fix or advancing.
+
+Before implementing a fix, state the cause as a hypothesis, name a measurement that would refute it, and state the condition that will stop the change. Run the measurement through the real entrypoints first; if it refutes the hypothesis or does not isolate the cause, stop and revise the diagnosis before editing.
+
+For a package defect, follow only the protocol path. Add a regression check and confirm it fails before the package fix. Fix the package behavior and confirm that check passes. Apply the protocol's [Regression Rule](docs/training-reproduction.md#regression-rule) by rerunning the evidence ladder from the lowest affected stage. After that ladder passes, rerun the failed gate.
+
+Never offer continuing training, waiving the gate, or reinterpreting its result as an alternative. A deviation exists only through an amendment recorded as required by the protocol. Ask the user only about decisions the protocol assigns to them, such as additional GPU compute or an amendment. Never ask whether to follow the protocol.
 
 Before launching S5, write one launch manifest with `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The [protocol](docs/training-reproduction.md#checkpoint-smoke-before-full-runs) defines the required checked-in configuration. In the S5 Comparison Scope table in `TRAINING.md`, the `Evaluator` cell must equal the manifest's `evaluator_command`, and the `Checkpoint-selection rule` cell must equal `checkpoint_rule`.
 
