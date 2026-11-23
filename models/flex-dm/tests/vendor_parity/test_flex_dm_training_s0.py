@@ -74,9 +74,15 @@ def _source_model_state(dataset: DatasetName) -> dict[str, torch.Tensor]:
     return converted
 
 
-def _first_batch(dataspec, split: str):
-    dataset = dataspec.make_dataset(split, batch_size=1, shuffle=False, prefetch=0)
-    return next(iter(dataset))
+def _first_batch(dataspec, split: str, *, batch_size: int = 1):
+    import tensorflow as tf
+
+    shards = sorted(
+        tf.io.gfile.glob(os.path.join(dataspec._path, f"{split}-*.tfrecord"))
+    )
+    assert shards
+    records = tf.data.TFRecordDataset(shards[0]).batch(batch_size)
+    return next(iter(records.map(dataspec.parse_fn)))
 
 
 def _to_torch_inputs(batch, keys: set[str]) -> dict[str, torch.Tensor]:
@@ -310,14 +316,7 @@ def test_s0_original_training_branches_match_resolved_args(monkeypatch) -> None:
             monkeypatch.setattr(vendor_mfp, "shuffle_inputs", traced_shuffle)
             monkeypatch.setattr(vendor_mfp, "sort_inputs", traced_sort)
             monkeypatch.setattr(vendor_masking, "apply_token", traced_apply_token)
-        train_shards = sorted(
-            tf.io.gfile.glob(os.path.join(dataspec._path, "train-*.tfrecord"))
-        )
-        assert train_shards
-        train_records = tf.data.TFRecordDataset(train_shards[0]).batch(
-            int(exp_args["batch_size"])
-        )
-        batch = next(iter(train_records.map(dataspec.parse_fn)))
+        batch = _first_batch(dataspec, "train", batch_size=int(exp_args["batch_size"]))
         assert int(batch["left"].shape[0]) == exp_args["batch_size"] == 256
         assert all(value.device.endswith("/device:CPU:0") for value in batch.values())
         input_columns = _exp_model.input_columns
@@ -604,13 +603,22 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
     import tensorflow as tf
 
     for dataset, method in _METHODS.items():
+        args = original_args(dataset)
+        batch_size = int(args["batch_size"])
+        assert batch_size == 256
         dataspec, original, _args = build_original(
-            dataset, masking_method=method, restore_checkpoint=False
+            dataset,
+            masking_method=method,
+            batch_size=batch_size,
+            restore_checkpoint=False,
         )
         from mfp.data.spec import get_attribute_groups
         from mfp.models import mfp as vendor_mfp
 
-        batch = _first_batch(dataspec, "train")
+        batch = _first_batch(dataspec, "train", batch_size=batch_size)
+        assert int(batch["left"].shape[0]) == batch_size
+        seed = int(args.get("seed", 0))
+        assert seed == 0
         task_names = original.task_names
         attribute_groups = get_attribute_groups(original.input_columns.keys())
         data_root = original_asset_root() / "data" / dataset
@@ -629,6 +637,7 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
 
         for task_name in tasks_to_check:
             task_id = task_names.index(task_name)
+            tasks = tf.fill([batch_size], task_id)
             original_draws: list[tuple[str, tuple[int, ...], np.ndarray]] = []
             raw_uniform = tf.random.uniform
             raw_normal = tf.random.normal
@@ -654,11 +663,11 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
 
             monkeypatch.setattr(tf.random, "uniform", traced_uniform)
             monkeypatch.setattr(tf.random, "normal", traced_normal)
-            tf.random.set_seed(914)
+            tf.random.set_seed(seed)
             reference = vendor_mfp.preprocess_for_train(
                 batch,
                 original.input_columns,
-                tf.convert_to_tensor([task_id], dtype=tf.int32),
+                tasks,
                 is_autoreg=original.is_autoreg,
                 input_dtype=original.input_dtype,
             )
@@ -683,6 +692,9 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
                 assert (operation, shape) == (expected_operation, expected_shape)
                 draw_index += 1
                 _calls.append((operation, shape))
+                if operation == "normal":
+                    # TensorFlow records stddev=0.1 output; the package scales randn itself.
+                    values = values / 0.1
                 return torch.as_tensor(values, device=device, dtype=dtype)
 
             def replay_rand(*size, device=None, dtype=None, generator=None):
@@ -703,7 +715,7 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
                 actual = masking.prepare_training_batch(
                     package_inputs,
                     package_columns,
-                    torch.tensor([task_id]),
+                    torch.full((batch_size,), task_id),
                     attribute_groups=package_groups,
                     is_autoreg=original.is_autoreg,
                     input_dtype=original.input_dtype,
@@ -736,6 +748,9 @@ def test_s0_training_masking_replays_original_random_draws(monkeypatch) -> None:
                         {
                             "dataset": dataset,
                             "task": task_name,
+                            "batch_size": batch_size,
+                            "train_stream_selection": "first sorted train shard, source order",
+                            "seed": seed,
                             "draws": [
                                 {"operation": item[0], "shape": list(item[1])}
                                 for item in original_draws
