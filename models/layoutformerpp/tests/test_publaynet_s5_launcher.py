@@ -57,7 +57,8 @@ def test_publaynet_launcher_argv_and_outputs_keep_data_root_private(
                 "fit",
                 "--config",
                 config_path(family).relative_to(REPOSITORY).as_posix(),
-                "--seed_everything=1",
+                "--seed_everything=false",
+                "--data.seed=1",
                 "--trainer.devices=1",
                 f"--trainer.default_root_dir={track / 'lightning'}",
             ]

@@ -180,7 +180,8 @@ def build_argv(
             "fit",
             "--config",
             config,
-            f"--seed_everything={seed}",
+            "--seed_everything=false",
+            f"--data.seed={seed}",
             "--trainer.devices=1",
             f"--trainer.default_root_dir={track_directory / 'lightning'}",
         ]
