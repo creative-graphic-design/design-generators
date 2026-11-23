@@ -604,7 +604,7 @@ class LayoutFormerPPDataModule(LightningDataModule):
             data_root: Processed source-data root, or ``None`` to read an
                 environment variable at setup time.
             num_workers: Number of DataLoader worker processes.
-            seed: Reserved loader seed recorded with the module configuration.
+            seed: Training seed applied before the first shuffled loader is built.
             pin_memory: Whether DataLoader batches use pinned host memory.
         """
         super().__init__()
@@ -615,6 +615,7 @@ class LayoutFormerPPDataModule(LightningDataModule):
         self.pin_memory = pin_memory
         self.train_dataset: _LayoutFormerPPDataset | None = None
         self.val_dataset: _LayoutFormerPPDataset | None = None
+        self._training_seed_applied = False
         self.tokenizer = _package_tokenizer(self.recipe)
 
     def state_dict(self) -> dict[str, safe_value_type]:
@@ -685,6 +686,12 @@ class LayoutFormerPPDataModule(LightningDataModule):
 
         if self.train_dataset is None:
             raise RuntimeError("train dataset was not initialized")
+
+        if not self._training_seed_applied:
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+            torch.manual_seed(self.seed)
+            self._training_seed_applied = True
 
         return DataLoader(
             self.train_dataset,
