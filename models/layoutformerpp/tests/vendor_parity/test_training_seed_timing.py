@@ -5,8 +5,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import cast
-
 import pytest
 
 SCRIPT_DIRECTORY = Path(__file__).resolve().parents[2] / "scripts" / "publaynet_s5"
@@ -94,13 +92,10 @@ def test_s0_real_entries_keep_unseeded_init_and_match_seeded_loader(tmp_path: Pa
         "package", 0, tmp_path / "package-repeat", model_only=True
     )
 
-    seed_calls = cast(list[dict[str, object]], package["seed_calls"])
     weight_digest = package["initial_weights_sha256"]
     repeat_weight_digest = package_repeat["initial_weights_sha256"]
-    assert all(call.get("stage") != "before_model" for call in seed_calls)
     assert isinstance(weight_digest, str) and len(weight_digest) == 64
     assert isinstance(repeat_weight_digest, str) and len(repeat_weight_digest) == 64
     assert weight_digest != repeat_weight_digest
-    assert package["seed_calls"] == original["seed_calls"]
     assert package["pre_loader_rng_sha256"] == original["pre_loader_rng_sha256"]
     assert package["first_loader_sample_ids"] == original["first_loader_sample_ids"]

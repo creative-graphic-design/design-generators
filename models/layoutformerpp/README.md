@@ -158,7 +158,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; staged S0-S4 reproduction passes for all twelve recipe families, and trained-checkpoint S5 reproduction is not claimed.
+- **Training regime:** original upstream training; current trained-checkpoint reproduction is not claimed.
 
 #### Speeds, Sizes, Times
 

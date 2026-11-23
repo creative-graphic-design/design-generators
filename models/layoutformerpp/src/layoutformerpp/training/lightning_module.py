@@ -620,7 +620,9 @@ class LayoutFormerPPDataModule(LightningDataModule):
 
     def state_dict(self) -> dict[str, safe_value_type]:
         """Return the train and validation relation generator states."""
-        state: dict[str, safe_value_type] = {}
+        state: dict[str, safe_value_type] = {
+            "training_seed_applied": self._training_seed_applied
+        }
         if self.train_dataset is not None:
             state["train_dataset"] = self.train_dataset.state_dict()
 
@@ -631,6 +633,12 @@ class LayoutFormerPPDataModule(LightningDataModule):
 
     def load_state_dict(self, state_dict: dict[str, safe_value_type]) -> None:
         """Restore the train and validation relation generator states."""
+        training_seed_applied = state_dict.get("training_seed_applied")
+        if not isinstance(training_seed_applied, bool):
+            raise RuntimeError("checkpoint is missing the training-seed state")
+
+        self._training_seed_applied = training_seed_applied
+
         for name, dataset in (
             ("train_dataset", self.train_dataset),
             ("val_dataset", self.val_dataset),

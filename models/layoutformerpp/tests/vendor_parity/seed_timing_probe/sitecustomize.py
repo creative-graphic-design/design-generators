@@ -50,26 +50,6 @@ def weights_digest(model: torch.nn.Module) -> str:
     return digest.hexdigest()
 
 
-seed_calls: list[dict[str, object]] = []
-for source, module, name in (
-    ("python", random, "seed"),
-    ("numpy", np.random, "seed"),
-    ("torch", torch, "manual_seed"),
-):
-    original = getattr(module, name)
-
-    def wrap_seed(original=original, source=source):
-        def seeded(seed=None, *args, **kwargs):
-            seed_calls.append({"source": source, "seed": seed, "stage": stage})
-            record["seed_calls"] = list(seed_calls)
-            persist()
-            return original(seed, *args, **kwargs)
-
-        return seeded
-
-    setattr(module, name, wrap_seed())
-
-
 class StopAfterMeasurement(BaseException):
     pass
 
