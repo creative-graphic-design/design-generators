@@ -8,7 +8,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -322,11 +321,7 @@ def main() -> None:
     parser.add_argument("--gpu-index", type=int, default=0)
     args = parser.parse_args()
     output = args.output_dir.resolve()
-    if (
-        not output.is_relative_to(OUTPUT_ROOT.resolve())
-        or output.exists()
-        or shutil.disk_usage(REPOSITORY).free < 1_500_000_000_000
-    ):
+    if not output.is_relative_to(OUTPUT_ROOT.resolve()) or output.exists():
         raise SystemExit("output must be a new directory under the S5 pre-check cache")
     output.mkdir(parents=True)
     result = _run(output, args.gpu_index)
