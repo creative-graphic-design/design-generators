@@ -84,12 +84,15 @@ def _optimizer_scheduler(
     return configured["optimizer"], scheduler_config["scheduler"]
 
 
-def _configure_tf32() -> None:
-    if os.environ.get("NVIDIA_TF32_OVERRIDE") != "0":
-        raise RuntimeError("set NVIDIA_TF32_OVERRIDE=0 before starting the probe")
-    torch.backends.cuda.matmul.allow_tf32 = False
-    torch.backends.cudnn.allow_tf32 = False
-    if torch.backends.cuda.matmul.allow_tf32 or torch.backends.cudnn.allow_tf32:
+def _configure_tf32(*, configure: bool = True) -> None:
+    if configure:
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+    if (
+        os.environ.get("NVIDIA_TF32_OVERRIDE") != "0"
+        or torch.backends.cuda.matmul.allow_tf32
+        or torch.backends.cudnn.allow_tf32
+    ):
         raise RuntimeError("TF32 is enabled")
 
 
@@ -198,8 +201,10 @@ def _run_phase(
             torch.manual_seed(index)
             if phase == "noise_floor":
                 assert first_module is not None
+                _configure_tf32(configure=False)
                 first_loss = first_module.training_step(first_batch, index)
             else:
+                _configure_tf32(configure=False)
                 first_loss = cast(
                     torch.Tensor,
                     parity._reference_pre_optimizer_trace(first, first_batch)["loss"],
@@ -210,6 +215,7 @@ def _run_phase(
             if recipe.use_gradient_clipping:
                 torch.nn.utils.clip_grad_norm_(first.parameters(), 5.0)
             torch.manual_seed(index)
+            _configure_tf32(configure=False)
             second_loss = second_module.training_step(second_batch, index)
             second_loss.backward()
             second_norm = parity._gradient_norm(parity._gradient_values(second))

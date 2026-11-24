@@ -122,6 +122,8 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     initial_states: list[torch.Tensor] = []
+    monkeypatch.setenv("NVIDIA_TF32_OVERRIDE", "0")
+    LOCKSTEP._configure_tf32()
 
     class TinyModel(torch.nn.Module):
         def __init__(self, **kwargs: object) -> None:
@@ -181,25 +183,15 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
         "target_mask": torch.tensor([[True]]),
     }
     batches: list[dict[str, object]] = [batch]
+    cpu = torch.device("cpu")
 
-    cross = LOCKSTEP._run_phase(
-        "unconditional",
-        recipe,
-        "cross_system",
-        batches,
-        batches,
-        tmp_path,
-        torch.device("cpu"),
-    )
-    noise = LOCKSTEP._run_phase(
-        "unconditional",
-        recipe,
-        "noise_floor",
-        batches,
-        batches,
-        tmp_path,
-        torch.device("cpu"),
-    )
+    def run_phase(phase: str) -> dict[str, object]:
+        return LOCKSTEP._run_phase(
+            "unconditional", recipe, phase, batches, batches, tmp_path, cpu
+        )
+
+    cross = run_phase("cross_system")
+    noise = run_phase("noise_floor")
 
     assert torch.equal(initial_states[0], initial_states[1])
     assert cross["first_relative_loss_exceedance"] is None
@@ -208,3 +200,7 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
         cast(int | None, cross["first_relative_loss_exceedance"]),
         cast(int | None, noise["first_relative_loss_exceedance"]),
     )
+
+    monkeypatch.setattr(torch.backends.cudnn, "allow_tf32", True)
+    with pytest.raises(RuntimeError, match="TF32 is enabled"):
+        run_phase("tf32_check")
