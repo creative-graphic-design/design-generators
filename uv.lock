@@ -3801,6 +3801,9 @@ convert = [
 data = [
     { name = "datasets" },
 ]
+training = [
+    { name = "tfrecord" },
+]
 vendor-tf = [
     { name = "dacite" },
     { name = "fsspec" },
@@ -3842,13 +3845,14 @@ requires-dist = [
     { name = "tensorflow", extras = ["and-cuda"], marker = "extra == 'vendor-tf'", specifier = "==2.15.1" },
     { name = "tensorflow-cpu", marker = "extra == 'convert'", specifier = "==2.15.1" },
     { name = "tensorflow-probability", marker = "extra == 'vendor-tf'", specifier = "==0.23.0" },
+    { name = "tfrecord", marker = "extra == 'training'", specifier = ">=1.14.6,<1.14.7" },
     { name = "tinycss", marker = "extra == 'vendor-tf'" },
     { name = "torch", specifier = ">=2.1" },
     { name = "tqdm", marker = "extra == 'vendor-tf'" },
     { name = "traingen-parity", marker = "extra == 'vendor-tf'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]
-provides-extras = ["data", "convert", "vendor-tf"]
+provides-extras = ["data", "training", "convert", "vendor-tf"]
 
 [package.metadata.requires-dev]
 dev = [
