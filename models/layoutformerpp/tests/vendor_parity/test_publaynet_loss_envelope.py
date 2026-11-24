@@ -155,23 +155,21 @@ def test_objective_traces_reject_missing_updates(
         ENVELOPE._package_objectives(package)
 
 
-def test_native_logger_alignment_rejects_different_indices(tmp_path: Path) -> None:
+def test_native_logger_alignment_rejects_invalid_indices(tmp_path: Path) -> None:
     original = tmp_path / "updates.jsonl"
     package = tmp_path / "package" / "updates.jsonl"
     package.parent.mkdir(parents=True)
-    original.write_text(
-        '{"record":"metadata"}\n{"logger_step":0}\n{"logger_step":1}\n',
-        encoding="utf-8",
-    )
-    package.write_text(
-        '{"record":"metadata"}\n{"logger_step":0}\n{"logger_step":2}\n',
-        encoding="utf-8",
-    )
-
-    with pytest.raises(
-        RuntimeError, match="production objectives use different native logger indices"
+    trace = '{{"record":"metadata"}}\n{{"logger_step":{}}}\n{{"logger_step":{}}}\n'
+    for original_steps, package_steps, message in (
+        ((0, 1), (0, 2), "different native logger indices"),
+        ((0, 0), (0, 1), "duplicate native logger indices"),
+        ((0, 1), (0, 0), "duplicate native logger indices"),
     ):
-        ENVELOPE._require_native_logger_alignment(original.parent, package.parent)
+        for path, steps in ((original, original_steps), (package, package_steps)):
+            path.write_text(trace.format(*steps), encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match=message):
+            ENVELOPE._require_native_logger_alignment(original.parent, package.parent)
 
 
 def test_sample_id_digest_normalizes_collator_keys() -> None:

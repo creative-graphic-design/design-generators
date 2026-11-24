@@ -137,13 +137,16 @@ def _record_native_output(
 
 def _require_native_logger_alignment(original: Path, package: Path) -> None:
     def steps(directory: Path) -> list[int]:
-        rows = [
-            json.loads(line)
+        logger_steps = [
+            json.loads(line)["logger_step"]
             for line in (directory / "updates.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()[1:]
         ]
-        return [row["logger_step"] for row in rows]
+        if len(set(logger_steps)) == len(logger_steps):
+            return logger_steps
+        else:
+            raise RuntimeError("duplicate native logger indices")
 
     if steps(original) != steps(package):
         raise RuntimeError("production objectives use different native logger indices")
