@@ -4,14 +4,12 @@ import hashlib
 import json
 import math
 import os
-import random
 import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
-import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
@@ -1022,13 +1020,11 @@ def _real_data_root() -> Path:
 def _package_loader_stream(
     recipe, split: str, *, batches: int = 2, seed: int = 0
 ) -> list[dict[str, object]]:
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
     data_module = LayoutFormerPPDataModule(
         recipe_name=recipe.name,
         data_root=str(_real_data_root()),
         num_workers=0,
+        seed=seed,
     )
     data_module.setup("fit")
     loader = (
