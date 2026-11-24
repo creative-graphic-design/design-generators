@@ -8,6 +8,7 @@ import json
 import math
 import os
 import socket
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TypeAlias, cast
@@ -17,6 +18,7 @@ import torch
 from torch import Tensor
 import lightning.pytorch.utilities.types as lpt
 from layoutformerpp.training.recipes import LayoutFormerPPTrainingRecipe
+from publaynet_precheck_support import capture_provenance
 
 Batch: TypeAlias = Mapping[str, object]
 
@@ -44,12 +46,16 @@ def _batch_sha256(value: Batch) -> str:
 def _equal_batches(reference: Batch, package: Batch) -> None:
     for field in ("names", "task_names", "task_ids", "input_bytes", "output_bytes"):
         if reference[field] != package[field]:
-            raise RuntimeError(f"S4 training stream differs at {field}")
+            raise RuntimeError(f"training stream differs at {field}")
     for field in ("input_ids", "attention_mask", "labels"):
         if not torch.equal(
             cast(Tensor, reference[field]), cast(Tensor, package[field])
         ):
-            raise RuntimeError(f"S4 training tensors differ at {field}")
+            raise RuntimeError(f"training tensors differ at {field}")
+
+
+def _gate_passed(cross_step: int | None, noise_step: int | None) -> bool:
+    return noise_step is not None and (cross_step is None or cross_step >= noise_step)
 
 
 def _max_parameter_difference(
@@ -319,7 +325,16 @@ def main() -> None:
     data_root_value = os.environ.get("LAYOUTFORMERPP_PARITY_DATA_ROOT")
     if not data_root_value or not Path(data_root_value).is_dir():
         raise SystemExit("the configured PubLayNet data root is unavailable")
+    sys.path.insert(
+        0, str(root / "models" / "layoutformerpp" / "scripts" / "publaynet_s5")
+    )
+    import launch_track  # noqa: E402
+
+    provenance = capture_provenance(launch_track, args.family, Path(data_root_value))
     args.output.mkdir(parents=True, exist_ok=False)
+    (args.output / "provenance.json").write_text(
+        json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
+    )
     try:
         source = parity.reference_loader_stream(
             recipe, Path(data_root_value), "train", batches=args.steps, seed=0
@@ -346,7 +361,7 @@ def main() -> None:
         return
     cross_step = cast(int | None, cross["first_relative_loss_exceedance"])
     noise_step = cast(int | None, noise["first_relative_loss_exceedance"])
-    passed = noise_step is not None and (cross_step is None or cross_step >= noise_step)
+    passed = _gate_passed(cross_step, noise_step)
     result = {
         "family": args.family,
         "cross_system": cross,
