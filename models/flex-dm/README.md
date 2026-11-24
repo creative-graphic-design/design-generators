@@ -138,18 +138,44 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint    | dataset | original-implementation reference cases |               exact state tensors | forward/layer probe                                                                    | result                                                      |
-| ------------- | ------- | --------------------------------------: | --------------------------------: | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `ours-exp-ft` | Crello  |                                      10 | 98 / 98 tensors, 2,812,257 params | 10 forward cases / 25 forward steps; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
-| `ours-exp-ft` | RICO    |                                       6 | 88 / 88 tensors, 2,296,679 params | 6 forward cases / 15 forward steps; max logit abs diff within `atol=5.5e-6`, `rtol=0`  | reference generated with TF32 disabled; state mapping exact |
+| checkpoint    | dataset | original-implementation reference cases |               exact state tensors | forward comparison                                                                                 |
+| ------------- | ------- | --------------------------------------: | --------------------------------: | -------------------------------------------------------------------------------------------------- |
+| `ours-exp-ft` | Crello  |                                      10 | 98 / 98 tensors, 2,812,257 params | 10 cases / 25 steps; max logit abs diff `1.049041748e-5` against `atol=1.1e-5`, `rtol=0`; all pass |
+| `ours-exp-ft` | RICO    |                                       6 | 88 / 88 tensors, 2,296,679 params | 6 cases / 15 steps; max logit abs diff `5.24520874e-6` against `atol=5.5e-6`, `rtol=0`; all pass   |
+
+Forward comparisons load each saved original-implementation case, run every saved step, and compare all logits. The table records the maximum absolute logit difference for each task and iteration count; each case uses the unchanged dataset tolerance shown in the final column. Values are rounded to 9 or 10 significant digits.
+
+| dataset | task | max diff, `num_iter=1` | max diff, `num_iter=4` | retained `atol`, `rtol=0` |
+| ------- | ---- | ---------------------: | ---------------------: | ------------------------: |
+| Crello  | elem |        `7.62939453e-6` |       `1.049041748e-5` |                  `1.1e-5` |
+| Crello  | pos  |       `9.775161743e-6` |       `9.775161743e-6` |                  `1.1e-5` |
+| Crello  | attr |        `1.00135803e-5` |        `1.00135803e-5` |                  `1.1e-5` |
+| Crello  | img  |        `5.48362732e-6` |        `5.48362732e-6` |                  `1.1e-5` |
+| Crello  | txt  |       `2.384185791e-6` |       `2.384185791e-6` |                  `1.1e-5` |
+| RICO    | elem |       `3.814697266e-6` |       `4.291534424e-6` |                  `5.5e-6` |
+| RICO    | pos  |       `2.384185791e-6` |       `2.861022949e-6` |                  `5.5e-6` |
+| RICO    | attr |       `3.814697266e-6` |        `5.24520874e-6` |                  `5.5e-6` |
 
 Agreement-check tests load the saved TF32-disabled reference inputs from `forward_cases/*.npz`, load the converted checkpoints with `from_pretrained`, and execute every saved original-implementation forward step inside pytest. This covers Crello's 10 task/iteration cases and RICO's 6 cases, including the four forward steps used by `num_iter=4`. Layer probes also use one original-implementation test batch after `preprocess_for_test` for every supported task (`elem`, `pos`, `attr`, plus Crello `img` and `txt`). The first divergent block-0 operation was attention-score `tf.matmul(q, k^T)`: TensorFlow 2.15 used TF32 on the GPU path, while the public PyTorch model used fp32. Direct q/k isolation showed the TF32 score differed from NumPy/PyTorch fp32 by `7.92e-3`, and PyTorch CUDA TF32 matched the TensorFlow score. Final agreement checks instead disable TensorFlow TF32 during original-implementation reference and probe generation with `NVIDIA_TF32_OVERRIDE=0` plus `--disable-tf32`, so the public PyTorch model keeps its ordinary fp32 attention path. GELU was not involved because the original-implementation MLP uses ReLU; Keras LayerNormalization epsilon is `1e-3` and is matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask remains `-1e9` before softmax.
 
-With TF32 disabled in the original-implementation run, all probe metadata records `tf32_enabled=false`. The remaining first measurable difference is the fp32 attention-score reduction order at block 0, with max score diff up to `7.63e-6`; block-0 attention output stays below `5.59e-8`. Across the pytest-executed forward cases, Crello max logit diff is `1.00e-5` and RICO max logit diff is `5.25e-6`.
+| dataset | task | max logit diff / retained `atol` | max encoder diff | max block-0 score diff | max block-0 attention-output diff |
+| ------- | ---- | -------------------------------: | ---------------: | ---------------------: | --------------------------------: |
+| Crello  | attr |       `1.00135803e-5` / `1.1e-5` |  `2.42143869e-7` |        `4.76837158e-6` |                    `5.0291419e-8` |
+| Crello  | elem |         `7.62939453e-6` / `8e-6` |  `2.01165676e-7` |        `7.62939453e-6` |                   `5.58793545e-8` |
+| Crello  | img  |         `5.48362732e-6` / `6e-6` |   `2.5331974e-7` |         `5.7220459e-6` |                    `3.3993274e-8` |
+| Crello  | pos  |        `9.775161743e-6` / `1e-5` |  `2.38418579e-7` |        `7.62939453e-6` |                   `4.47034836e-8` |
+| Crello  | txt  |      `2.384185791e-6` / `2.5e-6` |  `2.23517418e-7` |         `5.7220459e-6` |                   `4.63332981e-8` |
+| RICO    | attr |        `3.814697266e-6` / `4e-6` |  `5.96046448e-8` |        `7.62939453e-6` |                   `5.21540642e-8` |
+| RICO    | elem |        `3.814697266e-6` / `4e-6` |  `2.98023224e-8` |         `5.7220459e-6` |                    `5.0291419e-8` |
+| RICO    | pos  |      `2.384185791e-6` / `2.5e-6` |  `1.49011612e-8` |        `7.62939453e-6` |                   `5.58793545e-8` |
+
+Layer probes use one original-implementation test batch after `preprocess_for_test`. Their unchanged checks require encoder diff `<=3e-7`, block-0 score diff `<=8e-6`, and block-0 attention-output diff `<=8e-8`. The README tables above report all measured forward and layer maxima; no tolerance increase was needed.
+
+The currently verified stack is NVIDIA A100-SXM4-80GB, driver 610.57.04 (driver CUDA 13.3), PyTorch 2.13.0+cu130 (CUDA 13.0), and TensorFlow 2.15.1 (built with CUDA 12.2). Reference generation used `CUDA_VISIBLE_DEVICES=0`, `NVIDIA_TF32_OVERRIDE=0`, and `--disable-tf32`.
 
 ## Reproducibility
 
-Reproduce the original-implementation agreement checks with the walkthrough in [models/flex-dm/REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md).
+Reproduce the original-implementation agreement checks with the walkthrough in [models/flex-dm/REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md). It installs the `data` and `vendor-tf` extras and the `dev` dependency group; `vendor-tf` supplies TensorFlow for reference generation, and `dev` supplies pytest for the required parity suite.
 
 ## License
 
