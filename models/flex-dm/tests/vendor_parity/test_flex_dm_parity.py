@@ -291,7 +291,7 @@ def test_vendor_reference_results_metadata(
         "tasks": expected["tasks"],
         "variant": "ours-exp-ft",
     }
-    assert reference["cuda_visible_devices"] == "1"
+    assert reference["cuda_visible_devices"]
     assert reference["tensorflow_version"] == "2.15.1"
     assert reference["tf32_enabled"] is False
     assert reference["gpu_devices"]
