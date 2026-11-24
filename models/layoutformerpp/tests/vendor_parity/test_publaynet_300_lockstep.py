@@ -25,6 +25,7 @@ def test_batch_hash_and_stream_parity_are_cpu_only() -> None:
         "input_ids": torch.tensor([[1, 2]]),
         "attention_mask": torch.tensor([[True, True]]),
         "labels": torch.tensor([[2, 1]]),
+        "target_mask": torch.tensor([[True, False]]),
     }
     package = dict(reference)
     assert LOCKSTEP._batch_sha256(reference) == LOCKSTEP._batch_sha256(package)
@@ -32,6 +33,10 @@ def test_batch_hash_and_stream_parity_are_cpu_only() -> None:
     normalized = LOCKSTEP._batch(reference, torch.device("cpu"))
     assert normalized["task_ids"] is not None
     assert torch.equal(normalized["task_ids"], torch.tensor([1], dtype=torch.long))
+    package["target_mask"] = torch.tensor([[True, True]])
+    with pytest.raises(RuntimeError, match="target_mask"):
+        LOCKSTEP._equal_batches(reference, package)
+    package["target_mask"] = reference["target_mask"]
     package["input_ids"] = torch.tensor([[1, 3]])
     with pytest.raises(RuntimeError, match="input_ids"):
         LOCKSTEP._equal_batches(reference, package)
@@ -162,6 +167,7 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
         "input_ids": torch.tensor([[1]]),
         "attention_mask": torch.tensor([[True]]),
         "labels": torch.tensor([[2]]),
+        "target_mask": torch.tensor([[True]]),
     }
     batches: list[dict[str, object]] = [batch]
 

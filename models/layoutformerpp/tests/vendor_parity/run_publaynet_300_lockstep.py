@@ -47,7 +47,7 @@ def _equal_batches(reference: Batch, package: Batch) -> None:
     for field in ("names", "task_names", "task_ids", "input_bytes", "output_bytes"):
         if reference[field] != package[field]:
             raise RuntimeError(f"training stream differs at {field}")
-    for field in ("input_ids", "attention_mask", "labels"):
+    for field in ("input_ids", "attention_mask", "labels", "target_mask"):
         if not torch.equal(
             cast(Tensor, reference[field]), cast(Tensor, package[field])
         ):
