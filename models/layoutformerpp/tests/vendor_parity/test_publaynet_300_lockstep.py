@@ -121,10 +121,18 @@ def test_phase_comparison_gate_rejects_cross_system_exceedance_first() -> None:
 def test_phase_comparison_passes_after_noise_floor_exceedance(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    initial_states: list[torch.Tensor] = []
+
     class TinyModel(torch.nn.Module):
         def __init__(self, **kwargs: object) -> None:
             super().__init__()
             self.weight = torch.nn.Parameter(torch.tensor(1.0))
+            self.marker = torch.nn.Parameter(torch.rand(()))
+
+    class ReferenceModel(TinyModel):
+        def __init__(self, **kwargs: object) -> None:
+            torch.rand(2)
+            super().__init__(**kwargs)
 
     class TrainingModule(torch.nn.Module):
         def __init__(self, *, recipe_name: str, config: object) -> None:
@@ -132,6 +140,7 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
             self.model = TinyModel()
 
         def training_step(self, batch: object, index: int) -> torch.Tensor:
+            initial_states.append(self.model.marker.detach().clone())
             return torch.abs(self.model.weight - 1.0)
 
     def optimizer_scheduler(
@@ -145,7 +154,9 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
         assert isinstance(model, TinyModel)
         return {"loss": torch.abs(model.weight - 1.0)}
 
-    monkeypatch.setattr(LOCKSTEP.parity, "reference_classes", lambda: (TinyModel, None))
+    monkeypatch.setattr(
+        LOCKSTEP.parity, "reference_classes", lambda: (ReferenceModel, None)
+    )
     monkeypatch.setattr(LOCKSTEP.parity, "LayoutFormerPPTrainingModule", TrainingModule)
     monkeypatch.setattr(LOCKSTEP.parity, "_s1_package_config", lambda recipe: None)
     monkeypatch.setattr(LOCKSTEP, "_optimizer_scheduler", optimizer_scheduler)
@@ -190,6 +201,7 @@ def test_phase_comparison_passes_after_noise_floor_exceedance(
         torch.device("cpu"),
     )
 
+    assert torch.equal(initial_states[0], initial_states[1])
     assert cross["first_relative_loss_exceedance"] is None
     assert noise["first_relative_loss_exceedance"] == 1
     assert LOCKSTEP._gate_passed(

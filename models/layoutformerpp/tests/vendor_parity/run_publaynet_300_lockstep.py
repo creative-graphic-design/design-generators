@@ -125,17 +125,31 @@ def _run_phase(
     first_module: parity.LayoutFormerPPTrainingModule | None = None
     first_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None
     lr_trace: list[float] = []
+    reference_class, _ = parity.reference_classes()
+    reference = reference_class(
+        vocab_size=recipe.vocab_size,
+        max_len=recipe.max_position_embeddings,
+        bos_token_id=0,
+        pad_token_id=2,
+        eos_token_id=1,
+        d_model=recipe.d_model,
+        nhead=recipe.attention_heads,
+        num_layers=recipe.num_layers,
+        dropout=recipe.dropout,
+        d_feedforward=recipe.d_model * 4,
+        share_embedding=True,
+    ).to(device)
 
     if phase == "noise_floor":
         first_module = parity.LayoutFormerPPTrainingModule(
             recipe_name=recipe.name, config=parity._s1_package_config(recipe)
         ).to(device)
+        first_module.model.load_state_dict(reference.state_dict(), strict=True)
         second_module = parity.LayoutFormerPPTrainingModule(
             recipe_name=recipe.name, config=parity._s1_package_config(recipe)
         ).to(device)
-        second_module.model.load_state_dict(
-            first_module.model.state_dict(), strict=True
-        )
+        second_module.model.load_state_dict(reference.state_dict(), strict=True)
+        del reference
         with torch.no_grad():
             for parameter in second_module.model.parameters():
                 parameter.copy_(
@@ -145,20 +159,6 @@ def _run_phase(
         second_optimizer, second_scheduler = _optimizer_scheduler(second_module)
         first, second = first_module.model, second_module.model
     else:
-        reference_class, _ = parity.reference_classes()
-        reference = reference_class(
-            vocab_size=recipe.vocab_size,
-            max_len=recipe.max_position_embeddings,
-            bos_token_id=0,
-            pad_token_id=2,
-            eos_token_id=1,
-            d_model=recipe.d_model,
-            nhead=recipe.attention_heads,
-            num_layers=recipe.num_layers,
-            dropout=recipe.dropout,
-            d_feedforward=recipe.d_model * 4,
-            share_embedding=True,
-        ).to(device)
         package_module = parity.LayoutFormerPPTrainingModule(
             recipe_name=recipe.name, config=parity._s1_package_config(recipe)
         ).to(device)
