@@ -139,6 +139,41 @@ def test_three_seeds_detect_batch_order(tmp_path: Path) -> None:
     assert result["updates_per_run"] == 1500
 
 
+def test_objective_traces_reject_missing_updates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(ENVELOPE, "UPDATES", 1)
+    original = tmp_path / "original.jsonl"
+    original.write_text("", encoding="utf-8")
+    package = tmp_path / "metrics.csv"
+    package.write_text("train_loss_step\n1.0\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="objective trace expected 1 updates"):
+        ENVELOPE._original_objectives(original)
+
+    with pytest.raises(RuntimeError, match="missing its native logger index"):
+        ENVELOPE._package_objectives(package)
+
+
+def test_native_logger_alignment_rejects_different_indices(tmp_path: Path) -> None:
+    original = tmp_path / "updates.jsonl"
+    package = tmp_path / "package" / "updates.jsonl"
+    package.parent.mkdir(parents=True)
+    original.write_text(
+        '{"record":"metadata"}\n{"logger_step":0}\n{"logger_step":1}\n',
+        encoding="utf-8",
+    )
+    package.write_text(
+        '{"record":"metadata"}\n{"logger_step":0}\n{"logger_step":2}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        RuntimeError, match="production objectives use different native logger indices"
+    ):
+        ENVELOPE._require_native_logger_alignment(original.parent, package.parent)
+
+
 def test_sample_id_digest_normalizes_collator_keys() -> None:
     original = {"name": ["first", "second"], "input_ids": "original-only"}
     package = {"names": ["first", "second"], "task_ids": "package-only"}
