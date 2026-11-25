@@ -101,6 +101,29 @@ def test_training_loss_masks_conditions_padding_and_adds_l2() -> None:
     )
 
 
+def test_training_loss_preserves_float64_replay_dtype() -> None:
+    """Float64 arbitration keeps numerical inputs and targets aligned to model weights."""
+    model = _model().double()
+    labels = {
+        "length": torch.tensor([[0], [1]]),
+        "type": torch.tensor([[[0], [1], [0]], [[1], [0], [0]]]),
+        "color": torch.zeros((2, 3, 1), dtype=torch.long),
+        "embedding": torch.zeros((2, 3, 2), dtype=torch.float64),
+    }
+    masks = {
+        key: torch.ones((2, 3), dtype=torch.bool) for key in labels if key != "length"
+    }
+
+    output = model(
+        inputs=labels,
+        labels=labels,
+        masks=masks,
+        task_ids=torch.tensor([0, 0]),
+    )
+    assert output.loss is not None and output.loss.dtype == torch.float64
+    output.loss.backward()
+
+
 def test_rico_position_task_sorts_targets_and_predictions() -> None:
     columns = {
         "length": _column("categorical", 2, sequence=False),

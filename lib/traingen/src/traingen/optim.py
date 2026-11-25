@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+import math
+
 import torch
 from jaxtyping import Float
 from torch import nn
@@ -87,4 +89,41 @@ class KerasAdam(torch.optim.Optimizer):
         return loss
 
 
-__all__ = ["KerasAdam"]
+def clip_gradients_by_norm(parameters: Iterable[nn.Parameter], max_norm: float) -> None:
+    """Clip each parameter gradient independently to ``max_norm``.
+
+    Args:
+        parameters: Parameters whose gradients are clipped in place.
+        max_norm: Maximum L2 norm for each gradient tensor.
+
+    Examples:
+        >>> weight = nn.Parameter(torch.tensor([3.0, 4.0]))
+        >>> weight.grad = torch.tensor([3.0, 4.0])
+        >>> clip_gradients_by_norm([weight], 1.0)
+        >>> weight.grad.tolist()
+        [0.6000000238418579, 0.800000011920929]
+    """
+    if not math.isfinite(max_norm) or max_norm < 0:
+        raise ValueError("max_norm must be finite and non-negative")
+
+    gradients: list[Float[torch.Tensor, "..."]] = []
+    clips: list[Float[torch.Tensor, ""]] = []
+    denominators: list[Float[torch.Tensor, ""]] = []
+    for parameter in parameters:
+        if parameter.grad is None:
+            continue
+
+        norm = parameter.grad.square().sum().sqrt()
+        clip = torch.tensor(max_norm, dtype=norm.dtype, device=norm.device)
+        gradients.append(parameter.grad)
+        clips.append(clip)
+        denominators.append(
+            torch.maximum(norm, clip).clamp_min(torch.finfo(norm.dtype).tiny)
+        )
+
+    if gradients:
+        torch._foreach_mul_(gradients, clips)
+        torch._foreach_div_(gradients, denominators)
+
+
+__all__ = ["KerasAdam", "clip_gradients_by_norm"]
