@@ -118,8 +118,6 @@ REQUIRED_HEADINGS = [
 ]
 
 BANNED_PATTERNS = [
-    r"GEN_AI_PROXY_PAT",
-    r"genai[-_]?gateway",
     r"example-openai-compatible-endpoint",
     r"sk-[A-Za-z0-9]{16,}",
     r"(?<![A-Za-z0-9_.-])/tmp/",

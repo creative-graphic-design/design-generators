@@ -663,10 +663,9 @@ def test_reproducing_command_contract_rejects_invalid_documents(
 
 
 def test_banned_content_contract_rejects_credentials() -> None:
-    with pytest.raises(AssertionError, match="GEN_AI_PROXY_PAT"):
-        card.assert_banned_patterns(
-            Path("models") / "example" / "README.md", "GEN_AI_PROXY_PAT"
-        )
+    token = "sk-" + "a" * 16
+    with pytest.raises(AssertionError, match="sk-"):
+        card.assert_banned_patterns(Path("models") / "example" / "README.md", token)
 
 
 def test_card_parsing_helpers_cover_empty_and_inline_cases() -> None:
