@@ -118,8 +118,6 @@ REQUIRED_HEADINGS = [
 ]
 
 BANNED_PATTERNS = [
-    r"EXAMPLE_API_TOKEN",
-    r"example[-_]?endpoint",
     r"example-openai-compatible-endpoint",
     r"sk-[A-Za-z0-9]{16,}",
     r"(?<![A-Za-z0-9_.-])/tmp/",

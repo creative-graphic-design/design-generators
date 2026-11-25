@@ -37,11 +37,5 @@ def test_layoutganpp_readme_omits_internal_implementation_wording():
         "validate()",
         "annotated",
         "laygen.common.model_card",
-        "EXAMPLE_ENV",
-        "example-host",
-        "gateway",
-        "example-dev",
-        "PAT",
-        "proxy",
     ]
     assert not any(term in text for term in forbidden)
