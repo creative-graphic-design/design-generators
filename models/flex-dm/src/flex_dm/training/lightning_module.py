@@ -38,14 +38,14 @@ class FlexDmTrainingModule(LightningModule):
             self.model.config.masking_method,
             batch_size=batch["length"].shape[0],
         ).to(batch["length"].device)
-        inputs, labels, masks = prepare_training_batch(
+        targets, modified_inputs, masks = prepare_training_batch(
             batch,
             self.model.config.input_columns,
             task_ids,
             attribute_groups=self.model.config.attribute_groups,
             input_dtype=self.model.config.input_dtype,
         )
-        return inputs, labels, masks, task_ids
+        return modified_inputs, targets, masks, task_ids
 
     def training_step(
         self, batch: dict[str, Shaped[Tensor, "..."]], batch_idx: int
