@@ -11,8 +11,6 @@ import numpy as np
 import pytest
 import torch
 from flex_dm import FlexDmForMaskedDocumentModeling
-from traingen_parity.compare import TensorTolerance, compare_step_trace
-from traingen_parity.trace import build_step_trace
 
 from .test_flex_dm_training_s0 import (
     DatasetName,
@@ -85,6 +83,8 @@ def test_s1_flex_dm_training_forward_and_loss_match_reference(
 ) -> None:
     """Compare all fine-tuning tasks on the seed-zero production-size batch."""
     import tensorflow as tf
+    from traingen_parity.compare import TensorTolerance, compare_step_trace
+    from traingen_parity.trace import build_step_trace
 
     _assert_reference_device(tf)
     _assert_numerical_reference_mode(tf)
