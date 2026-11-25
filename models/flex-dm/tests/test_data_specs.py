@@ -71,3 +71,17 @@ def test_crello_loss_conditions_follow_vendor_lookup_order() -> None:
         False,
         False,
     )
+
+
+def test_crello_strict_lookup_dimensions_include_the_mask_token() -> None:
+    """Strict Crello lookups reserve id zero before their source vocabulary."""
+    vocabulary = {
+        "group": {"SM": 10, "HC": 5},
+        "format": {"Poster": 10, "Instagram": 5},
+        "category": {"foodDrinks": 10, "holidaysCelebration": 5},
+    }
+
+    specs = build_column_specs(dataset_name="crello", vocabulary=vocabulary)
+
+    for key, values in vocabulary.items():
+        assert specs[key]["input_dim"] == len(values) + 1
