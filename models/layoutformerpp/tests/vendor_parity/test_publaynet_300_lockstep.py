@@ -101,9 +101,8 @@ def test_package_stream_seeds_at_production_loader_boundary(
     monkeypatch.setattr(LOCKSTEP.parity, "LayoutFormerPPDataModule", DataModule)
     monkeypatch.setattr(LOCKSTEP.parity, "_real_data_root", lambda: tmp_path)
 
-    LOCKSTEP.parity._package_loader_stream(
+    LOCKSTEP.parity._package_train_loader_stream(
         LOCKSTEP.parity.TRAINING_RECIPES_BY_NAME["publaynet_unconditional"],
-        "train",
         batches=1,
         seed=0,
     )

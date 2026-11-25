@@ -342,11 +342,11 @@ def main() -> None:
         json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
     )
     try:
-        source = parity.reference_loader_stream(
-            recipe, Path(data_root_value), "train", batches=args.steps, seed=0
+        source = parity.reference_train_loader_stream(
+            recipe, Path(data_root_value), batches=args.steps, seed=0
         )
-        package = parity._package_loader_stream(
-            recipe, "train", batches=args.steps, seed=0
+        package = parity._package_train_loader_stream(
+            recipe, batches=args.steps, seed=0
         )
     except Exception as error:  # noqa: BLE001 - lower-level errors may expose paths.
         if args.cpu_smoke:

@@ -4,9 +4,10 @@ import hashlib
 import json
 import math
 import os
+import random
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import cast
 
@@ -22,6 +23,7 @@ from layoutformerpp.labels import (
     label_translation_for_dataset,
 )
 from layoutformerpp.training import TRAINING_RECIPES, TRAINING_RECIPES_BY_NAME
+from layoutformerpp.training.recipes import LayoutFormerPPTrainingRecipe
 from layoutformerpp.serialization import (
     T5LayoutSequence,
     T5LayoutSequenceForGenR,
@@ -41,7 +43,7 @@ from layoutformerpp_training_reference import (
     package_tokenizer,
     reference_checkpoint_behavior,
     reference_classes,
-    reference_loader_stream,
+    reference_loader_streams,
     reference_optimizer_scheduler_state,
     reference_label_map,
     reference_serialization,
@@ -1017,37 +1019,24 @@ def _real_data_root() -> Path:
     return root
 
 
-def _package_loader_stream(
-    recipe, split: str, *, batches: int = 2, seed: int = 0
+def _package_loader_rows(
+    recipe: LayoutFormerPPTrainingRecipe,
+    loader: Iterable[Mapping[str, object]],
+    split: str,
+    batches: int,
 ) -> list[dict[str, object]]:
-    data_module = LayoutFormerPPDataModule(
-        recipe_name=recipe.name,
-        data_root=str(_real_data_root()),
-        num_workers=0,
-        seed=seed,
-    )
-    data_module.setup("fit")
-    loader = (
-        data_module.train_dataloader()
-        if split == "train"
-        else data_module.val_dataloader()
-    )
     rows: list[dict[str, object]] = []
     for batch_index, batch in enumerate(loader):
         rows.append(
             {
-                "names": tuple(cast(str, value) for value in batch["names"]),
-                "task_names": tuple(cast(str, value) for value in batch["task_names"]),
+                "names": tuple(cast(list[str], batch["names"])),
+                "task_names": tuple(cast(list[str], batch["task_names"])),
                 "task_ids": tuple(
                     int(value)
                     for value in cast(torch.Tensor, batch["task_ids"]).tolist()
                 ),
-                "input_bytes": tuple(
-                    cast(bytes, value) for value in batch["input_bytes"]
-                ),
-                "output_bytes": tuple(
-                    cast(bytes, value) for value in batch["output_bytes"]
-                ),
+                "input_bytes": tuple(cast(list[bytes], batch["input_bytes"])),
+                "output_bytes": tuple(cast(list[bytes], batch["output_bytes"])),
                 "input_ids": cast(torch.Tensor, batch["input_ids"]).long(),
                 "attention_mask": cast(torch.Tensor, batch["attention_mask"]).bool(),
                 "labels": cast(torch.Tensor, batch["labels"]).long(),
@@ -1066,13 +1055,47 @@ def _package_loader_stream(
     return rows
 
 
-def _run_s4_case(recipe) -> dict[str, object]:
+def _package_loader_streams(
+    recipe: LayoutFormerPPTrainingRecipe, *, batches: int = 2, seed: int = 0
+) -> dict[str, list[dict[str, object]]]:
+    data_module = LayoutFormerPPDataModule(
+        recipe_name=recipe.name,
+        data_root=str(_real_data_root()),
+        num_workers=0,
+        seed=seed,
+    )
+    data_module.setup("fit")
+    train_loader = data_module.train_dataloader()
+    val_loader = data_module.val_dataloader()
+    return {
+        "train": _package_loader_rows(recipe, train_loader, "train", batches),
+        "val": _package_loader_rows(recipe, val_loader, "val", batches),
+    }
+
+
+def _package_train_loader_stream(
+    recipe: LayoutFormerPPTrainingRecipe, *, batches: int = 2, seed: int = 0
+) -> list[dict[str, object]]:
+    data_module = LayoutFormerPPDataModule(
+        recipe_name=recipe.name,
+        data_root=str(_real_data_root()),
+        num_workers=0,
+        seed=seed,
+    )
+    data_module.setup("fit")
+    loader = data_module.train_dataloader()
+    return _package_loader_rows(recipe, loader, "train", batches)
+
+
+def _run_s4_case(recipe: LayoutFormerPPTrainingRecipe) -> dict[str, object]:
     first_divergence: dict[str, object] | None = None
+    source_streams = reference_loader_streams(
+        recipe, _real_data_root(), batches=2, seed=0
+    )
+    package_streams = _package_loader_streams(recipe, batches=2, seed=0)
     for split in ("train", "val"):
-        source_batches = reference_loader_stream(
-            recipe, _real_data_root(), split, batches=2, seed=0
-        )
-        package_batches = _package_loader_stream(recipe, split, batches=2, seed=0)
+        source_batches = source_streams[split]
+        package_batches = package_streams[split]
         for batch_index, (source, package) in enumerate(
             zip(source_batches, package_batches, strict=True)
         ):
@@ -1108,21 +1131,19 @@ def _run_s4_case(recipe) -> dict[str, object]:
     }
 
 
-def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
+def _run_s3_case(
+    recipe: LayoutFormerPPTrainingRecipe, device: torch.device
+) -> dict[str, object]:
     reference_model_class, _ = reference_classes()
-    source_train_batches = reference_loader_stream(
-        recipe, _real_data_root(), "train", batches=2, seed=0
+    source_streams = reference_loader_streams(
+        recipe, _real_data_root(), batches=2, seed=0
     )
-    package_train_batches = _package_loader_stream(recipe, "train", batches=2, seed=0)
-    source_validation_batches = reference_loader_stream(
-        recipe, _real_data_root(), "val", batches=2, seed=0
+    package_streams = _package_loader_streams(recipe, batches=2, seed=0)
+    train_batches = tuple(
+        zip(source_streams["train"], package_streams["train"], strict=True)
     )
-    package_validation_batches = _package_loader_stream(
-        recipe, "val", batches=2, seed=0
-    )
-    train_batches = tuple(zip(source_train_batches, package_train_batches, strict=True))
     validation_batches = tuple(
-        zip(source_validation_batches, package_validation_batches, strict=True)
+        zip(source_streams["val"], package_streams["val"], strict=True)
     )
     torch.manual_seed(0)
     reference_model = reference_model_class(
@@ -1526,6 +1547,7 @@ def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, o
         .get("fit_loop", {})
         .get("epoch_loop.state_dict", {})
         .get("_batches_that_stepped"),
+        "checkpoint_count": len(checkpoints),
         "optimizer_state_count": len(checkpoint_payload.get("optimizer_states", [])),
         "scheduler_last_epoch": scheduler_state.get("last_epoch"),
         "scheduler_last_lr": scheduler_state.get("_last_lr", [None])[0],
@@ -1574,14 +1596,17 @@ def test_s3_all_recipe_deterministic_multi_batch_run_matches(recipe) -> None:
 
 @pytest.mark.parametrize("recipe_name", PRODUCTION_FIT_RECIPE_NAMES)
 def test_s3_production_traingen_fit_wiring_representatives(
-    recipe_name: str, tmp_path: Path
+    recipe_name: str,
+    tmp_path: Path,
+    record_property: Callable[[str, object], None],
 ) -> None:
     """Exercise every distinct production fit branch through the console script."""
     _s1_device()
     evidence = _run_s3_production_fit_case(recipe_name, tmp_path)
+    record_property("optimizer_steps", evidence["optimizer_steps"])
+    record_property("checkpoint_count", evidence["checkpoint_count"])
     assert evidence["exit_code"] == 0
     assert evidence["global_step"] == 2
-    assert evidence["optimizer_steps"] == 2
     assert evidence["optimizer_state_count"] == 1
     assert evidence["scheduler_last_epoch"] == 1
     assert evidence["scheduler_last_lr"] == pytest.approx(evidence["expected_lr"])
@@ -1629,7 +1654,7 @@ def test_s4_publaynet_label_data_module_seeds_before_its_training_loader() -> No
 
         isolated_names = cast(
             tuple[str, ...],
-            _package_loader_stream(recipe, "train", batches=1, seed=0)[0]["names"],
+            _package_train_loader_stream(recipe, batches=1, seed=0)[0]["names"],
         )
     finally:
         restore_rng_state(caller_rng)
@@ -1641,6 +1666,75 @@ def test_s4_publaynet_label_data_module_seeds_before_its_training_loader() -> No
     assert rng_before_first_batch != rng_after_first_batch
     assert production_names == isolated_names
     assert _rng_equal(caller_rng, capture_rng_state())
+
+
+def test_loader_pair_consumes_seeded_training_stream_before_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recipe = TRAINING_RECIPES_BY_NAME["publaynet_unconditional"]
+    caller_rng = capture_rng_state()
+    events: list[str] = []
+    seed_calls: list[int] = []
+
+    def batch(name: str) -> dict[str, object]:
+        return {
+            "names": [name],
+            "task_names": ["unconditional"],
+            "task_ids": torch.tensor([0]),
+            "input_bytes": [b"input"],
+            "output_bytes": [b"output"],
+            "input_ids": torch.tensor([[1]]),
+            "attention_mask": torch.tensor([[True]]),
+            "labels": torch.tensor([[2]]),
+            "target_attention_mask": torch.tensor([[True]]),
+        }
+
+    class Stream:
+        def __init__(self, split: str) -> None:
+            self.split = split
+
+        def __iter__(self) -> Iterator[dict[str, object]]:
+            events.append(f"iterate_{self.split}")
+            yield batch(f"{self.split}:{random.random()}")
+
+    class DataModule:
+        def __init__(self, *, seed: int, **kwargs: object) -> None:
+            del kwargs
+            self.seed = seed
+
+        def setup(self, stage: str) -> None:
+            assert stage == "fit"
+            events.append("setup")
+
+        def train_dataloader(self) -> Stream:
+            seed_calls.append(self.seed)
+            random.seed(self.seed)
+            events.append("train_loader")
+            return Stream("train")
+
+        def val_dataloader(self) -> Stream:
+            events.append("val_loader")
+            return Stream("val")
+
+    monkeypatch.setattr(sys.modules[__name__], "LayoutFormerPPDataModule", DataModule)
+    monkeypatch.setattr(sys.modules[__name__], "_real_data_root", lambda: Path("."))
+    expected_rng = random.Random(7)
+
+    try:
+        streams = _package_loader_streams(recipe, batches=1, seed=7)
+    finally:
+        restore_rng_state(caller_rng)
+
+    assert seed_calls == [7]
+    assert events == [
+        "setup",
+        "train_loader",
+        "val_loader",
+        "iterate_train",
+        "iterate_val",
+    ]
+    assert streams["train"][0]["names"] == (f"train:{expected_rng.random()}",)
+    assert streams["val"][0]["names"] == (f"val:{expected_rng.random()}",)
 
 
 @pytest.mark.parametrize(

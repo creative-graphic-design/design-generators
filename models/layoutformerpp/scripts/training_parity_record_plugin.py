@@ -22,6 +22,7 @@ class _Report(Protocol):
     duration: float
     failed: bool
     longrepr: object
+    user_properties: list[tuple[str, object]]
 
 
 class _PluginManager(Protocol):
@@ -83,6 +84,15 @@ class _RunRecorder:
             "outcome": report.outcome,
             "duration_seconds": report.duration,
         }
+        report_only_evidence = {
+            name: value
+            for name, value in report.user_properties
+            if name in {"optimizer_steps", "checkpoint_count"}
+            and (value is None or isinstance(value, int))
+        }
+        if report_only_evidence:
+            entry["report_only_evidence"] = report_only_evidence
+
         if report.failed:
             entry["failure"] = str(report.longrepr)
         self.reports.append(entry)
