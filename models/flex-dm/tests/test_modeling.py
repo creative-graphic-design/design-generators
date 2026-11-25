@@ -45,9 +45,15 @@ def test_forward_tuple_and_loss() -> None:
     config = tiny_config()
     model = FlexDmForMaskedDocumentModeling(config)
     inputs = _inputs(config)
-    labels = {key: value.clone() for key, value in inputs.items() if key != "length"}
+    labels = {key: value.clone() for key, value in inputs.items()}
+    masks = {
+        key: torch.ones(value.shape[:2], dtype=torch.bool)
+        for key, value in labels.items()
+        if config.input_columns[key]["is_sequence"]
+    }
 
-    logits, loss = model(inputs=inputs, labels=labels, return_dict=False)
+    output = model(inputs=inputs, labels=labels, masks=masks, return_dict=False)
+    logits, loss = output
 
     assert "left" in logits
     assert loss is not None
