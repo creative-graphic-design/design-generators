@@ -170,7 +170,7 @@ def attribute_groups_for_dataset(
     return {
         "type": ("type",),
         "pos": ("left", "top", "width", "height"),
-        "attr": ("clickable", "icon", "text_button"),
+        "attr": ("icon", "clickable", "text_button"),
     }
 
 
