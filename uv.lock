@@ -3803,6 +3803,7 @@ data = [
 ]
 training = [
     { name = "tfrecord" },
+    { name = "traingen" },
 ]
 vendor-tf = [
     { name = "dacite" },
@@ -3849,6 +3850,7 @@ requires-dist = [
     { name = "tinycss", marker = "extra == 'vendor-tf'" },
     { name = "torch", specifier = ">=2.1" },
     { name = "tqdm", marker = "extra == 'vendor-tf'" },
+    { name = "traingen", marker = "extra == 'training'", editable = "lib/traingen" },
     { name = "traingen-parity", marker = "extra == 'vendor-tf'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]

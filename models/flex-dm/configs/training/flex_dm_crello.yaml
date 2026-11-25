@@ -1,0 +1,19 @@
+seed_everything: 0
+trainer:
+  accelerator: auto
+  devices: 1
+  max_epochs: 500
+  precision: 32-true
+  gradient_clip_val: 0.0
+  default_root_dir: .cache/flex-dm/training-runs/crello
+model:
+  class_path: flex_dm.training.lightning_module.FlexDmTrainingModule
+  init_args:
+    model_name_or_path: .cache/flex-dm/converted/flex-dm-crello
+data:
+  class_path: flex_dm.training.datamodule.FlexDmDataModule
+  init_args:
+    data_dir: .cache/flex-dm/original/data/crello
+    dataset_name: crello
+    batch_size: 256
+    num_workers: 0
