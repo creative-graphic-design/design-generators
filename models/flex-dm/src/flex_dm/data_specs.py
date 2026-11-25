@@ -194,6 +194,10 @@ def _vocabulary_size(
 
     raw = vocabulary.get(key)
 
+    if key in {"group", "format", "category"} and isinstance(raw, Mapping):
+        # The source StringLookups reserve mask id zero before these values.
+        return len(raw) + 1
+
     if key in ("font_family", "icon", "text_button") and isinstance(raw, Mapping):
         return sum(1 for count in raw.values() if int(cast(int, count)) >= 500) + 1
 
