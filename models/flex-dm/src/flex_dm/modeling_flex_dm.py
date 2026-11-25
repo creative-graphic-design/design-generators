@@ -189,7 +189,9 @@ class FlexDmInputEncoder(nn.Module):
                 if embedded.ndim == 4:
                     embedded = embedded.sum(dim=-2)
             else:
-                projected = self.input_projections[_module_key(key)](value.float())
+                projection = self.input_projections[_module_key(key)]
+                projection_dtype = next(projection.parameters()).dtype
+                projected = projection(value.to(dtype=projection_dtype))
                 masked = (value == 10.0).all(dim=-1)
                 unused = (value == 0.0).all(dim=-1)
                 special_ids = torch.zeros_like(masked, dtype=torch.long)
@@ -436,7 +438,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
                 ).reshape(target.shape)
             else:
                 loss = (
-                    F.mse_loss(pred, target.float(), reduction="none")
+                    F.mse_loss(pred, target.to(dtype=pred.dtype), reduction="none")
                     .mean(dim=-1)
                     .mul(int(column["shape"][-1]))
                     .unsqueeze(-1)

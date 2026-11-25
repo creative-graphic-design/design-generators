@@ -1,9 +1,39 @@
 from __future__ import annotations
 
+import pytest
 import torch
 from torch import nn
 
-from traingen.optim import KerasAdam
+from traingen.optim import KerasAdam, clip_gradients_by_norm
+
+
+def test_clip_gradients_by_norm_clips_each_tensor_independently() -> None:
+    clipped = nn.Parameter(torch.zeros(2))
+    under_limit = nn.Parameter(torch.zeros(2))
+    no_gradient = nn.Parameter(torch.zeros(1))
+    clipped.grad = torch.tensor([3.0, 4.0])
+    under_limit.grad = torch.tensor([0.3, 0.4])
+
+    clip_gradients_by_norm([clipped, under_limit, no_gradient], max_norm=1.0)
+
+    torch.testing.assert_close(clipped.grad, torch.tensor([0.6, 0.8]))
+    torch.testing.assert_close(under_limit.grad, torch.tensor([0.3, 0.4]))
+    assert no_gradient.grad is None
+
+
+def test_clip_gradients_by_norm_handles_zero_and_rejects_invalid_limits() -> None:
+    zero = nn.Parameter(torch.zeros(2))
+    nonzero = nn.Parameter(torch.zeros(2))
+    zero.grad = torch.zeros(2)
+    nonzero.grad = torch.ones(2)
+
+    clip_gradients_by_norm([zero, nonzero], max_norm=0.0)
+
+    torch.testing.assert_close(zero.grad, torch.zeros(2))
+    torch.testing.assert_close(nonzero.grad, torch.zeros(2))
+    for max_norm in (-1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="finite and non-negative"):
+            clip_gradients_by_norm([nonzero], max_norm=max_norm)
 
 
 def test_keras_adam_matches_first_and_second_steps() -> None:
