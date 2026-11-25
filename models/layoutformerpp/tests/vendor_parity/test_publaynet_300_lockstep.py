@@ -10,9 +10,52 @@ import numpy as np
 import pytest
 import torch
 
+from layoutformerpp.training.recipes import LayoutFormerPPTrainingRecipe
+
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 LOCKSTEP = importlib.import_module("run_publaynet_300_lockstep")
+
+
+def test_runner_training_stream_path_uses_cpu_loaders(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recipe = LOCKSTEP.parity.TRAINING_RECIPES_BY_NAME["publaynet_unconditional"]
+    batch: dict[str, object] = {"input_ids": torch.tensor([[1, 2]])}
+    calls: list[tuple[str, str, Path | None, int, int]] = []
+
+    def reference_stream(
+        requested_recipe: LayoutFormerPPTrainingRecipe,
+        data_root: Path,
+        *,
+        batches: int,
+        seed: int,
+    ) -> list[dict[str, object]]:
+        calls.append(("reference", requested_recipe.name, data_root, batches, seed))
+        return [batch]
+
+    def package_stream(
+        requested_recipe: LayoutFormerPPTrainingRecipe,
+        *,
+        batches: int,
+        seed: int,
+    ) -> list[dict[str, object]]:
+        calls.append(("package", requested_recipe.name, None, batches, seed))
+        return [batch]
+
+    monkeypatch.setattr(LOCKSTEP, "reference_train_loader_stream", reference_stream)
+    monkeypatch.setattr(LOCKSTEP.parity, "_package_train_loader_stream", package_stream)
+
+    source, package = LOCKSTEP._training_streams(recipe, tmp_path, batches=1)
+
+    assert calls == [
+        ("reference", recipe.name, tmp_path, 1, 0),
+        ("package", recipe.name, None, 1, 0),
+    ]
+    for stream in (source, package):
+        input_ids = stream[0]["input_ids"]
+        assert isinstance(input_ids, torch.Tensor)
+        assert input_ids.device.type == "cpu"
 
 
 def test_batch_hash_and_stream_parity_are_cpu_only() -> None:

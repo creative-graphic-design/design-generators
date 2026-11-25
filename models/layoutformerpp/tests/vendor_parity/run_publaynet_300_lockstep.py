@@ -18,6 +18,7 @@ import torch
 from torch import Tensor
 import lightning.pytorch.utilities.types as lpt
 from layoutformerpp.training.recipes import LayoutFormerPPTrainingRecipe
+from layoutformerpp_training_reference import reference_train_loader_stream
 from publaynet_precheck_support import capture_provenance
 
 Batch: TypeAlias = Mapping[str, object]
@@ -94,6 +95,18 @@ def _configure_tf32(*, configure: bool = True) -> None:
         or torch.backends.cudnn.allow_tf32
     ):
         raise RuntimeError("TF32 is enabled")
+
+
+def _training_streams(
+    recipe: LayoutFormerPPTrainingRecipe,
+    data_root: Path,
+    batches: int,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    reference = reference_train_loader_stream(
+        recipe, data_root, batches=batches, seed=0
+    )
+    package = parity._package_train_loader_stream(recipe, batches=batches, seed=0)
+    return reference, package
 
 
 def _write_cpu_smoke_failure(family: str, output: Path, error: Exception) -> None:
@@ -342,12 +355,7 @@ def main() -> None:
         json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
     )
     try:
-        source = parity.reference_train_loader_stream(
-            recipe, Path(data_root_value), batches=args.steps, seed=0
-        )
-        package = parity._package_train_loader_stream(
-            recipe, batches=args.steps, seed=0
-        )
+        source, package = _training_streams(recipe, Path(data_root_value), args.steps)
     except Exception as error:  # noqa: BLE001 - lower-level errors may expose paths.
         if args.cpu_smoke:
             _write_cpu_smoke_failure(args.family, args.output, error)

@@ -9,7 +9,7 @@ import subprocess
 import sys
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import cast
+from typing import Callable, cast
 
 import pytest
 import torch
