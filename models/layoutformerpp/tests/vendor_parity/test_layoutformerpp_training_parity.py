@@ -9,7 +9,7 @@ import subprocess
 import sys
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import Callable, cast
+from typing import cast
 
 import pytest
 import torch
@@ -1522,14 +1522,16 @@ def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, o
     )
     checkpoints = sorted(output_root.rglob("*.ckpt"))
     assert checkpoints, f"{recipe_name}: no ModelCheckpoint file under {output_root}"
+    checkpoint = next(
+        (path for path in checkpoints if path.name.startswith("epoch-")),
+        checkpoints[-1],
+    )
     metrics = sorted(output_root.rglob("metrics.csv"))
     assert metrics, f"{recipe_name}: no CSV logger output under {output_root}"
     metric_text = metrics[-1].read_text(encoding="utf-8")
     assert "train_loss" in metric_text
     assert "val_loss" in metric_text
-    checkpoint_payload = torch.load(
-        checkpoints[-1], map_location="cpu", weights_only=False
-    )
+    checkpoint_payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
     assert isinstance(checkpoint_payload, dict)
     scheduler_state = checkpoint_payload.get("lr_schedulers", [{}])[0]
     assert isinstance(scheduler_state, dict)
@@ -1553,7 +1555,7 @@ def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, o
         "scheduler_last_lr": scheduler_state.get("_last_lr", [None])[0],
         "expected_lr": expected_lr,
         "checkpoint_selected": selected_checkpoint,
-        "checkpoint_file": str(checkpoints[-1].relative_to(tmp_path)),
+        "checkpoint_file": str(checkpoint.relative_to(tmp_path)),
         "metrics_file": str(metrics[-1].relative_to(tmp_path)),
         "metric_text": metric_text,
     }
@@ -1596,17 +1598,16 @@ def test_s3_all_recipe_deterministic_multi_batch_run_matches(recipe) -> None:
 
 @pytest.mark.parametrize("recipe_name", PRODUCTION_FIT_RECIPE_NAMES)
 def test_s3_production_traingen_fit_wiring_representatives(
-    recipe_name: str,
-    tmp_path: Path,
-    record_property: Callable[[str, object], None],
+    recipe_name: str, tmp_path: Path
 ) -> None:
     """Exercise every distinct production fit branch through the console script."""
     _s1_device()
     evidence = _run_s3_production_fit_case(recipe_name, tmp_path)
-    record_property("optimizer_steps", evidence["optimizer_steps"])
-    record_property("checkpoint_count", evidence["checkpoint_count"])
     assert evidence["exit_code"] == 0
     assert evidence["global_step"] == 2
+    assert evidence["optimizer_steps"] == 2
+    expected_checkpoint_count = 2 if recipe_name.startswith("publaynet_") else 1
+    assert evidence["checkpoint_count"] == expected_checkpoint_count
     assert evidence["optimizer_state_count"] == 1
     assert evidence["scheduler_last_epoch"] == 1
     assert evidence["scheduler_last_lr"] == pytest.approx(evidence["expected_lr"])
