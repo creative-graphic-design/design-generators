@@ -12,22 +12,6 @@ import numpy as np
 import pytest
 import torch
 
-from .run_flex_dm_s3_probe import (
-    _configure_tf32,
-    _finite,
-    _gate_passed,
-    _loss_difference,
-    _rng_equal,
-    _run_lockstep,
-    _run_natural,
-    _run_synchronized_only,
-    _s2_arbitration,
-    _s3_passed,
-    _tensor_dict,
-)
-from . import run_flex_dm_s3_probe as s3_probe
-from traingen_parity.determinism import capture_rng_state
-
 
 @dataclass
 class _NumpyValue:
@@ -38,6 +22,9 @@ class _NumpyValue:
 
 
 def test_s3_relative_loss_difference_uses_reference_scale_and_float32_epsilon() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _loss_difference
+
     epsilon = float(torch.finfo(torch.float32).eps)
 
     assert _loss_difference(2.0, 2.5) == 0.25
@@ -51,10 +38,16 @@ def test_s3_relative_loss_difference_uses_reference_scale_and_float32_epsilon() 
 def test_s3_attribution_requires_noise_floor_at_or_before_cross_system(
     cross_step: int | None, noise_step: int | None, expected: bool
 ) -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _gate_passed
+
     assert _gate_passed(cross_step, noise_step) is expected
 
 
 def test_s3_synchronized_diagnostic_can_resolve_natural_divergence() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _s3_passed
+
     assert not _s3_passed(
         [False, True], synchronized_passed=False, lockstep_attributable=True
     )
@@ -70,6 +63,9 @@ def test_s3_synchronized_diagnostic_can_resolve_natural_divergence() -> None:
 
 
 def test_s3_non_finite_metrics_fail_closed() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _finite
+
     _finite(1.0, 2.0, update=1, phase="CPU check")
 
     with pytest.raises(RuntimeError, match="non-finite CPU check metric"):
@@ -77,6 +73,10 @@ def test_s3_non_finite_metrics_fail_closed() -> None:
 
 
 def test_s3_rng_snapshot_comparison_covers_captured_state() -> None:
+    pytest.importorskip("traingen_parity")
+    from traingen_parity.determinism import capture_rng_state
+    from .run_flex_dm_s3_probe import _rng_equal
+
     state = capture_rng_state()
 
     assert _rng_equal(state, state)
@@ -94,6 +94,9 @@ def test_s3_rng_snapshot_comparison_covers_captured_state() -> None:
 
 
 def test_s3_tensor_conversion_drops_source_string_metadata() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _tensor_dict
+
     batch = {
         "clickable": np.array([[0, 1]], dtype=np.int32),
         "tokens": _NumpyValue(np.array([1, 2], dtype=np.int64)),
@@ -115,6 +118,15 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
     dataset: str, tmp_path, monkeypatch
 ) -> None:
     tf = pytest.importorskip("tensorflow")
+    pytest.importorskip("traingen_parity")
+    from . import run_flex_dm_s3_probe as s3_probe
+    from .run_flex_dm_s3_probe import (
+        _configure_tf32,
+        _run_lockstep,
+        _run_natural,
+        _run_synchronized_only,
+    )
+
     if os.environ.get("CUDA_VISIBLE_DEVICES") != "":
         pytest.skip("CPU smoke requires hidden GPUs")
     assert not torch.cuda.is_available()
@@ -255,6 +267,9 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
 
 
 def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _s2_arbitration
+
     state = {
         "raw": {"attention.k_proj.bias": torch.zeros(1)},
         "clipped": {},
@@ -293,6 +308,8 @@ def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
 def test_s3_update_two_arbitration_replays_state_batch_and_adam_step(
     monkeypatch,
 ) -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _s2_arbitration
     from . import test_flex_dm_training_s2 as s2
 
     state = {
@@ -420,6 +437,9 @@ def test_s3_update_two_arbitration_replays_state_batch_and_adam_step(
 
 
 def test_s3_lockstep_later_direct_exceedance_is_report_only() -> None:
+    pytest.importorskip("traingen_parity")
+    from .run_flex_dm_s3_probe import _s2_arbitration
+
     state = {
         "raw": {"attention.k_proj.bias": torch.zeros(1)},
         "clipped": {},
@@ -451,6 +471,9 @@ def test_s3_lockstep_later_direct_exceedance_is_report_only() -> None:
 def test_s3_synchronized_phase_selector_is_available_for_dry_run(
     tmp_path, monkeypatch, capsys
 ) -> None:
+    pytest.importorskip("traingen_parity")
+    from . import run_flex_dm_s3_probe as s3_probe
+
     output = tmp_path / "synchronized"
     monkeypatch.setenv("PARITY_REQUIRE", "1")
     monkeypatch.setattr(
