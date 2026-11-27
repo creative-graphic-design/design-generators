@@ -12,6 +12,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from collections.abc import Mapping
+from functools import cache
 from pathlib import Path
 from typing import Final, cast
 
@@ -529,8 +530,12 @@ def _package_update(
     return float(loss.detach().item()), result, states, rng
 
 
+@cache
 def _tensorflow():
     import tensorflow as tf
+
+    for device in tf.config.list_physical_devices("GPU"):
+        tf.config.experimental.set_memory_growth(device, True)
 
     return tf
 
@@ -1344,6 +1349,7 @@ def main() -> None:
         ).strip(),
         "seed": args.seed,
         "tf32": "disabled in TensorFlow and PyTorch",
+        "tensorflow_gpu_memory_growth": "enabled",
         "natural": natural,
         "lockstep": lockstep,
         "natural_s3_pass": natural_passed,
