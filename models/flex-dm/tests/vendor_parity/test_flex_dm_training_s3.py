@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,6 +20,7 @@ from .run_flex_dm_s3_probe import (
     _rng_equal,
     _run_lockstep,
     _run_natural,
+    _run_synchronized_only,
     _s2_arbitration,
     _s3_passed,
     _tensor_dict,
@@ -177,6 +179,12 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
     assert lockstep["updates_per_phase"] == 2
     assert all((output / record).is_file() for record in natural["records"])
     assert all((output / record).is_file() for record in lockstep["records"])
+    synchronized_rows = [
+        json.loads(line)
+        for line in (output / "synchronized.jsonl").read_text().splitlines()
+    ]
+    assert all(row["task_ids"] for row in synchronized_rows)
+    assert all("pos_sort_diagnostic" in row for row in synchronized_rows)
     if dataset == "crello":
         rows = [
             json.loads(line)
@@ -205,10 +213,6 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
             )
             for row in rows
         )
-        synchronized_rows = [
-            json.loads(line)
-            for line in (output / "synchronized.jsonl").read_text().splitlines()
-        ]
         assert all(
             row["s1_max_rel_to_max"] is not None
             and row["s1_comparisons"]
@@ -216,14 +220,30 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
             for row in synchronized_rows
         )
     if dataset == "rico":
-        first = json.loads((output / "cross-system.jsonl").read_text().splitlines()[0])
-        diagnostic = first["sort_diagnostic_report_only"]
-        assert {
-            "position_key_tie_groups",
+        diagnostic_fields = {
+            "position_key_tie_groups_reference",
+            "position_key_tie_groups_package",
+            "target_sort_orders_agree",
             "prediction_order_mismatches",
             "prediction_tie_order_mismatches",
+            "prediction_sort_orders_agree",
             "tie_order_explains_loss_gap",
-        } <= diagnostic.keys()
+        }
+        assert all(
+            diagnostic_fields <= row["pos_sort_diagnostic"].keys()
+            for row in synchronized_rows
+        )
+
+    sync_output = tmp_path / f"{dataset}-synchronized-only"
+    sync_output.mkdir()
+    synchronized = _run_synchronized_only(
+        dataset, 2, sync_output, 0, tf, torch.device("cpu")
+    )
+    assert synchronized["phase"] == "synchronized"
+    assert synchronized["records"] == ["synchronized.jsonl"]
+    assert (sync_output / "synchronized.jsonl").is_file()
+    assert not (sync_output / "cross-system.jsonl").exists()
+    assert not (sync_output / "noise-floor.jsonl").exists()
 
 
 def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
@@ -254,4 +274,93 @@ def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
         "s2_float64_arbitration_max_rel": None,
         "s2_float64_arbitration_pass": None,
         "s2_float64_arbitration_applied": False,
+        "s2_float64_arbitration_required": False,
     }
+
+
+def test_s3_synchronized_update_after_one_reaches_arbitration_policy() -> None:
+    state = {
+        "raw": {"attention.k_proj.bias": torch.zeros(1)},
+        "clipped": {},
+        "m": {},
+        "v": {},
+        "after": {},
+    }
+    direct_failures = {"output": {"left": 1.0}}
+
+    result = _s2_arbitration(
+        2,
+        None,
+        state,
+        state,
+        direct_failures,
+        {},
+        {},
+        {},
+        [],
+        [],
+        torch.device("cpu"),
+        arbitrate_every_update=True,
+    )
+
+    assert result["s2_float64_arbitration_required"] is True
+    assert result["s2_float64_arbitration_applied"] is False
+    assert result["s2_pass"] is False
+
+
+def test_s3_lockstep_later_direct_exceedance_is_report_only() -> None:
+    state = {
+        "raw": {"attention.k_proj.bias": torch.zeros(1)},
+        "clipped": {},
+        "m": {},
+        "v": {},
+        "after": {},
+    }
+
+    result = _s2_arbitration(
+        2,
+        None,
+        state,
+        state,
+        {"output": {"left": 1.0}},
+        {},
+        {},
+        {},
+        [],
+        [],
+        torch.device("cpu"),
+        later_updates_report_only=True,
+    )
+
+    assert result["s2_pass"] is None
+    assert result["s2_float64_arbitration_required"] is False
+
+
+def test_s3_synchronized_phase_selector_is_available_for_dry_run(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    output = tmp_path / "synchronized"
+    monkeypatch.setenv("PARITY_REQUIRE", "1")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_flex_dm_s3_probe.py",
+            "--mode",
+            "run",
+            "--dataset",
+            "rico",
+            "--phase",
+            "synchronized",
+            "--steps",
+            "300",
+            "--output-dir",
+            str(output),
+            "--dry-run",
+        ],
+    )
+
+    s3_probe.main()
+
+    assert json.loads(capsys.readouterr().out)["phase_selector"] == "synchronized"
+    assert not output.exists()

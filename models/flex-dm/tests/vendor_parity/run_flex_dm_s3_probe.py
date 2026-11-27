@@ -856,6 +856,83 @@ def _step_comparison(
     }
 
 
+def _synchronized_update(
+    dataset: DatasetName,
+    update: int,
+    seed: int,
+    batch: Mapping[str, object],
+    original,
+    names: Mapping[str, str],
+    current: dict[str, object],
+    reference_loss: float,
+    reference: Mapping[str, object],
+    reference_state: Mapping[str, Mapping[str, torch.Tensor]],
+    module: FlexDmTrainingModule,
+    optimizer: torch.optim.Optimizer,
+    dropout_masks: list[np.ndarray],
+    tf,
+    device: torch.device,
+) -> tuple[float, dict[str, object], dict[str, object], float, dict[str, object]]:
+    prepared = cast(dict[str, object], current["prepared"])
+    prepared["tasks"] = current["tasks"]
+    torch.manual_seed(seed + update)
+    package_loss, package, package_state, _ = _package_update(
+        module,
+        optimizer,
+        _tensor_dict(batch, device),
+        update=update - 1,
+        device=device,
+        prepared=prepared,
+        dropout_masks=dropout_masks,
+    )
+    _synchronize_package_boundary(
+        original, names, reference_state, module, optimizer, device
+    )
+    comparison = _step_comparison(reference, package, reference_state, package_state)
+    comparison.update(
+        _s2_arbitration(
+            update,
+            module,
+            reference_state,
+            package_state,
+            cast(Mapping[str, Mapping[str, float]], comparison["s2_direct_failures"]),
+            cast(Mapping[str, np.ndarray], current["before"]),
+            prepared,
+            prepared,
+            dropout_masks,
+            dropout_masks,
+            device,
+            arbitrate_every_update=True,
+        )
+    )
+    sort_diagnostic = (
+        _rico_sort_diagnostic(original, current, module.model, package, tf)
+        if dataset == "rico"
+        else {"status": "not_applicable"}
+    )
+    difference = _loss_difference(reference_loss, package_loss)
+    row = {
+        "record": "update",
+        "update": update,
+        "task_ids": [
+            original.task_names[int(task)] for task in np.asarray(current["tasks"])
+        ],
+        "pos_sort_diagnostic": sort_diagnostic,
+        "loss_reference": reference_loss,
+        "loss_package": package_loss,
+        "relative_loss_difference": difference,
+        "gradient_norm_reference": reference["gradient_norm"],
+        "gradient_norm_package": package["gradient_norm"],
+        "max_parameter_difference": comparison["max_parameter_difference"],
+        "largest_difference_parameter": comparison["largest_difference_parameter"],
+        "learning_rate_reference": reference["learning_rate"],
+        "learning_rate_package": package["learning_rate"],
+        "scheduler_sync": "not_applicable: neither path configures a scheduler",
+        **comparison,
+    }
+    return package_loss, package, comparison, difference, row
+
+
 def _rico_sort_diagnostic(
     original, current, package_model, package, tf
 ) -> dict[str, object]:
@@ -865,7 +942,15 @@ def _rico_sort_diagnostic(
     task_ids = np.asarray(current["tasks"])
     positions = np.flatnonzero(task_ids == original.task_names.index("pos"))
     if not len(positions):
-        return {"pos_rows": 0, "position_key_tie_groups": 0, "tie_order_mismatches": 0}
+        return {
+            "pos_rows": 0,
+            "position_key_tie_groups_reference": 0,
+            "position_key_tie_groups_package": 0,
+            "target_sort_orders_agree": None,
+            "prediction_key_tie_groups_reference": 0,
+            "prediction_key_tie_groups_package": 0,
+            "prediction_sort_orders_agree": None,
+        }
 
     prepared = cast(Mapping[str, Mapping[str, np.ndarray]], current["prepared"])
     labels = {
@@ -932,9 +1017,19 @@ def _rico_sort_diagnostic(
     ref_keys = priorities(labels, logits=False, torch_values=False)[positions]
     pkg_keys = priorities(package_labels, logits=False, torch_values=True)[positions]
     valid_counts = [int(value[0]) + 1 for value in labels["length"].numpy()[positions]]
-    tie_groups = sum(
-        count - len(np.unique(values[:count]))
+
+    def tie_groups(values: np.ndarray, count: int) -> int:
+        return int(
+            np.count_nonzero(np.unique(values[:count], return_counts=True)[1] > 1)
+        )
+
+    position_tie_groups_reference = sum(
+        tie_groups(values, count)
         for values, count in zip(ref_keys, valid_counts, strict=True)
+    )
+    position_tie_groups_package = sum(
+        tie_groups(values, count)
+        for values, count in zip(pkg_keys, valid_counts, strict=True)
     )
     reference_target_order = reference_order(labels, from_logits=False)[positions]
     package_target_order = package_order(package_labels, from_logits=False)[positions]
@@ -958,11 +1053,11 @@ def _rico_sort_diagnostic(
         package_outputs, logits=True, torch_values=True
     )[positions]
     prediction_tie_groups_reference = sum(
-        count - len(np.unique(values[:count]))
+        tie_groups(values, count)
         for values, count in zip(prediction_keys_reference, valid_counts, strict=True)
     )
     prediction_tie_groups_package = sum(
-        count - len(np.unique(values[:count]))
+        tie_groups(values, count)
         for values, count in zip(prediction_keys_package, valid_counts, strict=True)
     )
     prediction_order_mismatches = sum(
@@ -987,12 +1082,21 @@ def _rico_sort_diagnostic(
             )
         )
     )
+    target_order_mismatches = sum(
+        not np.array_equal(ref_order, pkg_order)
+        for ref_order, pkg_order in zip(
+            reference_target_order, package_target_order, strict=True
+        )
+    )
     return {
         "pos_rows": len(positions),
-        "position_key_tie_groups": tie_groups,
+        "position_key_tie_groups_reference": position_tie_groups_reference,
+        "position_key_tie_groups_package": position_tie_groups_package,
+        "target_sort_orders_agree": target_order_mismatches == 0,
         "target_tie_order_mismatches": mismatches,
         "prediction_key_tie_groups_reference": prediction_tie_groups_reference,
         "prediction_key_tie_groups_package": prediction_tie_groups_package,
+        "prediction_sort_orders_agree": prediction_order_mismatches == 0,
         "prediction_order_mismatches": int(prediction_order_mismatches),
         "prediction_tie_order_mismatches": int(prediction_tie_mismatches),
         "tie_order_explains_loss_gap": bool(mismatches or prediction_tie_mismatches),
@@ -1017,6 +1121,9 @@ def _s2_arbitration(
     reference_dropout_masks: list[np.ndarray],
     package_dropout_masks: list[np.ndarray],
     device: torch.device,
+    *,
+    arbitrate_every_update: bool = False,
+    later_updates_report_only: bool = False,
 ) -> dict[str, object]:
     direct_failures = {
         group: dict(values) for group, values in direct_failures.items() if values
@@ -1039,13 +1146,23 @@ def _s2_arbitration(
             "s2_float64_arbitration_max_rel": None,
             "s2_float64_arbitration_pass": None,
             "s2_float64_arbitration_applied": False,
+            "s2_float64_arbitration_required": False,
         }
-    if update != 1:
+    if update != 1 and not arbitrate_every_update and later_updates_report_only:
+        return {
+            "s2_pass": None,
+            "s2_float64_arbitration_max_rel": None,
+            "s2_float64_arbitration_pass": None,
+            "s2_float64_arbitration_applied": False,
+            "s2_float64_arbitration_required": False,
+        }
+    if update != 1 and not arbitrate_every_update:
         return {
             "s2_pass": False,
             "s2_float64_arbitration_max_rel": None,
             "s2_float64_arbitration_pass": False,
             "s2_float64_arbitration_applied": False,
+            "s2_float64_arbitration_required": False,
         }
     # CPU smoke checks execution; float64 arbitration remains GPU-only evidence.
     if device.type != "cuda":
@@ -1054,6 +1171,7 @@ def _s2_arbitration(
             "s2_float64_arbitration_max_rel": None,
             "s2_float64_arbitration_pass": False,
             "s2_float64_arbitration_applied": False,
+            "s2_float64_arbitration_required": True,
         }
 
     from .test_flex_dm_training_s2 import _float64_model_trace
@@ -1126,6 +1244,7 @@ def _s2_arbitration(
         "s2_float64_arbitration_max_rel": maximum,
         "s2_float64_arbitration_pass": passed,
         "s2_float64_arbitration_applied": True,
+        "s2_float64_arbitration_required": True,
     }
 
 
@@ -1393,50 +1512,32 @@ def _run_lockstep(
                     dropout_masks,
                     dropout_masks,
                     device,
+                    later_updates_report_only=True,
                 )
             )
-            torch.manual_seed(seed + update)
-            synchronized_loss, synchronized_result, synchronized_state, _ = (
-                _package_update(
-                    synchronized_model,
-                    synchronized_optimizer,
-                    package_batch,
-                    update=update - 1,
-                    device=device,
-                    prepared=prepared,
-                    dropout_masks=dropout_masks,
-                )
+            (
+                synchronized_loss,
+                synchronized_result,
+                synchronized_comparison,
+                synchronized_difference,
+                synchronized_row,
+            ) = _synchronized_update(
+                dataset,
+                update,
+                seed,
+                batch,
+                original,
+                names,
+                current,
+                reference_loss,
+                reference,
+                reference_state,
+                synchronized_model,
+                synchronized_optimizer,
+                dropout_masks,
+                tf,
+                device,
             )
-            synchronized_comparison = _step_comparison(
-                reference, synchronized_result, reference_state, synchronized_state
-            )
-            synchronized_comparison.update(
-                _s2_arbitration(
-                    update,
-                    synchronized_model,
-                    reference_state,
-                    synchronized_state,
-                    cast(
-                        Mapping[str, Mapping[str, float]],
-                        synchronized_comparison["s2_direct_failures"],
-                    ),
-                    cast(Mapping[str, np.ndarray], current["before"]),
-                    prepared,
-                    prepared,
-                    dropout_masks,
-                    dropout_masks,
-                    device,
-                )
-            )
-            synchronized_difference = _loss_difference(
-                reference_loss, synchronized_loss
-            )
-            if dataset == "rico" and device.type == "cpu" and update == 1:
-                sort_diagnostic = _rico_sort_diagnostic(
-                    original, current, cross_model.model, cross_result, tf
-                )
-            else:
-                sort_diagnostic = None
 
             cross_difference = _loss_difference(reference_loss, cross_loss)
             if cross_difference > LOSS_LIMIT and cross_exceedance is None:
@@ -1511,30 +1612,18 @@ def _run_lockstep(
                     "s2_float64_arbitration_max_rel": comparison[
                         "s2_float64_arbitration_max_rel"
                     ],
-                    "sort_diagnostic_report_only": sort_diagnostic,
+                    "s2_float64_arbitration_pass": comparison[
+                        "s2_float64_arbitration_pass"
+                    ],
+                    "s2_float64_arbitration_applied": comparison[
+                        "s2_float64_arbitration_applied"
+                    ],
+                    "s2_float64_arbitration_required": comparison[
+                        "s2_float64_arbitration_required"
+                    ],
                 }
             )
-            synchronized_rows.append(
-                {
-                    "record": "update",
-                    "update": update,
-                    "loss_reference": reference_loss,
-                    "loss_package": synchronized_loss,
-                    "relative_loss_difference": synchronized_difference,
-                    "gradient_norm_reference": reference["gradient_norm"],
-                    "gradient_norm_package": synchronized_result["gradient_norm"],
-                    "max_parameter_difference": synchronized_comparison[
-                        "max_parameter_difference"
-                    ],
-                    "largest_difference_parameter": synchronized_comparison[
-                        "largest_difference_parameter"
-                    ],
-                    "learning_rate_reference": reference["learning_rate"],
-                    "learning_rate_package": synchronized_result["learning_rate"],
-                    "scheduler_sync": "not_applicable: neither path configures a scheduler",
-                    **synchronized_comparison,
-                }
-            )
+            synchronized_rows.append(synchronized_row)
             noise_rows.append(
                 {
                     "record": "update",
@@ -1556,14 +1645,6 @@ def _run_lockstep(
                 _write_row(trace, synchronized_rows[-1])
             with noise_path.open("a", encoding="utf-8") as trace:
                 _write_row(trace, noise_rows[-1])
-            _synchronize_package_boundary(
-                original,
-                names,
-                reference_state,
-                synchronized_model,
-                synchronized_optimizer,
-                device,
-            )
             _finite(
                 reference_loss,
                 cross_loss,
@@ -1606,7 +1687,7 @@ def _run_lockstep(
         "cross_system_first_exceedance_parameter": cross_exceedance_parameter,
         "noise_floor_first_exceedance": noise_exceedance,
         "noise_floor_first_exceedance_parameter": noise_exceedance_parameter,
-        "cross_system_s0_s2_report_only": cross_s0_s2_pass,
+        "cross_system_s0_s2_all_rows_pass_report_only": cross_s0_s2_pass,
         "synchronized_within_s0_s2": synchronized_s0_s2_pass,
         "synchronized_first_s0_s2_divergence": next(
             (
@@ -1623,6 +1704,93 @@ def _run_lockstep(
     }
 
 
+def _run_synchronized_only(
+    dataset: DatasetName,
+    steps: int,
+    output: Path,
+    seed: int,
+    tf,
+    device: torch.device,
+) -> dict[str, object]:
+    _seed(seed, tf)
+    dataspec, original, synchronized_model, synchronized_optimizer, names = _make_pair(
+        dataset, tf, device
+    )
+    current: dict[str, object] = {}
+    restore = _capture_original(original, tf, current, names)
+    dropout_masks = _capture_dropout_masks(original.model, tf)
+    rows = []
+    trace_path = output / "synchronized.jsonl"
+    trace_path.touch(exist_ok=False)
+    started = time.perf_counter()
+    try:
+        for update, batch in enumerate(_source_batches(dataspec, steps, seed, tf), 1):
+            _seed(seed + update, tf)
+            reference_loss, reference = _reference_step(
+                original, batch, current, dropout_masks, tf, device
+            )
+            reference_state = _reference_boundary(original, names, current, device)
+            package_loss, package_result, comparison, difference, row = (
+                _synchronized_update(
+                    dataset,
+                    update,
+                    seed,
+                    batch,
+                    original,
+                    names,
+                    current,
+                    reference_loss,
+                    reference,
+                    reference_state,
+                    synchronized_model,
+                    synchronized_optimizer,
+                    dropout_masks,
+                    tf,
+                    device,
+                )
+            )
+            rows.append(row)
+            with trace_path.open("a", encoding="utf-8") as trace:
+                _write_row(trace, row)
+            _finite(
+                reference_loss,
+                package_loss,
+                difference,
+                float(reference["gradient_norm"]),
+                float(package_result["gradient_norm"]),
+                float(comparison["max_parameter_difference"]),
+                update=update,
+                phase="synchronized",
+            )
+    finally:
+        restore()
+
+    if len(rows) != steps:
+        raise RuntimeError(
+            "the synchronized phase stopped before the requested update count"
+        )
+    first_divergence = next(
+        (
+            int(row["update"])
+            for row in rows
+            if not bool(row["s1_pass"]) or not bool(row["s2_pass"])
+        ),
+        None,
+    )
+    elapsed = time.perf_counter() - started
+    return {
+        "phase": "synchronized",
+        "updates_per_phase": steps,
+        "synchronized_within_s0_s2": all(
+            bool(row["s1_pass"]) and bool(row["s2_pass"]) for row in rows
+        ),
+        "synchronized_first_s0_s2_divergence": first_divergence,
+        "elapsed_seconds": elapsed,
+        "updates_per_second_report_only": steps / elapsed,
+        "records": ["synchronized.jsonl"],
+    }
+
+
 def _run_output_path(parser: argparse.ArgumentParser, raw_path: Path) -> Path:
     output = raw_path.resolve()
     if output.is_relative_to(ROOT) or output.exists():
@@ -1634,6 +1802,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("preflight", "run"), required=True)
     parser.add_argument("--dataset", choices=DATASETS, required=True)
+    parser.add_argument("--phase", choices=("all", "synchronized"), default="all")
     parser.add_argument("--steps", type=int, default=300)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--output-dir", type=Path)
@@ -1647,7 +1816,7 @@ def main() -> None:
     if args.output_dir is None:
         parser.error("run mode requires --output-dir")
     if args.steps < 300:
-        parser.error("lockstep phases require at least 300 updates")
+        parser.error("S3 evidence phases require at least 300 updates")
     output = _run_output_path(parser, args.output_dir)
     if os.environ.get("PARITY_REQUIRE") != "1":
         parser.error("run mode requires PARITY_REQUIRE=1")
@@ -1657,6 +1826,7 @@ def main() -> None:
                 {
                     "mode": "dry-run",
                     "dataset": args.dataset,
+                    "phase_selector": args.phase,
                     "steps_per_phase": args.steps,
                     "output_dir": str(output),
                 },
@@ -1671,6 +1841,30 @@ def main() -> None:
     tf = _tensorflow()
     device = _assert_gpu_environment(tf)
     _seed(args.seed, tf)
+    if args.phase == "synchronized":
+        synchronized = _run_synchronized_only(
+            args.dataset, args.steps, output, args.seed, tf, device
+        )
+        result = {
+            "dataset": args.dataset,
+            "phase_selector": args.phase,
+            "source_commit": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], text=True
+            ).strip(),
+            "vendor_commit": subprocess.check_output(
+                ["git", "-C", "vendor/flex-dm", "rev-parse", "HEAD"], text=True
+            ).strip(),
+            "seed": args.seed,
+            "tf32": "disabled in TensorFlow and PyTorch",
+            "tensorflow_gpu_memory_growth": "enabled",
+            "synchronized": synchronized,
+            "gate_eligible": False,
+        }
+        (output / "summary.json").write_text(
+            json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
     natural = _run_natural(args.dataset, args.steps, output, args.seed, tf, device)
     lockstep = _run_lockstep(args.dataset, args.steps, output, args.seed, tf, device)
     natural_passed = all(cast(list[bool], natural["s3_pass_each_repeat"]))
@@ -1685,6 +1879,7 @@ def main() -> None:
             ["git", "-C", "vendor/flex-dm", "rev-parse", "HEAD"], text=True
         ).strip(),
         "seed": args.seed,
+        "phase_selector": args.phase,
         "tf32": "disabled in TensorFlow and PyTorch",
         "tensorflow_gpu_memory_growth": "enabled",
         "natural": natural,
