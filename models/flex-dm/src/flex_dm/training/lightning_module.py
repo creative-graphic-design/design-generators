@@ -21,7 +21,9 @@ class FlexDmTrainingModule(LightningModule):
     def __init__(self, model_name_or_path: str) -> None:
         """Load the converted starting checkpoint."""
         super().__init__()
-        self.model = FlexDmForMaskedDocumentModeling.from_pretrained(model_name_or_path)
+        self.model = FlexDmForMaskedDocumentModeling.from_pretrained(
+            model_name_or_path
+        ).train()
         self.latest_step_trace: dict[str, Shaped[Tensor, "..."]] = {}
 
     def prepare_batch(

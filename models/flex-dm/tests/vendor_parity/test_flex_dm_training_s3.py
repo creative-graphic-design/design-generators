@@ -22,6 +22,7 @@ from .run_flex_dm_s3_probe import (
     _s3_passed,
     _tensor_dict,
 )
+from . import run_flex_dm_s3_probe as s3_probe
 from traingen_parity.determinism import capture_rng_state
 
 
@@ -98,7 +99,9 @@ def test_s3_tensor_conversion_drops_source_string_metadata() -> None:
 
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize("dataset", ("crello", "rico"))
-def test_s3_cpu_runner_smoke_completes_both_phases(dataset: str, tmp_path) -> None:
+def test_s3_cpu_runner_smoke_completes_both_phases(
+    dataset: str, tmp_path, monkeypatch
+) -> None:
     tf = pytest.importorskip("tensorflow")
     if os.environ.get("CUDA_VISIBLE_DEVICES") != "":
         pytest.skip("CPU smoke requires hidden GPUs")
@@ -106,10 +109,59 @@ def test_s3_cpu_runner_smoke_completes_both_phases(dataset: str, tmp_path) -> No
     assert not tf.config.list_physical_devices("GPU")
     _configure_tf32(tf)
 
+    phase = "natural"
+    created: dict[str, list[torch.nn.Module]] = {"natural": [], "lockstep": []}
+    mode_states: dict[str, list[tuple[bool, bool, bool]]] = {
+        "natural": [],
+        "lockstep": [],
+    }
+    applied_masks: dict[torch.nn.Module, list[np.ndarray]] = {}
+    make_package = s3_probe._make_package
+    package_update = s3_probe._package_update
+
+    def capture_package(dataset_name, device):
+        module, optimizer = make_package(dataset_name, device)
+        created[phase].append(module)
+        mode_states[phase].append(
+            (
+                module.training,
+                module.model.training,
+                all(
+                    layer.training
+                    for layer in module.model.modules()
+                    if isinstance(layer, torch.nn.Dropout)
+                ),
+            )
+        )
+        applied_masks[module] = []
+        return module, optimizer
+
+    def capture_package_update(module, optimizer, batch, **kwargs):
+        result = package_update(module, optimizer, batch, **kwargs)
+        masks = kwargs.get("captured_dropout_masks")
+        if masks is None:
+            masks = kwargs.get("dropout_masks")
+        applied_masks[module].extend(mask.copy() for mask in masks or ())
+        return result
+
+    monkeypatch.setattr(s3_probe, "_make_package", capture_package)
+    monkeypatch.setattr(s3_probe, "_package_update", capture_package_update)
+
+    def assert_package_phase(name: str) -> None:
+        assert created[name]
+        assert all(all(state) for state in mode_states[name])
+        assert all(
+            any(not np.all(mask) for mask in applied_masks[module])
+            for module in created[name]
+        )
+
     output = tmp_path / dataset
     output.mkdir()
     natural = _run_natural(dataset, 2, output, 0, tf, torch.device("cpu"))
+    assert_package_phase("natural")
+    phase = "lockstep"
     lockstep = _run_lockstep(dataset, 2, output, 0, tf, torch.device("cpu"))
+    assert_package_phase("lockstep")
 
     assert natural["updates_per_repeat"] == 2
     assert lockstep["updates_per_phase"] == 2
