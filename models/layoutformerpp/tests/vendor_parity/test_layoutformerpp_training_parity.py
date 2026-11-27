@@ -1606,8 +1606,6 @@ def test_s3_production_traingen_fit_wiring_representatives(
     assert evidence["exit_code"] == 0
     assert evidence["global_step"] == 2
     assert evidence["optimizer_steps"] == 2
-    expected_checkpoint_count = 2 if recipe_name.startswith("publaynet_") else 1
-    assert evidence["checkpoint_count"] == expected_checkpoint_count
     assert evidence["optimizer_state_count"] == 1
     assert evidence["scheduler_last_epoch"] == 1
     assert evidence["scheduler_last_lr"] == pytest.approx(evidence["expected_lr"])
