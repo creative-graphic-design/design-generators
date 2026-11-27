@@ -11,8 +11,8 @@ import os
 import random
 import subprocess
 import time
-from collections.abc import Callable
-from collections.abc import Mapping
+from collections import Counter
+from collections.abc import Callable, Mapping
 from functools import cache
 from pathlib import Path
 from typing import Final, cast
@@ -339,6 +339,26 @@ def _capture_original(
             for gradient, variable in step_variables
             if gradient is not None
         }
+        indices = getattr(optimizer, "_index_dict", {})
+        momentums = getattr(optimizer, "_momentums", ())
+        velocities = getattr(optimizer, "_velocities", ())
+        current["optimizer_step_before"] = int(optimizer.iterations.numpy())
+        current["before_m"] = {}
+        current["before_v"] = {}
+        for gradient, variable in step_variables:
+            if gradient is None:
+                continue
+            index = indices.get(optimizer._var_key(variable))
+            current["before_m"][names[variable.name]] = (
+                momentums[index].numpy().copy()
+                if index is not None and index < len(momentums)
+                else np.zeros_like(variable.numpy())
+            )
+            current["before_v"][names[variable.name]] = (
+                velocities[index].numpy().copy()
+                if index is not None and index < len(velocities)
+                else np.zeros_like(variable.numpy())
+            )
         return apply_gradients(step_variables, *args, **kwargs)
 
     def capture_random(name, function):
@@ -401,6 +421,12 @@ def _reference_boundary(
             moments["v"][source] = optimizer._velocities[index].numpy().copy()
     boundary["m"] = _source_state(moments["m"], device)
     boundary["v"] = _source_state(moments["v"], device)
+    boundary["before_m"] = _source_state(
+        cast(Mapping[str, np.ndarray], current["before_m"]), device
+    )
+    boundary["before_v"] = _source_state(
+        cast(Mapping[str, np.ndarray], current["before_v"]), device
+    )
     boundary["after"] = _source_state(after, device)
     return boundary
 
@@ -491,6 +517,20 @@ def _package_update(
     initial_state = {
         key: value.detach().clone() for key, value in module.model.state_dict().items()
     }
+    incoming_m = {
+        name: optimizer.state.get(parameter, {})
+        .get("exp_avg", torch.zeros_like(parameter))
+        .detach()
+        .clone()
+        for name, parameter in module.model.named_parameters()
+    }
+    incoming_v = {
+        name: optimizer.state.get(parameter, {})
+        .get("exp_avg_sq", torch.zeros_like(parameter))
+        .detach()
+        .clone()
+        for name, parameter in module.model.named_parameters()
+    }
     dropout_originals = []
 
     def capture_forward(*args, **kwargs):
@@ -570,6 +610,8 @@ def _package_update(
         }
         states = {
             "_before_model_state": initial_state,
+            "before_m": {name: incoming_m[name] for name in raw},
+            "before_v": {name: incoming_v[name] for name in raw},
             "raw": raw,
             "clipped": clipped,
             "m": {
@@ -795,6 +837,7 @@ def _step_comparison(
     s1_max = s1_relative_to_max[s1_worst_tensor]
     direct: dict[str, float] = {}
     direct_failures: dict[str, dict[str, float]] = {}
+    direct_worst: dict[str, dict[str, object]] = {}
     for group in ("raw", "clipped", "m", "v"):
         if set(ref_state[group]) != set(pkg_state[group]):
             raise RuntimeError(f"{group} optimizer tensors differ")
@@ -804,6 +847,12 @@ def _step_comparison(
             if not name.endswith("attention.k_proj.bias")
         }
         direct[group] = max(errors.values(), default=0.0)
+        if errors:
+            worst = max(errors, key=errors.__getitem__)
+            direct_worst[group] = {
+                "tensor": worst,
+                "relative_l2": errors[worst],
+            }
         direct_failures[group] = {
             name: error for name, error in errors.items() if error > S2_DIRECT_LIMIT
         }
@@ -839,6 +888,7 @@ def _step_comparison(
         "s1_worst_tensor": s1_worst_tensor,
         "s2_direct_rel_l2_max": direct,
         "s2_direct_failures": direct_failures,
+        "s2_direct_worst_by_group": direct_worst,
         "s2_key_bias_max_abs": zero_gradient,
         "s2_direct_pass": s2_max <= S2_DIRECT_LIMIT
         and zero_gradient <= S2_ZERO_GRADIENT_LIMIT,
@@ -875,6 +925,8 @@ def _synchronized_update(
 ) -> tuple[float, dict[str, object], dict[str, object], float, dict[str, object]]:
     prepared = cast(dict[str, object], current["prepared"])
     prepared["tasks"] = current["tasks"]
+    if int(current["optimizer_step_before"]) != update - 1:
+        raise RuntimeError("reference Adam step differs from synchronized update")
     torch.manual_seed(seed + update)
     package_loss, package, package_state, _ = _package_update(
         module,
@@ -903,6 +955,7 @@ def _synchronized_update(
             dropout_masks,
             device,
             arbitrate_every_update=True,
+            optimizer=optimizer,
         )
     )
     sort_diagnostic = (
@@ -911,12 +964,12 @@ def _synchronized_update(
         else {"status": "not_applicable"}
     )
     difference = _loss_difference(reference_loss, package_loss)
+    task_ids = [original.task_names[int(task)] for task in np.asarray(current["tasks"])]
     row = {
         "record": "update",
         "update": update,
-        "task_ids": [
-            original.task_names[int(task)] for task in np.asarray(current["tasks"])
-        ],
+        "task_ids": task_ids,
+        "task_counts": dict(sorted(Counter(task_ids).items())),
         "pos_sort_diagnostic": sort_diagnostic,
         "loss_reference": reference_loss,
         "loss_package": package_loss,
@@ -1124,6 +1177,7 @@ def _s2_arbitration(
     *,
     arbitrate_every_update: bool = False,
     later_updates_report_only: bool = False,
+    optimizer: torch.optim.Optimizer | None = None,
 ) -> dict[str, object]:
     direct_failures = {
         group: dict(values) for group, values in direct_failures.items() if values
@@ -1140,6 +1194,10 @@ def _s2_arbitration(
         ),
         default=0.0,
     )
+    arbitration_by_group: dict[str, dict[str, object]] = {
+        group: {"required": False, "max_rel_l2": None, "tensors": {}}
+        for group in ("raw", "clipped", "m", "v")
+    }
     if not direct_failures:
         return {
             "s2_pass": key_bias <= S2_ZERO_GRADIENT_LIMIT,
@@ -1147,6 +1205,7 @@ def _s2_arbitration(
             "s2_float64_arbitration_pass": None,
             "s2_float64_arbitration_applied": False,
             "s2_float64_arbitration_required": False,
+            "s2_float64_arbitration_by_group": arbitration_by_group,
         }
     if update != 1 and not arbitrate_every_update and later_updates_report_only:
         return {
@@ -1155,6 +1214,7 @@ def _s2_arbitration(
             "s2_float64_arbitration_pass": None,
             "s2_float64_arbitration_applied": False,
             "s2_float64_arbitration_required": False,
+            "s2_float64_arbitration_by_group": arbitration_by_group,
         }
     if update != 1 and not arbitrate_every_update:
         return {
@@ -1163,15 +1223,7 @@ def _s2_arbitration(
             "s2_float64_arbitration_pass": False,
             "s2_float64_arbitration_applied": False,
             "s2_float64_arbitration_required": False,
-        }
-    # CPU smoke checks execution; float64 arbitration remains GPU-only evidence.
-    if device.type != "cuda":
-        return {
-            "s2_pass": False,
-            "s2_float64_arbitration_max_rel": None,
-            "s2_float64_arbitration_pass": False,
-            "s2_float64_arbitration_applied": False,
-            "s2_float64_arbitration_required": True,
+            "s2_float64_arbitration_by_group": arbitration_by_group,
         }
 
     from .test_flex_dm_training_s2 import _float64_model_trace
@@ -1192,6 +1244,8 @@ def _s2_arbitration(
     reference_tasks = torch.as_tensor(
         reference_prepared["tasks"], dtype=torch.long, device=device
     )
+    reference_m = cast(dict[str, torch.Tensor], reference["before_m"])
+    reference_v = cast(dict[str, torch.Tensor], reference["before_v"])
     package_inputs = _tensor_dict(
         cast(Mapping[str, object], package_prepared["inputs"]), device
     )
@@ -1204,6 +1258,8 @@ def _s2_arbitration(
     package_tasks = torch.as_tensor(
         package_prepared["tasks"], dtype=torch.long, device=device
     )
+    package_m = cast(dict[str, torch.Tensor], package["before_m"])
+    package_v = cast(dict[str, torch.Tensor], package["before_v"])
     rng = capture_rng_state()
     try:
         exact_reference = _float64_model_trace(
@@ -1214,6 +1270,10 @@ def _s2_arbitration(
             reference_masks,
             reference_tasks,
             reference_dropout_masks,
+            reference_m,
+            reference_v,
+            update,
+            optimizer,
         )
         exact_package = _float64_model_trace(
             module,
@@ -1223,6 +1283,10 @@ def _s2_arbitration(
             package_masks,
             package_tasks,
             package_dropout_masks,
+            package_m,
+            package_v,
+            update,
+            optimizer,
         )
     finally:
         from traingen_parity.determinism import restore_rng_state
@@ -1230,13 +1294,30 @@ def _s2_arbitration(
         restore_rng_state(rng)
     arbitration_errors = []
     for group, names in direct_failures.items():
+        group_errors = {}
         for name in names:
-            arbitration_errors.extend(
-                (
-                    _relative_l2(package[group][name], exact_package[group][name]),
-                    _relative_l2(reference[group][name], exact_reference[group][name]),
-                )
+            package_error = _relative_l2(
+                package[group][name], exact_package[group][name]
             )
+            reference_error = _relative_l2(
+                reference[group][name], exact_reference[group][name]
+            )
+            maximum_error = max(package_error, reference_error)
+            group_errors[name] = {
+                "direct_rel_l2": direct_failures[group][name],
+                "reference_vs_float64_rel_l2": reference_error,
+                "package_vs_float64_rel_l2": package_error,
+                "max_rel_l2": maximum_error,
+            }
+            arbitration_errors.extend((package_error, reference_error))
+        arbitration_by_group[group] = {
+            "required": True,
+            "max_rel_l2": max(
+                (value["max_rel_l2"] for value in group_errors.values()),
+                default=0.0,
+            ),
+            "tensors": group_errors,
+        }
     maximum = max(arbitration_errors, default=0.0)
     passed = maximum <= S2_FLOAT64_LIMIT and key_bias <= S2_ZERO_GRADIENT_LIMIT
     return {
@@ -1245,6 +1326,7 @@ def _s2_arbitration(
         "s2_float64_arbitration_pass": passed,
         "s2_float64_arbitration_applied": True,
         "s2_float64_arbitration_required": True,
+        "s2_float64_arbitration_by_group": arbitration_by_group,
     }
 
 
@@ -1313,6 +1395,7 @@ def _run_natural(
                         dropout_masks,
                         package_dropout_masks,
                         device,
+                        optimizer=optimizer,
                     )
                 )
                 reference_state_hash = _state_hash(ref_state["after"])
@@ -1513,6 +1596,7 @@ def _run_lockstep(
                     dropout_masks,
                     device,
                     later_updates_report_only=True,
+                    optimizer=cross_optimizer,
                 )
             )
             (

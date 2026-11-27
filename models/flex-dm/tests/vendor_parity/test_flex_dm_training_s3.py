@@ -184,6 +184,14 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
         for line in (output / "synchronized.jsonl").read_text().splitlines()
     ]
     assert all(row["task_ids"] for row in synchronized_rows)
+    assert all(
+        sum(row["task_counts"].values()) == len(row["task_ids"])
+        for row in synchronized_rows
+    )
+    assert all(
+        set(row["s2_float64_arbitration_by_group"]) == {"raw", "clipped", "m", "v"}
+        for row in synchronized_rows
+    )
     assert all("pos_sort_diagnostic" in row for row in synchronized_rows)
     if dataset == "crello":
         rows = [
@@ -275,37 +283,140 @@ def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
         "s2_float64_arbitration_pass": None,
         "s2_float64_arbitration_applied": False,
         "s2_float64_arbitration_required": False,
+        "s2_float64_arbitration_by_group": {
+            group: {"required": False, "max_rel_l2": None, "tensors": {}}
+            for group in ("raw", "clipped", "m", "v")
+        },
     }
 
 
-def test_s3_synchronized_update_after_one_reaches_arbitration_policy() -> None:
+def test_s3_update_two_arbitration_replays_state_batch_and_adam_step(
+    monkeypatch,
+) -> None:
+    from . import test_flex_dm_training_s2 as s2
+
     state = {
-        "raw": {"attention.k_proj.bias": torch.zeros(1)},
-        "clipped": {},
-        "m": {},
-        "v": {},
-        "after": {},
+        "_before_model_state": {"weight": torch.tensor([3.0])},
+        "before_m": {"weight": torch.tensor([0.2])},
+        "before_v": {"weight": torch.tensor([0.3])},
+        "raw": {"weight": torch.tensor([0.5])},
+        "clipped": {"weight": torch.tensor([0.5])},
+        "m": {"weight": torch.tensor([0.23])},
+        "v": {"weight": torch.tensor([0.29995])},
+        "after": {"weight": torch.tensor([2.99])},
     }
-    direct_failures = {"output": {"left": 1.0}}
+    prepared = {
+        "inputs": {"tokens": torch.tensor([[1, 2]])},
+        "labels": {"tokens": torch.tensor([[1, 2]])},
+        "masks": {"tokens": torch.tensor([[True, False]])},
+        "tasks": torch.tensor([0, 1]),
+    }
+    dropout_masks = [np.array([1, 0], dtype=np.int32)]
+    calls = []
+    trace_updates = {}
+
+    def trace(
+        module,
+        initial_state,
+        inputs,
+        labels,
+        masks,
+        task_ids,
+        replay_masks,
+        incoming_m,
+        incoming_v,
+        optimizer_step,
+        optimizer,
+    ):
+        del module, optimizer
+        calls.append(
+            (
+                initial_state,
+                inputs,
+                labels,
+                masks,
+                task_ids,
+                replay_masks,
+                incoming_m,
+                incoming_v,
+                optimizer_step,
+            )
+        )
+        gradient = torch.tensor([0.5], dtype=torch.float64)
+        first, second, update = s2._reference_step(
+            gradient,
+            incoming_m["weight"],
+            incoming_v["weight"],
+            step=optimizer_step,
+        )
+        trace_updates[optimizer_step] = update
+        return {
+            "raw": {"weight": gradient},
+            "clipped": {"weight": gradient},
+            "m": {"weight": first},
+            "v": {"weight": second},
+            "adam_update": {"weight": update},
+        }
+
+    monkeypatch.setattr(s2, "_float64_model_trace", trace)
 
     result = _s2_arbitration(
         2,
         None,
         state,
         state,
-        direct_failures,
+        {group: {"weight": 1.0} for group in ("raw", "clipped", "m", "v")},
         {},
-        {},
-        {},
-        [],
-        [],
+        prepared,
+        prepared,
+        dropout_masks,
+        [dropout_masks[0].copy()],
         torch.device("cpu"),
         arbitrate_every_update=True,
     )
 
     assert result["s2_float64_arbitration_required"] is True
-    assert result["s2_float64_arbitration_applied"] is False
-    assert result["s2_pass"] is False
+    assert result["s2_float64_arbitration_applied"] is True
+    assert len(calls) == 2
+    assert calls[0][-1] == calls[1][-1] == 2
+    for first, second in zip(calls[0][:5], calls[1][:5], strict=True):
+        if isinstance(first, torch.Tensor):
+            torch.testing.assert_close(first, second)
+        elif isinstance(first, dict):
+            assert first.keys() == second.keys()
+            for key in first:
+                if isinstance(first[key], torch.Tensor):
+                    torch.testing.assert_close(first[key], second[key])
+                else:
+                    assert first[key] == second[key]
+    for first, second in zip(calls[0][5], calls[1][5], strict=True):
+        np.testing.assert_array_equal(first, second)
+    np.testing.assert_array_equal(calls[0][5][0], dropout_masks[0])
+    torch.testing.assert_close(calls[0][6]["weight"], calls[1][6]["weight"])
+    torch.testing.assert_close(calls[0][7]["weight"], calls[1][7]["weight"])
+    torch.testing.assert_close(calls[0][6]["weight"], torch.tensor([0.2]))
+    torch.testing.assert_close(calls[0][7]["weight"], torch.tensor([0.3]))
+    _, _, update_at_two = s2._reference_step(
+        torch.tensor([0.5]),
+        state["before_m"]["weight"],
+        state["before_v"]["weight"],
+        step=2,
+    )
+    _, _, update_at_one = s2._reference_step(
+        torch.tensor([0.5]),
+        state["before_m"]["weight"],
+        state["before_v"]["weight"],
+        step=1,
+    )
+    expected_m = torch.tensor([0.23], dtype=torch.float64)
+    expected_v = torch.tensor([0.29995], dtype=torch.float64)
+    expected_alpha = s2._LEARNING_RATE * (1 - 0.999**2) ** 0.5 / (1 - 0.9**2)
+    expected_update = -(expected_m * expected_alpha) / (expected_v.sqrt() + 1e-7)
+    torch.testing.assert_close(trace_updates[2], expected_update)
+    assert not torch.equal(update_at_two, update_at_one)
+    for group in ("raw", "clipped", "m", "v"):
+        assert result["s2_float64_arbitration_by_group"][group]["required"] is True
+        assert result["s2_float64_arbitration_by_group"][group]["tensors"]["weight"]
 
 
 def test_s3_lockstep_later_direct_exceedance_is_report_only() -> None:
@@ -334,6 +445,7 @@ def test_s3_lockstep_later_direct_exceedance_is_report_only() -> None:
 
     assert result["s2_pass"] is None
     assert result["s2_float64_arbitration_required"] is False
+    assert result["s2_float64_arbitration_by_group"]["raw"]["required"] is False
 
 
 def test_s3_synchronized_phase_selector_is_available_for_dry_run(

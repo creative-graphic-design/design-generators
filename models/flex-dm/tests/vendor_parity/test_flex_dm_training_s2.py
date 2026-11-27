@@ -33,12 +33,30 @@ def _relative_l2(actual: torch.Tensor, expected: torch.Tensor) -> float:
 
 def _reference_step(
     gradient: torch.Tensor,
+    first_moment: torch.Tensor | None = None,
+    second_moment: torch.Tensor | None = None,
+    *,
+    step: int = 1,
+    learning_rate: float = _LEARNING_RATE,
+    betas: tuple[float, float] = (0.9, 0.999),
+    epsilon: float = 1e-7,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     gradient = gradient.double()
-    first_moment = gradient * (1 - 0.9)
-    second_moment = gradient.square() * (1 - 0.999)
-    alpha = _LEARNING_RATE * (1 - 0.999**1) ** 0.5 / (1 - 0.9**1)
-    update = -(first_moment * alpha) / (second_moment.sqrt() + 1e-7)
+    beta1, beta2 = betas
+    first_moment = (
+        torch.zeros_like(gradient)
+        if first_moment is None
+        else first_moment.to(device=gradient.device, dtype=torch.float64)
+    )
+    second_moment = (
+        torch.zeros_like(gradient)
+        if second_moment is None
+        else second_moment.to(device=gradient.device, dtype=torch.float64)
+    )
+    first_moment = first_moment * beta1 + gradient * (1 - beta1)
+    second_moment = second_moment * beta2 + gradient.square() * (1 - beta2)
+    alpha = learning_rate * (1 - beta2**step) ** 0.5 / (1 - beta1**step)
+    update = -(first_moment * alpha) / (second_moment.sqrt() + epsilon)
     return first_moment, second_moment, update
 
 
@@ -50,17 +68,22 @@ def _float64_model_trace(
     masks: dict[str, torch.Tensor],
     task_ids: torch.Tensor,
     dropout_masks: list[np.ndarray],
+    incoming_m: dict[str, torch.Tensor] | None = None,
+    incoming_v: dict[str, torch.Tensor] | None = None,
+    optimizer_step: int = 1,
+    optimizer=None,
 ) -> dict[str, dict[str, torch.Tensor]]:
     from flex_dm import FlexDmForMaskedDocumentModeling
     from traingen.optim import clip_gradients_by_norm
     from .test_flex_dm_training_s1 import _replay_dropout_masks
 
+    device = next(module.model.parameters()).device
     model = FlexDmForMaskedDocumentModeling(module.model.config).to(
-        device="cuda", dtype=torch.float64
+        device=device, dtype=torch.float64
     )
     model.load_state_dict(
         {
-            key: value.to(device="cuda", dtype=torch.float64)
+            key: value.to(device=device, dtype=torch.float64)
             for key, value in initial_state.items()
         }
     )
@@ -98,9 +121,28 @@ def _float64_model_trace(
     assert consumed[0] == len(dropout_masks)
     first: dict[str, torch.Tensor] = {}
     second: dict[str, torch.Tensor] = {}
+    updates: dict[str, torch.Tensor] = {}
+    parameter_group = optimizer.param_groups[0] if optimizer is not None else {}
+    betas = parameter_group.get("betas", (0.9, 0.999))
+    learning_rate = float(parameter_group.get("lr", _LEARNING_RATE))
+    epsilon = float(parameter_group.get("eps", 1e-7))
     for name, gradient in clipped.items():
-        first[name], second[name], _ = _reference_step(gradient)
-    return {"raw": raw, "clipped": clipped, "m": first, "v": second}
+        first[name], second[name], updates[name] = _reference_step(
+            gradient,
+            None if incoming_m is None else incoming_m.get(name),
+            None if incoming_v is None else incoming_v.get(name),
+            step=optimizer_step,
+            learning_rate=learning_rate,
+            betas=betas,
+            epsilon=epsilon,
+        )
+    return {
+        "raw": raw,
+        "clipped": clipped,
+        "m": first,
+        "v": second,
+        "adam_update": updates,
+    }
 
 
 @pytest.mark.vendor_parity
