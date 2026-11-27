@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -10,10 +11,13 @@ import pytest
 import torch
 
 from .run_flex_dm_s3_probe import (
+    _configure_tf32,
     _finite,
     _gate_passed,
     _loss_difference,
     _rng_equal,
+    _run_lockstep,
+    _run_natural,
     _s2_arbitration,
     _s3_passed,
     _tensor_dict,
@@ -78,14 +82,39 @@ def test_s3_rng_snapshot_comparison_covers_captured_state() -> None:
 
 def test_s3_tensor_conversion_drops_source_string_metadata() -> None:
     batch = {
+        "clickable": np.array([[0, 1]], dtype=np.int32),
         "tokens": _NumpyValue(np.array([1, 2], dtype=np.int64)),
         "uuid": _NumpyValue(np.array(["record-id"], dtype=object)),
     }
 
     converted = _tensor_dict(batch, torch.device("cpu"))
 
-    assert set(converted) == {"tokens"}
+    assert set(converted) == {"clickable", "tokens"}
+    torch.testing.assert_close(
+        converted["clickable"], torch.tensor([[0, 1]], dtype=torch.int32)
+    )
     torch.testing.assert_close(converted["tokens"], torch.tensor([1, 2]))
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize("dataset", ("crello", "rico"))
+def test_s3_cpu_runner_smoke_completes_both_phases(dataset: str, tmp_path) -> None:
+    tf = pytest.importorskip("tensorflow")
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "":
+        pytest.skip("CPU smoke requires hidden GPUs")
+    assert not torch.cuda.is_available()
+    assert not tf.config.list_physical_devices("GPU")
+    _configure_tf32(tf)
+
+    output = tmp_path / dataset
+    output.mkdir()
+    natural = _run_natural(dataset, 2, output, 0, tf, torch.device("cpu"))
+    lockstep = _run_lockstep(dataset, 2, output, 0, tf, torch.device("cpu"))
+
+    assert natural["updates_per_repeat"] == 2
+    assert lockstep["updates_per_phase"] == 2
+    assert all((output / record).is_file() for record in natural["records"])
+    assert all((output / record).is_file() for record in lockstep["records"])
 
 
 def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:

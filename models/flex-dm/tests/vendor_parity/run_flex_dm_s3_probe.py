@@ -24,7 +24,7 @@ from .test_flex_dm_training_s1 import (
     _capture_dropout_masks,
     _replay_dropout_masks,
 )
-from .test_flex_dm_training_s0 import _source_model_state
+from .test_flex_dm_training_s0 import _first_batch, _source_model_state
 from .training_reference import (
     DatasetName,
     build_original,
@@ -34,6 +34,7 @@ from .training_reference import (
 from traingen_parity.determinism import (
     RNGState,
     capture_rng_state,
+    restore_rng_state,
 )
 from traingen_parity.trace import build_step_trace, tensor_sha256
 from traingen_parity.compare import (
@@ -189,9 +190,12 @@ def _tensor_dict(
         if isinstance(item, torch.Tensor):
             tensors[key] = item.to(device)
             continue
-        if not hasattr(item, "numpy"):
+        if isinstance(item, np.ndarray):
+            array = item
+        elif hasattr(item, "numpy"):
+            array = np.asarray(item.numpy())
+        else:
             continue
-        array = np.asarray(item.numpy())
         if array.dtype.kind in "USO":
             continue
         tensors[key] = torch.as_tensor(array, device=device)
@@ -200,10 +204,10 @@ def _tensor_dict(
 
 def _batch_hash(batch: Mapping[str, object]) -> str:
     digest = hashlib.sha256()
+    tf = _tensorflow()
     for key in sorted(batch):
-        value = batch[key]
+        digest.update(tf.io.serialize_tensor(batch[key]).numpy())
         digest.update(key.encode())
-        digest.update(np.ascontiguousarray(value.numpy()).tobytes())
     return digest.hexdigest()
 
 
@@ -557,7 +561,27 @@ def _make_package(dataset: DatasetName, device: torch.device):
 
 
 def _make_pair(dataset: DatasetName, tf, device: torch.device):
-    dataspec, original, args = build_original(dataset, batch_size=256)
+    dataspec, original, args = build_original(
+        dataset, batch_size=256, restore_checkpoint=False
+    )
+    rng = capture_rng_state()
+    tf_rng = tf.random.get_global_generator()
+    tf_rng_state = tf.identity(tf_rng.state)
+    try:
+        batch = _first_batch(dataspec, "test")
+        inputs = {key: batch[key] for key in original.input_columns if key in batch}
+        original.model(inputs, training=False)
+    finally:
+        restore_rng_state(rng)
+        tf_rng.state.assign(tf_rng_state)
+
+    checkpoint = original_variant_root(dataset) / "checkpoints" / "best.ckpt"
+    restore = tf.train.Checkpoint(**original._trackable_children()).restore(
+        str(checkpoint)
+    )
+    restore.assert_nontrivial_match()
+    restore.expect_partial()
+
     original.compile(
         optimizer=tf.keras.optimizers.Adam(
             learning_rate=float(args["learning_rate"]), clipnorm=1.0
@@ -565,22 +589,22 @@ def _make_pair(dataset: DatasetName, tf, device: torch.device):
         run_eagerly=True,
     )
     module, optimizer = _make_package(dataset, device)
-    names = _source_name_map(
-        original, original_variant_root(dataset) / "checkpoints" / "best.ckpt", tf
-    )
+    names = _source_name_map(original, checkpoint, tf)
     return dataspec, original, module, optimizer, names
 
 
 def _source_batches(dataspec, steps: int, seed: int, tf):
     tf.random.set_seed(seed)
-    data = dataspec.make_dataset("train", shuffle=True, repeat=True, cache=True)
+    data = dataspec.make_dataset(
+        "train", shuffle=True, repeat=True, cache=True, parallel=1
+    )
     iterator = iter(data)
     for _ in range(steps):
         yield next(iterator)
 
 
 def _reference_step(
-    model, batch, current, dropout_masks, tf
+    model, batch, current, dropout_masks, tf, device: torch.device
 ) -> tuple[float, dict[str, object]]:
     for metric in model.metrics:
         metric.reset_state()
@@ -592,23 +616,19 @@ def _reference_step(
         raise RuntimeError("original training entrypoint did not report its objective")
     components = {
         metric.name.removesuffix("_loss"): torch.as_tensor(
-            metric.result().numpy(), device="cuda"
+            metric.result().numpy(), device=device
         )
         for metric in model.loss_layer.metrics
         if metric.name.endswith("_loss")
     }
     return float(metrics["loss"].numpy()), {
-        "outputs": _tensor_dict(
-            cast(Mapping[str, object], current["outputs"]), torch.device("cuda")
-        ),
+        "outputs": _tensor_dict(cast(Mapping[str, object], current["outputs"]), device),
         "losses": {
             **components,
-            "total": torch.as_tensor(metrics["loss"].numpy(), device="cuda"),
+            "total": torch.as_tensor(metrics["loss"].numpy(), device=device),
         },
         "gradient_norm": _gradient_norm(
-            _source_state(
-                cast(Mapping[str, np.ndarray], current["raw"]), torch.device("cuda")
-            )
+            _source_state(cast(Mapping[str, np.ndarray], current["raw"]), device)
         ),
         "learning_rate": float(model.optimizer.learning_rate.numpy()),
         "random_trace": {
@@ -788,6 +808,14 @@ def _s2_arbitration(
             "s2_float64_arbitration_pass": False,
             "s2_float64_arbitration_applied": False,
         }
+    # CPU smoke checks execution; float64 arbitration remains GPU-only evidence.
+    if device.type != "cuda":
+        return {
+            "s2_pass": False,
+            "s2_float64_arbitration_max_rel": None,
+            "s2_float64_arbitration_pass": False,
+            "s2_float64_arbitration_applied": False,
+        }
 
     from .test_flex_dm_training_s2 import _float64_model_trace
 
@@ -891,7 +919,7 @@ def _run_natural(
                 _source_batches(dataspec, steps, seed, tf), 1
             ):
                 reference_loss, reference = _reference_step(
-                    original, batch, current, dropout_masks, tf
+                    original, batch, current, dropout_masks, tf, device
                 )
                 package_batch = _tensor_dict(batch, device)
                 package_prepared: dict[str, object] = {}
@@ -1087,7 +1115,7 @@ def _run_lockstep(
         for update, batch in enumerate(_source_batches(dataspec, steps, seed, tf), 1):
             _seed(seed + update, tf)
             reference_loss, reference = _reference_step(
-                original, batch, current, dropout_masks, tf
+                original, batch, current, dropout_masks, tf, device
             )
             package_batch = _tensor_dict(batch, device)
             prepared = cast(dict[str, object], current["prepared"])
