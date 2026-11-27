@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 from dataclasses import dataclass
@@ -51,10 +52,19 @@ def test_s3_attribution_requires_noise_floor_at_or_before_cross_system(
     assert _gate_passed(cross_step, noise_step) is expected
 
 
-def test_s3_natural_failure_cannot_be_replaced_by_lockstep_probe() -> None:
-    assert not _s3_passed([False, True], lockstep_attributable=True)
-    assert _s3_passed([True, True], lockstep_attributable=True)
-    assert not _s3_passed([True, True], lockstep_attributable=False)
+def test_s3_synchronized_diagnostic_can_resolve_natural_divergence() -> None:
+    assert not _s3_passed(
+        [False, True], synchronized_passed=False, lockstep_attributable=True
+    )
+    assert _s3_passed(
+        [False, True], synchronized_passed=True, lockstep_attributable=True
+    )
+    assert _s3_passed(
+        [True, True], synchronized_passed=False, lockstep_attributable=True
+    )
+    assert not _s3_passed(
+        [True, True], synchronized_passed=True, lockstep_attributable=False
+    )
 
 
 def test_s3_non_finite_metrics_fail_closed() -> None:
@@ -167,6 +177,53 @@ def test_s3_cpu_runner_smoke_completes_both_phases(
     assert lockstep["updates_per_phase"] == 2
     assert all((output / record).is_file() for record in natural["records"])
     assert all((output / record).is_file() for record in lockstep["records"])
+    if dataset == "crello":
+        rows = [
+            json.loads(line)
+            for line in (output / "cross-system.jsonl").read_text().splitlines()
+        ]
+        assert rows[0]["s1_pass"]
+        assert all(
+            row["s1_max_rel_to_max"] is not None
+            and row["s1_comparisons"]
+            and row["s1_missing"] == []
+            for row in rows
+        )
+        assert all(
+            not any(
+                key.startswith("output/")
+                and key.removeprefix("output/")
+                in {
+                    "canvas_height",
+                    "canvas_width",
+                    "category",
+                    "format",
+                    "group",
+                    "length",
+                }
+                for key in row["s1_comparison_keys"]
+            )
+            for row in rows
+        )
+        synchronized_rows = [
+            json.loads(line)
+            for line in (output / "synchronized.jsonl").read_text().splitlines()
+        ]
+        assert all(
+            row["s1_max_rel_to_max"] is not None
+            and row["s1_comparisons"]
+            and row["s1_missing"] == []
+            for row in synchronized_rows
+        )
+    if dataset == "rico":
+        first = json.loads((output / "cross-system.jsonl").read_text().splitlines()[0])
+        diagnostic = first["sort_diagnostic_report_only"]
+        assert {
+            "position_key_tie_groups",
+            "prediction_order_mismatches",
+            "prediction_tie_order_mismatches",
+            "tie_order_explains_loss_gap",
+        } <= diagnostic.keys()
 
 
 def test_s3_s2_arbitration_keeps_zero_gradient_gate_without_fallback() -> None:
