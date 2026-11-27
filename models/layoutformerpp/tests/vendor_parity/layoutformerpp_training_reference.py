@@ -11,12 +11,14 @@ import shlex
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Callable, TypedDict, cast
+from typing import Any, Callable, TypedDict, cast  # noqa: TID251 - vendor adapters are dynamic.
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, Dataset
 
 from laygen.common.vendor import vendor_root
 
@@ -760,28 +762,16 @@ def _reference_loader_args(
     return args
 
 
-def reference_loader_stream(
-    recipe: LayoutFormerPPTrainingRecipe,
-    data_root: Path,
-    split: str,
-    *,
-    batches: int = 2,
-    seed: int = 0,
-) -> list[dict[str, object]]:
-    """Iterate the pinned original dataset and basic DataLoader for one split."""
-    if split not in {"train", "val"}:
-        raise ValueError(f"unsupported LayoutFormer++ loader split: {split}")
+def _reference_loader_context(
+    recipe: LayoutFormerPPTrainingRecipe, data_root: Path
+) -> tuple[SimpleNamespace, Any, Dataset[Any], Dataset[Any], ModuleType]:
     vendor_source = str(REFERENCE_SRC)
     if vendor_source not in sys.path:
         sys.path.insert(0, vendor_source)
     from tasks.task_config import TASK_CONFIG
     from tasks.task_utils import create_dataset, create_tokenizer
-    from torch.utils.data import DataLoader
     from utils import utils
 
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
     args = _reference_loader_args(recipe, data_root)
     task_names = tuple(str(task) for task in recipe.tasks)
     tokenizer = create_tokenizer(
@@ -791,22 +781,31 @@ def reference_loader_stream(
         add_sep_token=True,
         add_task_prompt=bool(args.add_task_prompt),
     )
-    dataset = create_dataset(
+    train_dataset = create_dataset(
         args,
         tokenizer=tokenizer,
         task_config=TASK_CONFIG,
-        split=split,
+        split="train",
         sort_by_pos=not args.sort_by_dict,
     )
-    if split == "val":
-        dataset.switch_task(str(recipe.eval_tasks[0]))
-    loader = DataLoader(
-        dataset=dataset,
-        batch_size=args.batch_size if split == "train" else args.eval_batch_size,
-        collate_fn=utils.collate_fn,
-        drop_last=True,
-        shuffle=split == "train",
+    val_dataset = create_dataset(
+        args,
+        tokenizer=tokenizer,
+        task_config=TASK_CONFIG,
+        split="val",
+        sort_by_pos=not args.sort_by_dict,
     )
+    val_dataset.switch_task(str(recipe.eval_tasks[0]))
+    return args, tokenizer, train_dataset, val_dataset, utils
+
+
+def _reference_loader_rows(
+    recipe: LayoutFormerPPTrainingRecipe,
+    tokenizer: Any,
+    loader: Iterable[dict[str, Any]],
+    split: str,
+    batches: int,
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for batch_index, batch in enumerate(loader):
         input_text = [str(value) for value in batch["in_str"]]
@@ -834,6 +833,66 @@ def reference_loader_stream(
             f"expected {batches}"
         )
     return rows
+
+
+def reference_loader_streams(
+    recipe: LayoutFormerPPTrainingRecipe,
+    data_root: Path,
+    *,
+    batches: int = 2,
+    seed: int = 0,
+) -> dict[str, list[dict[str, object]]]:
+    """Iterate both pinned original loaders in vendor training order."""
+    args, tokenizer, train_dataset, val_dataset, utils = _reference_loader_context(
+        recipe, data_root
+    )
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=args.batch_size,
+        collate_fn=utils.collate_fn,
+        drop_last=True,
+        shuffle=True,
+    )
+    val_loader = DataLoader(
+        dataset=val_dataset,
+        batch_size=args.eval_batch_size,
+        collate_fn=utils.collate_fn,
+        drop_last=True,
+        shuffle=False,
+    )
+    return {
+        "train": _reference_loader_rows(
+            recipe, tokenizer, train_loader, "train", batches
+        ),
+        "val": _reference_loader_rows(recipe, tokenizer, val_loader, "val", batches),
+    }
+
+
+def reference_train_loader_stream(
+    recipe: LayoutFormerPPTrainingRecipe,
+    data_root: Path,
+    *,
+    batches: int = 2,
+    seed: int = 0,
+) -> list[dict[str, object]]:
+    """Iterate only the pinned original training loader for the pre-check."""
+    args, tokenizer, train_dataset, _, utils = _reference_loader_context(
+        recipe, data_root
+    )
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=args.batch_size,
+        collate_fn=utils.collate_fn,
+        drop_last=True,
+        shuffle=True,
+    )
+    return _reference_loader_rows(recipe, tokenizer, loader, "train", batches)
 
 
 def source_facts() -> dict[str, bool | str]:
