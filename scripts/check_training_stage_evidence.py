@@ -77,7 +77,7 @@ REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
 CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
 CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 CLAIM_NEGATION_BOUNDARY_RE = re.compile(
-    r"[.!?;,](?=\s)|(?<!pending):(?=\s)", re.IGNORECASE
+    r"[.!?;,](?=\s)|(?<!pending):(?=\s)|\s+(?:and|but|while)\s+", re.IGNORECASE
 )
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|"

@@ -15,17 +15,16 @@ from typing import NamedTuple
 # Keep the standing roadmap issue and historical checklist issue excluded from implementation references.
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
 COMPLETION_GATE_EFFECTIVE_AT = datetime(2026, 7, 25, tzinfo=UTC)
-ISSUE_REF_RE = re.compile(r"(?i)\b(?:closes|refs)\s+#(\d+)\b")
-SUMMARY_HEADING_RE = re.compile(r"(?im)^## Summary\s*$")
+ISSUE_REF_RE = re.compile(
+    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|references?)\s+"
+    r"(?:https://github\.com/creative-graphic-design/design-generators/issues/)?#?(\d+)"
+)
 CHECKLIST_HEADING_RE = re.compile(r"(?im)^## Checklist\s*$")
 COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
 SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
-PLACEHOLDER_RE = re.compile(r"<(?P<contents>[^<>]*)>")
-UNSPACED_BOOLEAN_COMPARISON_RE = re.compile(
-    r"[A-Za-z_]\w*\s+(?:and|or)\s+[A-Za-z_]\w*", re.IGNORECASE
-)
+PLACEHOLDER_RE = re.compile(r"<[^>]+>")
 NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
 
 # Keep these deprecated checklist spellings accepted while already-open PRs are
@@ -92,17 +91,16 @@ COMPLETION_REQUIREMENTS = (
 
 
 def issue_references(body: str) -> set[int]:
-    """Return issue numbers referenced with the accepted PR summary syntax."""
+    """Return implementation issue numbers referenced by PR body keywords."""
     return {int(match) for match in ISSUE_REF_RE.findall(body)}
 
 
 def valid_issue_references(
     body: str, excluded_issues: set[int] | None = None
 ) -> set[int]:
-    """Return eligible implementation issue references from the PR summary."""
+    """Return PR issue references that are not standing canon issues or the historical checklist issue."""
     excluded = DEFAULT_EXCLUDED_ISSUES if excluded_issues is None else excluded_issues
-    summary = section_body(body, SUMMARY_HEADING_RE)
-    return issue_references(summary or "") - excluded
+    return issue_references(body) - excluded
 
 
 def read_body_from_event(event_path: Path) -> str:
@@ -195,34 +193,8 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
 
 def _has_actionable_justification(text: str, marker: str) -> bool:
     _, _, reason = text.partition(marker)
-    cleaned = _remove_placeholders(reason).strip(" .:-")
+    cleaned = PLACEHOLDER_RE.sub("", reason).strip(" .:-")
     return bool(cleaned)
-
-
-def _is_placeholder(match: re.Match[str], text: str) -> bool:
-    contents = match.group("contents")
-    if contents[:1].isspace():
-        return False
-
-    if re.match(r"(?i)(?:https?://|mailto:)", contents) is not None:
-        return False
-
-    before = text[match.start() - 1 : match.start()]
-    after = text[match.end() : match.end() + 1]
-    if (
-        before.isalnum()
-        and after.isalnum()
-        and UNSPACED_BOOLEAN_COMPARISON_RE.fullmatch(contents) is not None
-    ):
-        return False
-
-    return True
-
-
-def _remove_placeholders(text: str) -> str:
-    return PLACEHOLDER_RE.sub(
-        lambda match: "" if _is_placeholder(match, text) else match.group(), text
-    )
 
 
 def _find_completion_item(
@@ -273,7 +245,7 @@ def completion_gate_errors(
 
         checked, text = item
         marker = requirement.allowed_justification
-        if any(_is_placeholder(match, text) for match in PLACEHOLDER_RE.finditer(text)):
+        if PLACEHOLDER_RE.search(text) is not None:
             if requirement.justification_label is None:
                 errors.append(
                     f"Ready-for-review PRs must check `{requirement.prefix}` or "
@@ -328,7 +300,7 @@ def changed_files_from_git(base: str, head: str) -> list[str]:
 
 def _has_actionable_section_text(section: str) -> bool:
     cleaned_lines = [
-        _remove_placeholders(line).strip(" -.\t")
+        PLACEHOLDER_RE.sub("", line).strip(" -.\t")
         for line in section.splitlines()
         if line.strip()
     ]

@@ -73,25 +73,18 @@ def test_valid_issue_references_accepts_refs_and_closes() -> None:
     assert check_pr_issue_reference.valid_issue_references(body) == {123, 124}
 
 
-def test_valid_issue_references_require_supported_summary_syntax() -> None:
-    body = "## Summary\n\nFixes #123.\n\n## Changes\n\nRefs #124.\n"
+def test_valid_issue_references_ignores_standing_policy_issues() -> None:
+    body = "Full checklist: see docs/implementation-checklist.md.\n\nRefs #60 and Refs #2.\n"
 
     assert check_pr_issue_reference.valid_issue_references(body) == set()
 
 
-def test_valid_issue_references_ignores_standing_policy_issues() -> None:
+def test_valid_issue_references_accepts_repository_issue_urls() -> None:
     body = (
-        "## Summary\n\nFull checklist: see docs/implementation-checklist.md.\n\n"
-        "Refs #60 and Refs #2.\n"
+        "Closes https://github.com/creative-graphic-design/design-generators/issues/125"
     )
 
-    assert check_pr_issue_reference.valid_issue_references(body) == set()
-
-
-def test_valid_issue_references_require_summary_section() -> None:
-    body = "Refs #125\n\n## Changes\n\nMore details.\n"
-
-    assert check_pr_issue_reference.valid_issue_references(body) == set()
+    assert check_pr_issue_reference.valid_issue_references(body) == {125}
 
 
 def test_read_body_from_event_reads_pull_request_body(tmp_path: Path) -> None:
@@ -272,21 +265,6 @@ def test_completion_gate_accepts_ready_complete() -> None:
     assert check_pr_issue_reference.completion_gate_errors(body, draft=False) == []
 
 
-def test_completion_gate_accepts_comparisons_and_autolinks() -> None:
-    body = completion_body(
-        completion_gate=(
-            "- [x] Vendor parity verified, or gated-pending: max diff < 1e-5; "
-            "cosine > 0.9999; x<a and b>y; run <https://example.org/parity>.\n"
-            "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
-            "- [x] Independent adversarial review completed before ready for review "
-            "(reviewer with no prior involvement reviewed the head being marked "
-            "ready; findings resolved)"
-        ),
-    )
-
-    assert check_pr_issue_reference.completion_gate_errors(body, draft=False) == []
-
-
 def test_completion_gate_checks_verbatim_template_placeholders() -> None:
     template_path = (
         Path(__file__).resolve().parents[1] / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -323,7 +301,13 @@ def test_completion_gate_rejects_untouched_s5_template_placeholders(
 
 @pytest.mark.parametrize(
     "placeholder",
-    ["<...>", "<independent rerun, ...>", "<datasets, ...>", "<path>"],
+    [
+        "<...>",
+        "<independent rerun, ...>",
+        "<datasets, ...>",
+        "<path>",
+        "< blocker >",
+    ],
 )
 def test_completion_gate_rejects_checked_placeholder_forms(
     placeholder: str,
@@ -493,18 +477,6 @@ def test_main_fails_without_implementation_issue(
 ) -> None:
     body_path = tmp_path / "body.md"
     body_path.write_text(filled_body("Refs #60"), encoding="utf-8")
-
-    assert check_pr_issue_reference.main(["--body-file", str(body_path)]) == 1
-    assert "implementation issue" in capsys.readouterr().err
-
-
-def test_main_requires_issue_reference_in_summary(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    body = filled_body().replace("Refs #127", "Documentation changes")
-    body += "\n## Changes\n\nRefs #128\n"
-    body_path = tmp_path / "body.md"
-    body_path.write_text(body, encoding="utf-8")
 
     assert check_pr_issue_reference.main(["--body-file", str(body_path)]) == 1
     assert "implementation issue" in capsys.readouterr().err

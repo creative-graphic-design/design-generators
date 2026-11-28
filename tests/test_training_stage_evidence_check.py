@@ -774,6 +774,12 @@ def test_has_s5_claim_detects_positive_claim_after_prior_negation() -> None:
     )
 
 
+def test_has_s5_claim_detects_positive_claim_before_negated_subclause() -> None:
+    assert check_training_stage_evidence.has_s5_claim(
+        "S5 reproduction for RICO is complete and S5 reproduction for Magazine is pending."
+    )
+
+
 def test_has_s5_claim_still_detects_positive_s5_claim() -> None:
     assert check_training_stage_evidence.has_s5_claim("S5 reproduction is complete.")
 
