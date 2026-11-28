@@ -166,6 +166,15 @@ def test_root_readme_model_classification_badges_reject_outside_table(
         )
 
 
+def test_model_venue_badge_keeps_neutral_default_color(tmp_path: Path) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    readme = tmp_path / "models" / "example" / "README.md"
+
+    assert check_readme_badges._expected_color(readme, "venue", "CIKM 2023") == (
+        "6b7280"
+    )
+
+
 def test_model_venue_badge_accepts_alternate_brand_color(tmp_path: Path) -> None:
     check_readme_badges = _load_check_readme_badges()
     readme = tmp_path / "README.md"
