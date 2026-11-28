@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import hashlib
 import json
 import os
@@ -10,10 +11,12 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from types import ModuleType
 
 _ROOT = Path(__file__).resolve().parents[4]
 _ID_KEY = "__s4_fingerprint"
 _VENDOR = "f2bcc9f8b8958d4072f11f259bc61242bfe99d7c"
+_PACKAGE_ROOTS = ("flex_dm", "traingen", "traingen_parity")
 
 
 def _sha256(path: Path) -> str:
@@ -23,6 +26,19 @@ def _sha256(path: Path) -> str:
 def _worktree_provenance(
     root: Path = _ROOT, *, dry_run: bool = False
 ) -> dict[str, str | bool]:
+    root = root.resolve()
+    top_level = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    ).resolve()
+    if root != top_level:
+        raise RuntimeError("harness root does not match the git worktree top level")
+
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=root,
@@ -41,7 +57,41 @@ def _worktree_provenance(
     if not clean and not dry_run:
         raise RuntimeError("stream capture requires a clean git worktree")
 
-    return {"git_head_sha": head, "git_worktree_clean": clean}
+    return {
+        "git_head_sha": head,
+        "git_top_level": str(top_level),
+        "git_worktree_clean": clean,
+    }
+
+
+def _package_module_paths(
+    root: Path, modules: Mapping[str, ModuleType | None] | None = None
+) -> dict[str, str]:
+    root = root.resolve()
+    loaded_modules = sys.modules if modules is None else modules
+    paths = {}
+    for name, module in sorted(loaded_modules.items()):
+        if module is None or not any(
+            name == package or name.startswith(f"{package}.")
+            for package in _PACKAGE_ROOTS
+        ):
+            continue
+        module_file = getattr(module, "__file__", None)
+        if module_file is None:
+            raise RuntimeError(f"package module {name} has no resolved file path")
+        path = Path(module_file).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as error:
+            raise RuntimeError(
+                f"package module {name} resolves outside git worktree: {path}"
+            ) from error
+        paths[name] = str(path)
+
+    if "flex_dm" not in paths:
+        raise RuntimeError("FlexDM package module was not imported")
+
+    return paths
 
 
 def _array(value):
@@ -130,7 +180,6 @@ def _worker(args: argparse.Namespace) -> None:
     provenance = _worktree_provenance(dry_run=args.dry_run)
     import tensorflow as tf
     import torch
-    from types import ModuleType
     from unittest.mock import patch
 
     if tf.__version__ != "2.15.1":
@@ -177,6 +226,8 @@ def _worker(args: argparse.Namespace) -> None:
     from flex_dm.training import masking as package_masking
     from flex_dm.training.datamodule import FlexDmDataModule
     from training_reference import original_args
+
+    package_module_paths = _package_module_paths(Path(str(provenance["git_top_level"])))
 
     asset_dir = Path(args.asset_dir)
     data_dir = asset_dir / "data" / args.dataset
@@ -374,12 +425,18 @@ def _worker(args: argparse.Namespace) -> None:
     ]
     original_cli = list(sys.argv)
     original_main()
+    imported_paths = _package_module_paths(Path(str(provenance["git_top_level"])))
+    for name, path in imported_paths.items():
+        if name in package_module_paths and package_module_paths[name] != path:
+            raise RuntimeError(f"package module {name} changed its resolved file path")
+    package_module_paths.update(imported_paths)
 
     if args.phase == "capture":
         for split in streams:
             _write_indices(streams[split], captured_indices[split])
         manifest = {
             **provenance,
+            "package_module_paths": package_module_paths,
             "dataset": args.dataset,
             "seed": args.seed,
             "batch_size": 256,
@@ -409,6 +466,7 @@ def _worker(args: argparse.Namespace) -> None:
         "train_batches": batch_counts["train"],
         "validation_batches": batch_counts["val"],
         "compared_sha256": {key: digest.hexdigest() for key, digest in digests.items()},
+        "package_module_paths": package_module_paths,
     }
     (output_dir / "comparison.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
@@ -523,7 +581,7 @@ def main() -> None:
     if args.dry_run:
         provenance = _worktree_provenance(dry_run=True)
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        manifest = {**provenance, "dry_run": True}
+        manifest = {**provenance, "dry_run": True, "package_module_paths": {}}
         (args.output_dir / "manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
         )
@@ -574,9 +632,17 @@ def main() -> None:
     manifest_path = args.output_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if any(manifest.get(key) != value for key, value in provenance.items()):
-        raise RuntimeError("git provenance changed during S4 stream capture")
+        raise RuntimeError("git provenance changed during stream capture")
     if _worktree_provenance() != provenance:
-        raise RuntimeError("git provenance changed during S4 stream comparison")
+        raise RuntimeError("git provenance changed during stream comparison")
+    comparison = json.loads(
+        (args.output_dir / "comparison.json").read_text(encoding="utf-8")
+    )
+    package_module_paths = manifest["package_module_paths"]
+    for name, path in comparison["package_module_paths"].items():
+        if name in package_module_paths and package_module_paths[name] != path:
+            raise RuntimeError(f"package module {name} changed its resolved file path")
+    package_module_paths.update(comparison["package_module_paths"])
     manifest.update(
         {
             "elapsed_seconds_capture_and_compare": elapsed,
@@ -588,9 +654,8 @@ def main() -> None:
                 "command": "python models/flex-dm/tests/vendor_parity/capture_flex_dm_training_s4.py",
                 "training_entrypoint": "python -m mfp --dataset_name <dataset> --seed <seed>",
             },
-            "comparison": json.loads(
-                (args.output_dir / "comparison.json").read_text(encoding="utf-8")
-            ),
+            "package_module_paths": package_module_paths,
+            "comparison": comparison,
         }
     )
     manifest_path.write_text(
