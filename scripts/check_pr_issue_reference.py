@@ -168,29 +168,18 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
     if section is None:
         return ["PR body must include a `## Checklist` section."]
 
-    checked: set[str] = set()
-    unchecked: set[str] = set()
+    present: set[str] = set()
     for match in CHECKBOX_RE.finditer(section):
-        item = _canonical_checklist_item(match.group("text"))
-        if match.group("state").lower() == "x":
-            checked.add(item)
-        else:
-            unchecked.add(item)
+        present.add(_canonical_checklist_item(match.group("text")))
 
-    errors: list[str] = []
-    missing = [item for item in required_items if item not in checked]
+    missing = [item for item in required_items if item not in present]
     if missing:
-        errors.append(
-            "PR body checklist must include these checked template item(s): "
+        return [
+            "PR body checklist must include these template item(s): "
             + "; ".join(missing)
-        )
-    remaining_unchecked = [item for item in required_items if item in unchecked]
-    if remaining_unchecked:
-        errors.append(
-            "PR body checklist has unchecked required item(s): "
-            + "; ".join(remaining_unchecked)
-        )
-    return errors
+        ]
+
+    return []
 
 
 def _has_actionable_justification(text: str, marker: str) -> bool:
@@ -247,6 +236,18 @@ def completion_gate_errors(
 
         checked, text = item
         marker = requirement.allowed_justification
+        if PLACEHOLDER_RE.search(text):
+            if requirement.justification_label is None:
+                errors.append(
+                    f"Ready-for-review PRs must check `{requirement.prefix}` or "
+                    "convert the PR back to draft."
+                )
+            else:
+                errors.append(
+                    f"Ready-for-review PRs must complete `{requirement.prefix}` with "
+                    f"{requirement.justification_label} or convert the PR back to draft."
+                )
+            continue
         if checked:
             continue
         if marker is not None and _has_actionable_justification(text, marker):

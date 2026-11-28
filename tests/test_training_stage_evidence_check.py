@@ -751,6 +751,21 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "S5 is pending and not yet complete.",
+        "No S5 reproduction is achieved.",
+    ],
+)
+def test_has_s5_claim_ignores_negated_claim_verb(claim: str) -> None:
+    assert not check_training_stage_evidence.has_s5_claim(claim)
+
+
+def test_has_s5_claim_still_detects_positive_s5_claim() -> None:
+    assert check_training_stage_evidence.has_s5_claim("S5 reproduction is complete.")
+
+
 def test_has_s5_claim_does_not_cross_sentence_boundaries() -> None:
     assert not check_training_stage_evidence.has_s5_claim(
         "S5 is not claimed. Magazine has complete S0-S4 evidence."

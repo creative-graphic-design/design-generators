@@ -85,7 +85,9 @@ def test_rejects_escaped_and_undefined_reference_links(tmp_path: Path) -> None:
     ]
 
 
-def test_checks_inline_code_but_ignores_fenced_examples(tmp_path: Path) -> None:
+def test_ignores_inline_code_and_fenced_examples_but_checks_escaped_references(
+    tmp_path: Path,
+) -> None:
     checker = load_checker()
     path = write_doc(
         tmp_path,
@@ -96,12 +98,28 @@ def test_checks_inline_code_but_ignores_fenced_examples(tmp_path: Path) -> None:
 
     violations = checker.current_violations(tmp_path)
 
-    assert len(violations) == 2
+    assert len(violations) == 1
     assert violations[0].path == path
     assert violations[0].line == 1
     assert violations[0].location == "body"
-    assert violations[0].reference == "#12"
-    assert violations[1].reference == "#13"
+    assert violations[0].reference == "#13"
+
+
+def test_ignores_issue_references_in_inline_code_and_checks_prose(
+    tmp_path: Path,
+) -> None:
+    checker = load_checker()
+    path = write_doc(
+        tmp_path,
+        "docs/example.md",
+        "Use `not-yet-run (#123)` as an example; see issue #456 for the result.\n",
+    )
+
+    violations = checker.violations_for_document(path)
+
+    assert [(item.line, item.location, item.reference) for item in violations] == [
+        (1, "body", "#456")
+    ]
 
 
 def test_rejects_exact_english_and_japanese_empty_markers(tmp_path: Path) -> None:

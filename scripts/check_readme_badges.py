@@ -19,6 +19,7 @@ BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
 )
+VENUE_COLOR_RE = re.compile(r"(?:[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z0-9-]*)")
 BADGE_DOCS = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "docs" / "index.md",
@@ -520,9 +521,24 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(f"{path}: badge logoColor must be white: {url}")
 
         expected_color = _expected_color(path, label, message)
-        if expected_color is not None and color != expected_color:
+        model_venue_brand_color = label == "venue" and not _is_root_readme(path)
+        if (
+            expected_color is not None
+            and color != expected_color
+            and not model_venue_brand_color
+        ):
             raise AssertionError(
                 f"{path}: badge {label!r} color {color!r} != {expected_color!r}: {url}"
+            )
+
+        if (
+            label == "venue"
+            and not _is_root_readme(path)
+            and (color is None or VENUE_COLOR_RE.fullmatch(color) is None)
+        ):
+            raise AssertionError(
+                f"{path}:{line}: model venue badge color must be a color name "
+                f"or six-digit hexadecimal: {color!r}: {url}"
             )
 
         badges.append(

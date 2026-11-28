@@ -77,13 +77,16 @@ REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
 CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
 CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 NEGATED_CLAIM_RE = re.compile(
-    r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
+    r"\b(?:pending|not claimed|not yet claimed|"
+    r"not (?:yet )?(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)|"
+    r"no s-?5|no stage\s*5)\b",
     re.IGNORECASE,
 )
 POSITIVE_CLAIM_RE = re.compile(
     r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
     re.IGNORECASE,
 )
+NEGATED_S5_SUBJECT_PREFIX_RE = re.compile(r"\bno\s+$", re.IGNORECASE)
 CLAIM_PATTERNS = (
     re.compile(
         r"\b(?:s-?5|stage\s*5)\b"
@@ -311,7 +314,13 @@ def s5_claim_clauses(text: str) -> tuple[str, ...]:
         for match in pattern.finditer(normalized):
             clause = clause_around_match(normalized, match.start(), match.end())
             if NEGATED_CLAIM_RE.search(clause):
-                if POSITIVE_CLAIM_RE.search(match.group(0)):
+                if (
+                    POSITIVE_CLAIM_RE.search(match.group(0))
+                    and not NEGATED_CLAIM_RE.search(match.group(0))
+                    and not NEGATED_S5_SUBJECT_PREFIX_RE.search(
+                        normalized[: match.start()]
+                    )
+                ):
                     clauses.append(clause)
                 continue
             clauses.append(clause)

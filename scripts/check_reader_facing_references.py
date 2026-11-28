@@ -92,6 +92,32 @@ def _reference_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
 
+def _inline_code_span_end(line: str, start: int) -> int | None:
+    """Return the end of a same-line inline-code span starting at ``start``."""
+    marker_end = start
+    while marker_end < len(line) and line[marker_end] == "`":
+        marker_end += 1
+
+    marker_length = marker_end - start
+
+    search = marker_end
+    while search < len(line):
+        marker_start = line.find("`", search)
+        if marker_start == -1:
+            return None
+
+        candidate_end = marker_start
+        while candidate_end < len(line) and line[candidate_end] == "`":
+            candidate_end += 1
+
+        if candidate_end - marker_start == marker_length:
+            return candidate_end
+
+        search = candidate_end
+
+    return None
+
+
 def reference_definitions(text: str) -> set[str]:
     """Return defined Markdown reference-link labels outside code fences."""
     definitions: set[str] = set()
@@ -120,14 +146,21 @@ def reference_definitions(text: str) -> set[str]:
 
 
 def mask_markdown_links(line: str, definitions: set[str] | None = None) -> str:
-    """Replace Markdown link and autolink spans with spaces.
+    """Replace inline code, Markdown links, and autolink spans with spaces.
 
     Keeping the line length unchanged lets callers report the original line
-    number and reference while allowing issue numbers in link labels or URLs.
+    number and reference while allowing issue numbers in code, link labels, or URLs.
     """
     characters = list(line)
     index = 0
     while index < len(line):
+        if line[index] == "`":
+            code_end = _inline_code_span_end(line, index)
+            if code_end is not None:
+                characters[index:code_end] = [" "] * (code_end - index)
+                index = code_end
+                continue
+
         opening = index
         if line[index] == "!" and index + 1 < len(line) and line[index + 1] == "[":
             opening = index + 1
