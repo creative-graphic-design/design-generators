@@ -34,6 +34,7 @@ DEPRECATED_CHECKLIST_ALIASES = {
         "Confirmed the applicable issue #60 checklist items.",
     ),
     "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).": (
+        "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
     ),
     "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.": (

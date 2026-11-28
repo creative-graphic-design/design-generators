@@ -189,6 +189,10 @@ def test_checklist_errors_accept_deprecated_template_wording() -> None:
 @pytest.mark.parametrize(
     ("item_index", "legacy_item"),
     [
+        (
+            1,
+            "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
+        ),
         (2, "Read the model plan and amendment comments, if this is a model PR."),
         (
             3,
