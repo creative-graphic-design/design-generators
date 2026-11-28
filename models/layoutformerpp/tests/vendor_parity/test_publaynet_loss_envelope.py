@@ -303,6 +303,30 @@ def test_comparator_start_failure_persists_error_and_names_output_files(
     assert str(stderr_path) in str(error.value)
 
 
+def test_child_failure_replaces_invalid_utf8_and_persists_output(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._run_child(
+            [
+                sys.executable,
+                "-c",
+                "import os, sys; os.write(1, b'out\\xff'); "
+                "os.write(2, b'err\\xfe'); sys.exit(1)",
+            ],
+            cwd=tmp_path,
+            output_directory=tmp_path,
+            failure_message="child failed",
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == "out\ufffd"
+    assert stderr_path.read_text(encoding="utf-8") == "err\ufffd"
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
 def test_objective_traces_reject_missing_updates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
