@@ -39,6 +39,7 @@ class _LossEnvelopeSummary(TypedDict):
     package_seed_medians: list[float]
     package_summary: float
     per_seed: dict[str, _SeedSummary]
+    gate_eligible: bool
     passed: bool
 
 
@@ -95,17 +96,19 @@ def compare_loss_envelope(
     seeds: Sequence[int],
     updates: int,
     logger_interval: int,
+    minimum_updates: int = MIN_PRODUCTION_UPDATES,
 ) -> _LossEnvelopeSummary:
     """Apply the protocol gate to logger-aligned per-update traces."""
     if (
         len(seeds) != 3
         or len(set(seeds)) != len(seeds)
-        or updates < MIN_PRODUCTION_UPDATES
+        or minimum_updates < 1
+        or updates < minimum_updates
         or logger_interval < 1
         or updates % logger_interval
     ):
         raise ValueError(
-            f"updates must be at least {MIN_PRODUCTION_UPDATES} and a multiple of logger_interval"
+            f"updates must be at least {minimum_updates} and a multiple of logger_interval"
         )
 
     per_seed: dict[str, _SeedSummary] = {}
@@ -160,6 +163,7 @@ def compare_loss_envelope(
     lower_bound = original_min - original_width
     upper_bound = original_max + original_width
     package_summary = float(median(package_medians))
+    gate_eligible = updates >= MIN_PRODUCTION_UPDATES
     return {
         "updates_per_run": updates,
         "logger_interval_updates": logger_interval,
@@ -173,7 +177,9 @@ def compare_loss_envelope(
         "package_seed_medians": package_medians,
         "package_summary": package_summary,
         "per_seed": per_seed,
-        "passed": sequence_mismatches == 0
+        "gate_eligible": gate_eligible,
+        "passed": gate_eligible
+        and sequence_mismatches == 0
         and lower_bound <= package_summary <= upper_bound,
     }
 
@@ -187,6 +193,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs=3, required=True)
     parser.add_argument("--updates", type=int, default=1501)
     parser.add_argument("--logger-interval", type=int, required=True)
+    parser.add_argument("--minimum-updates", type=int, default=MIN_PRODUCTION_UPDATES)
     args = parser.parse_args()
     result = compare_loss_envelope(
         args.original_dir,
@@ -194,6 +201,7 @@ def main() -> None:
         seeds=args.seeds,
         updates=args.updates,
         logger_interval=args.logger_interval,
+        minimum_updates=args.minimum_updates,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

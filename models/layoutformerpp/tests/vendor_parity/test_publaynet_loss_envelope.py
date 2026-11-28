@@ -96,9 +96,11 @@ def test_entrypoints_capture_exact_objectives(
     monkeypatch.setattr(ENVELOPE, "UPDATES", 2)
     environment = {"PACKAGE_ENV": str(tmp_path)}
     ENVELOPE._run_original(
-        campaign, seed=0, directory=original, environment=environment
+        campaign, seed=0, directory=original, environment=environment, updates=2
     )
-    ENVELOPE._run_package(campaign, seed=0, directory=package, environment=environment)
+    ENVELOPE._run_package(
+        campaign, seed=0, directory=package, environment=environment, updates=2
+    )
     assert [call.args[2] for call in campaign.build_argv.call_args_list] == [
         "original",
         "package",
@@ -187,6 +189,144 @@ def test_three_seeds_detect_batch_order(tmp_path: Path) -> None:
     assert result["updates_per_run"] == 1500
 
 
+def test_short_cpu_comparison_is_written_as_non_gate_result(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "result.json"
+
+    def compare(command, **kwargs):
+        output_path = Path(command[command.index("--output") + 1])
+        output_path.write_text(
+            json.dumps({"passed": True, "updates_per_run": 2}), encoding="utf-8"
+        )
+        return Mock(returncode=0)
+
+    run = Mock(side_effect=compare)
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    result = ENVELOPE._compare(
+        tmp_path / "original",
+        tmp_path / "package",
+        result_path,
+        updates=2,
+        cpu_smoke=True,
+    )
+
+    assert result == json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["updates_per_run"] == 2
+    assert result["run_kind"] == "cpu_smoke"
+    assert result["gate_eligible"] is False
+    assert result["comparison_verdict"] == "not_meaningful_for_cpu_smoke"
+    assert "passed" not in result
+    command = run.call_args.args[0]
+    minimum_index = command.index("--minimum-updates")
+    assert command[minimum_index + 1] == "2"
+
+
+def test_production_comparator_keeps_production_minimum(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original = tmp_path / "original"
+    package = tmp_path / "package"
+    result_path = tmp_path / "result.json"
+
+    def compare(command, **kwargs):
+        result_path.write_text(json.dumps({"passed": True}), encoding="utf-8")
+        return Mock(returncode=0)
+
+    run = Mock(side_effect=compare)
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    ENVELOPE._compare(original, package, result_path)
+
+    command = run.call_args.args[0]
+    minimum_index = command.index("--minimum-updates")
+    assert command[minimum_index + 1] == "1500"
+
+
+def test_comparator_failure_persists_stdout_and_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "result.json"
+    run = Mock(
+        return_value=Mock(
+            returncode=1,
+            stdout="complete comparator stdout\n",
+            stderr="complete comparator stderr\n",
+        )
+    )
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._compare(
+            tmp_path / "original",
+            tmp_path / "package",
+            result_path,
+            updates=2,
+            cpu_smoke=True,
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == "complete comparator stdout\n"
+    assert stderr_path.read_text(encoding="utf-8") == "complete comparator stderr\n"
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
+def test_comparator_start_failure_persists_error_and_names_output_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "result.json"
+    monkeypatch.setattr(
+        ENVELOPE.subprocess,
+        "run",
+        Mock(side_effect=FileNotFoundError("comparator executable missing")),
+    )
+
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._compare(
+            tmp_path / "original",
+            tmp_path / "package",
+            result_path,
+            updates=2,
+            cpu_smoke=True,
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == ""
+    assert stderr_path.read_text(encoding="utf-8") == (
+        "FileNotFoundError: comparator executable missing\n"
+    )
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
+def test_child_failure_replaces_invalid_utf8_and_persists_output(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._run_child(
+            [
+                sys.executable,
+                "-c",
+                "import os, sys; os.write(1, b'out\\xff'); "
+                "os.write(2, b'err\\xfe'); sys.exit(1)",
+            ],
+            cwd=tmp_path,
+            output_directory=tmp_path,
+            failure_message="child failed",
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == "out\ufffd"
+    assert stderr_path.read_text(encoding="utf-8") == "err\ufffd"
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
 def test_objective_traces_reject_missing_updates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -197,10 +337,10 @@ def test_objective_traces_reject_missing_updates(
     package.write_text("train_loss_step\n1.0\n", encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="objective trace expected 1 updates"):
-        ENVELOPE._original_objectives(original)
+        ENVELOPE._original_objectives(original, updates=1)
 
     with pytest.raises(RuntimeError, match="missing its native logger index"):
-        ENVELOPE._package_objectives(package)
+        ENVELOPE._package_objectives(package, updates=1)
 
 
 def test_native_logger_alignment_rejects_invalid_indices(tmp_path: Path) -> None:
@@ -249,6 +389,7 @@ def test_run_records_provenance_and_uses_checked_gpu_uuid(
         verify_splits=Mock(return_value={"train": {"sha256": "split-hash"}}),
         read_data_root=Mock(return_value=data_root),
         gpu_info=Mock(return_value=("V100", "checked-uuid")),
+        runtime_freeze_sha256=Mock(return_value="runtime-freeze-hash"),
         build_environment=Mock(return_value={"PACKAGE_ENV": str(tmp_path)}),
         vendor_commit=Mock(return_value="vendor-commit"),
     )
@@ -268,6 +409,8 @@ def test_run_records_provenance_and_uses_checked_gpu_uuid(
     input_splits = cast(dict[str, dict[str, int | str]], provenance["input_splits"])
     assert provenance["source_commit"] == "source-commit"
     assert input_splits["train"]["sha256"] == "split-hash"
+    assert result["runtime_freeze_sha256"] == "runtime-freeze-hash"
+    campaign.runtime_freeze_sha256.assert_called_once_with(tmp_path)
     campaign.gpu_info.assert_called_once_with(2)
     assert all(
         call.kwargs["gpu_uuid"] == "checked-uuid"
@@ -326,3 +469,192 @@ def test_relative_child_path_is_rejected_before_launch(
 
     runner.assert_not_called()
     assert not output.exists()
+
+
+def test_cpu_smoke_cli_uses_separate_output_and_variable_update_count(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    output_root = tmp_path / "prechecks"
+    monkeypatch.setattr(ENVELOPE, "OUTPUT_ROOT", output_root)
+    monkeypatch.setattr(ENVELOPE, "_cuda_is_available", lambda: False)
+    monkeypatch.setattr(sys, "argv", ["runner", "--cpu-smoke", "--updates", "2"])
+    runner = Mock(return_value={"updates_per_run": 2})
+    monkeypatch.setattr(ENVELOPE, "_run", runner)
+
+    ENVELOPE.main()
+
+    smoke_root = output_root / "cpu-smoke" / "loss-envelope"
+    runner.assert_called_once_with(smoke_root, None, updates=2, cpu_smoke=True)
+
+
+def test_cpu_smoke_refuses_a_visible_gpu(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    output_root = tmp_path / "prechecks"
+    monkeypatch.setattr(ENVELOPE, "OUTPUT_ROOT", output_root)
+    monkeypatch.setattr(ENVELOPE, "_cuda_is_available", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["runner", "--cpu-smoke", "--updates", "2"])
+    runner = Mock(return_value={})
+    monkeypatch.setattr(ENVELOPE, "_run", runner)
+
+    with pytest.raises(SystemExit, match="--cpu-smoke requires CUDA to be hidden"):
+        ENVELOPE.main()
+
+    runner.assert_not_called()
+    assert not (output_root / "cpu-smoke" / "loss-envelope").exists()
+
+
+def test_updates_can_be_lowered_only_with_cpu_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(ENVELOPE, "OUTPUT_ROOT", tmp_path / "prechecks")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["runner", "--updates", "2", "--gpu-index", "0"],
+    )
+    runner = Mock(return_value={})
+    monkeypatch.setattr(ENVELOPE, "_run", runner)
+
+    with pytest.raises(SystemExit) as error:
+        ENVELOPE.main()
+
+    assert error.value.code == 2
+    assert "--updates must remain 1500 outside --cpu-smoke" in capsys.readouterr().err
+    runner.assert_not_called()
+
+
+def test_cpu_package_entrypoint_uses_only_accelerator_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    directory = tmp_path / "package"
+    directory.mkdir()
+    metrics = directory / "lightning" / "logs" / "metrics.csv"
+    metrics.parent.mkdir(parents=True)
+    metrics.write_text("step,train_loss_step\n0,1.0\n1,1.1\n", encoding="utf-8")
+    campaign = Mock(
+        build_argv=Mock(return_value=[["traingen", "fit", "--trainer.devices=1"]])
+    )
+
+    def run_entrypoint(command, **kwargs):
+        Path(kwargs["env"]["LAYOUTFORMERPP_BATCH_TRACE"]).write_text(
+            "".join(
+                json.dumps({"update": index + 1, "batch_sha256": f"{index:064x}"})
+                + "\n"
+                for index in range(2)
+            ),
+            encoding="utf-8",
+        )
+        return Mock(returncode=0, stdout="", stderr="")
+
+    run = Mock(side_effect=run_entrypoint)
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    ENVELOPE._run_package(
+        campaign,
+        seed=0,
+        directory=directory,
+        environment={"PACKAGE_ENV": str(tmp_path), "CUDA_VISIBLE_DEVICES": ""},
+        updates=2,
+        cpu_smoke=True,
+    )
+
+    command = run.call_args.args[0]
+    assert command == [
+        "traingen",
+        "fit",
+        "--trainer.devices=1",
+        "--trainer.max_steps=2",
+        "--trainer.log_every_n_steps=1",
+        "--trainer.enable_progress_bar=false",
+        "--trainer.accelerator=cpu",
+    ]
+    assert run.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"] == ""
+    rows = [
+        json.loads(line)
+        for line in (directory / "updates.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(rows) == 3
+    assert [row["logger_step"] for row in rows[1:]] == [0, 1]
+
+
+def test_cpu_smoke_runs_three_seeds_with_full_preflight_and_marks_result(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repository = tmp_path / "repo"
+    config = repository / "models" / "layoutformerpp" / "config.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text("resolved config", encoding="utf-8")
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    package_environment = tmp_path / "package-env"
+    environment_file = tmp_path / "data-root.env"
+    environment_file.write_text("", encoding="utf-8")
+    campaign = Mock(
+        REPOSITORY=repository,
+        CONFIG_SHA256={"label": "config-hash"},
+        config_path=Mock(return_value=config),
+        sha256=Mock(return_value="config-hash"),
+        current_commit=Mock(return_value="source-commit"),
+        require_clean_tree=Mock(),
+        verify_splits=Mock(return_value={"train": {"sha256": "split-hash"}}),
+        read_data_root=Mock(return_value=data_root),
+        runtime_freeze_sha256=Mock(return_value="runtime-freeze-hash"),
+        gpu_info=Mock(side_effect=AssertionError("CPU smoke inspected a GPU")),
+        build_environment=Mock(
+            side_effect=lambda *args, **kwargs: {
+                "PACKAGE_ENV": str(package_environment),
+                "CUDA_VISIBLE_DEVICES": "visible-by-default",
+            }
+        ),
+        vendor_commit=Mock(return_value="vendor-commit"),
+    )
+    monkeypatch.setitem(sys.modules, "launch_track", campaign)
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(environment_file))
+    monkeypatch.setenv("PACKAGE_ENV", str(package_environment))
+    original = Mock()
+    package = Mock()
+    compare = Mock(
+        return_value={
+            "updates_per_run": 2,
+            "run_kind": "cpu_smoke",
+            "gate_eligible": False,
+            "comparison_verdict": "not_meaningful_for_cpu_smoke",
+        }
+    )
+    monkeypatch.setattr(ENVELOPE, "_run_original", original)
+    monkeypatch.setattr(ENVELOPE, "_run_package", package)
+    monkeypatch.setattr(ENVELOPE, "_require_native_logger_alignment", Mock())
+    monkeypatch.setattr(ENVELOPE, "_compare", compare)
+    output = tmp_path / "cpu-smoke" / "loss-envelope"
+    output.mkdir(parents=True)
+
+    result = ENVELOPE._run(output, gpu_index=None, updates=2, cpu_smoke=True)
+
+    campaign.require_clean_tree.assert_called_once_with()
+    campaign.verify_splits.assert_called_once_with(data_root)
+    campaign.runtime_freeze_sha256.assert_called_once_with(package_environment)
+    campaign.gpu_info.assert_not_called()
+    assert original.call_count == len(ENVELOPE.SEEDS)
+    assert package.call_count == len(ENVELOPE.SEEDS)
+    for call in (*original.call_args_list, *package.call_args_list):
+        assert call.kwargs["updates"] == 2
+        assert call.kwargs["environment"]["CUDA_VISIBLE_DEVICES"] == ""
+        assert call.kwargs["environment"]["LAYOUTFORMERPP_BATCH_LIMIT"] == "2"
+    assert all(call.kwargs["cpu_smoke"] for call in package.call_args_list)
+    compare.assert_called_once_with(
+        output / "runs" / "original",
+        output / "runs" / "package",
+        output / "result.json",
+        updates=2,
+        cpu_smoke=True,
+    )
+    assert result["run_kind"] == "cpu_smoke"
+    assert result["gate_eligible"] is False
+    assert result["comparison_verdict"] == "not_meaningful_for_cpu_smoke"
+    assert "passed" not in result
+    assert result["runtime_freeze_sha256"] == "runtime-freeze-hash"
