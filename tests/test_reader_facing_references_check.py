@@ -144,6 +144,23 @@ def test_ignores_multiline_inline_code_and_its_reference_definitions(
     ]
 
 
+def test_checks_prose_after_an_escaped_backtick_before_inline_code(
+    tmp_path: Path,
+) -> None:
+    checker = load_checker()
+    path = write_doc(
+        tmp_path,
+        "docs/example.md",
+        r"Use \` as a literal, issue #123 stays prose, then `run` is code." + "\n",
+    )
+
+    violations = checker.violations_for_document(path)
+
+    assert [(item.line, item.location, item.reference) for item in violations] == [
+        (1, "body", "#123")
+    ]
+
+
 def test_rejects_exact_english_and_japanese_empty_markers(tmp_path: Path) -> None:
     checker = load_checker()
     path = write_doc(

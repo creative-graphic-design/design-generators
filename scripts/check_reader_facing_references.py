@@ -92,6 +92,17 @@ def _reference_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
 
+def _is_escaped(text: str, position: int) -> bool:
+    """Return whether a character is preceded by an odd backslash run."""
+    backslash_count = 0
+    position -= 1
+    while position >= 0 and text[position] == "\\":
+        backslash_count += 1
+        position -= 1
+
+    return backslash_count % 2 == 1
+
+
 def _inline_code_span_end(text: str, start: int) -> int | None:
     """Return the end of an inline-code span starting at ``start``."""
     marker_end = start
@@ -125,6 +136,12 @@ def _mask_inline_code_spans(text: str) -> str:
     while index < len(text):
         if text[index] != "`":
             index += 1
+            continue
+
+        if _is_escaped(text, index):
+            while index < len(text) and text[index] == "`":
+                index += 1
+
             continue
 
         code_end = _inline_code_span_end(text, index)
