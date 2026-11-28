@@ -1,0 +1,12 @@
+# Analyze first-party Python source and scripts; submodules are not checked out.
+# Enforce the same maximum for every function, including existing code.
+languages = ["python"]
+max-cognitive = 15
+exclude = [
+  "**/tests/**",
+  "**/test_*.py",
+  "**/__pycache__/**",
+  "vendor/**",
+  ".venv/**",
+  ".cache/**",
+]
