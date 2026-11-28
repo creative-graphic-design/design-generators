@@ -181,7 +181,7 @@ def _compare(
         / "scripts"
         / "compare_crello_loss_envelope.py"
     )
-    subprocess.run(
+    completed = subprocess.run(
         [
             sys.executable,
             str(comparator),
@@ -197,12 +197,22 @@ def _compare(
             str(updates),
             "--logger-interval",
             "1",
+            "--minimum-updates",
+            str(updates if cpu_smoke else UPDATES),
         ],
         cwd=REPOSITORY,
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    if completed.returncode != 0:
+        stdout_path, stderr_path = _persist_subprocess_output(
+            result_path.parent, completed
+        )
+        raise RuntimeError(
+            "loss-envelope comparator failed; "
+            f"stdout: {stdout_path}; stderr: {stderr_path}"
+        )
     result = json.loads(result_path.read_text(encoding="utf-8"))
     if cpu_smoke:
         result = _mark_cpu_smoke_result(result)
@@ -211,7 +221,7 @@ def _compare(
     return result
 
 
-def _persist_child_output(
+def _persist_subprocess_output(
     directory: Path, completed: subprocess.CompletedProcess[str]
 ) -> tuple[Path, Path]:
     stdout_path = directory / "stdout.txt"
@@ -276,7 +286,7 @@ def _run_original(
         check=False,
     )
     if completed.returncode != 0:
-        stdout_path, stderr_path = _persist_child_output(directory, completed)
+        stdout_path, stderr_path = _persist_subprocess_output(directory, completed)
         raise RuntimeError(
             f"original production entry stopped before {updates} updates; "
             f"stdout: {stdout_path}; stderr: {stderr_path}"
@@ -321,7 +331,7 @@ def _run_package(
         check=False,
     )
     if completed.returncode != 0:
-        stdout_path, stderr_path = _persist_child_output(directory, completed)
+        stdout_path, stderr_path = _persist_subprocess_output(directory, completed)
         raise RuntimeError(
             f"package production entry failed for seed {seed}; "
             f"stdout: {stdout_path}; stderr: {stderr_path}"

@@ -201,7 +201,8 @@ def test_short_cpu_comparison_is_written_as_non_gate_result(
         )
         return Mock(returncode=0)
 
-    monkeypatch.setattr(ENVELOPE.subprocess, "run", Mock(side_effect=compare))
+    run = Mock(side_effect=compare)
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
 
     result = ENVELOPE._compare(
         tmp_path / "original",
@@ -217,6 +218,60 @@ def test_short_cpu_comparison_is_written_as_non_gate_result(
     assert result["gate_eligible"] is False
     assert result["comparison_verdict"] == "not_meaningful_for_cpu_smoke"
     assert "passed" not in result
+    command = run.call_args.args[0]
+    minimum_index = command.index("--minimum-updates")
+    assert command[minimum_index + 1] == "2"
+
+
+def test_production_comparator_keeps_production_minimum(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original = tmp_path / "original"
+    package = tmp_path / "package"
+    result_path = tmp_path / "result.json"
+
+    def compare(command, **kwargs):
+        result_path.write_text(json.dumps({"passed": True}), encoding="utf-8")
+        return Mock(returncode=0)
+
+    run = Mock(side_effect=compare)
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    ENVELOPE._compare(original, package, result_path)
+
+    command = run.call_args.args[0]
+    minimum_index = command.index("--minimum-updates")
+    assert command[minimum_index + 1] == "1500"
+
+
+def test_comparator_failure_persists_stdout_and_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "result.json"
+    run = Mock(
+        return_value=Mock(
+            returncode=1,
+            stdout="complete comparator stdout\n",
+            stderr="complete comparator stderr\n",
+        )
+    )
+    monkeypatch.setattr(ENVELOPE.subprocess, "run", run)
+
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._compare(
+            tmp_path / "original",
+            tmp_path / "package",
+            result_path,
+            updates=2,
+            cpu_smoke=True,
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == "complete comparator stdout\n"
+    assert stderr_path.read_text(encoding="utf-8") == "complete comparator stderr\n"
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
 
 
 def test_objective_traces_reject_missing_updates(

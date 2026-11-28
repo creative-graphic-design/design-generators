@@ -95,17 +95,19 @@ def compare_loss_envelope(
     seeds: Sequence[int],
     updates: int,
     logger_interval: int,
+    minimum_updates: int = MIN_PRODUCTION_UPDATES,
 ) -> _LossEnvelopeSummary:
     """Apply the protocol gate to logger-aligned per-update traces."""
     if (
         len(seeds) != 3
         or len(set(seeds)) != len(seeds)
-        or updates < MIN_PRODUCTION_UPDATES
+        or minimum_updates < 1
+        or updates < minimum_updates
         or logger_interval < 1
         or updates % logger_interval
     ):
         raise ValueError(
-            f"updates must be at least {MIN_PRODUCTION_UPDATES} and a multiple of logger_interval"
+            f"updates must be at least {minimum_updates} and a multiple of logger_interval"
         )
 
     per_seed: dict[str, _SeedSummary] = {}
@@ -187,6 +189,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs=3, required=True)
     parser.add_argument("--updates", type=int, default=1501)
     parser.add_argument("--logger-interval", type=int, required=True)
+    parser.add_argument("--minimum-updates", type=int, default=MIN_PRODUCTION_UPDATES)
     args = parser.parse_args()
     result = compare_loss_envelope(
         args.original_dir,
@@ -194,6 +197,7 @@ def main() -> None:
         seeds=args.seeds,
         updates=args.updates,
         logger_interval=args.logger_interval,
+        minimum_updates=args.minimum_updates,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
