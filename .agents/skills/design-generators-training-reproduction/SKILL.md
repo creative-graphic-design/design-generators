@@ -39,6 +39,7 @@ Before S5, complete the production-path loss-envelope check in [S3 Evidence Reco
 When any staged check or pre-launch gate fails, pause progression and classify the failure before proposing an action. Use captured inputs and measurements from the original and shipped package's real entrypoints, then independently apply the current protocol and any recorded amendment. Classify it as one of these:
 
 - **Check-script defect:** the check measures incorrectly or applies the protocol criterion incorrectly to the real-entrypoint evidence. Correct it against those measurements, then rerun the failed check.
+- **Protocol-rule defect:** the gate rejects an outcome that the rule's stated purpose accepts. Stop and report the defect with the evidence; do not work around the rule or change the run to satisfy it.
 - **Package defect:** the measurements show that package behavior differs from the original's effective behavior in a way the protocol and recorded amendments do not permit.
 - **Recorded permitted difference:** the measurements show a difference explicitly covered by an existing amendment on the model issue, and the observed case fits that amendment's scope. Cite the amendment and apply its criterion; proceed only if the remaining gate requirements pass.
 
