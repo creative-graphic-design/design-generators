@@ -86,7 +86,7 @@ The generated API exposes Lightning helpers under `traingen.lightning.steps` and
 
 ## Runtime ownership
 
-Shared runtime extraction requires identical semantics in at least two concrete consumers and a clearer shared owner, unless a shared public contract must exist before a second consumer lands. Model packages keep defaults, aliases, supported sets, error types and messages, device resolution, and token-space geometry when those semantics are package-specific.
+Shared runtime extraction requires identical semantics in at least two concrete consumers and a clearer shared owner. Model packages keep defaults, aliases, supported sets, error types and messages, device resolution, and token-space geometry when those semantics are package-specific.
 
 | Concern                                 | Current shared owner                                                                                                                                                                                  | Package-local responsibility                                                                                                              |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
