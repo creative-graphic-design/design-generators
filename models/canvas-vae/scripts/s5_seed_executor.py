@@ -281,6 +281,10 @@ def verify_crello_launch_gates(manifest: JsonObject, pinned_commit: str) -> None
         )
 
 
+def _lockstep_gate_passed(cross_step: int | None, noise_step: int | None) -> bool:
+    return cross_step is None or (noise_step is not None and cross_step >= noise_step)
+
+
 def validate_lockstep_probe_report(
     summary: JsonObject,
     records: list[JsonObject],
@@ -464,9 +468,7 @@ def validate_lockstep_probe_report(
     noise_first = first_steps["noise_floor"]
     cross_step = cast(int, cross_first["step"]) if cross_first is not None else None
     noise_step = cast(int, noise_first["step"]) if noise_first is not None else None
-    attribution_passed = cross_step is None or (
-        noise_step is not None and cross_step >= noise_step
-    )
+    attribution_passed = _lockstep_gate_passed(cross_step, noise_step)
     if (
         not summary_first_matches(summary.get("first_step_over_tolerance"), cross_first)
         or not summary_first_matches(

@@ -55,6 +55,10 @@ def _configure_device_visibility(device: Literal["cpu", "cuda"]) -> None:
         raise RuntimeError("CUDA lockstep probe requires exactly one selected device")
 
 
+def _gate_passed(cross_step: int | None, noise_step: int | None) -> bool:
+    return cross_step is None or (noise_step is not None and cross_step >= noise_step)
+
+
 def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
     _configure_device_visibility(config.device)
     os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
@@ -356,9 +360,7 @@ def _run_probe(config: ProbeConfig) -> dict[str, ProbeJson]:
     noise_first = first_over_tolerance(phase_records["noise_floor"])
     cross_step = cast(int | None, cross_first["step"] if cross_first else None)
     noise_step = cast(int | None, noise_first["step"] if noise_first else None)
-    attribution_passed = cross_step is None or (
-        noise_step is not None and cross_step >= noise_step
-    )
+    attribution_passed = _gate_passed(cross_step, noise_step)
     phases: dict[str, ProbeJson] = {}
     cross_sampler_batch_sha256 = ""
     for phase, records in phase_records.items():

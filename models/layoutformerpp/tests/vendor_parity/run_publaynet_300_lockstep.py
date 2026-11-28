@@ -56,7 +56,7 @@ def _equal_batches(reference: Batch, package: Batch) -> None:
 
 
 def _gate_passed(cross_step: int | None, noise_step: int | None) -> bool:
-    return noise_step is not None and (cross_step is None or cross_step >= noise_step)
+    return cross_step is None or (noise_step is not None and cross_step >= noise_step)
 
 
 def _max_parameter_difference(

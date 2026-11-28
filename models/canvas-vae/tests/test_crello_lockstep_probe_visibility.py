@@ -46,3 +46,19 @@ def test_cpu_probe_hides_cuda_devices(monkeypatch: pytest.MonkeyPatch) -> None:
     PROBE._configure_device_visibility("cpu")
 
     assert PROBE.os.environ["CUDA_VISIBLE_DEVICES"] == ""
+
+
+@pytest.mark.parametrize(
+    ("cross_step", "noise_step", "expected"),
+    [
+        (None, None, True),
+        (None, 4, True),
+        (8, 4, True),
+        (3, 4, False),
+        (8, None, False),
+    ],
+)
+def test_crello_lockstep_gate_truth_table(
+    cross_step: int | None, noise_step: int | None, expected: bool
+) -> None:
+    assert PROBE._gate_passed(cross_step, noise_step) is expected
