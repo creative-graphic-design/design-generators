@@ -158,7 +158,7 @@ Use `laygen.common` for helpers that are reusable across layout-generation packa
 | Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers       | `posgen.common`         | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
 | Public output type implementations                                                                                  | `laygen` public modules | See [Conventions](conventions.md#public-outputs) for public fields and pipeline contracts.                                             |
 
-Apply the [runtime-ownership criterion](#runtime-ownership) before moving a helper into a shared package. Do not create a speculative abstraction without concrete shared behavior.
+Move a helper into a shared package when at least two packages need the same behavior or when a shared public contract must exist before a second consumer lands. Apply the [runtime-ownership criterion](#runtime-ownership) before moving a helper into a shared package, and do not create a speculative abstraction without concrete shared behavior.
 
 ## Dependency direction
 
