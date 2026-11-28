@@ -70,7 +70,9 @@ DataLoader.__iter__ = _recording_iter
 """
 
 
-def _original_objectives(path: Path) -> list[tuple[int, float]]:
+def _original_objectives(
+    path: Path, *, updates: int = UPDATES
+) -> list[tuple[int, float]]:
     values: list[tuple[int, float]] = []
     for expected_update, line in enumerate(
         path.read_text(encoding="utf-8").splitlines(), 1
@@ -83,12 +85,14 @@ def _original_objectives(path: Path) -> list[tuple[int, float]]:
         ):
             raise RuntimeError("original objective trace has invalid native indices")
         values.append((row["logger_step"], float(row["objective"])))
-    if len(values) != UPDATES:
-        raise RuntimeError(f"original objective trace expected {UPDATES} updates")
+    if len(values) != updates:
+        raise RuntimeError(f"original objective trace expected {updates} updates")
     return values
 
 
-def _package_objectives(path: Path) -> list[tuple[int, float]]:
+def _package_objectives(
+    path: Path, *, updates: int = UPDATES
+) -> list[tuple[int, float]]:
     values: list[tuple[int, float]] = []
     for row in csv.DictReader(path.open(encoding="utf-8", newline="")):
         raw_value = row.get("train_loss_step")
@@ -98,8 +102,8 @@ def _package_objectives(path: Path) -> list[tuple[int, float]]:
         if raw_step is None or raw_step == "":
             raise RuntimeError("package objective is missing its native logger index")
         values.append((int(raw_step), float(raw_value)))
-    if len(values) != UPDATES:
-        raise RuntimeError(f"package objective trace expected {UPDATES} updates")
+    if len(values) != updates:
+        raise RuntimeError(f"package objective trace expected {updates} updates")
     return values
 
 
@@ -152,7 +156,24 @@ def _require_native_logger_alignment(original: Path, package: Path) -> None:
         raise RuntimeError("production objectives use different native logger indices")
 
 
-def _compare(original: Path, package: Path, result_path: Path) -> dict[str, object]:
+def _mark_cpu_smoke_result(result: dict[str, object]) -> dict[str, object]:
+    result.pop("passed", None)
+    result.update(
+        run_kind="cpu_smoke",
+        gate_eligible=False,
+        comparison_verdict="not_meaningful_for_cpu_smoke",
+    )
+    return result
+
+
+def _compare(
+    original: Path,
+    package: Path,
+    result_path: Path,
+    *,
+    updates: int = UPDATES,
+    cpu_smoke: bool = False,
+) -> dict[str, object]:
     comparator = (
         REPOSITORY
         / "models"
@@ -173,7 +194,7 @@ def _compare(original: Path, package: Path, result_path: Path) -> dict[str, obje
             "--seeds",
             *map(str, SEEDS),
             "--updates",
-            str(UPDATES),
+            str(updates),
             "--logger-interval",
             "1",
         ],
@@ -182,7 +203,12 @@ def _compare(original: Path, package: Path, result_path: Path) -> dict[str, obje
         text=True,
         check=True,
     )
-    return json.loads(result_path.read_text(encoding="utf-8"))
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    if cpu_smoke:
+        result = _mark_cpu_smoke_result(result)
+        result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+    return result
 
 
 def _persist_child_output(
@@ -206,12 +232,19 @@ def _validate_child_path_environment(environment: Mapping[str, str]) -> None:
             raise SystemExit(f"{name} must be an absolute path")
 
 
+def _cuda_is_available() -> bool:
+    import torch
+
+    return torch.cuda.is_available()
+
+
 def _run_original(
     campaign: ModuleType,
     *,
     seed: int,
     directory: Path,
     environment: dict[str, str],
+    updates: int = UPDATES,
 ) -> None:
     source = campaign.VENDOR_SOURCE / "scripts" / campaign.VENDOR_SCRIPTS["label"]
     script = source.read_text(encoding="utf-8")
@@ -233,7 +266,7 @@ def _run_original(
     child_environment["LAYOUTFORMERPP_OBJECTIVE_TRACE"] = str(
         directory / "objectives.jsonl"
     )
-    child_environment["LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES"] = str(UPDATES)
+    child_environment["LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES"] = str(updates)
     completed = subprocess.run(
         command,
         cwd=campaign.VENDOR_SOURCE,
@@ -245,10 +278,10 @@ def _run_original(
     if completed.returncode != 0:
         stdout_path, stderr_path = _persist_child_output(directory, completed)
         raise RuntimeError(
-            f"original production entry stopped before {UPDATES} updates; "
+            f"original production entry stopped before {updates} updates; "
             f"stdout: {stdout_path}; stderr: {stderr_path}"
         )
-    objectives = _original_objectives(directory / "objectives.jsonl")
+    objectives = _original_objectives(directory / "objectives.jsonl", updates=updates)
     _record_native_output(
         system="original", seed=seed, directory=directory, objectives=objectives
     )
@@ -260,18 +293,24 @@ def _run_package(
     seed: int,
     directory: Path,
     environment: dict[str, str],
+    updates: int = UPDATES,
+    cpu_smoke: bool = False,
 ) -> None:
     command = campaign.build_argv(
         "label", seed, "package", directory, Path(environment["PACKAGE_ENV"])
     )[0]
     command.extend(
         [
-            f"--trainer.max_steps={UPDATES}",
+            f"--trainer.max_steps={updates}",
             "--trainer.log_every_n_steps=1",
             "--trainer.enable_progress_bar=false",
         ]
     )
+    if cpu_smoke:
+        command.append("--trainer.accelerator=cpu")
     child_environment = dict(environment)
+    if cpu_smoke:
+        child_environment["CUDA_VISIBLE_DEVICES"] = ""
     child_environment["LAYOUTFORMERPP_BATCH_TRACE"] = str(directory / "batches.jsonl")
     completed = subprocess.run(
         command,
@@ -292,13 +331,19 @@ def _run_package(
         raise RuntimeError(
             f"package seed {seed}: expected one native Lightning metrics file"
         )
-    objectives = _package_objectives(metrics[0])
+    objectives = _package_objectives(metrics[0], updates=updates)
     _record_native_output(
         system="package", seed=seed, directory=directory, objectives=objectives
     )
 
 
-def _run(output: Path, gpu_index: int) -> dict[str, object]:
+def _run(
+    output: Path,
+    gpu_index: int | None,
+    *,
+    updates: int = UPDATES,
+    cpu_smoke: bool = False,
+) -> dict[str, object]:
     _validate_child_path_environment(os.environ)
     sys.path.insert(
         0, str(REPOSITORY / "models" / "layoutformerpp" / "scripts" / "publaynet_s5")
@@ -309,13 +354,19 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
     package_environment = Path(os.environ["PACKAGE_ENV"])
     data_root = campaign.read_data_root()
     provenance = capture_provenance(campaign, "label", data_root)
-    device_name, gpu_uuid = campaign.gpu_info(gpu_index)
+    runtime_freeze_hash = campaign.runtime_freeze_sha256(package_environment)
+    if cpu_smoke:
+        device_name, gpu_uuid = "cpu", None
+    else:
+        if gpu_index is None:
+            raise RuntimeError("production loss-envelope run requires a GPU index")
+        device_name, gpu_uuid = campaign.gpu_info(gpu_index)
     root = output / "runs"
     root.mkdir(parents=True, exist_ok=True)
     sitecustomize = root / "sitecustomize.py"
     sitecustomize.write_text(_sitecustomize_source(), encoding="utf-8")
     for seed in SEEDS:
-        for system, run in (("original", _run_original), ("package", _run_package)):
+        for system in ("original", "package"):
             directory = root / system / f"seed-{seed}"
             directory.mkdir(parents=True)
             # The training record persists the selector, so keep only the index.
@@ -330,6 +381,8 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
                 package_environment=package_environment,
                 track_directory=directory,
             )
+            if cpu_smoke:
+                child_environment["CUDA_VISIBLE_DEVICES"] = ""
             child_environment["PYTHONPATH"] = os.pathsep.join(
                 filter(
                     None,
@@ -340,44 +393,97 @@ def _run(output: Path, gpu_index: int) -> dict[str, object]:
                     ),
                 )
             )
-            child_environment["LAYOUTFORMERPP_BATCH_LIMIT"] = str(UPDATES)
-            run(campaign, seed=seed, directory=directory, environment=child_environment)
+            child_environment["LAYOUTFORMERPP_BATCH_LIMIT"] = str(updates)
+            if system == "original":
+                _run_original(
+                    campaign,
+                    seed=seed,
+                    directory=directory,
+                    environment=child_environment,
+                    updates=updates,
+                )
+            else:
+                _run_package(
+                    campaign,
+                    seed=seed,
+                    directory=directory,
+                    environment=child_environment,
+                    updates=updates,
+                    cpu_smoke=cpu_smoke,
+                )
         _require_native_logger_alignment(
             root / "original" / f"seed-{seed}", root / "package" / f"seed-{seed}"
         )
     result_path = output / "result.json"
-    result = _compare(root / "original", root / "package", result_path)
+    result = _compare(
+        root / "original",
+        root / "package",
+        result_path,
+        updates=updates,
+        cpu_smoke=cpu_smoke,
+    )
     result.update(
-        gpu_index=gpu_index,
-        gpu_type=device_name,
         provenance=provenance,
+        runtime_freeze_sha256=runtime_freeze_hash,
         vendor_source_commit=campaign.vendor_commit(),
         config="models/layoutformerpp/configs/training/publaynet_label.yaml",
         config_sha256=campaign.CONFIG_SHA256["label"],
         runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         original_entrypoint="vendor PubLayNet label script -> main.py; train_log_step=1",
-        package_entrypoint="traingen fit; max_steps=1500; log_every_n_steps=1",
+        package_entrypoint=(
+            f"traingen fit; max_steps={updates}; log_every_n_steps=1"
+            + ("; accelerator=cpu" if cpu_smoke else "")
+        ),
         initialization="independent production initialization and optimizer per matched seed",
         batch_mapping="sample identity order digest per loader batch and optimizer update",
         objective="exact scalar training loss at each system's native logger index",
     )
+    if cpu_smoke:
+        result["device"] = device_name
+    else:
+        result.update(gpu_index=gpu_index, gpu_type=device_name)
+
     return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--output-dir", type=Path, default=OUTPUT_ROOT / "loss-envelope"
-    )
-    parser.add_argument("--gpu-index", type=int, required=True)
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--gpu-index", type=int)
+    parser.add_argument("--cpu-smoke", action="store_true")
+    parser.add_argument("--updates", type=int, default=UPDATES)
     args = parser.parse_args()
+    if args.updates < 1:
+        parser.error("--updates must be a positive integer")
+    if args.cpu_smoke:
+        if args.gpu_index is not None:
+            parser.error("--gpu-index cannot be used with --cpu-smoke")
+        if _cuda_is_available():
+            raise SystemExit("--cpu-smoke requires CUDA to be hidden")
+        cpu_smoke_output_root = OUTPUT_ROOT / "cpu-smoke"
+        default_output = cpu_smoke_output_root / "loss-envelope"
+    else:
+        if args.gpu_index is None:
+            parser.error("--gpu-index is required outside --cpu-smoke")
+        if args.updates != UPDATES:
+            parser.error("--updates must remain 1500 outside --cpu-smoke")
+        default_output = OUTPUT_ROOT / "loss-envelope"
     _validate_child_path_environment(os.environ)
 
-    output = args.output_dir.resolve()
+    output = (args.output_dir or default_output).resolve()
     if not output.is_relative_to(OUTPUT_ROOT.resolve()) or output.exists():
         raise SystemExit("output must be a new directory under the S5 pre-check cache")
+    if args.cpu_smoke and not output.is_relative_to(
+        (OUTPUT_ROOT / "cpu-smoke").resolve()
+    ):
+        raise SystemExit("CPU-smoke output must be under the cpu-smoke directory")
     output.mkdir(parents=True)
-    result = _run(output, args.gpu_index)
+    result = _run(
+        output,
+        args.gpu_index,
+        updates=args.updates,
+        cpu_smoke=args.cpu_smoke,
+    )
     result_path = output / "result.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))

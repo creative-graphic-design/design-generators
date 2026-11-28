@@ -529,17 +529,20 @@ def build_environment(
     *,
     seed: int,
     arm: str,
-    gpu_index: int,
-    gpu_uuid: str,
+    gpu_index: int | None,
+    gpu_uuid: str | None,
     data_root: Path,
     environment_file: Path,
     package_environment: Path,
     track_directory: Path,
 ) -> dict[str, str]:
+    if (gpu_index is None) != (gpu_uuid is None):
+        raise ValueError("GPU index and UUID must both be set or both be omitted")
+
     environment = dict(base)
     environment.update(
         {
-            "CUDA_VISIBLE_DEVICES": gpu_uuid,
+            "CUDA_VISIBLE_DEVICES": gpu_uuid or "",
             "LAYOUTFORMERPP_DATA_ROOT_ENV_FILE": str(environment_file),
             "LAYOUTFORMERPP_TRAIN_SEED": str(seed),
             "PACKAGE_ENV": str(package_environment),
