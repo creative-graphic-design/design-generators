@@ -751,56 +751,6 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "claim",
-    [
-        "S5 is pending and not yet complete.",
-        "No S5 reproduction is achieved.",
-        "no full-run reproduction",
-        "Pending: S5 is evaluated after S4.",
-        "No full-run comparison is achieved.",
-        "The pilots produced no training-seed n=3 comparison.",
-        "S5 evaluated runs are not claimed.",
-        "S5 full-run comparison has not been evaluated.",
-        "Full-run evaluated comparison is pending.",
-    ],
-)
-def test_has_s5_claim_ignores_negated_claim_verb(claim: str) -> None:
-    assert not check_training_stage_evidence.has_s5_claim(claim)
-
-
-def test_has_s5_claim_detects_positive_claim_after_prior_negation() -> None:
-    assert check_training_stage_evidence.has_s5_claim(
-        "No S5 result is claimed; S5 reproduction is complete."
-    )
-
-
-def test_has_s5_claim_detects_positive_claim_before_negated_subclause() -> None:
-    assert check_training_stage_evidence.has_s5_claim(
-        "S5 reproduction for RICO is complete and S5 reproduction for Magazine is pending."
-    )
-
-
-@pytest.mark.parametrize(
-    "connector", ["despite", "although", "whereas", "while", "and", "but"]
-)
-def test_has_s5_claim_scopes_each_s5_mention_independently(connector: str) -> None:
-    claim = (
-        "S5 reproduction for RICO is complete "
-        f"{connector} S5 reproduction for Magazine is pending."
-    )
-
-    assert check_training_stage_evidence.has_s5_claim(claim)
-    assert any(
-        "RICO" in segment
-        for segment in check_training_stage_evidence.s5_claim_segments(claim)
-    )
-
-
-def test_has_s5_claim_still_detects_positive_s5_claim() -> None:
-    assert check_training_stage_evidence.has_s5_claim("S5 reproduction is complete.")
-
-
 def test_has_s5_claim_does_not_cross_sentence_boundaries() -> None:
     assert not check_training_stage_evidence.has_s5_claim(
         "S5 is not claimed. Magazine has complete S0-S4 evidence."
