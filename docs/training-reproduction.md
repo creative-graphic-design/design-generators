@@ -31,7 +31,7 @@ Follow the stages in order. Record S0-S2 evidence in the model issue, then recor
 | S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                                       |
 | S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                                |
 
-Every full S5 run must have a JSON launch manifest written before training. It records `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, prelaunch artifact paths and SHA-256 values, and timezone-aware ISO 8601 `launched_at`. In the S5 Stage Evidence row's Artifact cell, cite the repository- or cache-relative path ending in `manifest.json`. Add `; evaluation-path-parity: <path>` for the separate parity artifact.
+Write a JSON launch manifest before training for every full S5 run. Record `source_commit`, `config`, the evaluator command and flags in `evaluator_command`, `checkpoint_rule`, and timezone-aware ISO 8601 `launched_at`. Map each prelaunch artifact path to its SHA-256 in the `artifacts` object. In the S5 Stage Evidence row's Artifact cell, cite a repository- or cache-relative path ending in `manifest.json`. Add `; evaluation-path-parity: <path>` for the separate parity artifact.
 
 ### Checkpoint Smoke Before Full Runs
 
@@ -224,13 +224,13 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
 
-The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
+The Comparison Scope `Evaluator` cell equals the manifest's `evaluator_command`, including its command and flags. The `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 Commands must run from the repository root and must not depend on untracked helper scripts unless the command that creates them is shown. This lets reviewers replay the evidence.
 
 ## Pull Request Gates
 
-Pull requests for models whose only weight path is self-training must stay draft until S5 is confirmed for the claimed datasets. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must say that trained-checkpoint reproduction is not yet claimed.
+Pull requests for models whose only weight path is self-training must stay draft until S5 is confirmed for the claimed datasets. For S0-S4 infrastructure-only PRs, the PR body, README, and `TRAINING.md` must say that trained-checkpoint reproduction is not yet claimed. When S5 covers only some datasets, state partial coverage in `TRAINING.md`, the README, and the PR body.
 
 Before applying the `parity-verified` label to an issue, follow the [model-conversion acceptance rule](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).
 

@@ -53,7 +53,7 @@ If loss-envelope measurements show no check-script or package defect, collect mo
 
 Never offer continuing package training, waiving a gate, or reinterpreting a gate as alternatives. A deviation exists only through an amendment recorded as required by the protocol. Ask the user only about decisions the protocol assigns to them, such as additional GPU compute or an amendment. Never ask whether to follow the protocol.
 
-Before S5, record the launch manifest required by the [protocol](docs/training-reproduction.md) and complete its [Comparison Scope](docs/training-reproduction.md#comparison-scope) table.
+Before S5, record the launch manifest required by the [protocol](docs/training-reproduction.md) and complete its [Comparison Scope](docs/training-reproduction.md#comparison-scope) table. The `Evaluator` cell equals the manifest's `evaluator_command`, including flags. The `Checkpoint-selection rule` cell equals `checkpoint_rule`.
 
 Before S5, satisfy the protocol's [evaluation-path parity prerequisite](docs/training-reproduction.md#evaluation-path-parity-prerequisite) and cite its artifact beside the launch manifest in the S5 Stage Evidence row.
 

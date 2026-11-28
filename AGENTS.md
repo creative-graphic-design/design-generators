@@ -61,7 +61,7 @@
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
 - Separate semantic units in function bodies with single blank lines. Leave a blank line after a `raise` block or after an `if`, `for`, `while`, `try`, or `with` suite when ordinary code follows at the enclosing indentation. These rules apply at function, class, and module scope.
 - For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference` (see [Source Language](.agents/skills/design-generators-model-conversion/SKILL.md#source-language)); put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
-- Python comments and docstrings use plain language for training stages; do not put S0-S5 codes in them. The checker scans Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`; it does not scan user-visible messages.
+- Source-code comments and docstrings use plain language for training stages and do not use S0-S5 codes; state what the stage checks. Put the codes in `TRAINING.md` and scripts that check it. The checker scans Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`.
 
 ## Tracking
 
@@ -88,7 +88,7 @@
 - The shared repository secret `HF_TOKEN` is required for an eligible publication run, and the workflow must fail clearly when it is missing. Use a Hugging Face fine-grained token that grants content-write permission only to the Hub repositories whose packages define publishers; do not grant organization-wide access. When adding a package publisher, add its destination repository to the token's resource scope. Each publisher checks write access before upload and must clearly name its destination when access is missing.
 - Track publication separately from local serialization, parity verification, and model-issue closure.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
-- A model README's Hub badge follows [Hub publication ownership](docs/architecture.md#hub-publication-ownership); its checks enforce that mapping through shared publisher discovery.
+- Packages with `[tool.design-generators.hub-publisher]` use the matching `published-*` Hub badge. Packages without that table retain their planned or other pre-publication badge value. [Hub publication ownership](docs/architecture.md#hub-publication-ownership) documents the mapping, and the checks enforce it through shared publisher discovery.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
@@ -146,4 +146,4 @@
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
-- Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
+- Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor. Do not add broad `# pragma: no cover` exclusions to meet this floor.

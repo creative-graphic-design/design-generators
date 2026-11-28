@@ -40,11 +40,17 @@ DEPRECATED_CHECKLIST_ALIASES = {
     "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.": (
         "Read the model plan and amendment comments, if this is a model PR.",
     ),
-    "Follow the [model-conversion parity procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.": (
-        "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.",
+}
+
+DEPRECATED_CHECKLIST_ALIAS_GROUPS = {
+    "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.": (
+        "See the [model-conversion procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).",
+        "Keep vendor sources read-only.",
+        "Do not commit generated fixtures, weights, images, or downloaded artifacts.",
     ),
-    "Follow the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.": (
-        "README reproducibility steps are copy-pasteable commands, if README docs changed.",
+    "README reproducibility steps are copy-pasteable commands, if README docs changed.": (
+        "README reproduction steps are copy-pasteable commands, if README docs changed.",
+        "See the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card).",
     ),
 }
 
@@ -180,7 +186,9 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
 
     present: set[str] = set()
     for match in CHECKBOX_RE.finditer(section):
-        present.add(_canonical_checklist_item(match.group("text")))
+        text = match.group("text")
+        present.add(_canonical_checklist_item(text))
+        present.update(DEPRECATED_CHECKLIST_ALIAS_GROUPS.get(text, ()))
 
     missing = [item for item in required_items if item not in present]
     if missing:

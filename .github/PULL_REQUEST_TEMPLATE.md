@@ -29,10 +29,13 @@ Full checklist: see [docs/implementation-checklist.md](https://github.com/creati
 - [ ] Confirmed the applicable implementation checklist items.
 - [ ] Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).
 - [ ] Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.
-- [ ] Follow the [model-conversion parity procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.
+- [ ] See the [model-conversion procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).
+- [ ] Keep vendor sources read-only.
+- [ ] Do not commit generated fixtures, weights, images, or downloaded artifacts.
 - [ ] Did not push Hub repositories or model artifacts unless explicitly requested.
 - [ ] Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.
-- [ ] Follow the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.
+- [ ] README reproduction steps are copy-pasteable commands, if README docs changed.
+- [ ] See the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card).
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
 
 ## Completion Gate

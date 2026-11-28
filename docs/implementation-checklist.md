@@ -52,9 +52,9 @@ Models whose weights this repository trains itself are called train-ourselves mo
 ## Hub and licensing
 
 - [ ] Name Hugging Face Hub repositories `creative-graphic-design/<model-slug>-<dataset>`, adding a task suffix only for incompatible task-specific checkpoints.
-- [ ] Follow the [repository naming convention](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#naming) for model package names and Hub IDs.
+- [ ] Follow the [repository naming convention](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#naming) for model package names and Hub IDs. Keep the vendor repository slug in the model card for traceability.
 - [ ] Verify the license before uploading weights, and obtain explicit approval for AGPL, GPL, or CC-NC models.
-- [ ] Give each `lib/*` package a README describing its purpose, modules, API examples, design rules, extraction criteria, and relevant project guidance. The `laygen` and `posgen` READMEs also document their layout-schema and no-`extras` contracts.
+- [ ] Give each `lib/*` package a README describing its purpose, modules, API examples, design rules, and extraction criteria. Link the [roadmap](roadmap.md), [shared data sources](data-sources.md), and [shared library architecture](architecture.md). The `laygen` and `posgen` READMEs also document their layout-schema and no-`extras` contracts.
 - [ ] Follow [model README guidance](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card).
 - [ ] Take dataset identifiers and canonical condition types from shared enums. Follow [runtime ownership](architecture.md#runtime-ownership) for canonical aliases versus package-specific alias interpretation and validation, and use canonical condition names in Hub task suffixes such as `-label` rather than `-gen-t`.
 - [ ] Apply the typing rules in the code and review safeguards below to closed sets such as `box_format`, `condition_type`, `output_type`, sampling modes, and dataset or vocabulary keys, as well as exhaustive branches, module constants, public signatures, and structured specification data.

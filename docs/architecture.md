@@ -49,13 +49,13 @@ Shared discovery selects packages with publisher metadata. [Source](https://gith
 
 Publisher presence maps the planned code-only badge to its published status. [Status pair](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/hub_publishers.py#L10-L15) [badge check](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/hub_publishers.py#L64-L88).
 
-The Collage publisher maps its package README to the Hub README, and the uploader reads configured package files. [Collage config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [file preparation](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L43-L60).
+Code-only publishers copy the package README into the Hub README unchanged. Collage also copies its badge unchanged. The uploader reads configured package files. [Collage config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [file preparation](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L43-L60).
 
 Model-index metadata is required for weight-backed model cards and prohibited for prompt-only or code-only cards. [Source](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/checks/model_readmes/card.py#L916-L929).
 
 The publisher checks write access before upload, uploads only configured files, and verifies their bytes. [Access check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/hub_publishing.py#L74-L82) [upload and verification](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/hub_publishing.py#L116-L176).
 
-The Collage publisher preserves the existing `source-assets/` file set on the Hub. [Config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [preservation check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L134-L140) [post-upload check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L185-L193).
+Publisher configuration can preserve existing Hub files under path prefixes. Collage preserves its `source-assets/` file set. [Config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [preservation check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L134-L140) [post-upload check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L185-L193).
 
 The publisher skips uploads when the files differ only by generated archive revision URLs. [Comparison](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L89-L114).
 
@@ -130,7 +130,7 @@ Shared runtime extraction requires identical semantics in at least two concrete 
 
 ## Agent and model-card metadata ownership
 
-The provider-backed agents are LayoutGPT, LayoutPrompter, and PosterO.
+The provider-backed agents are LayoutGPT, LayoutPrompter, and PosterO. A package README and a generated checkpoint model card are separate artifacts with separate lifecycles.
 
 | Concern                            | Shared owner                                                                                                                                                                                                              |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

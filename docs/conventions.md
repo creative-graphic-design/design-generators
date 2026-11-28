@@ -17,9 +17,9 @@ These conventions apply to generated outputs and public pipeline arguments.
 
 ### Public Outputs
 
-Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
+Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Persist `id2label` in the model config and model card. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
 
-Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults. Tests validate each output with `laygen.common.testing.assert_layout_output_schema`.
+Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults; neither has an `extras` field. Tests validate each output with `laygen.common.testing.assert_layout_output_schema`.
 
 Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`. The shared base handles root [`PretrainedConfig`](https://huggingface.co/docs/transformers/main_classes/configuration) loading, declared subfolder components, [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model), `to(device, dtype)`, and generator-over-seed precedence; each model package implements its own `__call__` orchestration and returns the canonical Transformers-style layout output.
 

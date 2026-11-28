@@ -16,7 +16,7 @@ Paths below use repository-root-relative names. Read the model issue's plan, ame
 - Use `docs/conventions.md` for public interfaces, schema, and framework selection; use [Class Design And Code Style](AGENTS.md#class-design-and-code-style) for typing and runtime-comment policy, and `uv run --package devharness devharness check jaxtyping-annotations` for typing verification. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
 - Use the `design-generators-documentation` skill for README, model-card, and reproduction instructions. Its starting template is `references/model-readme-template.md` in this skill directory.
 
-Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the coordinator checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
+Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the coordinator checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint. The coordinator owns the model issue and did not produce the evidence.
 
 ## Source Language
 
@@ -26,7 +26,7 @@ References phrased in vendor terms are limited to conversion-responsibility modu
 
 ## Package and interface
 
-Create or update `models/<slug>/` with its `pyproject.toml`, `src/<package>/`, `scripts/`, and tests. Keep original-code dependencies in the `vendor` optional extra and the original checkout read-only. Reuse the shared helpers assigned in `docs/architecture.md`; keep model-specific transforms and numerical behavior local.
+Create or update `models/<slug>/` with its `pyproject.toml`, `src/<package>/`, `scripts/`, and tests. Put original-code dependencies in the `vendor` optional extra. Keep original research repositories under `vendor/` as pinned, read-only submodules or external checkouts. Reuse shared helpers assigned in `docs/architecture.md`. Keep model-specific transforms and numerical behavior local.
 
 Use shared libraries by import:
 
@@ -42,8 +42,8 @@ Use `posgen.common` only for poster/content-aware helpers that already exist. Do
 ## Establish inference parity
 
 1. Obtain the released assets and provide their download or cache-selection command.
-2. Generate reference outputs by running the original code with fixed seeds and one explicitly selected GPU when CUDA is needed. Handwritten expected tensors are not original-code evidence.
-3. Keep generated fixtures outside git; record source revisions, config hashes, seeds, environment, and regeneration commands.
+2. Generate reference outputs with the original code, fixed seeds, and `CUDA_VISIBLE_DEVICES` set to one explicitly selected GPU when CUDA is needed. Handwritten expected tensors are not original-code evidence.
+3. Keep generated fixtures, weights, images, and downloaded datasets outside git. Commit only regeneration metadata: source revisions, config hashes, seeds, environment, and commands.
 4. Compare the package implementation against those references in `tests/vendor_parity/`. Regular tests may skip missing assets; acceptance reruns set `PARITY_REQUIRE=1` so absent evidence fails.
 5. Convert and smoke-test the local `save_pretrained` to `from_pretrained` round-trip for every planned checkpoint, dataset, or task artifact. Tiny random-weight round-trips also belong in network-free unit tests.
 
@@ -51,7 +51,7 @@ Deterministic tokens/ids must match exactly. Floating outputs use bitwise equali
 
 For API/LLM or in-context methods, compare prompt bytes, exemplar selection, parser behavior, and repair/retry policy. Do not invent a learned-checkpoint conversion for a prompt-only method.
 
-Parity is complete only when real original-code references, package comparisons, and local artifact round-trips pass. A skip-only suite or a follow-up issue does not satisfy acceptance. The coordinator independently reruns the actual suite with required assets before accepting parity.
+Parity is complete only when real original-code references, package comparisons, and local artifact round-trips pass. A skip-only suite or a follow-up issue does not satisfy acceptance. The coordinator owns the model issue and did not produce the evidence. That coordinator independently reruns the actual suite with required assets before accepting parity. Missing local assets fail acceptance.
 
 ## Finish the task
 
