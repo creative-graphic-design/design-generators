@@ -26,14 +26,12 @@ def load_check_pr_issue_reference() -> ModuleType:
 check_pr_issue_reference = load_check_pr_issue_reference()
 REQUIRED_CHECKLIST_ITEMS = [
     "Confirmed the applicable implementation checklist items.",
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
-    "Confirmed the implementation issue has a milestone and native Priority field set.",
-    "Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.",
-    "Read the model plan and amendment comments, if this is a model PR.",
-    "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.",
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).",
+    "Verify model plans and amendments using the [repository source-of-truth rule](../AGENTS.md#sources-of-truth), if this is a model PR.",
+    "Follow the [model-conversion parity procedure](../.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.",
     "Did not push Hub repositories or model artifacts unless explicitly requested.",
     "Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.",
-    "README reproducibility steps are copy-pasteable commands, if README docs changed.",
+    "Follow the [documentation skill](../.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.",
     "Documented any deviations from the plan, checklist, or repository conventions below.",
 ]
 COMPLETION_GATE_ITEMS = [

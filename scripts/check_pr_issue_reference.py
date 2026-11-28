@@ -33,7 +33,7 @@ DEPRECATED_CHECKLIST_ALIASES = {
     "Confirmed the applicable implementation checklist items.": (
         "Confirmed the applicable issue #60 checklist items.",
     ),
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.": (
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).": (
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
     ),
 }
