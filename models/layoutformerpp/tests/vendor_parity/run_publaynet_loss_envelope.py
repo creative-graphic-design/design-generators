@@ -181,7 +181,7 @@ def _compare(
         / "scripts"
         / "compare_crello_loss_envelope.py"
     )
-    completed = subprocess.run(
+    _run_child(
         [
             sys.executable,
             str(comparator),
@@ -200,19 +200,10 @@ def _compare(
             "--minimum-updates",
             str(updates if cpu_smoke else UPDATES),
         ],
+        output_directory=result_path.parent,
+        failure_message="loss-envelope comparator failed",
         cwd=REPOSITORY,
-        capture_output=True,
-        text=True,
-        check=False,
     )
-    if completed.returncode != 0:
-        stdout_path, stderr_path = _persist_subprocess_output(
-            result_path.parent, completed
-        )
-        raise RuntimeError(
-            "loss-envelope comparator failed; "
-            f"stdout: {stdout_path}; stderr: {stderr_path}"
-        )
     result = json.loads(result_path.read_text(encoding="utf-8"))
     if cpu_smoke:
         result = _mark_cpu_smoke_result(result)
@@ -222,13 +213,51 @@ def _compare(
 
 
 def _persist_subprocess_output(
-    directory: Path, completed: subprocess.CompletedProcess[str]
+    directory: Path, *, stdout: str, stderr: str
 ) -> tuple[Path, Path]:
     stdout_path = directory / "stdout.txt"
     stderr_path = directory / "stderr.txt"
-    stdout_path.write_text(completed.stdout or "", encoding="utf-8")
-    stderr_path.write_text(completed.stderr or "", encoding="utf-8")
+    stdout_path.write_text(stdout, encoding="utf-8")
+    stderr_path.write_text(stderr, encoding="utf-8")
     return stdout_path, stderr_path
+
+
+def _run_child(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    output_directory: Path,
+    failure_message: str,
+    environment: Mapping[str, str] | None = None,
+) -> None:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        stdout_path, stderr_path = _persist_subprocess_output(
+            output_directory,
+            stdout="",
+            stderr=f"{type(error).__name__}: {error}\n",
+        )
+        raise RuntimeError(
+            f"{failure_message}; stdout: {stdout_path}; stderr: {stderr_path}"
+        ) from error
+
+    if completed.returncode != 0:
+        stdout_path, stderr_path = _persist_subprocess_output(
+            output_directory,
+            stdout=completed.stdout or "",
+            stderr=completed.stderr or "",
+        )
+        raise RuntimeError(
+            f"{failure_message}; stdout: {stdout_path}; stderr: {stderr_path}"
+        )
 
 
 def _validate_child_path_environment(environment: Mapping[str, str]) -> None:
@@ -277,20 +306,13 @@ def _run_original(
         directory / "objectives.jsonl"
     )
     child_environment["LAYOUTFORMERPP_EXPECTED_OBJECTIVE_UPDATES"] = str(updates)
-    completed = subprocess.run(
+    _run_child(
         command,
         cwd=campaign.VENDOR_SOURCE,
-        env=child_environment,
-        capture_output=True,
-        text=True,
-        check=False,
+        output_directory=directory,
+        failure_message=f"original production entry stopped before {updates} updates",
+        environment=child_environment,
     )
-    if completed.returncode != 0:
-        stdout_path, stderr_path = _persist_subprocess_output(directory, completed)
-        raise RuntimeError(
-            f"original production entry stopped before {updates} updates; "
-            f"stdout: {stdout_path}; stderr: {stderr_path}"
-        )
     objectives = _original_objectives(directory / "objectives.jsonl", updates=updates)
     _record_native_output(
         system="original", seed=seed, directory=directory, objectives=objectives
@@ -322,20 +344,13 @@ def _run_package(
     if cpu_smoke:
         child_environment["CUDA_VISIBLE_DEVICES"] = ""
     child_environment["LAYOUTFORMERPP_BATCH_TRACE"] = str(directory / "batches.jsonl")
-    completed = subprocess.run(
+    _run_child(
         command,
         cwd=REPOSITORY,
-        env=child_environment,
-        capture_output=True,
-        text=True,
-        check=False,
+        output_directory=directory,
+        failure_message=f"package production entry failed for seed {seed}",
+        environment=child_environment,
     )
-    if completed.returncode != 0:
-        stdout_path, stderr_path = _persist_subprocess_output(directory, completed)
-        raise RuntimeError(
-            f"package production entry failed for seed {seed}; "
-            f"stdout: {stdout_path}; stderr: {stderr_path}"
-        )
     metrics = sorted((directory / "lightning").rglob("metrics.csv"))
     if len(metrics) != 1:
         raise RuntimeError(

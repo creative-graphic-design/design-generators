@@ -274,6 +274,35 @@ def test_comparator_failure_persists_stdout_and_stderr(
     assert str(stderr_path) in str(error.value)
 
 
+def test_comparator_start_failure_persists_error_and_names_output_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "result.json"
+    monkeypatch.setattr(
+        ENVELOPE.subprocess,
+        "run",
+        Mock(side_effect=FileNotFoundError("comparator executable missing")),
+    )
+
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        ENVELOPE._compare(
+            tmp_path / "original",
+            tmp_path / "package",
+            result_path,
+            updates=2,
+            cpu_smoke=True,
+        )
+
+    stdout_path = tmp_path / "stdout.txt"
+    stderr_path = tmp_path / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == ""
+    assert stderr_path.read_text(encoding="utf-8") == (
+        "FileNotFoundError: comparator executable missing\n"
+    )
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
 def test_objective_traces_reject_missing_updates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
