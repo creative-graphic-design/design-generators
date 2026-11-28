@@ -147,6 +147,32 @@ def test_objective_hook_records_exact_native_logger_values(tmp_path: Path) -> No
     assert [step for _, step in calls] == [0, 1]
 
 
+@pytest.mark.vendor_parity
+def test_objective_hook_survives_disabled_wandb_init_calls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("WANDB_MODE", "disabled")
+    import wandb
+
+    monkeypatch.setattr(wandb, "init", wandb.init)
+    monkeypatch.setattr(wandb, "log", wandb.log)
+    monkeypatch.setattr(wandb, "finish", wandb.finish)
+    trace = tmp_path / "updates.jsonl"
+    instrument_original_objective(wandb, trace, expected_updates=2)
+
+    wandb.init()
+    wandb.log({"training_loss": torch.tensor(1.25)}, step=0)
+    wandb.init()
+    wandb.log({"training_loss": torch.tensor(2.5)}, step=1)
+    wandb.finish()
+
+    records = [
+        json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [record["logger_step"] for record in records] == [0, 1]
+    assert [record["objective"] for record in records] == [1.25, 2.5]
+
+
 def test_objective_hook_fails_if_a_native_logger_index_is_missing(
     tmp_path: Path,
 ) -> None:

@@ -185,6 +185,27 @@ def _compare(original: Path, package: Path, result_path: Path) -> dict[str, obje
     return json.loads(result_path.read_text(encoding="utf-8"))
 
 
+def _persist_child_output(
+    directory: Path, completed: subprocess.CompletedProcess[str]
+) -> tuple[Path, Path]:
+    stdout_path = directory / "stdout.txt"
+    stderr_path = directory / "stderr.txt"
+    stdout_path.write_text(completed.stdout or "", encoding="utf-8")
+    stderr_path.write_text(completed.stderr or "", encoding="utf-8")
+    return stdout_path, stderr_path
+
+
+def _validate_child_path_environment(environment: Mapping[str, str]) -> None:
+    for name in (
+        "PACKAGE_ENV",
+        "LAYOUTFORMERPP_AUDIT_VENV",
+        "LAYOUTFORMERPP_DATA_ROOT_ENV_FILE",
+    ):
+        value = environment.get(name)
+        if value and not Path(value).is_absolute():
+            raise SystemExit(f"{name} must be an absolute path")
+
+
 def _run_original(
     campaign: ModuleType,
     *,
@@ -222,8 +243,10 @@ def _run_original(
         check=False,
     )
     if completed.returncode != 0:
+        stdout_path, stderr_path = _persist_child_output(directory, completed)
         raise RuntimeError(
-            f"original production entry stopped before {UPDATES} updates"
+            f"original production entry stopped before {UPDATES} updates; "
+            f"stdout: {stdout_path}; stderr: {stderr_path}"
         )
     objectives = _original_objectives(directory / "objectives.jsonl")
     _record_native_output(
@@ -259,7 +282,11 @@ def _run_package(
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError(f"package production entry failed for seed {seed}")
+        stdout_path, stderr_path = _persist_child_output(directory, completed)
+        raise RuntimeError(
+            f"package production entry failed for seed {seed}; "
+            f"stdout: {stdout_path}; stderr: {stderr_path}"
+        )
     metrics = sorted((directory / "lightning").rglob("metrics.csv"))
     if len(metrics) != 1:
         raise RuntimeError(
@@ -272,6 +299,7 @@ def _run_package(
 
 
 def _run(output: Path, gpu_index: int) -> dict[str, object]:
+    _validate_child_path_environment(os.environ)
     sys.path.insert(
         0, str(REPOSITORY / "models" / "layoutformerpp" / "scripts" / "publaynet_s5")
     )
@@ -343,6 +371,8 @@ def main() -> None:
     )
     parser.add_argument("--gpu-index", type=int, required=True)
     args = parser.parse_args()
+    _validate_child_path_environment(os.environ)
+
     output = args.output_dir.resolve()
     if not output.is_relative_to(OUTPUT_ROOT.resolve()) or output.exists():
         raise SystemExit("output must be a new directory under the S5 pre-check cache")

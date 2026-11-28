@@ -109,27 +109,51 @@ def instrument_original_objective(
     if expected_updates < 1:
         raise ValueError("expected objective update count must be positive")
     recorder = NativeObjectiveCapture(path, expected_updates)
-    original_log = getattr(wandb, "log", None)
-    if not callable(original_log):
-        raise RuntimeError("vendor logger does not expose a callable log function")
-    typed_original_log = cast(Callable[..., object], original_log)
 
-    def recording_log(*args: object, **kwargs: object) -> object:
-        data = args[0] if args else kwargs.get("data")
-        step = args[1] if len(args) > 1 else kwargs.get("step")
-        recorder.record(data, step)
-        return typed_original_log(*args, **kwargs)
+    def install_active_hooks() -> None:
+        active_log = getattr(wandb, "log", None)
+        if not callable(active_log):
+            raise RuntimeError("vendor logger does not expose a callable log function")
+        if not getattr(active_log, "_layoutformerpp_objective_capture", False):
+            typed_active_log = cast(Callable[..., object], active_log)
 
-    setattr(wandb, "log", recording_log)
-    original_finish = getattr(wandb, "finish", None)
-    if callable(original_finish):
-        typed_original_finish = cast(Callable[..., object], original_finish)
+            def recording_log(*args: object, **kwargs: object) -> object:
+                data = args[0] if args else kwargs.get("data")
+                step = args[1] if len(args) > 1 else kwargs.get("step")
+                recorder.record(data, step)
+                return typed_active_log(*args, **kwargs)
 
-        def recording_finish(*args: object, **kwargs: object) -> object:
-            recorder.require_complete()
-            return typed_original_finish(*args, **kwargs)
+            setattr(recording_log, "_layoutformerpp_objective_capture", True)
+            setattr(wandb, "log", recording_log)
 
-        setattr(wandb, "finish", recording_finish)
+        active_finish = getattr(wandb, "finish", None)
+        if callable(active_finish) and not getattr(
+            active_finish, "_layoutformerpp_objective_capture", False
+        ):
+            typed_active_finish = cast(Callable[..., object], active_finish)
+
+            def recording_finish(*args: object, **kwargs: object) -> object:
+                recorder.require_complete()
+                return typed_active_finish(*args, **kwargs)
+
+            setattr(recording_finish, "_layoutformerpp_objective_capture", True)
+            setattr(wandb, "finish", recording_finish)
+
+    active_init = getattr(wandb, "init", None)
+    if callable(active_init) and not getattr(
+        active_init, "_layoutformerpp_objective_capture", False
+    ):
+        typed_active_init = cast(Callable[..., object], active_init)
+
+        def recording_init(*args: object, **kwargs: object) -> object:
+            result = typed_active_init(*args, **kwargs)
+            install_active_hooks()
+            return result
+
+        setattr(recording_init, "_layoutformerpp_objective_capture", True)
+        setattr(wandb, "init", recording_init)
+
+    install_active_hooks()
 
 
 def install_original_objective_capture() -> None:
