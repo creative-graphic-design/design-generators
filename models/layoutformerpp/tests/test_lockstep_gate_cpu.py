@@ -2,6 +2,7 @@
 
 import importlib.util
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -9,6 +10,14 @@ import pytest
 
 
 RUNNER_PATH = Path(__file__).parent / "vendor_parity" / "run_publaynet_300_lockstep.py"
+
+
+class ReferenceModuleStub(ModuleType):
+    reference_train_loader_stream: Callable[..., list[object]]
+
+
+class SupportModuleStub(ModuleType):
+    capture_provenance: Callable[..., dict[str, object]]
 
 
 def _load_gate_module() -> ModuleType:
@@ -19,10 +28,17 @@ def _load_gate_module() -> ModuleType:
     )
     previous_modules = {name: sys.modules.get(name) for name in stub_names}
     parity = ModuleType(stub_names[0])
-    reference = ModuleType(stub_names[1])
-    support = ModuleType(stub_names[2])
-    reference.reference_train_loader_stream = lambda *args, **kwargs: []
-    support.capture_provenance = lambda *args, **kwargs: {}
+    reference = ReferenceModuleStub(stub_names[1])
+    support = SupportModuleStub(stub_names[2])
+
+    def empty_reference_stream(*args: object, **kwargs: object) -> list[object]:
+        return []
+
+    def empty_provenance(*args: object, **kwargs: object) -> dict[str, object]:
+        return {}
+
+    reference.reference_train_loader_stream = empty_reference_stream
+    support.capture_provenance = empty_provenance
 
     sys.modules[stub_names[0]] = parity
     sys.modules[stub_names[1]] = reference

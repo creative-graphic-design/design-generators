@@ -39,12 +39,12 @@ Use `references/task-message-template.md` when preparing participant assignments
 
 ## Bounded reconciliation and fallback
 
-For each participant and round, the coordinator uses a finite reconciliation budget (default: three passes). A pass may call immediate `herdr agent get` and `herdr agent read`; get and read have no timeout option, and only `herdr agent wait` uses a finite timeout. Do not add an open-ended loop, time-based retry, or alternate transport. After the budget is exhausted, record the participant as unresolved and use `herdr notification show` as a UI fallback for the coordinator/user; it does not send a participant message. Do not infer completion from silence.
+For each participant and round, the coordinator uses a bounded, finite reconciliation budget (default: three passes). A pass may call immediate `herdr agent get` and `herdr agent read`; get and read have no timeout option, and only `herdr agent wait` uses a finite timeout. Do not add an open-ended loop, time-based retry, or alternate transport. After the budget is exhausted, record the participant as unresolved and use `herdr notification show` as a UI fallback for the coordinator/user; it does not send a participant message. Do not infer completion from silence.
 
 The coordinator/user may use the same UI fallback when a prompt or wait reports a blocked participant. Preserve the ledger, the last readable output, and the unresolved reason so the user can decide what happens next.
 
 ## Review, retention, and authority
 
-Review the unified specification and every target plan. Confirm every agenda item is a decision or an explicitly listed open question, and spot-check load-bearing claims against the source documents. Hub publication follows the [repository tracking rules](AGENTS.md#tracking). This council protocol does not publish or implement packages.
+Review the unified specification and every target plan. Confirm every agenda item is a decision or an explicitly listed open question, and spot-check load-bearing claims against the source documents. Under the [repository tracking rules](AGENTS.md#tracking), merging a package to `main` approves its configured Hub procedure. This council protocol does not publish or implement packages.
 
 Retain the participant worktrees, tabs, branches, ledger, drafts, and readable outputs by default. Cleanup is a separate action and requires explicit user authorization naming the resources and scope. Never close, remove, or delete council resources as an automatic completion step.

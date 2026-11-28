@@ -1,6 +1,6 @@
 # Participant assignment template
 
-Use this template with the round protocol in `design-generators-parallel-plan-discussion`. Fill the task facts and remove non-applicable fields. Give each participant a readable path to the skill; do not duplicate the protocol in every assignment.
+Use this template with the round protocol in `design-generators-parallel-plan-discussion`. Round 1 covers independent proposals; Round 2 covers reconciliation. Fill the task facts and remove non-applicable fields. Give each participant a readable path to the skill; do not duplicate the protocol in every assignment.
 
 Send the completed assignment with `herdr agent prompt <agent-name> "<message>"`.
 
@@ -16,13 +16,14 @@ Investigate `<target>` and agree on `<shared interface decisions>` with the othe
 - Target issue/document and amendments: `<sources>`.
 - Agenda: `<decisions every proposal must cover>`.
 - Participants and direct peer recipients: `<2–6 target slugs with role names `impl-plan-<target-slug>`, agent names, and pane ids>`.
-- Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`.
+- Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`; completion recipient: `<coordinator-agent-name-or-pane-id>`.
+- If a participant is blocked after bounded reconciliation, use `herdr notification show` as UI fallback for the coordinator/user; it does not send a participant message.
 - Chair: `<agent name>`.
 - Assigned worktree and tab: `<paths/ids from the coordinator's ledger>`.
 - Writable draft: `<shared-drafts-dir>/<target-slug>.md`.
 - Chair's unified specification: `<shared-drafts-dir>/unified-interface.md`.
 
-Follow the read-only, assigned-worktree, and draft-writing constraints in the council skill.
+Participants may write to only the shared drafts directory. Follow the read-only, assigned-worktree, and draft-writing constraints in the council skill.
 
 ## Acceptance
 
