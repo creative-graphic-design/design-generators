@@ -24,7 +24,7 @@ COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
 SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
-PLACEHOLDER_RE = re.compile(r"<[A-Za-z][A-Za-z0-9_-]*(?:\s+[^<>:]+)?>")
+PLACEHOLDER_RE = re.compile(r"<(?P<contents>[^<>]*)>")
 NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
 
 # Keep these deprecated checklist spellings accepted while already-open PRs are
@@ -35,7 +35,6 @@ DEPRECATED_CHECKLIST_ALIASES = {
     ),
     "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).": (
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
-        "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).",
     ),
 }
 
@@ -185,8 +184,22 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
 
 def _has_actionable_justification(text: str, marker: str) -> bool:
     _, _, reason = text.partition(marker)
-    cleaned = PLACEHOLDER_RE.sub("", reason).strip(" .:-")
+    cleaned = _remove_placeholders(reason).strip(" .:-")
     return bool(cleaned)
+
+
+def _is_placeholder(match: re.Match[str]) -> bool:
+    contents = match.group("contents")
+    if contents[:1].isspace():
+        return False
+
+    return re.match(r"(?i)(?:https?://|mailto:)", contents) is None
+
+
+def _remove_placeholders(text: str) -> str:
+    return PLACEHOLDER_RE.sub(
+        lambda match: "" if _is_placeholder(match) else match.group(), text
+    )
 
 
 def _find_completion_item(
@@ -237,7 +250,7 @@ def completion_gate_errors(
 
         checked, text = item
         marker = requirement.allowed_justification
-        if PLACEHOLDER_RE.search(text):
+        if any(_is_placeholder(match) for match in PLACEHOLDER_RE.finditer(text)):
             if requirement.justification_label is None:
                 errors.append(
                     f"Ready-for-review PRs must check `{requirement.prefix}` or "
@@ -292,7 +305,7 @@ def changed_files_from_git(base: str, head: str) -> list[str]:
 
 def _has_actionable_section_text(section: str) -> bool:
     cleaned_lines = [
-        PLACEHOLDER_RE.sub("", line).strip(" -.\t")
+        _remove_placeholders(line).strip(" -.\t")
         for line in section.splitlines()
         if line.strip()
     ]

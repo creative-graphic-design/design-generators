@@ -186,18 +186,6 @@ def test_checklist_errors_accept_deprecated_template_wording() -> None:
     )
 
 
-def test_checklist_errors_accept_previous_template_tracking_link() -> None:
-    body = filled_body().replace(
-        REQUIRED_CHECKLIST_ITEMS[1],
-        "Verify the issue reference, issue metadata, PR labels, and issue status "
-        "follow [repository tracking rules](../AGENTS.md#tracking).",
-    )
-
-    assert (
-        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
-    )
-
-
 def test_checklist_errors_reject_missing_current_and_deprecated_wording() -> None:
     body = filled_body()
     body = body.replace(REQUIRED_CHECKLIST_ITEMS[0], "A different checklist item.")
@@ -255,7 +243,7 @@ def test_completion_gate_accepts_comparisons_and_autolinks() -> None:
     body = completion_body(
         completion_gate=(
             "- [x] Vendor parity verified, or gated-pending: max diff < 1e-5; "
-            "run <https://example.org/parity>.\n"
+            "cosine > 0.9999; run <https://example.org/parity>.\n"
             "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
             "- [x] Independent adversarial review completed before ready for review "
             "(reviewer with no prior involvement reviewed the head being marked "
@@ -287,6 +275,30 @@ def test_completion_gate_rejects_untouched_s5_template_placeholders(
 
     assert len(errors) == 1
     assert "Training S5 reproduction complete" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    ["<...>", "<independent rerun, ...>", "<datasets, ...>", "<path>"],
+)
+def test_completion_gate_rejects_checked_placeholder_forms(
+    placeholder: str,
+) -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [x] Vendor parity verified, or gated-pending: "
+            f"parity checks passed with {placeholder}.\n"
+            "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
+            "- [x] Independent adversarial review completed before ready for review "
+            "(reviewer with no prior involvement reviewed the head being marked "
+            "ready; findings resolved)"
+        ),
+    )
+
+    errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
+
+    assert len(errors) == 1
+    assert "Vendor parity verified" in errors[0]
 
 
 def test_completion_gate_accepts_na_and_blocker_reasons() -> None:
