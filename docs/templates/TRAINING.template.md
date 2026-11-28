@@ -42,26 +42,26 @@ Training configs live under `models/<package>/configs/training`.
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. State observed environment constraints as verified setup, not as inherent package requirements. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
 
 ## Seed Policy
 
-State the training seed scope and evaluation seed scope for every claimed dataset. Use labels such as `training-seed n=3` or `evaluation-seed n=3`; do not describe evaluation-seed evidence as training-seed reproduction.
+Record the training and evaluation seed scope for every claimed dataset, following [Seed Policy](../training-reproduction.md#seed-policy).
 
 ## Validation Stages
 
-| Stage | Scope                                      | Purpose     |
-| ----- | ------------------------------------------ | ----------- |
-| S0    | Static config and initialized state parity | `<summary>` |
-| S1    | Fixed-batch pre-optimizer trace parity     | `<summary>` |
-| S2    | One optimizer-step parity                  | `<summary>` |
-| S3    | Short deterministic multi-batch run        | `<summary>` |
-| S4    | Deterministic loader stream                | `<summary>` |
-| S5    | Full-run statistical comparison            | `<summary>` |
+| Stage | Package-specific scope | Evidence summary |
+| ----- | ---------------------- | ---------------- |
+| S0    | `<scope>`              | `<summary>`      |
+| S1    | `<scope>`              | `<summary>`      |
+| S2    | `<scope>`              | `<summary>`      |
+| S3    | `<scope>`              | `<summary>`      |
+| S4    | `<scope>`              | `<summary>`      |
+| S5    | `<scope>`              | `<summary>`      |
 
 ## Stage Evidence
 
-Replace every placeholder in this reusable evidence table with a command, artifact, and result from the package. The table tracks static config (S0), fixed-batch trace (S1), one optimizer step (S2), multi-batch training (S3), loader stream (S4), and full-run comparison (S5), as defined in the training reproduction protocol. Follow the [checkpoint smoke rule](../training-reproduction.md#checkpoint-smoke-before-full-runs) for the smoke command, full-run configuration, checkpoint path, and SHA-256.
+Complete one row for each stage with its command, artifact, result, and applicable checkpoint details. Follow the [Stage Overview](../training-reproduction.md#stage-overview) and [checkpoint smoke rule](../training-reproduction.md#checkpoint-smoke-before-full-runs).
 
 | Stage | Command                                              | Checkpoint Smoke Command                        | Full-run Config                                     | Artifact                                                                                                                                                      | Result     | Checkpoint Path                                     | Checkpoint SHA-256       |
 | ----- | ---------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------- | ------------------------ |
@@ -76,28 +76,18 @@ Replace every placeholder in this reusable evidence table with a command, artifa
 
 Open with a conclusion-first paragraph that states the verdict, covered datasets, seed scope, and any partial coverage. Every dataset listed in the package README `Supported Checkpoints` table must appear in this section's results table.
 
-Allowed `Status` values are:
+Use the status values defined in [Dataset Coverage](../training-reproduction.md#dataset-coverage).
 
-- `s5-bit-parity`
-- `s5-practical-reproduction`
-- `recipe-unstable (documented)`
-- `not-yet-run (<tracking ref>)`
-- `blocked (<reason>)`
-
-| Dataset     | System   | Status                   | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
-| ----------- | -------- | ------------------------ | -------------- | ----------------------- | ---------------- | ---------------------- |
-| `<dataset>` | original | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package  | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| Dataset     | System   | Status                                                                                              | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | --------------------------------------------------------------------------------------------------- | -------------- | ----------------------- | ---------------- | ---------------------- |
+| `<dataset>` | original | not-yet-run ([issue #<N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | not-yet-run ([issue #<N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 
 ### Comparison Scope
-
-Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
 
 | Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
-
-The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 ## Regeneration Metadata
 

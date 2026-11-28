@@ -13,7 +13,7 @@ For exact, p-value, and rounding wording in `TRAINING.md`, follow the claim-stre
 
 ## Required Order
 
-Work in stage order: S0, S1, S2, S3, S4, then S5. S0-S2 localize model, loss, optimizer, and reference adapter differences; S3-S4 localize repeated training and data-stream differences.
+Complete stages in the order defined by the protocol. Use the following steps as the execution checklist.
 
 Use this order for every training-first package:
 
@@ -32,7 +32,7 @@ Use this order for every training-first package:
 
 Before an S5-scale training or evaluation launch, a `parity-verified` label change, or an S5 claim in a README or model card, follow the [checkpoint smoke rule](docs/training-reproduction.md#checkpoint-smoke-before-full-runs).
 
-Before S5, complete the production-path loss-envelope comparison in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording): use at least 1,500 updates and three matched training seeds, independent production initialization and optimizer stepping, and the S4 stream; gate the median of package per-seed medians against the widened envelope from original production runs and cite the artifact in the S3 Stage Evidence row.
+Before S5, complete the production-path loss-envelope check in [S3 Evidence Recording](docs/training-reproduction.md#s3-evidence-recording).
 
 ### Gate Failure Triage
 
@@ -52,7 +52,7 @@ If loss-envelope measurements show no check-script or package defect, collect mo
 
 Never offer continuing package training, waiving a gate, or reinterpreting a gate as alternatives. A deviation exists only through an amendment recorded as required by the protocol. Ask the user only about decisions the protocol assigns to them, such as additional GPU compute or an amendment. Never ask whether to follow the protocol.
 
-Before launching S5, write one launch manifest with `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The [protocol](docs/training-reproduction.md#checkpoint-smoke-before-full-runs) defines the required checked-in configuration. In the S5 Comparison Scope table in `TRAINING.md`, the `Evaluator` cell must equal the manifest's `evaluator_command`, and the `Checkpoint-selection rule` cell must equal `checkpoint_rule`.
+Before S5, record the launch manifest required by the [protocol](docs/training-reproduction.md) and complete its [Comparison Scope](docs/training-reproduction.md#comparison-scope) table.
 
 Before S5, satisfy the protocol's [evaluation-path parity prerequisite](docs/training-reproduction.md#evaluation-path-parity-prerequisite) and cite its artifact beside the launch manifest in the S5 Stage Evidence row.
 
@@ -66,31 +66,18 @@ Run `uv run --package design-generators scripts/check_training_stage_evidence.py
 
 - Commit commands, seeds, config names, metric summaries, issue-comment URLs, and repository/cache-relative artifact paths. The checker also accepts project issue and PR URLs in the creative-graphic-design/design-generators GitHub repository when evidence already lives in repository discussion.
 - Do not commit generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts.
-- Use one explicitly selected GPU for CUDA parity or training runs.
-- Label seed scope exactly, such as `training-seed n=3` or `evaluation-seed n=3`.
-- State dataset coverage per dataset; do not imply full reproduction when only a subset has S5 evidence.
+- Follow the [protocol](docs/training-reproduction.md) for GPU placement, seed scope, and dataset coverage.
 - For each recorded training behavior, state what the run did, how current code behaves, and the test that verifies the current behavior.
 
 ## PR Rules
 
-Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must state that S5 trained-checkpoint reproduction is not yet claimed.
+Follow the protocol's [Pull Request Gates](docs/training-reproduction.md#pull-request-gates) for implementation PR status and claims.
 
 ## Repository Training Rules
 
 - Train-ourselves models use PyTorch Lightning through each model package's `training` extra and LightningCLI with YAML configs plus CLI overrides.
-- Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package.
+- Keep `LightningModule`, `LightningDataModule`, and `configs/training/*.yaml` inside the model package.
 - Launch training through the `traingen` console script with the model member and training extra selected: `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
 - A root-level `traingen` launch is not the supported model-training workflow; select the member environment above.
-- Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for S0-S5 evidence, topology guards, dataset coverage, seed policy, and evidence recording.
+- Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for staged evidence and claims.
 - Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
-- PRs for models whose only weight path is self-training stay draft until S5 is confirmed for every claimed dataset; partial coverage must be stated in the package `TRAINING.md`, README, and PR body.
-
-## Comparison Scope Rules
-
-Add the following subsection after the `Reproduction Results` table. Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
-
-### Comparison Scope
-
-| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
-| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
-| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
