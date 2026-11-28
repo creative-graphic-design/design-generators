@@ -76,6 +76,7 @@ def test_loss_envelope_uses_aligned_events_and_requires_same_batches(tmp_path):
         logger_interval=19,
     )
     assert result["passed"] is True
+    assert result["gate_eligible"] is True
     assert result["batch_sequence_mismatches"] == 0
     assert result["package_summary"] == 11.5
     assert result["original_range"] == [10.0, 12.0]
@@ -174,5 +175,6 @@ def test_loss_envelope_cli_accepts_short_trace_with_explicit_minimum(
     compare_main()
     result = json.loads(result_path.read_text(encoding="utf-8"))
 
-    assert result["passed"] is True
+    assert result["gate_eligible"] is False
+    assert result["passed"] is False
     assert result["updates_per_run"] == 2

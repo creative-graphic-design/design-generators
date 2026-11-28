@@ -39,6 +39,7 @@ class _LossEnvelopeSummary(TypedDict):
     package_seed_medians: list[float]
     package_summary: float
     per_seed: dict[str, _SeedSummary]
+    gate_eligible: bool
     passed: bool
 
 
@@ -162,6 +163,7 @@ def compare_loss_envelope(
     lower_bound = original_min - original_width
     upper_bound = original_max + original_width
     package_summary = float(median(package_medians))
+    gate_eligible = updates >= MIN_PRODUCTION_UPDATES
     return {
         "updates_per_run": updates,
         "logger_interval_updates": logger_interval,
@@ -175,7 +177,9 @@ def compare_loss_envelope(
         "package_seed_medians": package_medians,
         "package_summary": package_summary,
         "per_seed": per_seed,
-        "passed": sequence_mismatches == 0
+        "gate_eligible": gate_eligible,
+        "passed": gate_eligible
+        and sequence_mismatches == 0
         and lower_bound <= package_summary <= upper_bound,
     }
 
