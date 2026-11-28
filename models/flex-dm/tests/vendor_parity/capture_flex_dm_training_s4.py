@@ -20,6 +20,30 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _worktree_provenance(
+    root: Path = _ROOT, *, dry_run: bool = False
+) -> dict[str, str | bool]:
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    clean = not status
+    if not clean and not dry_run:
+        raise RuntimeError("stream capture requires a clean git worktree")
+
+    return {"git_head_sha": head, "git_worktree_clean": clean}
+
+
 def _array(value):
     if hasattr(value, "detach"):
         return value.detach().cpu().numpy()
@@ -103,6 +127,7 @@ def _fingerprint_map(
 
 
 def _worker(args: argparse.Namespace) -> None:
+    provenance = _worktree_provenance(dry_run=args.dry_run)
     import tensorflow as tf
     import torch
     from types import ModuleType
@@ -124,8 +149,15 @@ def _worker(args: argparse.Namespace) -> None:
     protobuf = ModuleType("tfrecord.example_pb2")
     for source in (feature_pb2, example_pb2):
         for name in (
-            "BytesList", "FloatList", "Int64List", "Feature", "Features",
-            "FeatureList", "FeatureLists", "Example", "SequenceExample",
+            "BytesList",
+            "FloatList",
+            "Int64List",
+            "Feature",
+            "Features",
+            "FeatureList",
+            "FeatureLists",
+            "Example",
+            "SequenceExample",
         ):
             if hasattr(source, name):
                 setattr(protobuf, name, getattr(source, name))
@@ -158,9 +190,7 @@ def _worker(args: argparse.Namespace) -> None:
     }
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    streams = {
-        split: output_dir / f"{split}-indices.txt" for split in ("train", "val")
-    }
+    streams = {split: output_dir / f"{split}-indices.txt" for split in ("train", "val")}
     package_data = None
     package_iters = None
     package_ids = None
@@ -210,6 +240,7 @@ def _worker(args: argparse.Namespace) -> None:
     captured_indices: dict[str, list[int]] = {"train": [], "val": []}
     observed_ids: dict[str, list[str]] = {"train": [], "val": []}
     batch_counts = {"train": 0, "val": 0}
+
     def stream_batches(split: str, source, model, limit: int | None) -> None:
         expected_map, source_ids = fingerprints[split]
         expected_stream = (
@@ -220,9 +251,7 @@ def _worker(args: argparse.Namespace) -> None:
         items = source.take(limit) if limit is not None else source
         offset = 0
         for batch in items:
-            batch_indices = [
-                expected_map[bytes(row)] for row in batch[_ID_KEY].numpy()
-            ]
+            batch_indices = [expected_map[bytes(row)] for row in batch[_ID_KEY].numpy()]
             batch_ids = [source_ids[index] for index in batch_indices]
             if args.phase == "capture":
                 captured_indices[split].extend(batch_indices)
@@ -237,9 +266,13 @@ def _worker(args: argparse.Namespace) -> None:
                 continue
 
             if batch_indices != expected_stream[offset : offset + len(batch_indices)]:
-                raise AssertionError(f"original {split} stream no longer reproduces capture")
+                raise AssertionError(
+                    f"original {split} stream no longer reproduces capture"
+                )
             if batch_ids != package_ids[split][offset : offset + len(batch_ids)]:
-                raise AssertionError(f"package {split} sample IDs do not replay the original")
+                raise AssertionError(
+                    f"package {split} sample IDs do not replay the original"
+                )
             package_batch = next(package_iters[split])
             fields = {
                 key: value
@@ -302,24 +335,42 @@ def _worker(args: argparse.Namespace) -> None:
     trainer.get_callbacks = lambda *call_args, **call_kwargs: []
     sys.argv = [
         "mfp",
-        "--dataset_name", args.dataset,
-        "--data_dir", str(data_dir),
-        "--job-dir", str(output_dir / "original-cli-run"),
-        "--seed", str(args.seed),
-        "--batch_size", "256",
-        "--masking_method", method,
-        "--num_epochs", "500",
-        "--validation_freq", "10",
-        "--latent_dim", str(original_config["latent_dim"]),
-        "--num_blocks", str(original_config["num_blocks"]),
-        "--arch_type", str(original_config["arch_type"]),
-        "--block_type", str(original_config["block_type"]),
-        "--l2", str(original_config["l2"]),
-        "--dropout", str(original_config["dropout"]),
-        "--seq_type", str(original_config["seq_type"]),
-        "--input_dtype", str(original_config["input_dtype"]),
-        "--learning_rate", str(original_config["learning_rate"]),
-        "--verbose", "0",
+        "--dataset_name",
+        args.dataset,
+        "--data_dir",
+        str(data_dir),
+        "--job-dir",
+        str(output_dir / "original-cli-run"),
+        "--seed",
+        str(args.seed),
+        "--batch_size",
+        "256",
+        "--masking_method",
+        method,
+        "--num_epochs",
+        "500",
+        "--validation_freq",
+        "10",
+        "--latent_dim",
+        str(original_config["latent_dim"]),
+        "--num_blocks",
+        str(original_config["num_blocks"]),
+        "--arch_type",
+        str(original_config["arch_type"]),
+        "--block_type",
+        str(original_config["block_type"]),
+        "--l2",
+        str(original_config["l2"]),
+        "--dropout",
+        str(original_config["dropout"]),
+        "--seq_type",
+        str(original_config["seq_type"]),
+        "--input_dtype",
+        str(original_config["input_dtype"]),
+        "--learning_rate",
+        str(original_config["learning_rate"]),
+        "--verbose",
+        "0",
     ]
     original_cli = list(sys.argv)
     original_main()
@@ -328,6 +379,7 @@ def _worker(args: argparse.Namespace) -> None:
         for split in streams:
             _write_indices(streams[split], captured_indices[split])
         manifest = {
+            **provenance,
             "dataset": args.dataset,
             "seed": args.seed,
             "batch_size": 256,
@@ -356,9 +408,7 @@ def _worker(args: argparse.Namespace) -> None:
         "seed": args.seed,
         "train_batches": batch_counts["train"],
         "validation_batches": batch_counts["val"],
-        "compared_sha256": {
-            key: digest.hexdigest() for key, digest in digests.items()
-        },
+        "compared_sha256": {key: digest.hexdigest() for key, digest in digests.items()},
     }
     (output_dir / "comparison.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
@@ -366,8 +416,17 @@ def _worker(args: argparse.Namespace) -> None:
 
 
 def _compare_training_masks(
-    tf, torch, patch, original_mfp, package_masking, original_batch, package_batch,
-    model, package_columns, groups, digests,
+    tf,
+    torch,
+    patch,
+    original_mfp,
+    package_masking,
+    original_batch,
+    package_batch,
+    model,
+    package_columns,
+    groups,
+    digests,
 ) -> None:
     inputs = {key: original_batch[key] for key in model.input_columns}
     tasks = model.task_cat_dist.sample(tf.shape(inputs["left"])[0])
@@ -376,7 +435,13 @@ def _compare_training_masks(
 
     def traced_uniform(shape, *args, **kwargs):
         value = raw_uniform(shape, *args, **kwargs)
-        draws.append(("uniform_int" if value.dtype.is_integer else "uniform_float", tuple(value.shape), value.numpy()))
+        draws.append(
+            (
+                "uniform_int" if value.dtype.is_integer else "uniform_float",
+                tuple(value.shape),
+                value.numpy(),
+            )
+        )
         return value
 
     def traced_normal(shape, *args, **kwargs):
@@ -384,8 +449,9 @@ def _compare_training_masks(
         draws.append(("normal", tuple(value.shape), value.numpy()))
         return value
 
-    with patch.object(tf.random, "uniform", traced_uniform), patch.object(
-        tf.random, "normal", traced_normal
+    with (
+        patch.object(tf.random, "uniform", traced_uniform),
+        patch.object(tf.random, "normal", traced_normal),
     ):
         targets, modified, masks = original_mfp.preprocess_for_train(
             inputs, model.input_columns, tasks, input_dtype=model.input_dtype
@@ -395,7 +461,11 @@ def _compare_training_masks(
 
     def replay(operation, size, *, device, dtype):
         nonlocal draw_index
-        shape = tuple(size[0]) if len(size) == 1 and isinstance(size[0], tuple) else tuple(size)
+        shape = (
+            tuple(size[0])
+            if len(size) == 1 and isinstance(size[0], tuple)
+            else tuple(size)
+        )
         expected_operation, expected_shape, values = draws[draw_index]
         if (operation, shape) != (expected_operation, expected_shape):
             raise AssertionError("package masking draw order differs from reference")
@@ -416,9 +486,11 @@ def _compare_training_masks(
         del generator
         return replay("normal", size, device=device, dtype=dtype)
 
-    with patch.object(package_masking, "rand", replay_rand), patch.object(
-        package_masking, "randint", replay_randint
-    ), patch.object(package_masking, "randn", replay_randn):
+    with (
+        patch.object(package_masking, "rand", replay_rand),
+        patch.object(package_masking, "randint", replay_randint),
+        patch.object(package_masking, "randn", replay_randn),
+    ):
         actual = package_masking.prepare_training_batch(
             package_batch,
             package_columns,
@@ -441,12 +513,27 @@ def main() -> None:
     parser.add_argument("--dataset", choices=("crello", "rico"), required=True)
     parser.add_argument("--seed", type=int, choices=(0, 1, 2), required=True)
     parser.add_argument("--batches", type=int, default=1500)
-    parser.add_argument("--asset-dir", default=os.environ.get("FLEX_DM_ORIGINAL_ASSET_DIR"))
+    parser.add_argument(
+        "--asset-dir", default=os.environ.get("FLEX_DM_ORIGINAL_ASSET_DIR")
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--phase", choices=("capture", "compare"))
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.dry_run:
+        provenance = _worktree_provenance(dry_run=True)
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {**provenance, "dry_run": True}
+        (args.output_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        print(json.dumps(manifest, indent=2, sort_keys=True))
+        return
+
     if not args.asset_dir:
         parser.error("set --asset-dir or FLEX_DM_ORIGINAL_ASSET_DIR")
+
+    provenance = _worktree_provenance()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if args.phase:
         _worker(args)
@@ -467,12 +554,18 @@ def main() -> None:
             [
                 sys.executable,
                 str(Path(__file__).resolve()),
-                "--dataset", args.dataset,
-                "--seed", str(args.seed),
-                "--batches", str(args.batches),
-                "--asset-dir", args.asset_dir,
-                "--output-dir", str(args.output_dir),
-                "--phase", phase,
+                "--dataset",
+                args.dataset,
+                "--seed",
+                str(args.seed),
+                "--batches",
+                str(args.batches),
+                "--asset-dir",
+                args.asset_dir,
+                "--output-dir",
+                str(args.output_dir),
+                "--phase",
+                phase,
             ],
             check=True,
             env=env,
@@ -480,6 +573,10 @@ def main() -> None:
     elapsed = time.perf_counter() - started
     manifest_path = args.output_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if any(manifest.get(key) != value for key, value in provenance.items()):
+        raise RuntimeError("git provenance changed during S4 stream capture")
+    if _worktree_provenance() != provenance:
+        raise RuntimeError("git provenance changed during S4 stream comparison")
     manifest.update(
         {
             "elapsed_seconds_capture_and_compare": elapsed,
@@ -496,8 +593,26 @@ def main() -> None:
             ),
         }
     )
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-    print(json.dumps({key: manifest[key] for key in ("dataset", "seed", "train_batches", "validation_batches", "elapsed_seconds_capture_and_compare", "batches_per_second", "comparison")}, indent=2))
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    print(
+        json.dumps(
+            {
+                key: manifest[key]
+                for key in (
+                    "dataset",
+                    "seed",
+                    "train_batches",
+                    "validation_batches",
+                    "elapsed_seconds_capture_and_compare",
+                    "batches_per_second",
+                    "comparison",
+                )
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
