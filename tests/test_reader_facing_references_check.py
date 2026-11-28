@@ -122,6 +122,28 @@ def test_ignores_issue_references_in_inline_code_and_checks_prose(
     ]
 
 
+def test_ignores_multiline_inline_code_and_its_reference_definitions(
+    tmp_path: Path,
+) -> None:
+    checker = load_checker()
+    path = write_doc(
+        tmp_path,
+        "docs/example.md",
+        "Code sample begins here: `\n"
+        "[issue #456]: /issues/456\n"
+        "#123\n"
+        "` and prose references issue #789.\n"
+        "The undefined reference [issue #456] remains prose.\n",
+    )
+
+    violations = checker.violations_for_document(path)
+
+    assert [(item.line, item.location, item.reference) for item in violations] == [
+        (4, "body", "#789"),
+        (5, "body", "#456"),
+    ]
+
+
 def test_rejects_exact_english_and_japanese_empty_markers(tmp_path: Path) -> None:
     checker = load_checker()
     path = write_doc(
