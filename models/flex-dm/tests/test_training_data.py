@@ -58,8 +58,8 @@ def test_tfrecord_dataset_replays_ids_and_pads_variable_sequences(
         json.dumps(
             {
                 "type": {"Text": 100, "Button": 80},
-                "icon": {"menu": 600},
-                "text_button": {"login": 700},
+                "icon": {"": 600, "menu": 600},
+                "text_button": {"": 700, "login": 700},
             }
         )
     )
@@ -93,12 +93,28 @@ def test_tfrecord_dataset_replays_ids_and_pads_variable_sequences(
     assert first["length"].tolist() == [1]
     assert first["type"].squeeze(-1).tolist() == [2, 1]
     assert first["left"].squeeze(-1).tolist() == [expected_left, 63]
-    assert first["icon"].squeeze(-1).tolist() == [1, 1]
-    assert first["text_button"].squeeze(-1).tolist() == [1, 1]
+    assert first["icon"].squeeze(-1).tolist() == [2, 2]
+    assert first["text_button"].squeeze(-1).tolist() == [2, 2]
     assert second["type"].squeeze(-1).tolist() == [1]
+    assert index_reads == 1
+
+    replay = FlexDmTfrecordDataset(
+        tmp_path,
+        dataset_name="rico",
+        split="train",
+        sample_order=(1, 0, 1),
+    )
+    assert len(replay) == 3
+    assert [replay.sample_id(index) for index in range(len(replay))] == [
+        "train-00000-of-00001.tfrecord:1",
+        "train-00000-of-00001.tfrecord:0",
+        "train-00000-of-00001.tfrecord:1",
+    ]
 
     batch = dataset.collate_fn([second, first])
     assert batch["length"].squeeze(-1).tolist() == [0, 1]
     assert batch["type"].squeeze(-1).tolist() == [[1, 0], [2, 1]]
+    assert batch["icon"].squeeze(-1).tolist() == [[2, 1], [2, 2]]
+    assert batch["text_button"].squeeze(-1).tolist() == [[2, 1], [2, 2]]
     assert batch["left"].shape == (2, 2, 1)
-    assert index_reads == 1
+    assert index_reads == 2

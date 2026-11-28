@@ -12,14 +12,16 @@ def test_datamodule_creates_splits_and_lazy_loaders(monkeypatch, tmp_path) -> No
     from flex_dm.training import datamodule as datamodule_module
 
     class TinyDataset:
-        def __init__(self, data_dir, dataset_name, split) -> None:
+        def __init__(self, data_dir, dataset_name, split, sample_order=None) -> None:
             self.split = split
+            self.sample_order = sample_order
 
         def __len__(self) -> int:
-            return 2
+            return len(self.sample_order) if self.sample_order is not None else 2
 
         def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
-            return {"value": torch.tensor(index)}
+            value = index if self.sample_order is None else self.sample_order[index]
+            return {"value": torch.tensor(value)}
 
         def collate_fn(self, records) -> dict[str, torch.Tensor]:
             return {"value": torch.stack([record["value"] for record in records])}
@@ -54,6 +56,46 @@ def test_datamodule_creates_splits_and_lazy_loaders(monkeypatch, tmp_path) -> No
             data_dir=str(tmp_path), dataset_name="crello", shuffle_train=False
         )
         assert next(iter(getattr(lazy_data, loader_name)()))["value"].numel() == 2
+
+
+def test_datamodule_replays_recorded_train_and_validation_orders(
+    monkeypatch, tmp_path
+) -> None:
+    pytest.importorskip("lightning")
+    from flex_dm.training import datamodule as datamodule_module
+
+    class TinyDataset:
+        def __init__(self, data_dir, dataset_name, split, sample_order=None) -> None:
+            del data_dir, dataset_name
+            self.split = split
+            self.order = sample_order
+
+        def __len__(self) -> int:
+            return len(self.order) if self.order is not None else 2
+
+        def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+            values = (index, index + 1) if self.order is None else self.order
+            return {"value": torch.tensor(values[index])}
+
+        def collate_fn(self, records) -> dict[str, torch.Tensor]:
+            return {"value": torch.stack([record["value"] for record in records])}
+
+    monkeypatch.setattr(datamodule_module, "FlexDmTfrecordDataset", TinyDataset)
+    train_order = tmp_path / "train.txt"
+    val_order = tmp_path / "val.txt"
+    train_order.write_text("1\n0\n1\n", encoding="utf-8")
+    val_order.write_text("1\n0\n", encoding="utf-8")
+    data = datamodule_module.FlexDmDataModule(
+        data_dir=str(tmp_path),
+        dataset_name="crello",
+        batch_size=3,
+        train_order_path=str(train_order),
+        val_order_path=str(val_order),
+    )
+    data.setup("fit")
+
+    assert next(iter(data.train_dataloader()))["value"].tolist() == [1, 0, 1]
+    assert next(iter(data.val_dataloader()))["value"].tolist() == [1, 0]
 
 
 def test_lightning_module_prepares_batches_logs_losses_and_configures_optimizer(

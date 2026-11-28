@@ -161,6 +161,7 @@ class FlexDmTfrecordDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."]]]):
     dataset_name: FlexDmDatasetName | str
     split: str
     record_order: Sequence[int] | None = None
+    sample_order: Sequence[int] | None = None
     _columns: dict[str, FlexDmColumnSpec] = field(init=False, repr=False)
     _vocabulary: dict[str, FlexDmVocabularyValue] = field(init=False, repr=False)
     _records: tuple[_RecordRef, ...] = field(init=False, repr=False)
@@ -218,15 +219,30 @@ class FlexDmTfrecordDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."]]]):
                 f"{self.split} record count {len(records)} does not match count.json {expected_count}"
             )
 
-        indices = (
-            self.record_order if self.record_order is not None else range(len(records))
-        )
-        order = tuple(indices)
-        if sorted(order) != list(range(len(records))):
-            raise ValueError("record_order must be a permutation of all split indices")
+        if self.record_order is not None and self.sample_order is not None:
+            raise ValueError("record_order and sample_order cannot both be set")
 
-        self._records = tuple(records[index] for index in order)
-        self.record_order = order
+        if self.record_order is not None:
+            order = tuple(self.record_order)
+            if sorted(order) != list(range(len(records))):
+                raise ValueError(
+                    "record_order must be a permutation of all split indices"
+                )
+
+            records = [records[index] for index in order]
+            self.record_order = order
+
+        if self.sample_order is not None:
+            order = tuple(self.sample_order)
+            if any(index < 0 or index >= len(records) for index in order):
+                raise ValueError(
+                    "sample_order indices must refer to records in this split"
+                )
+
+            records = [records[index] for index in order]
+            self.sample_order = order
+
+        self._records = tuple(records)
 
     def __len__(self) -> int:
         """Return the number of records in this split."""
@@ -282,8 +298,25 @@ class FlexDmTfrecordDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."]]]):
     ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Pad variable-length fields to the longest record in a batch."""
         return {
-            key: pad_sequence([x[key] for x in examples], batch_first=True)
+            key: pad_sequence(
+                [x[key] for x in examples],
+                batch_first=True,
+                padding_value=self._padding_value(key),
+            )
             if column["is_sequence"]
             else torch.stack([x[key] for x in examples])
             for key, column in self._columns.items()
         }
+
+    def _padding_value(self, key: str) -> int:
+        if key not in _FREQUENCY_LOOKUPS:
+            return 0
+
+        return int(
+            _lookup_ids(
+                key,
+                [""],
+                cast(FlexDmDatasetName, self.dataset_name),
+                self._vocabulary,
+            )[0]
+        )
