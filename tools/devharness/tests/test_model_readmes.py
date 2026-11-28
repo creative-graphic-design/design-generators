@@ -752,11 +752,12 @@ def test_pixel_vae_pipeline_metadata_supports_image_embeddings() -> None:
     )
 
 
-def test_model_index_policy_rejects_wrong_weight_mode() -> None:
-    prompt_path = Path("models") / "layout-gpt" / "README.md"
+@pytest.mark.parametrize("slug", ["layout-gpt", "collage-diffusion"])
+def test_model_index_policy_rejects_wrong_weight_mode(slug: str) -> None:
+    no_weight_path = Path("models") / slug / "README.md"
     weight_path = Path("models") / "layout-dm" / "README.md"
-    with pytest.raises(AssertionError, match="prompt-only README"):
-        card.assert_model_index_policy(prompt_path, "model-index:\n")
+    with pytest.raises(AssertionError, match="prompt-only or code-only README"):
+        card.assert_model_index_policy(no_weight_path, "model-index:\n")
 
     with pytest.raises(AssertionError, match="must include model-index"):
         card.assert_model_index_policy(weight_path, "pipeline_tag: other\n")
@@ -1609,15 +1610,26 @@ library_name: transformers
 
 def test_card_contracts_cover_prompt_and_unpublished_notes() -> None:
     path = Path("models") / "layout-gpt" / "README.md"
-    with pytest.raises(AssertionError, match="stale model-package phrase"):
+    with pytest.raises(
+        AssertionError, match="prompt-only README contains stale model-package phrase"
+    ):
         card.assert_prompt_only_readme(path, "converted checkpoint")
 
-    with pytest.raises(AssertionError, match="must not mention converting"):
+    with pytest.raises(
+        AssertionError, match="prompt-only README must not mention converting"
+    ):
         card.assert_prompt_only_readme(path, "convert checkpoints")
 
     with pytest.raises(AssertionError, match="missing runnable setup parts"):
         card.assert_unpublished_hub_get_started_note(
             path, "## Supported Checkpoints\n## How to Get Started with the Model\n"
+        )
+
+    code_only_path = Path("models") / "collage-diffusion" / "README.md"
+    with pytest.raises(AssertionError, match="prompt-only or code-only Get Started"):
+        card.assert_unpublished_hub_get_started_note(
+            code_only_path,
+            "## Supported Checkpoints\n## How to Get Started with the Model\n",
         )
 
     with pytest.raises(AssertionError, match="heredoc examples"):

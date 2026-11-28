@@ -153,7 +153,7 @@ def local_main_repo_path(url: str, root: Path = ROOT) -> Path | None:
     )
     if prefix is None:
         return None
-    relative = url.removeprefix(prefix)
+    relative = re.split(r"[?#]", url.removeprefix(prefix), maxsplit=1)[0]
     if not relative or relative.startswith(("../", "/")):
         return None
     path = root / relative

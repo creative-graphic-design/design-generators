@@ -59,9 +59,9 @@
 - Consider pydantic models at serialization boundaries where runtime validation pays for itself; do not duplicate validation LightningCLI/jsonargparse already performs. Classes bound by framework constructor contracts (`PretrainedConfig`, `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
-- Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
+- Separate semantic units in function bodies with single blank lines. Leave a blank line after a `raise` block or after an `if`, `for`, `while`, `try`, or `with` suite when ordinary code follows at the enclosing indentation. These rules apply at function, class, and module scope.
 - For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference` (see [Source Language](.agents/skills/design-generators-model-conversion/SKILL.md#source-language)); put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
-- Source-code prose (docstrings, comments, and user-visible messages) does not use the training-reproduction stage codes S0-S5; state what the stage checks in plain words. The codes belong to `TRAINING.md` and the scripts that check it.
+- Source-code comments and docstrings use plain language for training stages and do not use S0-S5 codes; state what the stage checks. Put the codes in `TRAINING.md` and scripts that check it. The checker scans Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`.
 
 ## Tracking
 
@@ -84,19 +84,18 @@
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
 - Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair.
-- Treat merging a model package to `main` as approval to publish it to the `creative-graphic-design` Hugging Face organization. The main-push workflow selects packages declaring `[tool.design-generators.hub-publisher]` and runs `scripts/publish_to_hub.py`. Pull requests and merge queue entries never receive the publishing secret.
+- Treat merging a model package to `main` as approval to publish its configured Hub repository. See [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for publisher selection and workflow details. Pull requests and merge queue entries never receive the publishing secret.
 - The shared repository secret `HF_TOKEN` is required for an eligible publication run, and the workflow must fail clearly when it is missing. Use a Hugging Face fine-grained token that grants content-write permission only to the Hub repositories whose packages define publishers; do not grant organization-wide access. When adding a package publisher, add its destination repository to the token's resource scope. Each publisher checks write access before upload and must clearly name its destination when access is missing.
-- Track publication separately from local serialization and parity verification.
+- Track publication separately from local serialization, parity verification, and model-issue closure.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
-- Hub publishing runs after the package merge through the main-push workflow and remains separate from the per-issue close condition.
-- A model README's Hub badge follows publisher presence: packages with `[tool.design-generators.hub-publisher]` use the matching `published-*` value. Packages without that table retain their planned or other pre-publication value. `devharness check model-readmes` and `scripts/check_readme_badges.py` enforce this rule through shared publisher discovery; see [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for the value mapping.
+- Packages with `[tool.design-generators.hub-publisher]` use the matching `published-*` Hub badge. Packages without that table retain their planned or other pre-publication badge value. [Hub publication ownership](docs/architecture.md#hub-publication-ownership) documents the mapping, and the checks enforce it through shared publisher discovery.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
 
-- Treat `AGENTS.md`, repo-local skills, PR templates, and checklist issues as living documents. When work exposes incorrect, stale, or missing guidance, fix it in the same PR if the change is small and in scope; otherwise open or propose a focused `meta` issue.
-- Do not silently work around guidance known to be wrong. If the same kind of mistake is raised repeatedly, add or revise a rule, template item, or check so future work can catch it mechanically.
-- When the same class of check failure recurs a second time, stop case-specific patching and redesign the check around its claim. Before adding a rule, exception, threshold, or check, first try to remove or replace a gate; gate only independent quantities and keep derived quantities report-only. State what an addition replaces or why nothing can be removed, and justify failure-triggered changes by the check's purpose, not observed results.
+- Treat `AGENTS.md`, repo-local skills, PR templates, and checklist issues as living documents. When work exposes incorrect, stale, or missing guidance, fix it in the same PR if the change is small and in scope; otherwise open or propose a focused `meta` issue. When a procedure document adds or changes a rule, state the rule's purpose in the same sentence or the next one; a link alone is insufficient.
+- Do not silently work around guidance known to be wrong. If the same kind of mistake is raised repeatedly, add or revise a rule, template item, or check so future work can catch it mechanically. When a PR changes a machine-enforced rule, it also changes the enforcing check in the same PR. When a PR changes that check, it also updates the rule text. Reviewers reject changes that update only one side.
+- When the same class of check failure recurs a second time, stop case-specific patching and redesign the check around its claim. Before adding a rule, exception, threshold, or check, first try to remove or replace a gate; gate only independent quantities and keep derived quantities report-only. State what an addition replaces or why nothing can be removed, and justify failure-triggered changes by the check's purpose, not observed results. Before adding a rule, search all procedure documents for its topic. If an owning document already states it, merge the rule there instead of adding a copy.
 - When asking the user to decide, list the simplest option, including removal or redesign, first. Keep reusable rules in their owning repository document so the rule set stays visible; issue amendments record package-specific decisions, while the document states the current rule.
 - Keep PR diffs minimal for the stated task. Do not move dependencies between core `dependencies` and `[project.optional-dependencies]`, or add/modify `[build-system]`, unless the task requires it and the PR explains why.
 
@@ -111,40 +110,40 @@
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
-- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories.
-- `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
-- `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
+- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories. This keeps paths portable across POSIX and Windows.
+- `scripts/check_src_vendor_language.py` rejects `vendor` in package source, except conversion plumbing and `laygen.common.vendor`; see the model-conversion skill for broader source-language guidance.
+- `scripts/check_stage_codes_in_prose.py` rejects stage codes in Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`.
 - `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.
 - `scripts/check_generator_sampling.py` rejects direct generator-consuming Torch draws and non-CPU or dynamic generator construction outside the shared randomness helper.
-- `scripts/check_config_defaults.py` enforces explicit-config construction.
-- `scripts/check_semantic_blank_lines.py` checks raise-block and compound-suite blank lines.
+- `scripts/check_config_defaults.py` rejects boolean-`or` fallbacks when constructing configs; other fallback forms are not checked.
+- `scripts/check_semantic_blank_lines.py` enforces blank lines after raises and compound suites at function, class, and module scope. It flags more than 15 consecutive function statements in `lib/*/src`, `models/*/src`, `tools/*/src`, and `scripts/` as a heuristic prompt to separate semantic units.
 - `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
 
 ### Documentation Checks
 
-- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
-- `devharness check model-readmes` rejects CPU strings and `.cpu()` in README, REPRODUCING, templates, and cards. It allows direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
-- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
-- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
-- `scripts/check_readme_links.py` enforces repository-relative README links.
-- `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
+- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`, through `devharness check model-readmes`.
+- The model-readme check rejects CPU string literals and `.cpu()` calls in Python fences in READMEs, REPRODUCING files, and the model README template. Direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments are allowed.
+- `devharness check scheduler-loading` rejects direct scheduler assignments whose right side calls `.from_config()` or `.from_pretrained()`.
+- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`.
+- `scripts/check_readme_links.py` checks README, guide, and skill files: root and skill links are relative, while package-document links use absolute GitHub URLs.
+- `scripts/check_reader_facing_references.py` scans `docs/*.md` and `models/*/TRAINING.md` for unlinked references, selected reader-facing wording, and duplicate headings.
 - `scripts/check_training_doc_template.py` enforces training-document structure.
-- `scripts/check_training_stage_evidence.py` enforces S0-S5 claims.
-- `tests/test_docs_generation.py` checks that every `docs/*.md` page has icon and tags frontmatter.
+- `scripts/check_training_stage_evidence.py` checks S5 evidence in `models/*/TRAINING.md` when its S5 detector identifies a claim.
+- `tests/test_docs_generation.py` checks `docs/**/*.md` pages outside `docs/plans/` for icon and tags frontmatter.
 - `lib/laygen/tests/test_common.py` checks the shared layout-output schema.
 
 ### PR And CI Gates
 
-- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
+- `scripts/check_pr_issue_reference.py` checks PR issue references, checklist items, ready-for-review completion gates, and shared-library rationale.
+- The checker excludes the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - The Lint job runs `uv lock --check`; its pre-commit step uses `SKIP=uv-lock,pytest-models,vulture,ty,duplicate-code`.
-- The `Duplicate Code` job uses root-tooling dependencies to compare changed Python files with `origin/main` on merge queue and manual dispatches targeting non-main branches.
-- Main pushes, scheduled runs, and manual dispatches targeting `main` have no changed targets, so `Duplicate Code` skips them. `Dead Code` continues full-repository scans on those events.
-- Pull requests and merge queue entries run `ty`, root tests, generated API pages, strict Zensical, and selected member tests.
-- Member tests follow declared workspace dependencies, optional dependencies, and dependency groups; every non-Markdown change also selects `devharness`.
-- Non-Markdown changes outside member directories select all members with tests; non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
+- The `Duplicate Code` and `Dead Code` scan scopes and event triggers are described in [dependency environments](docs/architecture.md#dependency-environments).
+- Typecheck and root/member tests require non-Markdown changes; the documentation build requires matching documentation-content changes.
+- Pull requests and merge queue entries run generated API documentation and strict Zensical when their CI path filters select the documentation job.
+- Member test selection follows the [dependency environment rules](docs/architecture.md#dependency-environments).
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
-- Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
+- Coverage has a 90% floor for every workspace member. Do not lower `fail_under` below 90; member-specific overrides may only raise the floor. Each package has a separate floor so one package's coverage cannot mask another's. The uniform policy is not a ratchet from current measurements; [PR #77 records its approval and initial results](https://github.com/creative-graphic-design/design-generators/pull/77). Do not add broad `# pragma: no cover` exclusions to meet this floor, because they hide untested code from the coverage measurement.

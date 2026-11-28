@@ -217,13 +217,14 @@ def test_check_changed_urls_skips_ignored_urls_without_calling_checker() -> None
     assert check_changed_urls.report_results(results) == 0
 
 
+@pytest.mark.parametrize("suffix", ["#tracking", "?plain=1"])
 def test_check_changed_urls_accepts_repo_main_blob_for_added_file(
-    tmp_path: Path,
+    tmp_path: Path, suffix: str
 ) -> None:
     readme = tmp_path / "models" / "basnet" / "README.md"
     readme.parent.mkdir(parents=True)
     readme.write_text("# BASNet\n", encoding="utf-8")
-    url = f"{DESIGN_GENERATORS_URL}/blob/main/models/basnet/README.md"
+    url = f"{DESIGN_GENERATORS_URL}/blob/main/models/basnet/README.md{suffix}"
 
     def checker(url: str) -> object:
         raise AssertionError(f"checker should not be called for {url}")

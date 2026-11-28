@@ -153,11 +153,20 @@ def test_package_stream_seeds_at_production_loader_boundary(
     assert seed_calls == [("python", 0), ("numpy", 0), ("torch", 0)]
 
 
-def test_phase_comparison_gate_rejects_cross_system_exceedance_first() -> None:
-    assert LOCKSTEP._gate_passed(cross_step=8, noise_step=4)
-    assert LOCKSTEP._gate_passed(cross_step=None, noise_step=4)
-    assert not LOCKSTEP._gate_passed(cross_step=3, noise_step=4)
-    assert not LOCKSTEP._gate_passed(cross_step=8, noise_step=None)
+@pytest.mark.parametrize(
+    ("cross_step", "noise_step", "expected"),
+    [
+        (None, None, True),
+        (None, 4, True),
+        (8, 4, True),
+        (3, 4, False),
+        (8, None, False),
+    ],
+)
+def test_phase_comparison_gate_truth_table(
+    cross_step: int | None, noise_step: int | None, expected: bool
+) -> None:
+    assert LOCKSTEP._gate_passed(cross_step, noise_step) is expected
 
 
 def test_phase_comparison_passes_after_noise_floor_exceedance(

@@ -9,7 +9,7 @@ tags:
 
 This guide defines how downstream projects, model ports, and AI coding agents should extend `design-generators` and the framework packages it builds on. The goal is to keep changes small enough to review, test, upgrade, and attribute.
 
-The [model framework](conventions.md#choosing-a-model-framework) and [module-name](conventions.md#model-package-module-names) conventions are mandatory for packages added to or maintained inside `design-generators`. Downstream projects that consume `laygen` or `traingen` may opt in.
+For in-repository packages, follow [framework selection](conventions.md#choosing-a-model-framework) and [module naming](conventions.md#model-package-module-names); downstream projects may opt in.
 
 ## Why This Guide
 
@@ -39,7 +39,7 @@ Install pinned released packages and extend the narrow public surface you need. 
 from __future__ import annotations
 
 from laygen.pipelines import LayoutGenerationPipeline
-from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 class MyLayoutPipeline(LayoutGenerationPipeline):
@@ -49,12 +49,12 @@ class MyLayoutPipeline(LayoutGenerationPipeline):
         self,
         *,
         condition_type: str = "unconditional",
-        num_layouts: int = 1,
+        batch_size: int = 1,
         generator=None,
     ) -> LayoutGenerationOutput:
         outputs = super().__call__(
             condition_type=condition_type,
-            num_layouts=num_layouts,
+            batch_size=batch_size,
             generator=generator,
         )
         return LayoutGenerationOutput(
@@ -77,11 +77,11 @@ Internal copies are allowed only after an upstream extension point is not suffic
 3. Record the upstream package name, version, commit, file path, license, and local diff summary next to the copied module.
 4. Add a test that fails if the copied module drifts from the documented upstream baseline without an explicit provenance update.
 
-For model ports in this repository, `vendor/` remains pinned and read-only. Original-implementation code is used to regenerate agreement fixtures and compare behavior; production wrappers should import released dependencies and local package code instead of mutating those sources.
+See the [model-conversion skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md) for model-port source and parity requirements.
 
 ## Repository Practice
 
-`design-generators` depends on released `transformers`, `diffusers`, `huggingface_hub`, and related packages. Model packages expose public wrappers by subclassing or composing those APIs. When original research repositories are needed, they live under `vendor/` as pinned read-only submodules or external checkouts for parity workflows.
+`design-generators` depends on released `transformers`, `diffusers`, `huggingface_hub`, and related packages. Model packages expose public wrappers by subclassing or composing those APIs.
 
 Generated model cards, README files, and docs should describe the wrapper behavior and provenance plainly. They should not imply that local copied framework trees are the supported integration path.
 

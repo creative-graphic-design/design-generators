@@ -25,11 +25,10 @@ Read the model issue and amendments when changing its scope, interface, or evide
 - Follow the reader-first and no-hard-wrap rules in the repository's core `AGENTS.md`.
 - Before publishing or approving a document, run a reduction pass: for every table column, table row, and sentence, state what a first-time reader would lose if it were deleted, and delete anything that loses nothing. A column that restates another column, a row whose owner cell already says what the row would add, and a sentence that repeats the section's opening principle are the usual casualties.
 - Write facts and rules as reader-facing prose; do not expose work-history or evidence-receipt language without context.
-- In reader-facing prose, state each needed fact, value, scope, decision, and rule directly, with it as the sentence's subject and before any discussion link. Do not phrase an issue, PR, comment, or amendment as what sets, defines, or authorizes information the reader needs. A discussion link may follow only as the record of the stated fact or rule; documents whose purpose is tracking may link live plans and status.
 - For every sentence with an issue, PR, comment, or amendment link or reference, inspect each clause; count it as issue-first if a linked or referenced clause presents the issue, PR, comment, or amendment as setting, defining, authorizing, pinning, or limiting information the reader needs, even when the value is stated first. For example, `PR #N pins the value X` is in the class; `Value X. PR #N tracks follow-up status.` is not.
 - Put a section where its subject belongs; do not grow a section merely where related work happened.
 - Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
-- The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.
+- The reader-facing checker validates linked references, selected intro/conclusion wording, and duplicate headings in `docs/*.md` and model `TRAINING.md` files.
 - Treat excessive emotional intensity, redundant enumeration, and hedging as model-review targets for the slop review (the review of reader-facing text for machine-writing patterns); do not add them to this checker.
 - An exact result is agreement from explicitly matched inputs, evaluator, checkpoint-selection rule, and a comparison criterion of bitwise or token-identical equality, with the criterion met; a tolerance criterion supports a within-tolerance claim, not an exact one.
 - A confirmatory p-value is the result of a test and threshold named in the model issue plan or an amendment before the run.
@@ -40,33 +39,35 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
+Write model READMEs for package users, not reviewers. Omit compliance narration and internal-tooling walkthroughs; explain what exists and how to use it.
+
 - For framework and library names, follow the naming rule in the [Model README template](.agents/skills/design-generators-model-conversion/references/model-readme-template.md).
 
 - Diffusers usage examples follow the scheduler-loading policy in `docs/conventions.md`.
-- Place pipelines and models on CUDA with `.to("cuda")` in code examples; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
+- Place pipelines and models on CUDA with `.to("cuda")` in inference examples; CPU placement signals an unsupported path ([issue #534](https://github.com/creative-graphic-design/design-generators/issues/534)). The README checker allows CPU only in direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
 
-- Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
+- `devharness check model-readmes` checks that the first `python` usage fence is followed by a `text` fence. Human review confirms that the text is captured by running the snippet as written.
 
 - Each model package README has exactly one structured classification line in the form `- **Model type:** <category>; task: <task>; conditioning: <comma-separated values>.` Category-specific values, task and conditioning relationships, Hugging Face `pipeline_tag`, and model-index task rules come from [the model catalog classification conventions](docs/conventions.md#model-catalog-classification). Do not add package-specific exceptions to those shared rules.
-- Use pip direct-reference installation for package users, including unpublished workspace dependencies in the same command. Preserve clone/uv setup in the How to Get Started section when a local converted checkpoint or prompt configuration is required before Hub publication. When a Git URL would recursively fetch vendor submodules, use a source archive URL with a subdirectory fragment; pin the archive to a commit in published Hub instructions.
+- Use pip direct-reference installation for package users, including unpublished workspace dependencies in the same command. Preserve clone/uv setup in How to Get Started when local checkpoints or prompt configurations are required before Hub publication. For Git URLs that fetch vendor submodules recursively, use a source archive URL with a subdirectory fragment. Pin the archive to the same commit as custom pipeline code in published Hub instructions.
 - `### Parity Results` under `## Evaluation` contains measured cases, criteria, and results. `## Reproducibility` opens with how to rerun agreement checks and links to `models/<slug>/REPRODUCING.md`.
-- Put the ordered command walkthrough in `REPRODUCING.md`: prerequisites, cache locations, asset download, original-code reference generation, package comparison, conversion or prompt-configuration serialization, and local loading. Include expected outputs and required extras. A metadata export alone is not a generated model reference.
-- For an acceptance rerun, use `PARITY_REQUIRE=1` and one selected CUDA device where applicable; distinguish passes from skips. Preserve package-specific dataset and condition sweeps.
-- Keep planned Hub ids distinct from published checkpoints. Set the README Hub badge using the publisher-presence mapping in [Hub publication ownership](docs/architecture.md#hub-publication-ownership). Publishers copy the README badge into the Hub card without changing it. Hub cards use `laygen.common.model_card` and the official Hugging Face template; package metadata ownership is in `docs/architecture.md`. A merge to `main` approves the changed package's configured Hub publication procedure, which the root workflow runs after the merge.
+- Put copy-pasteable commands in the ordered `REPRODUCING.md` walkthrough. Include prerequisites, cache locations, downloads, reference generation, package comparison, and `pytest -m vendor_parity`. Also include conversion or prompt-configuration serialization, local loading, expected outputs, and required extras. Prose mentions do not replace these commands. A metadata export alone is not a generated model reference.
+- For acceptance reruns, follow the [model-conversion parity procedure](.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity). Report passes and skips, and preserve package-specific dataset and condition sweeps.
+- Generate each weight-backed Hub card separately from the package README. Use `laygen.common.model_card` and `huggingface_hub.ModelCard.from_template` with the official Hugging Face template. Keep planned Hub ids distinct from published checkpoints. Follow [repository tracking rules](AGENTS.md#tracking) for merge approval and publication status. [Hub publication ownership](docs/architecture.md#hub-publication-ownership) documents publisher metadata, the root workflow, and badge values.
 - Environment-specific documentation must distinguish observed verification conditions from general requirements. Write "the currently verified setup is ..." or equivalent when only one machine/GPU/driver combination has been tested; do not present that setup as the package's inherent training environment.
 
 ## API and docs site
 
 Public API docstrings feed the API reference. Use Google-style `Args`, `Returns`, `Raises`, and `Examples` as applicable. Examples should be runnable doctests when they need no heavyweight downloads or credentials.
 
-Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
+Every `docs/**/*.md` page outside `docs/plans/` needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
 
 - Model READMEs wrap everything after the YAML front matter in `<!-- --8<-- [start:card] -->` and `<!-- --8<-- [end:card] -->` so the front matter stays off the docs page.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.
 
 Package documents (`lib/*/README.md`, `models/*/README.md`, `models/*/TRAINING.md`, and `models/*/REPRODUCING.md`) link repository files with absolute GitHub URLs under the repository's `blob/main/` or `tree/main/` prefix because the same text is read on GitHub, included on the docs site, and reused on the Hub. The root README and skills use repo-root-relative links.
 
-When adding a conference badge, take its color from the venue's official branding.
+Model README conference badges use the venue's official brand color. The root README and docs catalog use the fixed venue colors maintained by `scripts/check_readme_badges.py`.
 
 ## Verification
 
@@ -78,4 +79,4 @@ When editing templates or copyable examples, check required headings, status val
 
 Before review, check that the commands match the actual scripts and the claims match recorded evidence. Report unrun heavyweight commands and unavailable assets in the PR rather than presenting them as passes.
 
-- Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. The PR must use `.github/PULL_REQUEST_TEMPLATE.md` and include the implementation issue, checklist verification, tests, and shared-library rationale when applicable.
+- Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. Follow the PR requirements in [repository tracking rules](AGENTS.md#tracking).

@@ -26,19 +26,20 @@ def load_check_pr_issue_reference() -> ModuleType:
 check_pr_issue_reference = load_check_pr_issue_reference()
 REQUIRED_CHECKLIST_ITEMS = [
     "Confirmed the applicable implementation checklist items.",
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
-    "Confirmed the implementation issue has a milestone and native Priority field set.",
-    "Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.",
-    "Read the model plan and amendment comments, if this is a model PR.",
-    "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.",
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).",
+    "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.",
+    "See the [model-conversion procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).",
+    "Keep vendor sources read-only.",
+    "Do not commit generated fixtures, weights, images, or downloaded artifacts.",
     "Did not push Hub repositories or model artifacts unless explicitly requested.",
     "Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.",
-    "README reproducibility steps are copy-pasteable commands, if README docs changed.",
+    "README reproduction steps are copy-pasteable commands, if README docs changed.",
+    "See the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card).",
     "Documented any deviations from the plan, checklist, or repository conventions below.",
 ]
 COMPLETION_GATE_ITEMS = [
-    "Vendor parity verified, or gated-pending: <blocker name and short reason>.",
-    "Training S5 reproduction complete, or N/A: <reason>.",
+    "Vendor parity verified, or gated-pending: parity checks passed.",
+    "Training S5 reproduction complete, or N/A: documentation-only change.",
     "Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)",
 ]
 
@@ -152,15 +153,15 @@ def test_checklist_errors_require_template_item_text() -> None:
     assert "Confirmed the applicable implementation checklist items." in errors[0]
 
 
-def test_checklist_errors_reject_unchecked_template_items() -> None:
+def test_checklist_errors_accept_unchecked_template_items() -> None:
     body = filled_body().replace(
         f"- [x] {REQUIRED_CHECKLIST_ITEMS[0]}",
         f"- [ ] {REQUIRED_CHECKLIST_ITEMS[0]}",
     )
 
-    errors = check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS)
-
-    assert any("unchecked required item" in error for error in errors)
+    assert (
+        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
+    )
 
 
 def test_checklist_errors_accept_filled_template() -> None:
@@ -182,6 +183,36 @@ def test_checklist_errors_accept_deprecated_template_wording() -> None:
         REQUIRED_CHECKLIST_ITEMS[1],
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
     )
+
+    assert (
+        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("item_index", "legacy_item"),
+    [
+        (
+            1,
+            "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
+        ),
+        (2, "Read the model plan and amendment comments, if this is a model PR."),
+        (
+            3,
+            "Left `vendor/` read-only and did not commit generated fixtures, weights, "
+            "images, or downloaded artifacts.",
+        ),
+        (
+            8,
+            "README reproducibility steps are copy-pasteable commands, "
+            "if README docs changed.",
+        ),
+    ],
+)
+def test_checklist_errors_accept_previous_main_template_wording(
+    item_index: int, legacy_item: str
+) -> None:
+    body = filled_body().replace(REQUIRED_CHECKLIST_ITEMS[item_index], legacy_item)
 
     assert (
         check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
@@ -232,13 +263,77 @@ def test_completion_gate_rejects_ready_incomplete() -> None:
 def test_completion_gate_accepts_ready_complete() -> None:
     body = completion_body(
         completion_gate=(
-            "- [x] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
-            "- [x] Training S5 reproduction complete, or N/A: <reason>.\n"
+            "- [x] Vendor parity verified, or gated-pending: parity checks passed.\n"
+            "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
             "- [x] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
         ),
     )
 
     assert check_pr_issue_reference.completion_gate_errors(body, draft=False) == []
+
+
+def test_completion_gate_checks_verbatim_template_placeholders() -> None:
+    template_path = (
+        Path(__file__).resolve().parents[1] / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    )
+    template = template_path.read_text(encoding="utf-8")
+
+    errors = check_pr_issue_reference.completion_gate_errors(template, draft=False)
+
+    assert any("Training S5 reproduction complete" in error for error in errors)
+
+
+@pytest.mark.parametrize("checkbox", ["[ ]", "[x]"])
+def test_completion_gate_rejects_untouched_s5_template_placeholders(
+    checkbox: str,
+) -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [x] Vendor parity verified, or gated-pending: parity checks passed.\n"
+            f"- {checkbox} Training S5 reproduction complete, or N/A: "
+            "<claimed datasets and training/evaluation seed scope, with S0-S4 "
+            "evidence cited before S5; or N/A with reason>. Infrastructure-only "
+            "work must state that full-run reproduction is not claimed.\n"
+            "- [x] Independent adversarial review completed before ready for review "
+            "(reviewer with no prior involvement reviewed the head being marked "
+            "ready; findings resolved)"
+        ),
+    )
+
+    errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
+
+    assert len(errors) == 1
+    assert "Training S5 reproduction complete" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    [
+        "<...>",
+        "<independent rerun, ...>",
+        "<datasets, ...>",
+        "<path>",
+        "< blocker >",
+    ],
+)
+def test_completion_gate_rejects_checked_placeholder_forms(
+    placeholder: str,
+) -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [x] Vendor parity verified, or gated-pending: "
+            f"parity checks passed with {placeholder}.\n"
+            "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
+            "- [x] Independent adversarial review completed before ready for review "
+            "(reviewer with no prior involvement reviewed the head being marked "
+            "ready; findings resolved)"
+        ),
+    )
+
+    errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
+
+    assert len(errors) == 1
+    assert "Vendor parity verified" in errors[0]
 
 
 def test_completion_gate_accepts_na_and_blocker_reasons() -> None:
@@ -347,6 +442,27 @@ def test_shared_library_change_errors_require_reason_for_agent_skill_changes() -
         "`## Shared Library Changes`: "
         ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
     ]
+
+
+@pytest.mark.parametrize("placeholder", ["TODO", "N/A"])
+def test_shared_library_change_errors_ignore_template_comment(
+    placeholder: str,
+) -> None:
+    template_path = (
+        Path(__file__).resolve().parents[1] / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    )
+    template = template_path.read_text(encoding="utf-8")
+    section = check_pr_issue_reference.shared_library_section(template)
+    assert section is not None
+    section = section.replace("- TODO", f"- {placeholder}", 1)
+    body = f"## Shared Library Changes\n{section}"
+
+    errors = check_pr_issue_reference.shared_library_change_errors(
+        body, ["docs/architecture.md"]
+    )
+
+    assert len(errors) == 1
+    assert "Shared Library Changes" in errors[0]
 
 
 def test_shared_library_change_errors_accept_actionable_reason() -> None:

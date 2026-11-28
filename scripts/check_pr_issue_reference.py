@@ -33,8 +33,24 @@ DEPRECATED_CHECKLIST_ALIASES = {
     "Confirmed the applicable implementation checklist items.": (
         "Confirmed the applicable issue #60 checklist items.",
     ),
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.": (
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).": (
+        "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    ),
+    "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.": (
+        "Read the model plan and amendment comments, if this is a model PR.",
+    ),
+}
+
+DEPRECATED_CHECKLIST_ALIAS_GROUPS = {
+    "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.": (
+        "See the [model-conversion procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).",
+        "Keep vendor sources read-only.",
+        "Do not commit generated fixtures, weights, images, or downloaded artifacts.",
+    ),
+    "README reproducibility steps are copy-pasteable commands, if README docs changed.": (
+        "README reproduction steps are copy-pasteable commands, if README docs changed.",
+        "See the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card).",
     ),
 }
 
@@ -168,29 +184,20 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
     if section is None:
         return ["PR body must include a `## Checklist` section."]
 
-    checked: set[str] = set()
-    unchecked: set[str] = set()
+    present: set[str] = set()
     for match in CHECKBOX_RE.finditer(section):
-        item = _canonical_checklist_item(match.group("text"))
-        if match.group("state").lower() == "x":
-            checked.add(item)
-        else:
-            unchecked.add(item)
+        text = match.group("text")
+        present.add(_canonical_checklist_item(text))
+        present.update(DEPRECATED_CHECKLIST_ALIAS_GROUPS.get(text, ()))
 
-    errors: list[str] = []
-    missing = [item for item in required_items if item not in checked]
+    missing = [item for item in required_items if item not in present]
     if missing:
-        errors.append(
-            "PR body checklist must include these checked template item(s): "
+        return [
+            "PR body checklist must include these template item(s): "
             + "; ".join(missing)
-        )
-    remaining_unchecked = [item for item in required_items if item in unchecked]
-    if remaining_unchecked:
-        errors.append(
-            "PR body checklist has unchecked required item(s): "
-            + "; ".join(remaining_unchecked)
-        )
-    return errors
+        ]
+
+    return []
 
 
 def _has_actionable_justification(text: str, marker: str) -> bool:
@@ -247,6 +254,18 @@ def completion_gate_errors(
 
         checked, text = item
         marker = requirement.allowed_justification
+        if PLACEHOLDER_RE.search(text) is not None:
+            if requirement.justification_label is None:
+                errors.append(
+                    f"Ready-for-review PRs must check `{requirement.prefix}` or "
+                    "convert the PR back to draft."
+                )
+            else:
+                errors.append(
+                    f"Ready-for-review PRs must complete `{requirement.prefix}` with "
+                    f"{requirement.justification_label} or convert the PR back to draft."
+                )
+            continue
         if checked:
             continue
         if marker is not None and _has_actionable_justification(text, marker):

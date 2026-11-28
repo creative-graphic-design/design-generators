@@ -866,10 +866,9 @@ def _lockstep_report(
     noise_phase = cast(JsonObject, phases["noise_floor"])
     cross_first = cast(JsonObject | None, cross_phase["first_step_over_tolerance"])
     noise_first = cast(JsonObject | None, noise_phase["first_step_over_tolerance"])
-    passed = cross_first is None or (
-        noise_first is not None
-        and cast(int, cross_first["step"]) >= cast(int, noise_first["step"])
-    )
+    cross_step = cast(int, cross_first["step"]) if cross_first is not None else None
+    noise_step = cast(int, noise_first["step"]) if noise_first is not None else None
+    passed = EXECUTOR._lockstep_gate_passed(cross_step, noise_step)
     return (
         {
             "protocol": "crello-real-scale-lockstep-v2",
@@ -895,12 +894,14 @@ def _lockstep_report(
 @pytest.mark.parametrize(
     ("cross_differences", "noise_differences", "passes"),
     [
-        ([0.0, 0.0012, 0.0013], [0.0, 0.0011, 0.0014], True),
-        ([0.0, 0.0012, 0.0013], [0.0, 0.0, 0.0], False),
-        ([0.0, 0.0, 0.0], [0.0, 0.0011, 0.0013], True),
+        ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], True),
+        ([0.0, 0.0, 0.0], [0.0, 0.0011, 0.0], True),
+        ([0.0, 0.0, 0.0012], [0.0, 0.0011, 0.0], True),
+        ([0.0012, 0.0, 0.0], [0.0, 0.0011, 0.0], False),
+        ([0.0012, 0.0, 0.0], [0.0, 0.0, 0.0], False),
     ],
 )
-def test_lockstep_noise_floor_gate_uses_fixed_first_exceedance_rule(
+def test_lockstep_gate_truth_table(
     cross_differences: list[float],
     noise_differences: list[float],
     passes: bool,

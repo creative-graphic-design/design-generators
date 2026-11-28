@@ -7,7 +7,7 @@ tags:
 
 # Getting Started
 
-Install workspace members from the repository root with `uv`. The root project coordinates repository tooling and applies workspace-wide `transformers` and `diffusers` version floors; it installs no runtime dependencies by default. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so runtime dependencies, extras, and dependency source mappings resolve correctly.
+Install workspace members from the repository root with `uv`. The root project coordinates repository tooling and applies workspace-wide `transformers` and `diffusers` version floors; it installs no runtime dependencies by default. Shared libraries live under `lib/*`, and model packages live under `models/*`.
 
 ## Install
 
@@ -73,11 +73,7 @@ Text
 
 ## GPU Selection
 
-Agreement checks against the original implementation (the repository's `vendor_parity` test suite) and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
-
-```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity
-```
+GPU-dependent agreement checks and conversion commands are listed in each package's `REPRODUCING.md`.
 
 ## Prompt-Only Packages
 

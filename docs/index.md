@@ -23,15 +23,14 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ### Layout-generation badges
 
-- Layout-generation Task badges show `task-agnostic`, `task-aware`, `single-task`, `evaluation`, or `saliency`.
+- Layout-generation Task and Content badges summarize each model's generation behavior.
 - 🎯 marks layout-generation Task badges.
-- Layout-generation Content badges show `content-agnostic` or `content-aware`.
 
 ### Image-generation badges
 
-- Image-generation Task badges show `text-to-image` or `image-to-image`.
+- Image-generation Task and Content badges summarize generation modes and conditioning.
 - 🎨 marks image-generation Task badges.
-- Image-generation Content badges list conditioning values, such as `text` or `layers + text`.
+- Image-generation Content badges list conditioning values.
 - 📝 marks text conditioning.
 - 🧩 marks layers plus text.
 
@@ -39,10 +38,9 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 - The model name opens the on-site API page.
 - The Docs link opens the package README.
-- The Weights column identifies converted original weights that you can load.
+- The Weights column links to each package's `REPRODUCING.md`, which describes its available checkpoints, configurations, and reproduction artifacts.
 - The Training link opens each package's reproduction record.
 - The reproduction record states whether full training was in scope and verified.
-- The Hugging Face `pipeline_tag` matches the image-generation Task value.
 - See [the model catalog classification conventions](conventions.md#model-catalog-classification) for task, conditioning, and metadata rules.
 
 | Model                                              | Task                                                                                                           | Content                                                                                                                          | Venue                                                                                                           | Weights                                                                                                                                                                                                              | Training                                                                                                                                                                                                                   | Paper                                                                                                                                                                         | Docs                                                                                                               |
@@ -138,7 +136,7 @@ Every port is verified against the original implementation: agreement checks (th
 
 ### Training
 
-For models we reproduce by training ourselves, each package provides PyTorch Lightning modules, [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) configs, and package-specific training commands. Shared training helpers live in `lib/traingen`, parity helpers live in `lib/traingen-parity`, and runnable workflows are documented in each package's `TRAINING.md`; see the [training reproduction guide](training-reproduction/) for the repository protocol.
+For models trained in this repository, the [training reproduction guide](training-reproduction/) defines the shared protocol and each package's `TRAINING.md` records its workflow. Shared helpers live in `lib/traingen`; parity helpers live in `lib/traingen-parity`.
 
 ### Extension
 
