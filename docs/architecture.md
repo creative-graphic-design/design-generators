@@ -39,7 +39,25 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Hub publication ownership
 
-The main-push workflow calls `scripts/publish_to_hub.py` for packages that declare `[tool.design-generators.hub-publisher]`; the table maps Hub filenames to package-relative paths or inline content. `scripts/select_hub_publishers.py` and `devharness.hub_publishers` use table presence for package selection and badge status (`planned-code-only` → `published-code-only`). Code-only publishers copy the package README, including its badge, into the Hub card. Generated model cards apply to weight-backed checkpoints. Publishers check write access, upload declared files, and verify read-back bytes. They preserve configured prefixes such as Collage's `source-assets/` and skip upload when only generated archive revisions differ. The workflow supplies `huggingface-hub` as a temporary dependency and passes scoped `HF_TOKEN` only to publishing; pull requests and merge queue entries receive no token.
+The workflow runs on pushes to `main`, selects changed packages with publisher metadata, and calls `scripts/publish_to_hub.py` for each selected package. [Workflow](https://github.com/creative-graphic-design/design-generators/blob/main/.github/workflows/hub-publish.yml#L3-L7) [selection](https://github.com/creative-graphic-design/design-generators/blob/main/.github/workflows/hub-publish.yml#L31-L50) [publish step](https://github.com/creative-graphic-design/design-generators/blob/main/.github/workflows/hub-publish.yml#L106-L117).
+
+The workflow supplies `huggingface-hub` as a temporary dependency and exposes `HF_TOKEN` only to the publish step. [Source](https://github.com/creative-graphic-design/design-generators/blob/main/.github/workflows/hub-publish.yml#L100-L117).
+
+Publisher tables map Hub destinations to package-relative files or inline content. [Source](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L38-L60).
+
+Shared discovery selects packages with publisher metadata. [Source](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/hub_publishers.py#L26-L61).
+
+Publisher presence maps the planned code-only badge to its published status. [Status pair](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/hub_publishers.py#L10-L15) [badge check](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/hub_publishers.py#L64-L88).
+
+The Collage publisher maps its package README to the Hub README, and the uploader reads configured package files. [Collage config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [file preparation](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L43-L60).
+
+Model-index metadata is required for weight-backed model cards and prohibited for prompt-only or code-only cards. [Source](https://github.com/creative-graphic-design/design-generators/blob/main/tools/devharness/src/devharness/checks/model_readmes/card.py#L916-L929).
+
+The publisher checks write access before upload, uploads only configured files, and verifies their bytes. [Access check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/hub_publishing.py#L74-L82) [upload and verification](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/hub_publishing.py#L116-L176).
+
+The Collage publisher preserves the existing `source-assets/` file set on the Hub. [Config](https://github.com/creative-graphic-design/design-generators/blob/main/models/collage-diffusion/pyproject.toml#L39-L47) [preservation check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L134-L140) [post-upload check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L185-L193).
+
+The publisher skips uploads when the files differ only by generated archive revision URLs. [Comparison](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/publish_to_hub.py#L89-L114).
 
 ## Dependency environments
 
