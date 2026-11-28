@@ -13,6 +13,13 @@ from ..configuration_flex_dm import FlexDmDatasetName
 from .dataset import FlexDmTfrecordDataset
 
 
+def _read_sample_order(path: Path | None) -> tuple[int, ...] | None:
+    if path is None:
+        return None
+
+    return tuple(int(value) for value in path.read_text(encoding="utf-8").splitlines())
+
+
 class FlexDmDataModule(LightningDataModule):
     """Load package-readable Flex-DM TFRecords for Lightning."""
 
@@ -24,6 +31,8 @@ class FlexDmDataModule(LightningDataModule):
         batch_size: int = 256,
         num_workers: int = 0,
         shuffle_train: bool = True,
+        train_order_path: str | None = None,
+        val_order_path: str | None = None,
     ) -> None:
         """Store the data location and loader settings."""
         super().__init__()
@@ -32,16 +41,24 @@ class FlexDmDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.shuffle_train = shuffle_train
+        self.train_order_path = Path(train_order_path) if train_order_path else None
+        self.val_order_path = Path(val_order_path) if val_order_path else None
         self.datasets: dict[str, FlexDmTfrecordDataset] = {}
 
     def setup(self, stage: str | None = None) -> None:
         """Open datasets for the requested trainer stage."""
         if stage in {None, "fit"}:
             self.datasets["train"] = FlexDmTfrecordDataset(
-                self.data_dir, self.dataset_name, "train"
+                self.data_dir,
+                self.dataset_name,
+                "train",
+                sample_order=_read_sample_order(self.train_order_path),
             )
             self.datasets["val"] = FlexDmTfrecordDataset(
-                self.data_dir, self.dataset_name, "val"
+                self.data_dir,
+                self.dataset_name,
+                "val",
+                sample_order=_read_sample_order(self.val_order_path),
             )
 
         if stage in {None, "test"}:
@@ -56,7 +73,9 @@ class FlexDmDataModule(LightningDataModule):
         if "train" not in self.datasets:
             self.setup("fit")
 
-        return self._loader("train", shuffle=self.shuffle_train)
+        return self._loader(
+            "train", shuffle=self.shuffle_train and self.train_order_path is None
+        )
 
     def val_dataloader(self) -> DataLoader[dict[str, Shaped[Tensor, "..."]]]:
         """Return the ordered validation loader."""
