@@ -122,6 +122,7 @@
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`, through `devharness check model-readmes`.
+- The model-readme check rejects CPU string literals and `.cpu()` calls in Python fences in READMEs, REPRODUCING files, and the model README template. Direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments are allowed.
 - `devharness check scheduler-loading` rejects direct scheduler assignments whose right side calls `.from_config()` or `.from_pretrained()`.
 - `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`.
 - `scripts/check_readme_links.py` checks README, guide, and skill files: root and skill links are relative, while package-document links use absolute GitHub URLs.

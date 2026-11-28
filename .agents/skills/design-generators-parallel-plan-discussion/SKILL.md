@@ -25,8 +25,9 @@ Use `references/task-message-template.md` when preparing participant assignments
 
 1. Read the umbrella and target issue or document first, then investigate the target-specific sources named in the task.
 2. Write `<shared-drafts-dir>/<target-slug>.md` with evidence, implementation boundaries, open questions, and an `## Interface proposal` section covering every agenda item.
-3. Deliver a compact proposal (15 lines or fewer) directly to each peer with the generic Herdr agent surface: `herdr agent prompt <peer-agent-name> "<proposal>"`.
-4. Report completion and the draft path directly to the recorded coordinator agent name or pane ID with `herdr agent prompt`, then end the turn so the coordinator can start Round 2.
+3. Preserve the user's literal requirements and distinguish them from participant proposals.
+4. Deliver a compact proposal (15 lines or fewer) directly to each peer with the generic Herdr agent surface: `herdr agent prompt <peer-agent-name> "<proposal>"`.
+5. Report completion and the draft path directly to the recorded coordinator agent name or pane ID with `herdr agent prompt`, then end the turn so the coordinator can start Round 2.
 
 ## Round 2: direct debate and consolidation
 

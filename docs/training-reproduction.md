@@ -31,7 +31,7 @@ Follow the stages in order. Record S0-S2 evidence in the model issue, then recor
 | S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                                       |
 | S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                                |
 
-Every full S5 run must have a JSON launch manifest written before training. It records `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, prelaunch artifact paths and SHA-256 values, and timezone-aware ISO 8601 `launched_at`. In the S5 Stage Evidence row's Artifact cell, cite the repository- or cache-relative path ending in `manifest.json`. Add `; evaluation-path-parity: <path>` for the separate parity artifact so `scripts/check_training_stage_evidence.py` can parse its path. When the manifest is available locally, the checker verifies its recorded config, source commit, and launch time. A GitHub URL cannot identify that local file.
+Every full S5 run must have a JSON launch manifest written before training. It records `source_commit`, `config`, `evaluator_command`, `checkpoint_rule`, prelaunch artifact paths and SHA-256 values, and timezone-aware ISO 8601 `launched_at`. In the S5 Stage Evidence row's Artifact cell, cite the repository- or cache-relative path ending in `manifest.json`. Add `; evaluation-path-parity: <path>` for the separate parity artifact so `scripts/check_training_stage_evidence.py` can parse its path.
 
 ### Checkpoint Smoke Before Full Runs
 
@@ -225,6 +225,8 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
 
 The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
+
+Commands must run from the repository root and must not depend on untracked helper scripts unless the command that creates them is shown. This lets reviewers replay the evidence.
 
 ## Pull Request Gates
 
