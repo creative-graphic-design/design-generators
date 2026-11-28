@@ -147,6 +147,7 @@ def test_objective_hook_records_exact_native_logger_values(tmp_path: Path) -> No
     assert [step for _, step in calls] == [0, 1]
 
 
+@pytest.mark.vendor_parity
 def test_objective_hook_survives_disabled_wandb_init_calls(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
