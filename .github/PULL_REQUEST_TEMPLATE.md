@@ -16,7 +16,7 @@
 
 ## Verification
 
-<!-- Record executed commands and results. Include coverage and parity numbers when applicable, distinguishing passes from skips. For docs/skills, report the affected rules and the existing checks; do not claim model parity from documentation checks. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
+<!-- Record commands and results, including passes and skips. For rendered-site inspection, follow the [documentation skill](../.agents/skills/design-generators-documentation/SKILL.md#verification) and list opened page URLs with the checks performed. -->
 
 - TODO
 
@@ -24,20 +24,20 @@
 
 Full checklist: see [docs/implementation-checklist.md](https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md) (source of truth).
 
+<!-- Unchecked template boxes are permitted; use [x] only for verified items. Ready-for-review evidence is checked in the Completion Gate below. -->
+
 - [ ] Confirmed the applicable implementation checklist items.
-- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.
-- [ ] Confirmed the implementation issue has a milestone and native Priority field set.
-- [ ] Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.
-- [ ] Read the model plan and amendment comments, if this is a model PR.
-- [ ] Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.
+- [ ] Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).
+- [ ] Verify model plans and amendments using the [repository source-of-truth rule](../AGENTS.md#sources-of-truth), if this is a model PR.
+- [ ] Follow the [model-conversion parity procedure](../.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.
 - [ ] Did not push Hub repositories or model artifacts unless explicitly requested.
 - [ ] Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.
-- [ ] README reproducibility steps are copy-pasteable commands, if README docs changed.
+- [ ] Follow the [documentation skill](../.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
 
 ## Completion Gate
 
-<!-- Draft PRs may leave these pending. Ready-for-review PRs must satisfy each item. Independent adversarial review must be checked; the other items allow the reasons stated in their wording. -->
+<!-- Draft PRs may leave these pending. Ready-for-review PRs must satisfy each item, replace every template placeholder, and replace the untouched S5 template text with evidence or a concrete N/A reason. Independent adversarial review must be checked; other items allow the reasons stated in their wording. -->
 
 - [ ] Vendor parity verified, or gated-pending: <independent rerun, cases, criterion, and artifact scope; or state why parity is not applicable; otherwise name the blocker>.
 - [ ] Training S5 reproduction complete, or N/A: <claimed datasets and training/evaluation seed scope, with S0-S4 evidence cited before S5; or N/A with reason>. Infrastructure-only work must state that full-run reproduction is not claimed.

@@ -112,24 +112,23 @@
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
 - `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories.
-- `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
-- `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
+- `scripts/check_src_vendor_language.py` rejects `vendor` in package source, except conversion plumbing and `laygen.common.vendor`; see the model-conversion skill for broader source-language guidance.
+- `scripts/check_stage_codes_in_prose.py` rejects stage codes in Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`.
 - `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.
 - `scripts/check_generator_sampling.py` rejects direct generator-consuming Torch draws and non-CPU or dynamic generator construction outside the shared randomness helper.
-- `scripts/check_config_defaults.py` enforces explicit-config construction.
-- `scripts/check_semantic_blank_lines.py` checks raise-block and compound-suite blank lines.
+- `scripts/check_config_defaults.py` rejects boolean-`or` fallbacks when constructing configs; other fallback forms are not checked.
+- `scripts/check_semantic_blank_lines.py` checks raise/compound-suite blank lines and limits function bodies to 15 consecutive statements in `lib/`, `models/`, `scripts/`, and `tools/`.
 - `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
 
 ### Documentation Checks
 
 - `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
-- `devharness check model-readmes` rejects CPU strings and `.cpu()` in README, REPRODUCING, templates, and cards. It allows direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments.
-- `devharness.checks.scheduler_loading` rejects post-load Diffusers scheduler assignments through `devharness check scheduler-loading`.
+- `devharness check scheduler-loading` rejects direct scheduler assignments whose right side calls `.from_config()` or `.from_pretrained()`.
 - `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
-- `scripts/check_readme_links.py` enforces repository-relative README links.
+- `scripts/check_readme_links.py` checks README, guide, and skill files: root and skill links are relative, while package-document links use absolute GitHub URLs.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
 - `scripts/check_training_doc_template.py` enforces training-document structure.
-- `scripts/check_training_stage_evidence.py` enforces S0-S5 claims.
+- `scripts/check_training_stage_evidence.py` checks S5 evidence in `models/*/TRAINING.md` when its S5 detector identifies a claim.
 - `tests/test_docs_generation.py` checks that every `docs/*.md` page has icon and tags frontmatter.
 - `lib/laygen/tests/test_common.py` checks the shared layout-output schema.
 
@@ -141,9 +140,8 @@
 - The Lint job runs `uv lock --check`; its pre-commit step uses `SKIP=uv-lock,pytest-models,vulture,ty,duplicate-code`.
 - The `Duplicate Code` job uses root-tooling dependencies to compare changed Python files with `origin/main` on merge queue and manual dispatches targeting non-main branches.
 - Main pushes, scheduled runs, and manual dispatches targeting `main` have no changed targets, so `Duplicate Code` skips them. `Dead Code` continues full-repository scans on those events.
-- Pull requests and merge queue entries run `ty`, root tests, generated API pages, strict Zensical, and selected member tests.
-- Member tests follow declared workspace dependencies, optional dependencies, and dependency groups; every non-Markdown change also selects `devharness`.
-- Non-Markdown changes outside member directories select all members with tests; non-Markdown main pushes, manual dispatches, and the daily schedule run the full member matrix.
+- Pull requests and merge queue entries run `ty`, root tests, generated API documentation, strict Zensical, and selected member tests.
+- Member test selection follows the [dependency environment rules](docs/architecture.md#dependency-environments).
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
