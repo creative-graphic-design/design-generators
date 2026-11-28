@@ -84,12 +84,11 @@
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
 - Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair.
-- Treat merging a model package to `main` as approval to publish it to the `creative-graphic-design` Hugging Face organization. The main-push workflow selects packages declaring `[tool.design-generators.hub-publisher]` and runs `scripts/publish_to_hub.py`. Pull requests and merge queue entries never receive the publishing secret.
+- Treat merging a model package to `main` as approval to publish its configured Hub repository. See [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for publisher selection and workflow details. Pull requests and merge queue entries never receive the publishing secret.
 - The shared repository secret `HF_TOKEN` is required for an eligible publication run, and the workflow must fail clearly when it is missing. Use a Hugging Face fine-grained token that grants content-write permission only to the Hub repositories whose packages define publishers; do not grant organization-wide access. When adding a package publisher, add its destination repository to the token's resource scope. Each publisher checks write access before upload and must clearly name its destination when access is missing.
-- Track publication separately from local serialization and parity verification.
+- Track publication separately from local serialization, parity verification, and model-issue closure.
 - Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
-- Hub publishing runs after the package merge through the main-push workflow and remains separate from the per-issue close condition.
-- A model README's Hub badge follows publisher presence: packages with `[tool.design-generators.hub-publisher]` use the matching `published-*` value. Packages without that table retain their planned or other pre-publication value. `devharness check model-readmes` and `scripts/check_readme_badges.py` enforce this rule through shared publisher discovery; see [Hub publication ownership](docs/architecture.md#hub-publication-ownership) for the value mapping.
+- A model README's Hub badge follows [Hub publication ownership](docs/architecture.md#hub-publication-ownership); its checks enforce that mapping through shared publisher discovery.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
@@ -122,9 +121,9 @@
 
 ### Documentation Checks
 
-- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from package-local publisher presence, through `devharness check model-readmes`.
+- `devharness.checks.model_readmes` enforces README and model-card contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`, through `devharness check model-readmes`.
 - `devharness check scheduler-loading` rejects direct scheduler assignments whose right side calls `.from_config()` or `.from_pretrained()`.
-- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
+- `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from `[tool.design-generators.hub-publisher]`.
 - `scripts/check_readme_links.py` checks README, guide, and skill files: root and skill links are relative, while package-document links use absolute GitHub URLs.
 - `scripts/check_reader_facing_references.py` scans `docs/*.md` and `models/*/TRAINING.md` for unlinked references, selected reader-facing wording, and duplicate headings.
 - `scripts/check_training_doc_template.py` enforces training-document structure.

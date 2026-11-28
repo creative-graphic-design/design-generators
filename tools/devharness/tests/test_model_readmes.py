@@ -1610,10 +1610,14 @@ library_name: transformers
 
 def test_card_contracts_cover_prompt_and_unpublished_notes() -> None:
     path = Path("models") / "layout-gpt" / "README.md"
-    with pytest.raises(AssertionError, match="stale model-package phrase"):
+    with pytest.raises(
+        AssertionError, match="prompt-only README contains stale model-package phrase"
+    ):
         card.assert_prompt_only_readme(path, "converted checkpoint")
 
-    with pytest.raises(AssertionError, match="must not mention converting"):
+    with pytest.raises(
+        AssertionError, match="prompt-only README must not mention converting"
+    ):
         card.assert_prompt_only_readme(path, "convert checkpoints")
 
     with pytest.raises(AssertionError, match="missing runnable setup parts"):

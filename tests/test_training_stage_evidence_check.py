@@ -758,10 +758,20 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
         "No S5 reproduction is achieved.",
         "Pending: S5 is evaluated after S4.",
         "No full-run comparison is achieved.",
+        "The pilots produced no training-seed n=3 comparison.",
+        "S5 evaluated runs are not claimed.",
+        "S5 full-run comparison has not been evaluated.",
+        "Full-run evaluated comparison is pending.",
     ],
 )
 def test_has_s5_claim_ignores_negated_claim_verb(claim: str) -> None:
     assert not check_training_stage_evidence.has_s5_claim(claim)
+
+
+def test_has_s5_claim_detects_positive_claim_after_prior_negation() -> None:
+    assert check_training_stage_evidence.has_s5_claim(
+        "No S5 result is claimed; S5 reproduction is complete."
+    )
 
 
 def test_has_s5_claim_still_detects_positive_s5_claim() -> None:

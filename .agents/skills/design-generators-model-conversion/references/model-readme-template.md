@@ -49,7 +49,7 @@ model-index:
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
 <!-- Badge order: paper (arXiv, OpenReview, or DOI), optional venue, license, base, dataset or task, vendor parity, Hub status. `scripts/check_readme_badges.py` validates these slots. -->
-<!-- Set Hub status from `[tool.design-generators.hub-publisher]` in `pyproject.toml` using [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership). -->
+<!-- Set the Hub badge using [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership). -->
 
 # Model Card for <model-id>
 
@@ -86,7 +86,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## Supported Checkpoints
 
-<!-- Use the model issue's checkpoint/dataset/task matrix. The checkpoint status records whether that Hub id has been published; the README Hub badge follows `[tool.design-generators.hub-publisher]` configuration. Mark an unpublished Hub id as not-published. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
+<!-- Use the model issue's checkpoint/dataset/task matrix. The checkpoint status records whether that Hub id has been published; mark unpublished Hub ids as not-published. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
 
 | Checkpoint           | Hub ID                                  | Status        |
 | -------------------- | --------------------------------------- | ------------- |
@@ -120,7 +120,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## How to Get Started with the Model
 
-<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until publication completes; the Hub badge follows `[tool.design-generators.hub-publisher]` configuration. -->
+<!-- Lead with a local converted checkpoint path that works before Hub publication. -->
 
 Install the package and its unpublished workspace dependencies together.
 

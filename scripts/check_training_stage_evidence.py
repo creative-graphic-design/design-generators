@@ -76,14 +76,14 @@ EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
 CLAUSE_BOUNDARY_RE = re.compile(r"[.!?](?=\s)")
 CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
+CLAIM_NEGATION_BOUNDARY_RE = re.compile(
+    r"[.!?;,](?=\s)|(?<!pending):(?=\s)", re.IGNORECASE
+)
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|"
-    r"not (?:yet )?(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)|"
-    r"no (?:s-?5|stage\s*5|full[- ]run))\b",
-    re.IGNORECASE,
-)
-POSITIVE_CLAIM_RE = re.compile(
-    r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
+    r"not (?:yet )?(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced|claimed)|"
+    r"not (?:yet )?been (?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced|claimed)|"
+    r"no (?:s-?5|stage\s*5|full[- ]run|training-seed\s+n\s*=\s*\d+))\b",
     re.IGNORECASE,
 )
 CLAIM_PATTERNS = (
@@ -311,19 +311,27 @@ def s5_claim_clauses(text: str) -> tuple[str, ...]:
     clauses = []
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
-            clause = clause_around_match(normalized, match.start(), match.end())
-            negation = NEGATED_CLAIM_RE.search(clause)
+            negation_scope = claim_negation_scope(normalized, match.end())
+            negation = NEGATED_CLAIM_RE.search(negation_scope)
             if negation is not None:
-                positive = POSITIVE_CLAIM_RE.search(match.group(0))
-                claim_offset = clause.find(match.group(0))
-                if (
-                    positive is not None
-                    and negation.start() > claim_offset + positive.start()
-                ):
-                    clauses.append(clause)
                 continue
+            clause = clause_around_match(normalized, match.start(), match.end())
             clauses.append(clause)
     return tuple(sorted(clauses))
+
+
+def claim_negation_scope(text: str, anchor: int) -> str:
+    """Return the punctuation-delimited clause that contains a claim match."""
+    start = 0
+    end = len(text)
+    for boundary in CLAIM_NEGATION_BOUNDARY_RE.finditer(text):
+        if boundary.end() <= anchor:
+            start = boundary.end()
+            continue
+        end = boundary.start()
+        break
+
+    return text[start:end]
 
 
 def s5_record_signature(text: str) -> str:

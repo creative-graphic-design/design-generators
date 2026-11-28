@@ -15,16 +15,17 @@ from typing import NamedTuple
 # Keep the standing roadmap issue and historical checklist issue excluded from implementation references.
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
 COMPLETION_GATE_EFFECTIVE_AT = datetime(2026, 7, 25, tzinfo=UTC)
-ISSUE_REF_RE = re.compile(
-    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|references?)\s+"
-    r"(?:https://github\.com/creative-graphic-design/design-generators/issues/)?#?(\d+)"
-)
+ISSUE_REF_RE = re.compile(r"(?i)\b(?:closes|refs)\s+#(\d+)\b")
+SUMMARY_HEADING_RE = re.compile(r"(?im)^## Summary\s*$")
 CHECKLIST_HEADING_RE = re.compile(r"(?im)^## Checklist\s*$")
 COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
 SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
 PLACEHOLDER_RE = re.compile(r"<(?P<contents>[^<>]*)>")
+UNSPACED_BOOLEAN_COMPARISON_RE = re.compile(
+    r"[A-Za-z_]\w*\s+(?:and|or)\s+[A-Za-z_]\w*", re.IGNORECASE
+)
 NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
 
 # Keep these deprecated checklist spellings accepted while already-open PRs are
@@ -35,6 +36,15 @@ DEPRECATED_CHECKLIST_ALIASES = {
     ),
     "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).": (
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    ),
+    "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.": (
+        "Read the model plan and amendment comments, if this is a model PR.",
+    ),
+    "Follow the [model-conversion parity procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.": (
+        "Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.",
+    ),
+    "Follow the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.": (
+        "README reproducibility steps are copy-pasteable commands, if README docs changed.",
     ),
 }
 
@@ -82,16 +92,17 @@ COMPLETION_REQUIREMENTS = (
 
 
 def issue_references(body: str) -> set[int]:
-    """Return implementation issue numbers referenced by PR body keywords."""
+    """Return issue numbers referenced with the accepted PR summary syntax."""
     return {int(match) for match in ISSUE_REF_RE.findall(body)}
 
 
 def valid_issue_references(
     body: str, excluded_issues: set[int] | None = None
 ) -> set[int]:
-    """Return PR issue references that are not standing canon issues or the historical checklist issue."""
+    """Return eligible implementation issue references from the PR summary."""
     excluded = DEFAULT_EXCLUDED_ISSUES if excluded_issues is None else excluded_issues
-    return issue_references(body) - excluded
+    summary = section_body(body, SUMMARY_HEADING_RE)
+    return issue_references(summary or "") - excluded
 
 
 def read_body_from_event(event_path: Path) -> str:
@@ -188,17 +199,29 @@ def _has_actionable_justification(text: str, marker: str) -> bool:
     return bool(cleaned)
 
 
-def _is_placeholder(match: re.Match[str]) -> bool:
+def _is_placeholder(match: re.Match[str], text: str) -> bool:
     contents = match.group("contents")
     if contents[:1].isspace():
         return False
 
-    return re.match(r"(?i)(?:https?://|mailto:)", contents) is None
+    if re.match(r"(?i)(?:https?://|mailto:)", contents) is not None:
+        return False
+
+    before = text[match.start() - 1 : match.start()]
+    after = text[match.end() : match.end() + 1]
+    if (
+        before.isalnum()
+        and after.isalnum()
+        and UNSPACED_BOOLEAN_COMPARISON_RE.fullmatch(contents) is not None
+    ):
+        return False
+
+    return True
 
 
 def _remove_placeholders(text: str) -> str:
     return PLACEHOLDER_RE.sub(
-        lambda match: "" if _is_placeholder(match) else match.group(), text
+        lambda match: "" if _is_placeholder(match, text) else match.group(), text
     )
 
 
@@ -250,7 +273,7 @@ def completion_gate_errors(
 
         checked, text = item
         marker = requirement.allowed_justification
-        if any(_is_placeholder(match) for match in PLACEHOLDER_RE.finditer(text)):
+        if any(_is_placeholder(match, text) for match in PLACEHOLDER_RE.finditer(text)):
             if requirement.justification_label is None:
                 errors.append(
                     f"Ready-for-review PRs must check `{requirement.prefix}` or "

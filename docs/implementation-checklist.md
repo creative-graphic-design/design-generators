@@ -12,7 +12,6 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 
 ## Before starting
 
-- [ ] Follow the repository [workspace rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#workspace) for member-scoped commands and repository-relative paths.
 - [ ] Use the [roadmap](roadmap.md) for scope, [data sources](data-sources.md) for dataset choices, [conventions](conventions.md) for interfaces/code, and [architecture](architecture.md) for shared ownership. Read the parts affected by the task.
 - [ ] Apply the model issue plan and amendments according to the [repository rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth).
 - [ ] Apply issue status labels according to [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).
@@ -97,4 +96,4 @@ Run the checks for the changed scope once, then rerun affected checks if a fix c
 - Run the full hook set with `uv run --locked pre-commit run --all-files`.
 - Build the documentation site strictly with `uv run --locked --group docs zensical build --strict -f mkdocs.yml`.
 
-Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. A coordinator reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.
+Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent commands. Follow the [model-conversion acceptance rule](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for reruns and pass criteria.

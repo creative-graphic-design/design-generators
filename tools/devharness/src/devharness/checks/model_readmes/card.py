@@ -1085,12 +1085,12 @@ def assert_prompt_only_readme(path: Path, text: str) -> None:
     for phrase in PROMPT_ONLY_STALE_PHRASES:
         if phrase in text:
             raise AssertionError(
-                f"{path}: prompt-only or code-only README contains stale model-package phrase {phrase!r}"
+                f"{path}: prompt-only README contains stale model-package phrase {phrase!r}"
             )
 
     if "convert checkpoints" in text.lower():
         raise AssertionError(
-            f"{path}: prompt-only or code-only README must not mention converting checkpoints"
+            f"{path}: prompt-only README must not mention converting checkpoints"
         )
 
 

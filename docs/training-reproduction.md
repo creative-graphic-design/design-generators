@@ -230,7 +230,7 @@ The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `e
 
 Pull requests for models whose only weight path is self-training must stay draft until S5 is confirmed for the claimed datasets. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must say that trained-checkpoint reproduction is not yet claimed.
 
-Before applying the `parity-verified` label to an issue, a reviewer who did not produce the evidence independently reruns the relevant agreement-check suite, with missing local assets treated as failures.
+Before applying the `parity-verified` label to an issue, follow the [model-conversion acceptance rule](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity).
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
@@ -238,7 +238,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   models/<package>/tests/vendor_parity -m "vendor_parity and training" -rs
 ```
 
-This independent rerun must use the package model in the loop, include the topology guard, and confirm that every claimed dataset has the stated S5 status. An all-skip agreement-check run is not a pass.
+The package rerun must use the package model in the loop, include the topology guard, and confirm each claimed dataset's stated S5 status.
 
 ### Regression Rule
 
