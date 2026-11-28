@@ -198,13 +198,6 @@ def mask_markdown_links(line: str, definitions: set[str] | None = None) -> str:
     characters = list(line)
     index = 0
     while index < len(line):
-        if line[index] == "`":
-            code_end = _inline_code_span_end(line, index)
-            if code_end is not None:
-                characters[index:code_end] = [" "] * (code_end - index)
-                index = code_end
-                continue
-
         opening = index
         if line[index] == "!" and index + 1 < len(line) and line[index + 1] == "[":
             opening = index + 1

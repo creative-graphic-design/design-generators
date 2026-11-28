@@ -151,13 +151,17 @@ def test_checks_prose_after_an_escaped_backtick_before_inline_code(
     path = write_doc(
         tmp_path,
         "docs/example.md",
-        r"Use \` as a literal, issue #123 stays prose, then `run` is code." + "\n",
+        r"Use \` as a literal, issue #123 stays prose, then `run` is code."
+        + "\n"
+        + r"Two \` escaped delimiters around issue #456 \` remain prose."
+        + "\n",
     )
 
     violations = checker.violations_for_document(path)
 
     assert [(item.line, item.location, item.reference) for item in violations] == [
-        (1, "body", "#123")
+        (1, "body", "#123"),
+        (2, "body", "#456"),
     ]
 
 
