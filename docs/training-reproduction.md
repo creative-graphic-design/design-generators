@@ -185,21 +185,9 @@ Every reported number—count, metric, or tolerance—states the population (the
 
 ### S3 Evidence Recording
 
-Record the natural multi-step layer for every model with the same seed and data
-on both systems. Repeat it to measure the run-to-run envelope, and preserve
-per-step state drift, loss, gradients, post-step parameters, learning rates,
-the first divergence, and the envelope even when every step is within those requirements.
+Record the natural multi-step layer for every model with the same seed and data on both systems. Repeat it to measure the run-to-run envelope, and preserve per-step state drift, loss, gradients, post-step parameters, learning rates, the first divergence, and the envelope even when every step is within those requirements.
 
-When natural evidence leaves the S0-S2 requirements, record the synchronized layer
-at every optimizer boundary. Synchronize model parameters and buffers,
-optimizer state, and scheduler state before the next batch, then apply the
-existing S0-S2 comparisons. Copy optimizer state with a `deepcopy` before
-`load_state_dict()` and assert independent storage for every tensor-valued
-state after loading. In the repository's checked torch `2.6.0+cu124` and
-`2.8.0+cu128` environments, same-device optimizer-state loading was
-empirically observed to share storage without this protection. This is an
-observation of those evidence runs, not a general PyTorch specification; the
-copy and assertion are the fail-closed requirement.
+When natural evidence leaves the S0-S2 requirements, record the synchronized layer at every optimizer boundary. Synchronize model parameters and buffers, optimizer state, and scheduler state before the next batch, then apply the existing S0-S2 comparisons. Copy optimizer state with a `deepcopy` before `load_state_dict()` and assert independent storage for every tensor-valued state after loading. In the repository's checked torch `2.6.0+cu124` and `2.8.0+cu128` environments, same-device optimizer-state loading was empirically observed to share storage without this protection. This is an observation of those evidence runs, not a general PyTorch specification; the copy and assertion are the fail-closed requirement.
 
 Before any S5 launch, run the original and shipped package training entry points for each claimed dataset on the same S4-verified deterministic stream, using at least three matched training seeds and resolved production configs. Each system follows its own model and optimizer initialization path; the package optimizer is stepped by its shipped trainer, and no original parameters, buffers, or optimizer state are copied into the package run. Record the batch sequence at every optimizer update. Give this comparison its own interval, independent of natural S3 length: run at least 1,500 completed optimizer updates per optimizer. This is five times the 300-update lockstep minimum, giving initialization or optimizer-path differences 1,200 more updates to shift the aggregate beyond seed-to-seed variation; the median over the full interval makes the decision depend on the sustained loss scale rather than isolated events. Derive the reference only from original production-entry-point runs over that same interval and stream, never from natural S3 adapter runs.
 

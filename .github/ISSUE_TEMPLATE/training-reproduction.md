@@ -19,8 +19,7 @@ Reproduce package-local training for `<package>` using the staged S0-S5 [trainin
 
 ## Scope (S0-S5)
 
-- S0: Static config, initialized state, topology guard, optimizer defaults, and
-  dataset encoding.
+- S0: Static config, initialized state, topology guard, optimizer defaults, and dataset encoding.
 - S1: Fixed-batch pre-optimizer trace.
 - S2: One optimizer step.
 - S3: Short deterministic multi-batch run.
@@ -33,22 +32,17 @@ Reproduce package-local training for `<package>` using the staged S0-S5 [trainin
 
 ## Seed Policy
 
-- Target S5 evidence: training-seed n=3 unless this issue explicitly narrows the
-  claim.
-- Interim evidence: label evaluation-seed evidence as weaker than training-seed
-  evidence.
+- Target S5 evidence: training-seed n=3 unless this issue explicitly narrows the claim.
+- Interim evidence: label evaluation-seed evidence as weaker than training-seed evidence.
 
 ## Deliverables
 
-- Vendor reference adapter and S0-S2 trace-agreement evidence posted as an issue
-  comment before any S5-scale GPU run starts.
-- Package-local `LightningModule`, datamodule, configs, deterministic seed
-  controls, and parity helpers.
+- Vendor reference adapter and S0-S2 trace-agreement evidence posted as an issue comment before any S5-scale GPU run starts.
+- Package-local `LightningModule`, datamodule, configs, deterministic seed controls, and parity helpers.
 - S3 short-run and S4 loader-stream evidence posted.
 - S5 full-run original/package metrics, seed scope, and artifact locations.
 - `TRAINING.md` with a `Stage Evidence` table covering S0-S5.
-- README/model-card updates that describe only the datasets and seed scope with
-  completed evidence.
+- README/model-card updates that describe only the datasets and seed scope with completed evidence.
 
 Follow the [training reproduction skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-training-reproduction/SKILL.md) for the source-pinned seed-queue guard and fail-closed parity procedure.
 

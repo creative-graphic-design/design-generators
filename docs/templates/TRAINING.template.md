@@ -8,11 +8,9 @@ tags:
 
 # <Package> Training
 
-This document records package-local training commands, staged reproduction
-evidence, and per-dataset full-run status for `<package>`.
+This document records package-local training commands, staged reproduction evidence, and per-dataset full-run status for `<package>`.
 
-Run commands from the repository root. Keep generated data, logs, checkpoints,
-converted local pipelines, and evaluation artifacts under `.cache/<package>/`.
+Run commands from the repository root. Keep generated data, logs, checkpoints, converted local pipelines, and evaluation artifacts under `.cache/<package>/`.
 
 ## Install
 
@@ -28,8 +26,7 @@ uv sync --package <package> --extra training --extra vendor
 
 ## Data
 
-List every training dataset and the exact source or local artifact layout used by
-the package-local and original-code runs.
+List every training dataset and the exact source or local artifact layout used by the package-local and original-code runs.
 
 | Dataset     | Source                       | Config or path                     |
 | ----------- | ---------------------------- | ---------------------------------- |
@@ -49,9 +46,7 @@ Document optimizer, scheduler cadence, validation cadence, batch-size, accumulat
 
 ## Seed Policy
 
-State the training seed scope and evaluation seed scope for every claimed
-dataset. Use labels such as `training-seed n=3` or `evaluation-seed n=3`; do not
-describe evaluation-seed evidence as training-seed reproduction.
+State the training seed scope and evaluation seed scope for every claimed dataset. Use labels such as `training-seed n=3` or `evaluation-seed n=3`; do not describe evaluation-seed evidence as training-seed reproduction.
 
 ## Validation Stages
 
@@ -79,10 +74,7 @@ Replace every placeholder in this reusable evidence table with a command, artifa
 
 ## Reproduction Results
 
-Open with a conclusion-first paragraph that states the verdict, covered
-datasets, seed scope, and any partial coverage. Every dataset listed in the
-package README `Supported Checkpoints` table must appear in this section's
-results table.
+Open with a conclusion-first paragraph that states the verdict, covered datasets, seed scope, and any partial coverage. Every dataset listed in the package README `Supported Checkpoints` table must appear in this section's results table.
 
 Allowed `Status` values are:
 
@@ -109,9 +101,7 @@ The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `e
 
 ## Regeneration Metadata
 
-Record non-committed evidence locations, config hashes, seeds, command arguments,
-hardware notes, and issue or PR evidence URLs needed to regenerate the results.
-Use repository-relative, cache-relative, or project GitHub URLs.
+Record non-committed evidence locations, config hashes, seeds, command arguments, hardware notes, and issue or PR evidence URLs needed to regenerate the results. Use repository-relative, cache-relative, or project GitHub URLs.
 
 ```text
 .cache/<package>/training-runs/
