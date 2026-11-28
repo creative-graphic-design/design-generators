@@ -51,21 +51,21 @@ Use the README template for required metadata and headings. Keep its overview, p
 - `### Parity Results` under `## Evaluation` contains measured cases, criteria, and results. `## Reproducibility` opens with how to rerun agreement checks and links to `models/<slug>/REPRODUCING.md`.
 - Put the ordered command walkthrough in `REPRODUCING.md`: prerequisites, cache locations, asset download, original-code reference generation, package comparison, conversion or prompt-configuration serialization, and local loading. Include expected outputs and required extras. A metadata export alone is not a generated model reference.
 - For an acceptance rerun, use `PARITY_REQUIRE=1` and one selected CUDA device where applicable; distinguish passes from skips. Preserve package-specific dataset and condition sweeps.
-- Keep planned Hub ids distinct from published checkpoints. Set the README Hub badge using the publisher-presence mapping in [Hub publication ownership](docs/architecture.md#hub-publication-ownership), which also documents code-only README copying and generated cards for weight-backed checkpoints. A merge to `main` approves the configured publication procedure, which the root workflow runs after the merge.
+- Keep planned Hub ids distinct from published checkpoints. Follow [repository tracking rules](AGENTS.md#tracking) for merge approval and publication status. [Hub publication ownership](docs/architecture.md#hub-publication-ownership) documents publisher metadata, the root workflow, and badge values.
 - Environment-specific documentation must distinguish observed verification conditions from general requirements. Write "the currently verified setup is ..." or equivalent when only one machine/GPU/driver combination has been tested; do not present that setup as the package's inherent training environment.
 
 ## API and docs site
 
 Public API docstrings feed the API reference. Use Google-style `Args`, `Returns`, `Raises`, and `Examples` as applicable. Examples should be runnable doctests when they need no heavyweight downloads or credentials.
 
-Every `docs/*.md` page needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
+Every `docs/**/*.md` page outside `docs/plans/` needs `icon: lucide/...` and non-empty `tags` frontmatter. The API reference uses committed `docs/api/<group>/<package>.md` stubs. Each stub has YAML frontmatter, includes the package README through `pymdownx.snippets`, has an `## API Reference` heading, and ends with only `::: <import_name>`. Use the package directory name for the stub filename and the import name from its `src/` tree. Configure `show_submodules: true` once in the global Python handler options in `mkdocs.yml`; keep navigation there and do not commit locally generated alternative API trees.
 
 - Model READMEs wrap everything after the YAML front matter in `<!-- --8<-- [start:card] -->` and `<!-- --8<-- [end:card] -->` so the front matter stays off the docs page.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.
 
 Package documents (`lib/*/README.md`, `models/*/README.md`, `models/*/TRAINING.md`, and `models/*/REPRODUCING.md`) link repository files with absolute GitHub URLs under the repository's `blob/main/` or `tree/main/` prefix because the same text is read on GitHub, included on the docs site, and reused on the Hub. The root README and skills use repo-root-relative links.
 
-When adding a conference badge, take its color from the venue's official branding.
+Model README conference badges use the venue's official brand color. The root README and docs catalog use the fixed venue colors maintained by `scripts/check_readme_badges.py`.
 
 ## Verification
 
@@ -77,4 +77,4 @@ When editing templates or copyable examples, check required headings, status val
 
 Before review, check that the commands match the actual scripts and the claims match recorded evidence. Report unrun heavyweight commands and unavailable assets in the PR rather than presenting them as passes.
 
-- Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. The PR must use `.github/PULL_REQUEST_TEMPLATE.md` and include the implementation issue, checklist verification, tests, and shared-library rationale when applicable.
+- Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. Follow the PR requirements in [repository tracking rules](AGENTS.md#tracking).

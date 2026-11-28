@@ -166,13 +166,24 @@ def test_root_readme_model_classification_badges_reject_outside_table(
         )
 
 
-def test_model_venue_badge_keeps_neutral_default_color(tmp_path: Path) -> None:
+def test_catalog_venue_badge_keeps_neutral_color() -> None:
     check_readme_badges = _load_check_readme_badges()
-    readme = tmp_path / "models" / "example" / "README.md"
+    readme = REPO_ROOT / "docs" / "index.md"
 
-    assert check_readme_badges._expected_color(readme, "venue", "CIKM 2023") == (
-        "6b7280"
-    )
+    badges = check_readme_badges._iter_badges(readme)
+
+    cikm_badge = next(badge for badge in badges if badge.message == "CIKM 2023")
+    assert cikm_badge.color == "6b7280"
+
+
+def test_model_venue_badge_keeps_neutral_default_color() -> None:
+    check_readme_badges = _load_check_readme_badges()
+    readme = REPO_ROOT / "models" / "radm" / "README.md"
+
+    badges = check_readme_badges._iter_badges(readme)
+
+    cikm_badge = next(badge for badge in badges if badge.message == "CIKM 2023")
+    assert cikm_badge.color == "6b7280"
 
 
 def test_model_venue_badge_accepts_alternate_brand_color(tmp_path: Path) -> None:
@@ -191,7 +202,26 @@ def test_model_venue_badge_accepts_alternate_brand_color(tmp_path: Path) -> None
     ]
 
 
-@pytest.mark.parametrize("color", ["%230066cc", "05a9c", "red!", "not_a_color"])
+@pytest.mark.parametrize("color", ["rebeccapurple", "BLUEVIOLET"])
+def test_model_venue_badge_accepts_css_named_color(tmp_path: Path, color: str) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "![venue: ICCV 2025](https://img.shields.io/static/v1?"
+        f"label=venue&message=ICCV%202025&color={color})\n",
+        encoding="utf-8",
+    )
+
+    badges = check_readme_badges._iter_badges(readme)
+
+    assert [(badge.label, badge.message, badge.color) for badge in badges] == [
+        ("venue", "ICCV 2025", color)
+    ]
+
+
+@pytest.mark.parametrize(
+    "color", ["%230066cc", "05a9c", "red!", "not_a_color", "not-a-color", "notacolor"]
+)
 def test_model_venue_badge_rejects_invalid_color_format(
     tmp_path: Path, color: str
 ) -> None:

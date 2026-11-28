@@ -7,7 +7,7 @@ description: Implement or review design-generators model conversions, original-c
 
 Deliver the model issue's agreed package interface, reproducible agreement checks against the original implementation, and a locally loadable artifact. This skill owns conversion and inference parity. For package-local training, use the `design-generators-training-reproduction` skill.
 
-Paths below are relative to the repository root. Read the model issue's plan, amendments, and relevant reviews before changing its implementation. Use a task worktree based on current `origin/main`, or continue the existing worktree for that task. Add `in-progress` when model implementation starts.
+Paths below use repository-root-relative names. Read the model issue's plan, amendments, and relevant reviews before changing its implementation. Use a task worktree based on current `origin/main`, or continue this task's existing worktree. Follow issue-status transitions in [repository tracking rules](AGENTS.md#tracking).
 
 ## Select the relevant rules
 

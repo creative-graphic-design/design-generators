@@ -54,8 +54,8 @@ Canonical `condition_type` names are:
 - `label_size`: condition on element categories and sizes.
 - `completion`: fill missing elements around a partially observed layout.
 - `refinement`: improve or denoise an existing layout.
-- `text`: condition on a natural-language prompt.
 - `content_image`: condition on an image or saliency/content representation.
+- `text`: condition on a natural-language prompt.
 - `relation`: condition on pairwise or graph-style element relations.
 - `hierarchical`: condition on a tree or grouped layout structure.
 - `retrieval`: condition on retrieved exemplar layouts or records.
@@ -154,7 +154,7 @@ Under `src/<python_package>/`, add only the modules the package uses:
 - `generation_<python_package>.py` when the package owns generation methods.
 - Use the Python import package name in the suffix (for example, `layout_flow`), not a hyphenated repository slug.
 - Use `conversion.py` for package-specific checkpoint conversion.
-- Name other direct modules for their responsibility and use names covered by the repository-wide `ALLOWLIST_CATEGORIES`, prompt-agent `PROMPT_AGENT_MODULES`, or package-specific `PACKAGE_SPECIFIC_ALLOWED_MODULES` in the [module-naming check](../scripts/check_module_naming.py); see that check for the current names.
+- Name direct modules for their responsibility. Use only the names allowed by the [module-naming check](https://github.com/creative-graphic-design/design-generators/blob/main/scripts/check_module_naming.py).
 - Name pytest files `test_<subject>.py`; a package-name suffix is optional.
 
 Record the reason in the model issue plan when a public runtime or package layout needs an exception, and keep direct module names within the naming check's accepted names.
@@ -173,10 +173,10 @@ Fixtures follow the [model-conversion parity procedure](https://github.com/creat
 
 ### Documentation
 
-Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags` so the docs site has consistent navigation metadata.
+Follow the [documentation skill's frontmatter requirements](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#api-and-docs-site) for docs-site pages.
 
 Use the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md) for model README requirements.
 
 README reproducibility follows the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md). Package `TRAINING.md` files follow the separate [training reproduction protocol](training-reproduction.md).
 
-Public API docstrings are the source for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections. Examples should be runnable doctest-style snippets when the API can run without heavyweight assets.
+Follow the [documentation skill's public API docstring guidance](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#api-and-docs-site).

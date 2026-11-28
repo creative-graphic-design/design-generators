@@ -19,7 +19,29 @@ BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
 )
-VENUE_COLOR_RE = re.compile(r"(?:[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z0-9-]*)")
+VENUE_COLOR_RE = re.compile(r"[0-9a-fA-F]{6}")
+CSS_NAMED_COLORS = frozenset(
+    """aliceblue antiquewhite aqua aquamarine azure beige bisque black
+    blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate
+    coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod
+    darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange
+    darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray
+    darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey
+    dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold
+    goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory
+    khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral
+    lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink
+    lightsalmon lightseagreen lightskyblue lightslategray lightslategrey
+    lightsteelblue lightyellow lime limegreen linen magenta maroon
+    mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen
+    mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue
+    mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange
+    orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip
+    peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue
+    saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue
+    slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise
+    violet wheat white whitesmoke yellow yellowgreen transparent""".split()
+)
 BADGE_DOCS = [
     REPO_ROOT / "README.md",
     REPO_ROOT / "docs" / "index.md",
@@ -96,9 +118,6 @@ ROOT_VENUE_BADGE_COLORS = {
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
-}
-MODEL_VENUE_BADGE_COLORS = {
-    "CIKM 2023": "6b7280",
 }
 ROOT_TASK_BADGE_COLORS = {
     "task-agnostic": "2f80ed",
@@ -387,12 +406,11 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
         return "informational"
 
     if label == "venue":
-        if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
-            return ROOT_VENUE_BADGE_COLORS[message]
-        if message in MODEL_VENUE_BADGE_COLORS:
-            return MODEL_VENUE_BADGE_COLORS[message]
-
-        return "purple"
+        return (
+            ROOT_VENUE_BADGE_COLORS.get(message, "purple")
+            if _is_root_readme(path)
+            else None
+        )
 
     if label == "models":
         return "purple"
@@ -534,7 +552,13 @@ def _iter_badges(path: Path) -> list[Badge]:
         if (
             label == "venue"
             and not _is_root_readme(path)
-            and (color is None or VENUE_COLOR_RE.fullmatch(color) is None)
+            and (
+                color is None
+                or (
+                    VENUE_COLOR_RE.fullmatch(color) is None
+                    and color.lower() not in CSS_NAMED_COLORS
+                )
+            )
         ):
             raise AssertionError(
                 f"{path}:{line}: model venue badge color must be a color name "

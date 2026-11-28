@@ -39,7 +39,7 @@ Install pinned released packages and extend the narrow public surface you need. 
 from __future__ import annotations
 
 from laygen.pipelines import LayoutGenerationPipeline
-from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 class MyLayoutPipeline(LayoutGenerationPipeline):

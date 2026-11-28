@@ -86,7 +86,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## Supported Checkpoints
 
-<!-- Use the model issue's checkpoint/dataset/task matrix. The checkpoint status records whether that Hub id has been published; it is separate from the README Hub badge, which follows package-local publisher presence. Mark an unpublished Hub id as not-published. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
+<!-- Use the model issue's checkpoint/dataset/task matrix. The checkpoint status records whether that Hub id has been published; the README Hub badge follows `[tool.design-generators.hub-publisher]` configuration. Mark an unpublished Hub id as not-published. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
 
 | Checkpoint           | Hub ID                                  | Status        |
 | -------------------- | --------------------------------------- | ------------- |
@@ -120,7 +120,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## How to Get Started with the Model
 
-<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until publication completes; the Hub badge follows package-local publisher presence. -->
+<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until publication completes; the Hub badge follows `[tool.design-generators.hub-publisher]` configuration. -->
 
 Install the package and its unpublished workspace dependencies together.
 

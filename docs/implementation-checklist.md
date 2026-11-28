@@ -12,7 +12,7 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 
 ## Before starting
 
-- [ ] Follow the repository [work-safety rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#work-safety) when choosing a worktree and handling source files.
+- [ ] Follow the repository [workspace rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#workspace) for member-scoped commands and repository-relative paths.
 - [ ] Use the [roadmap](roadmap.md) for scope, [data sources](data-sources.md) for dataset choices, [conventions](conventions.md) for interfaces/code, and [architecture](architecture.md) for shared ownership. Read the parts affected by the task.
 - [ ] Apply the model issue plan and amendments according to the [repository rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth).
 - [ ] Apply issue status labels according to [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).
@@ -21,8 +21,7 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 
 - [ ] Verify output classes, fields, coordinates, labels, conditions, reproducibility, and pipeline arguments against the [public interface conventions](conventions.md#user-interface).
 - [ ] Verify tokenizers, model entry points, serialization, and config handling against the [model and serialization rules](conventions.md#model-and-serialization-rules).
-- [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator, meaning the maintainer who owns the model issue and is distinct from the evidence producer, check that justification under the [model and serialization rules](conventions.md#model-and-serialization-rules).
-- [ ] Make Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`; the shared base owns config and subfolder loading, serialization, device and dtype handling, `generator`-over-`seed` behavior, and the canonical layout-output schema.
+- [ ] Before applying `plan-agreed`, follow the coordinator review rule in the [model-conversion skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#select-the-relevant-rules).
 
 ## Package layout
 
@@ -61,7 +60,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 - [ ] Take dataset identifiers and canonical condition types from shared enums. Follow [runtime ownership](architecture.md#runtime-ownership) for canonical aliases versus package-specific alias interpretation and validation, and use canonical condition names in Hub task suffixes such as `-label` rather than `-gen-t`.
 - [ ] Apply the typing rules in the code and review safeguards below to closed sets such as `box_format`, `condition_type`, `output_type`, sampling modes, and dataset or vocabulary keys, as well as exhaustive branches, module constants, public signatures, and structured specification data.
 - [ ] Apply `ruff` docstring rules (`D`) to all `src/` code without adding per-file ignores for `lib/*/src` or `models/*/src`; write the docstrings instead, while keeping test and script exemptions where they already apply.
-- [ ] Give public pipelines, tokenizers, processors, configs, `laygen.common` modules, and agents google-style docstrings with `Args`, `Returns`, `Raises`, and runnable doctest-style `Examples`; these docstrings feed the generated API reference.
+- [ ] Follow the [documentation skill's public API docstring guidance](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#api-and-docs-site).
 - [ ] Follow the [repository path rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#workspace) for committed paths and runtime path overrides.
 - [ ] Give every script under `models/<pkg>/scripts/` a module docstring and an argparse `--help` description for every argument and default, with defaults that work from a clean checkout.
 - [ ] Set model README Hub status using [Hub publication ownership](architecture.md#hub-publication-ownership).

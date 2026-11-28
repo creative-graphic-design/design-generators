@@ -756,6 +756,8 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     [
         "S5 is pending and not yet complete.",
         "No S5 reproduction is achieved.",
+        "Pending: S5 is evaluated after S4.",
+        "No full-run comparison is achieved.",
     ],
 )
 def test_has_s5_claim_ignores_negated_claim_verb(claim: str) -> None:

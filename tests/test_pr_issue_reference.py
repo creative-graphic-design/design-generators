@@ -26,12 +26,12 @@ def load_check_pr_issue_reference() -> ModuleType:
 check_pr_issue_reference = load_check_pr_issue_reference()
 REQUIRED_CHECKLIST_ITEMS = [
     "Confirmed the applicable implementation checklist items.",
-    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).",
-    "Verify model plans and amendments using the [repository source-of-truth rule](../AGENTS.md#sources-of-truth), if this is a model PR.",
-    "Follow the [model-conversion parity procedure](../.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.",
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).",
+    "Verify model plans and amendments using the [repository source-of-truth rule](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth), if this is a model PR.",
+    "Follow the [model-conversion parity procedure](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity) for vendor sources and generated artifacts.",
     "Did not push Hub repositories or model artifacts unless explicitly requested.",
     "Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.",
-    "Follow the [documentation skill](../.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.",
+    "Follow the [documentation skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-documentation/SKILL.md#model-readme-and-model-card) for README reproduction guidance, if README docs changed.",
     "Documented any deviations from the plan, checklist, or repository conventions below.",
 ]
 COMPLETION_GATE_ITEMS = [
@@ -186,6 +186,18 @@ def test_checklist_errors_accept_deprecated_template_wording() -> None:
     )
 
 
+def test_checklist_errors_accept_previous_template_tracking_link() -> None:
+    body = filled_body().replace(
+        REQUIRED_CHECKLIST_ITEMS[1],
+        "Verify the issue reference, issue metadata, PR labels, and issue status "
+        "follow [repository tracking rules](../AGENTS.md#tracking).",
+    )
+
+    assert (
+        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
+    )
+
+
 def test_checklist_errors_reject_missing_current_and_deprecated_wording() -> None:
     body = filled_body()
     body = body.replace(REQUIRED_CHECKLIST_ITEMS[0], "A different checklist item.")
@@ -233,6 +245,21 @@ def test_completion_gate_accepts_ready_complete() -> None:
             "- [x] Vendor parity verified, or gated-pending: parity checks passed.\n"
             "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
             "- [x] Independent adversarial review completed before ready for review (reviewer with no prior involvement reviewed the head being marked ready; findings resolved)"
+        ),
+    )
+
+    assert check_pr_issue_reference.completion_gate_errors(body, draft=False) == []
+
+
+def test_completion_gate_accepts_comparisons_and_autolinks() -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [x] Vendor parity verified, or gated-pending: max diff < 1e-5; "
+            "run <https://example.org/parity>.\n"
+            "- [x] Training S5 reproduction complete, or N/A: documentation-only change.\n"
+            "- [x] Independent adversarial review completed before ready for review "
+            "(reviewer with no prior involvement reviewed the head being marked "
+            "ready; findings resolved)"
         ),
     )
 

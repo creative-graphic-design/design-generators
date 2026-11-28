@@ -59,9 +59,9 @@
 - Consider pydantic models at serialization boundaries where runtime validation pays for itself; do not duplicate validation LightningCLI/jsonargparse already performs. Classes bound by framework constructor contracts (`PretrainedConfig`, `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
-- Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
+- Separate semantic units in function bodies with single blank lines. Leave a blank line after a `raise` block or after an `if`, `for`, `while`, `try`, or `with` suite when ordinary code follows at the enclosing indentation. These rules apply at function, class, and module scope.
 - For Diffusers- or Transformers-derived packages, number pipeline `__call__` stages; give one-line reasons for parity-critical choices in `src` comments using repository terms such as `reference` (see [Source Language](.agents/skills/design-generators-model-conversion/SKILL.md#source-language)); put detailed original-code correspondence in `REPRODUCING.md`, `tests/vendor_parity/`, or the issue; explain meaningful package-specific behavior differences and their reasons; let jaxtyping annotations own shapes and comment only on facts they cannot express.
-- Source-code prose (docstrings, comments, and user-visible messages) does not use the training-reproduction stage codes S0-S5; state what the stage checks in plain words. The codes belong to `TRAINING.md` and the scripts that check it.
+- Python comments and docstrings use plain language for training stages; do not put S0-S5 codes in them. The checker scans Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`; it does not scan user-visible messages.
 
 ## Tracking
 
@@ -111,13 +111,13 @@
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
-- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories.
+- `scripts/check_path_components.py` enforces component-wise Python path construction and rejects repeated `Path(__file__).parent` chains, excluding vendor directories. This keeps paths portable across POSIX and Windows.
 - `scripts/check_src_vendor_language.py` rejects `vendor` in package source, except conversion plumbing and `laygen.common.vendor`; see the model-conversion skill for broader source-language guidance.
 - `scripts/check_stage_codes_in_prose.py` rejects stage codes in Python comments and docstrings under `lib/` and `models/`, including tests and scripts outside `vendor/`.
 - `devharness.checks.jaxtyping_annotations` enforces shaped-annotation and baseline rules through `devharness check jaxtyping-annotations`.
 - `scripts/check_generator_sampling.py` rejects direct generator-consuming Torch draws and non-CPU or dynamic generator construction outside the shared randomness helper.
 - `scripts/check_config_defaults.py` rejects boolean-`or` fallbacks when constructing configs; other fallback forms are not checked.
-- `scripts/check_semantic_blank_lines.py` checks raise/compound-suite blank lines and limits function bodies to 15 consecutive statements in `lib/`, `models/`, `scripts/`, and `tools/`.
+- `scripts/check_semantic_blank_lines.py` enforces blank lines after raises and compound suites at function, class, and module scope. It flags more than 15 consecutive function statements in `lib/*/src`, `models/*/src`, `tools/*/src`, and `scripts/` as a heuristic prompt to separate semantic units.
 - `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
 
 ### Documentation Checks
@@ -126,21 +126,22 @@
 - `devharness check scheduler-loading` rejects direct scheduler assignments whose right side calls `.from_config()` or `.from_pretrained()`.
 - `scripts/check_readme_badges.py` enforces README badge contracts, including Hub badge status derived from package-local publisher presence.
 - `scripts/check_readme_links.py` checks README, guide, and skill files: root and skill links are relative, while package-document links use absolute GitHub URLs.
-- `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
+- `scripts/check_reader_facing_references.py` scans `docs/*.md` and `models/*/TRAINING.md` for unlinked references, selected reader-facing wording, and duplicate headings.
 - `scripts/check_training_doc_template.py` enforces training-document structure.
 - `scripts/check_training_stage_evidence.py` checks S5 evidence in `models/*/TRAINING.md` when its S5 detector identifies a claim.
-- `tests/test_docs_generation.py` checks that every `docs/*.md` page has icon and tags frontmatter.
+- `tests/test_docs_generation.py` checks `docs/**/*.md` pages outside `docs/plans/` for icon and tags frontmatter.
 - `lib/laygen/tests/test_common.py` checks the shared layout-output schema.
 
 ### PR And CI Gates
 
-- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
+- `scripts/check_pr_issue_reference.py` checks PR issue references, checklist items, ready-for-review completion gates, and shared-library rationale.
+- The checker excludes the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - The Lint job runs `uv lock --check`; its pre-commit step uses `SKIP=uv-lock,pytest-models,vulture,ty,duplicate-code`.
-- The `Duplicate Code` job uses root-tooling dependencies to compare changed Python files with `origin/main` on merge queue and manual dispatches targeting non-main branches.
-- Main pushes, scheduled runs, and manual dispatches targeting `main` have no changed targets, so `Duplicate Code` skips them. `Dead Code` continues full-repository scans on those events.
-- Pull requests and merge queue entries run `ty`, root tests, generated API documentation, strict Zensical, and selected member tests.
+- The `Duplicate Code` and `Dead Code` scan scopes and event triggers are described in [dependency environments](docs/architecture.md#dependency-environments).
+- Typecheck and root/member tests require non-Markdown changes; the documentation build requires matching documentation-content changes.
+- Pull requests and merge queue entries run generated API documentation and strict Zensical when their CI path filters select the documentation job.
 - Member test selection follows the [dependency environment rules](docs/architecture.md#dependency-environments).
 - Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.

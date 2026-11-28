@@ -919,7 +919,7 @@ def assert_model_index_policy(path: Path, frontmatter: str) -> None:
     if path.parent.name in NO_MODEL_WEIGHTS_SLUGS:
         if has_model_index:
             raise AssertionError(
-                f"{path}: prompt-only README must not include model-index"
+                f"{path}: prompt-only or code-only README must not include model-index"
             )
 
         return
@@ -1085,12 +1085,12 @@ def assert_prompt_only_readme(path: Path, text: str) -> None:
     for phrase in PROMPT_ONLY_STALE_PHRASES:
         if phrase in text:
             raise AssertionError(
-                f"{path}: prompt-only README contains stale model-package phrase {phrase!r}"
+                f"{path}: prompt-only or code-only README contains stale model-package phrase {phrase!r}"
             )
 
     if "convert checkpoints" in text.lower():
         raise AssertionError(
-            f"{path}: prompt-only README must not mention converting checkpoints"
+            f"{path}: prompt-only or code-only README must not mention converting checkpoints"
         )
 
 
@@ -1110,7 +1110,7 @@ def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
         missing = [snippet for snippet in required if snippet not in get_started]
         if missing:
             raise AssertionError(
-                f"{path}: prompt-only Get Started is missing runnable setup parts {missing}"
+                f"{path}: prompt-only or code-only Get Started is missing runnable setup parts {missing}"
             )
 
         return

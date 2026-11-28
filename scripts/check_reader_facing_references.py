@@ -92,72 +92,6 @@ def _reference_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
 
-def _is_escaped(text: str, position: int) -> bool:
-    """Return whether a character is preceded by an odd backslash run."""
-    backslash_count = 0
-    position -= 1
-    while position >= 0 and text[position] == "\\":
-        backslash_count += 1
-        position -= 1
-
-    return backslash_count % 2 == 1
-
-
-def _inline_code_span_end(text: str, start: int) -> int | None:
-    """Return the end of an inline-code span starting at ``start``."""
-    marker_end = start
-    while marker_end < len(text) and text[marker_end] == "`":
-        marker_end += 1
-
-    marker_length = marker_end - start
-
-    search = marker_end
-    while search < len(text):
-        marker_start = text.find("`", search)
-        if marker_start == -1:
-            return None
-
-        candidate_end = marker_start
-        while candidate_end < len(text) and text[candidate_end] == "`":
-            candidate_end += 1
-
-        if candidate_end - marker_start == marker_length:
-            return candidate_end
-
-        search = candidate_end
-
-    return None
-
-
-def _mask_inline_code_spans(text: str) -> str:
-    """Replace complete inline-code spans with spaces while preserving newlines."""
-    characters = list(text)
-    index = 0
-    while index < len(text):
-        if text[index] != "`":
-            index += 1
-            continue
-
-        if _is_escaped(text, index):
-            while index < len(text) and text[index] == "`":
-                index += 1
-
-            continue
-
-        code_end = _inline_code_span_end(text, index)
-        if code_end is None:
-            index += 1
-            continue
-
-        for position in range(index, code_end):
-            if characters[position] != "\n":
-                characters[position] = " "
-
-        index = code_end
-
-    return "".join(characters)
-
-
 def reference_definitions(text: str) -> set[str]:
     """Return defined Markdown reference-link labels outside code fences."""
     definitions: set[str] = set()
@@ -165,8 +99,7 @@ def reference_definitions(text: str) -> set[str]:
     in_fence = False
     fence_marker = ""
 
-    masked_inline_code_lines = _mask_unfenced_inline_code_lines(text)
-    for line_number, line in enumerate(text.splitlines(), start=1):
+    for line in text.splitlines():
         fence_match = FENCE_RE.match(line)
 
         if fence_match:
@@ -181,20 +114,17 @@ def reference_definitions(text: str) -> set[str]:
         if in_fence:
             continue
 
-        line = masked_inline_code_lines.get(line_number, line)
-
         if match := REFERENCE_DEFINITION_RE.match(line):
             definitions.add(_reference_key(match.group(1)))
     return definitions
 
 
 def mask_markdown_links(line: str, definitions: set[str] | None = None) -> str:
-    """Replace inline code, Markdown links, and autolink spans with spaces.
+    """Replace Markdown link and autolink spans with spaces.
 
     Keeping the line length unchanged lets callers report the original line
-    number and reference while allowing issue numbers in code, link labels, or URLs.
+    number and reference while allowing issue numbers in link labels or URLs.
     """
-    line = _mask_inline_code_spans(line)
     characters = list(line)
     index = 0
     while index < len(line):
@@ -318,35 +248,6 @@ def _unfenced_lines(text: str) -> list[tuple[int, str | None]]:
     return lines
 
 
-def _mask_unfenced_inline_code_lines(text: str) -> dict[int, str]:
-    """Mask multiline inline-code spans in contiguous text outside code fences."""
-    masked_lines: dict[int, str] = {}
-    segment: list[tuple[int, str]] = []
-
-    def flush_segment() -> None:
-        if not segment:
-            return
-
-        masked = _mask_inline_code_spans("\n".join(line for _, line in segment)).split(
-            "\n"
-        )
-        masked_lines.update(
-            (line_number, line)
-            for (line_number, _), line in zip(segment, masked, strict=True)
-        )
-        segment.clear()
-
-    for line_number, line in _unfenced_lines(text):
-        if line is None:
-            flush_segment()
-            continue
-
-        segment.append((line_number, line))
-
-    flush_segment()
-    return masked_lines
-
-
 def slop_violations_for_document(path: Path) -> list[SlopViolation]:
     """Return curated deterministic slop markers in one document."""
     text = path.read_text(encoding="utf-8")
@@ -403,7 +304,6 @@ def violations_for_document(path: Path) -> list[ReferenceViolation]:
     """Return unlinked issue and pull-request references in one document."""
     text = path.read_text(encoding="utf-8")
     definitions = reference_definitions(text)
-    masked_inline_code_lines = _mask_unfenced_inline_code_lines(text)
     violations: list[ReferenceViolation] = []
     in_fence = False
     fence_marker = ""
@@ -429,9 +329,7 @@ def violations_for_document(path: Path) -> list[ReferenceViolation]:
             continue
 
         location = "heading" if HEADING_RE.match(line) else "body"
-        masked_line = mask_markdown_links(
-            masked_inline_code_lines.get(line_number, line), definitions
-        )
+        masked_line = mask_markdown_links(line, definitions)
 
         for match in REFERENCE_RE.finditer(masked_line):
             violations.append(

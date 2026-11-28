@@ -42,11 +42,11 @@ Training configs live under `models/<package>/configs/training`.
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#stage-rules).
 
 ## Seed Policy
 
-Record the training and evaluation seed scope for every claimed dataset, following [Seed Policy](../training-reproduction.md#seed-policy).
+Record the training and evaluation seed scope for every claimed dataset, following [Seed Policy](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#seed-policy).
 
 ## Validation Stages
 
@@ -61,7 +61,7 @@ Record the training and evaluation seed scope for every claimed dataset, followi
 
 ## Stage Evidence
 
-Complete one row for each stage with its command, artifact, result, and applicable checkpoint details. Follow the [Stage Overview](../training-reproduction.md#stage-overview) and [checkpoint smoke rule](../training-reproduction.md#checkpoint-smoke-before-full-runs).
+Complete one row for each stage with its command, artifact, result, and applicable checkpoint details. Follow the [Stage Overview](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#stage-overview) and [checkpoint smoke rule](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#checkpoint-smoke-before-full-runs).
 
 | Stage | Command                                              | Checkpoint Smoke Command                        | Full-run Config                                     | Artifact                                                                                                                                                      | Result     | Checkpoint Path                                     | Checkpoint SHA-256       |
 | ----- | ---------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------- | ------------------------ |
@@ -76,12 +76,12 @@ Complete one row for each stage with its command, artifact, result, and applicab
 
 Open with a conclusion-first paragraph that states the verdict, covered datasets, seed scope, and any partial coverage. Every dataset listed in the package README `Supported Checkpoints` table must appear in this section's results table.
 
-Use the status values defined in [Dataset Coverage](../training-reproduction.md#dataset-coverage).
+Use the status values defined in [Dataset Coverage](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#dataset-coverage).
 
-| Dataset     | System   | Status                                                                                              | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
-| ----------- | -------- | --------------------------------------------------------------------------------------------------- | -------------- | ----------------------- | ---------------- | ---------------------- |
-| `<dataset>` | original | not-yet-run ([issue #<N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package  | not-yet-run ([issue #<N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| Dataset     | System   | Status                                                                                             | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | -------------------------------------------------------------------------------------------------- | -------------- | ----------------------- | ---------------- | ---------------------- |
+| `<dataset>` | original | not-yet-run ([issue <N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | not-yet-run ([issue <N>](https://github.com/creative-graphic-design/design-generators/issues/<N>)) | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 
 ### Comparison Scope
 

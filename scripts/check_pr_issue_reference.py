@@ -24,7 +24,7 @@ COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
 SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
-PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+PLACEHOLDER_RE = re.compile(r"<[A-Za-z][A-Za-z0-9_-]*(?:\s+[^<>:]+)?>")
 NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
 
 # Keep these deprecated checklist spellings accepted while already-open PRs are
@@ -33,8 +33,9 @@ DEPRECATED_CHECKLIST_ALIASES = {
     "Confirmed the applicable implementation checklist items.": (
         "Confirmed the applicable issue #60 checklist items.",
     ),
-    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).": (
+    "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#tracking).": (
         "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+        "Verify the issue reference, issue metadata, PR labels, and issue status follow [repository tracking rules](../AGENTS.md#tracking).",
     ),
 }
 

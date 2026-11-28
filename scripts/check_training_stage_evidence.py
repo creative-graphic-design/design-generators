@@ -79,14 +79,13 @@ CLAIM_GAP = r"(?:(?![.!?]\s).){0,160}"
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|"
     r"not (?:yet )?(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)|"
-    r"no s-?5|no stage\s*5)\b",
+    r"no (?:s-?5|stage\s*5|full[- ]run))\b",
     re.IGNORECASE,
 )
 POSITIVE_CLAIM_RE = re.compile(
     r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
     re.IGNORECASE,
 )
-NEGATED_S5_SUBJECT_PREFIX_RE = re.compile(r"\bno\s+$", re.IGNORECASE)
 CLAIM_PATTERNS = (
     re.compile(
         r"\b(?:s-?5|stage\s*5)\b"
@@ -313,13 +312,13 @@ def s5_claim_clauses(text: str) -> tuple[str, ...]:
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):
             clause = clause_around_match(normalized, match.start(), match.end())
-            if NEGATED_CLAIM_RE.search(clause):
+            negation = NEGATED_CLAIM_RE.search(clause)
+            if negation is not None:
+                positive = POSITIVE_CLAIM_RE.search(match.group(0))
+                claim_offset = clause.find(match.group(0))
                 if (
-                    POSITIVE_CLAIM_RE.search(match.group(0))
-                    and not NEGATED_CLAIM_RE.search(match.group(0))
-                    and not NEGATED_S5_SUBJECT_PREFIX_RE.search(
-                        normalized[: match.start()]
-                    )
+                    positive is not None
+                    and negation.start() > claim_offset + positive.start()
                 ):
                     clauses.append(clause)
                 continue
