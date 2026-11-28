@@ -756,6 +756,7 @@ def test_has_s5_claim_allows_pending_clause_without_hiding_claim() -> None:
     [
         "S5 is pending and not yet complete.",
         "No S5 reproduction is achieved.",
+        "no full-run reproduction",
         "Pending: S5 is evaluated after S4.",
         "No full-run comparison is achieved.",
         "The pilots produced no training-seed n=3 comparison.",
@@ -777,6 +778,22 @@ def test_has_s5_claim_detects_positive_claim_after_prior_negation() -> None:
 def test_has_s5_claim_detects_positive_claim_before_negated_subclause() -> None:
     assert check_training_stage_evidence.has_s5_claim(
         "S5 reproduction for RICO is complete and S5 reproduction for Magazine is pending."
+    )
+
+
+@pytest.mark.parametrize(
+    "connector", ["despite", "although", "whereas", "while", "and", "but"]
+)
+def test_has_s5_claim_scopes_each_s5_mention_independently(connector: str) -> None:
+    claim = (
+        "S5 reproduction for RICO is complete "
+        f"{connector} S5 reproduction for Magazine is pending."
+    )
+
+    assert check_training_stage_evidence.has_s5_claim(claim)
+    assert any(
+        "RICO" in segment
+        for segment in check_training_stage_evidence.s5_claim_segments(claim)
     )
 
 

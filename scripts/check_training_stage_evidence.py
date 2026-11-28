@@ -86,6 +86,21 @@ NEGATED_CLAIM_RE = re.compile(
     r"no (?:s-?5|stage\s*5|full[- ]run|training-seed\s+n\s*=\s*\d+))\b",
     re.IGNORECASE,
 )
+S5_MENTION_RE = re.compile(
+    r"(?<![A-Za-z0-9_./])(?:s-?5|stage\s*5)\b(?!-[A-Za-z0-9])",
+    re.IGNORECASE,
+)
+NEGATED_MENTION_PREFIX_RE = re.compile(
+    r"\b(?:no|not|never|pending)(?:\s+yet)?\s*:?\s*$", re.IGNORECASE
+)
+NEGATION_WORD_RE = re.compile(
+    r"\b(?:pending|no(?!-)|not|never|without)\b", re.IGNORECASE
+)
+NOT_CLAIMED_RE = re.compile(r"\bnot\s+(?:yet\s+)?claimed\b", re.IGNORECASE)
+CLAIM_VERB_RE = re.compile(
+    r"\b(?:accepted|achieved|complete|equivalent|evaluated|passed|reproduced)\b",
+    re.IGNORECASE,
+)
 CLAIM_PATTERNS = (
     re.compile(
         r"\b(?:s-?5|stage\s*5)\b"
@@ -300,28 +315,8 @@ def clause_around_match(text: str, start: int, end: int) -> str:
     return text[left_boundary:right_boundary].strip()
 
 
-def has_s5_claim(text: str) -> bool:
-    """Return whether the document claims full training run results."""
-    return bool(s5_claim_clauses(text))
-
-
-def s5_claim_clauses(text: str) -> tuple[str, ...]:
-    """Return the clauses that contain full-run claims."""
-    normalized = claim_text(text)
-    clauses = []
-    for pattern in CLAIM_PATTERNS:
-        for match in pattern.finditer(normalized):
-            negation_scope = claim_negation_scope(normalized, match.end())
-            negation = NEGATED_CLAIM_RE.search(negation_scope)
-            if negation is not None:
-                continue
-            clause = clause_around_match(normalized, match.start(), match.end())
-            clauses.append(clause)
-    return tuple(sorted(clauses))
-
-
 def claim_negation_scope(text: str, anchor: int) -> str:
-    """Return the punctuation-delimited clause that contains a claim match."""
+    """Return the legacy negation scope for claims without an explicit S5 mention."""
     start = 0
     end = len(text)
     for boundary in CLAIM_NEGATION_BOUNDARY_RE.finditer(text):
@@ -332,6 +327,119 @@ def claim_negation_scope(text: str, anchor: int) -> str:
         break
 
     return text[start:end]
+
+
+def has_s5_claim(text: str) -> bool:
+    """Return whether the document claims full training run results."""
+    return bool(s5_claim_clauses(text))
+
+
+def s5_claim_clauses(text: str) -> tuple[str, ...]:
+    """Return punctuation clauses that contain full-run claims."""
+    normalized = claim_text(text)
+    claims = []
+    sentence_start = 0
+    for boundary in CLAUSE_BOUNDARY_RE.finditer(normalized):
+        sentence_end = boundary.end()
+        sentence = normalized[sentence_start:sentence_end]
+        claims.extend(sentence_claim_clauses(normalized, sentence, sentence_start))
+        sentence_start = sentence_end
+
+    sentence = normalized[sentence_start:]
+    claims.extend(sentence_claim_clauses(normalized, sentence, sentence_start))
+
+    return tuple(sorted(claims))
+
+
+def s5_claim_segments(sentence: str) -> tuple[str, ...]:
+    """Return claim-bearing sentence segments split at each S5 mention."""
+    return tuple(
+        segment.strip()
+        for segment, start, prefix in s5_claim_segment_ranges(sentence)
+        if any(
+            not claim_match_is_negated(segment, match.start(), match.end(), prefix)
+            for pattern in CLAIM_PATTERNS
+            for match in pattern.finditer(segment)
+        )
+    )
+
+
+def s5_claim_segment_ranges(sentence: str) -> tuple[tuple[str, int, str], ...]:
+    """Return each S5-anchored segment and its start offset in the sentence."""
+    mentions = tuple(S5_MENTION_RE.finditer(sentence))
+    segments = []
+    previous_end = 0
+
+    for index, mention in enumerate(mentions):
+        end = (
+            mentions[index + 1].start() if index + 1 < len(mentions) else len(sentence)
+        )
+        preceding = sentence[previous_end : mention.start()]
+        negation_prefix = NEGATED_MENTION_PREFIX_RE.search(preceding)
+        prefix = "" if negation_prefix is None else negation_prefix.group()
+        start = mention.start()
+        segments.append((sentence[start:end], start, prefix))
+        previous_end = mention.end()
+
+    return tuple(segments)
+
+
+def sentence_claim_clauses(text: str, sentence: str, sentence_start: int) -> list[str]:
+    """Return claim clauses for one sentence, segmenting explicit S5 mentions."""
+    mentions = tuple(S5_MENTION_RE.finditer(sentence))
+    clauses = []
+    if not mentions:
+        for pattern in CLAIM_PATTERNS:
+            for match in pattern.finditer(sentence):
+                if (
+                    NEGATED_CLAIM_RE.search(claim_negation_scope(sentence, match.end()))
+                    is not None
+                ):
+                    continue
+                start = sentence_start + match.start()
+                end = sentence_start + match.end()
+                clauses.append(clause_around_match(text, start, end))
+
+        return clauses
+
+    first_mention_start = mentions[0].start()
+    for pattern in CLAIM_PATTERNS:
+        for match in pattern.finditer(sentence, 0, first_mention_start):
+            if (
+                NEGATED_CLAIM_RE.search(claim_negation_scope(sentence, match.end()))
+                is not None
+            ):
+                continue
+            start = sentence_start + match.start()
+            end = sentence_start + match.end()
+            clauses.append(clause_around_match(text, start, end))
+
+    for segment, segment_start, prefix in s5_claim_segment_ranges(sentence):
+        for pattern in CLAIM_PATTERNS:
+            for match in pattern.finditer(segment):
+                if claim_match_is_negated(segment, match.start(), match.end(), prefix):
+                    continue
+
+                start = sentence_start + segment_start + match.start()
+                end = sentence_start + segment_start + match.end()
+                clauses.append(clause_around_match(text, start, end))
+
+    return clauses
+
+
+def claim_match_is_negated(
+    segment: str, match_start: int, match_end: int, prefix: str = ""
+) -> bool:
+    """Return whether a claim match has a negation scoped before its claim verb."""
+    claim_verb = CLAIM_VERB_RE.search(segment, match_start, match_end)
+    if claim_verb is None:
+        negation = NEGATED_CLAIM_RE.search(prefix + segment)
+    else:
+        negation = NEGATION_WORD_RE.search(
+            prefix + segment, 0, len(prefix) + claim_verb.start()
+        )
+
+    return negation is not None or NOT_CLAIMED_RE.search(prefix + segment) is not None
 
 
 def s5_record_signature(text: str) -> str:
