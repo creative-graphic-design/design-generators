@@ -1,0 +1,36 @@
+name: PR Risk Report (Advisory)
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  risk-report:
+    name: Risk Report (Advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Report path-based candidate only
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/report_pr_risk.py \
+            --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --summary "$GITHUB_STEP_SUMMARY"
