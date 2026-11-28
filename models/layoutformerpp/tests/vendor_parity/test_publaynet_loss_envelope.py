@@ -127,6 +127,54 @@ def test_entrypoints_capture_exact_objectives(
     assert [row["logger_step"] for row in package_rows] == [0, 1]
 
 
+@pytest.mark.parametrize("system", ["original", "package"])
+def test_child_failure_persists_stdout_and_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, system: str
+) -> None:
+    directory = tmp_path / system
+    directory.mkdir()
+    if system == "original":
+        source = tmp_path / "vendor" / "scripts" / "label.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("--load_vocab", encoding="utf-8")
+        campaign = Mock(
+            VENDOR_SOURCE=source.parents[1],
+            VENDOR_SCRIPTS={"label": "label.py"},
+            build_argv=Mock(return_value=[["python", "entry.py"]]),
+        )
+        run = ENVELOPE._run_original
+    else:
+        campaign = Mock(build_argv=Mock(return_value=[["python", "entry.py"]]))
+        run = ENVELOPE._run_package
+
+    monkeypatch.setattr(
+        ENVELOPE.subprocess,
+        "run",
+        Mock(
+            return_value=Mock(
+                returncode=1,
+                stdout="complete child stdout\n",
+                stderr="complete child stderr\n",
+            )
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="stdout.txt.*stderr.txt") as error:
+        run(
+            campaign,
+            seed=0,
+            directory=directory,
+            environment={"PACKAGE_ENV": str(tmp_path)},
+        )
+
+    stdout_path = directory / "stdout.txt"
+    stderr_path = directory / "stderr.txt"
+    assert stdout_path.read_text(encoding="utf-8") == "complete child stdout\n"
+    assert stderr_path.read_text(encoding="utf-8") == "complete child stderr\n"
+    assert str(stdout_path) in str(error.value)
+    assert str(stderr_path) in str(error.value)
+
+
 def test_three_seeds_detect_batch_order(tmp_path: Path) -> None:
     for seed in range(3):
         for system, loss in (("original", 10.0 + seed), ("package", 10.5 + seed)):
@@ -241,3 +289,40 @@ def test_gpu_index_is_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
     assert error.value.code == 2
     runner.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "relative_path_variable",
+    [
+        "PACKAGE_ENV",
+        "LAYOUTFORMERPP_AUDIT_VENV",
+        "LAYOUTFORMERPP_DATA_ROOT_ENV_FILE",
+    ],
+)
+def test_relative_child_path_is_rejected_before_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    relative_path_variable: str,
+) -> None:
+    output_root = tmp_path / "cache"
+    output = output_root / "run"
+    monkeypatch.setattr(ENVELOPE, "OUTPUT_ROOT", output_root)
+    monkeypatch.setenv("PACKAGE_ENV", str(tmp_path))
+    monkeypatch.setenv("LAYOUTFORMERPP_DATA_ROOT_ENV_FILE", str(tmp_path / "root.env"))
+    monkeypatch.delenv("LAYOUTFORMERPP_AUDIT_VENV", raising=False)
+    monkeypatch.setenv(relative_path_variable, "relative-runtime")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["runner", "--output-dir", str(output), "--gpu-index", "0"],
+    )
+    runner = Mock(return_value={})
+    monkeypatch.setattr(ENVELOPE, "_run", runner)
+
+    with pytest.raises(
+        SystemExit, match=f"{relative_path_variable} must be an absolute path"
+    ):
+        ENVELOPE.main()
+
+    runner.assert_not_called()
+    assert not output.exists()
