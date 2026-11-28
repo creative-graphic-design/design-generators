@@ -1,6 +1,5 @@
 ---
-# Model README draft template. Hub-facing cards are generated separately through
-# `laygen.common.model_card` and `huggingface_hub.ModelCard.from_template`.
+# Model README draft template. See [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership) for generated-card scope and README copying.
 language:
   # Use `en` unless the model consumes or emits natural-language content in another language.
   - en
@@ -27,8 +26,8 @@ metrics:
   - "<metric-id>"
 base_model: "<base-model-hub-id>"
 # Use a Hub model id when the checkpoint derives from one; otherwise remove this key.
-# Required only for weight-backed packages. Prompt-only packages without learned
-# checkpoints must not include `model-index`.
+# Required for weight-backed checkpoints. Prompt-only and code-only packages
+# without learned checkpoints must not include `model-index`.
 model-index:
   - name: "<model-id>"
     results:
@@ -49,14 +48,15 @@ model-index:
 <!-- --8<-- [start:card] -->
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
-<!-- Include the arXiv, venue, license, base-library, dataset, vendor-parity, and Hub-status badges required by the model README checker. Set the Hub badge from package-local scripts/publish_to_hub.py presence using [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership). -->
+<!-- Badge order: paper (arXiv, OpenReview, or DOI), optional venue, license, base, dataset or task, vendor parity, Hub status. `scripts/check_readme_badges.py` validates these slots. -->
+<!-- Set Hub status from `[tool.design-generators.hub-publisher]` in `pyproject.toml` using [Hub publication ownership](https://github.com/creative-graphic-design/design-generators/blob/main/docs/architecture.md#hub-publication-ownership). -->
 
 # Model Card for <model-id>
 
 This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
 <!-- Include the literature method name, conference or journal if known, and a stable paper URL. -->
-<!-- Link each library's first prose mention to its official documentation using the emoji code form; use the plain code form on later mentions. Examples: [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/). -->
+<!-- Link each library's first prose mention to its official documentation using the emoji code form; use plain code later to avoid repeated links. Examples: [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), [`🤖pydantic-ai`](https://ai.pydantic.dev/). -->
 
 ## Model Details
 
@@ -132,8 +132,6 @@ pip install \
 
 <!-- Include posgen in the same pip command when required, and preserve required shared-package extras. -->
 
-When a Git URL would recursively fetch vendor submodules, use a source archive URL with a subdirectory fragment instead. Pin the archive to the same commit as custom pipeline code in published Hub instructions.
-
 For local conversion and reproduction, use the repository checkout. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
 
 ```bash
@@ -142,8 +140,6 @@ cd design-generators
 uv sync --package <member-name>
 uv run --package <member-name> python
 ```
-
-<!-- Place pipelines and models on CUDA with `.to("cuda")`; do not place them on CPU. The only CPU string literals allowed are direct `torch.Generator(device="cpu")` and `torch.load(..., map_location="cpu")` arguments. -->
 
 ```python
 from <package_name> import <PipelineOrModelClass>

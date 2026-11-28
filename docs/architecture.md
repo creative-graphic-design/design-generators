@@ -39,7 +39,7 @@ The `lib/`, `models/`, and `tools/` directories are separate ownership boundarie
 
 ## Hub publication ownership
 
-The main-push workflow calls `scripts/publish_to_hub.py` for packages that declare `[tool.design-generators.hub-publisher]`; the table maps Hub filenames to package-relative paths or inline content. `scripts/select_hub_publishers.py` and `devharness.hub_publishers` use table presence for package selection and badge status (`planned-code-only` → `published-code-only`). The publisher copies the source README into the Hub card. It checks write access, uploads declared files, and verifies read-back bytes. It preserves configured prefixes such as Collage's `source-assets/` and skips upload when only generated archive revisions differ. The workflow supplies `huggingface-hub` as a temporary dependency and passes scoped `HF_TOKEN` only to publishing; pull requests and merge queue entries receive no token. Merging a package to `main` approves publication to its configured Hub repository.
+The main-push workflow calls `scripts/publish_to_hub.py` for packages that declare `[tool.design-generators.hub-publisher]`; the table maps Hub filenames to package-relative paths or inline content. `scripts/select_hub_publishers.py` and `devharness.hub_publishers` use table presence for package selection and badge status (`planned-code-only` → `published-code-only`). Code-only publishers copy the package README, including its badge, into the Hub card. Generated model cards apply to weight-backed checkpoints. Publishers check write access, upload declared files, and verify read-back bytes. They preserve configured prefixes such as Collage's `source-assets/` and skip upload when only generated archive revisions differ. The workflow supplies `huggingface-hub` as a temporary dependency and passes scoped `HF_TOKEN` only to publishing; pull requests and merge queue entries receive no token. Merging a package to `main` approves publication to its configured Hub repository.
 
 ## Dependency environments
 
@@ -112,7 +112,7 @@ Shared runtime extraction requires identical semantics in at least two concrete 
 
 ## Agent and model-card metadata ownership
 
-The provider-backed agents are LayoutGPT, LayoutPrompter, and PosterO. A package README and a generated checkpoint model card are separate artifacts with separate lifecycles.
+The provider-backed agents are LayoutGPT, LayoutPrompter, and PosterO.
 
 | Concern                            | Shared owner                                                                                                                                                                                                              |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -138,7 +138,7 @@ Use `laygen.common` for helpers that are reusable across layout-generation packa
 | ------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common`         | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior.                                     |
 | Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers       | `posgen.common`         | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
-| Public output types and pipeline contracts                                                                          | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields.                          |
+| Public output type implementations                                                                             | `laygen` public modules | See [Conventions](conventions.md#public-outputs) for public fields and pipeline contracts.                                               |
 
 Move a helper into a shared package when at least two packages need the same behavior or when a shared public contract must exist before a second consumer lands. Do not create a speculative abstraction without concrete shared behavior.
 
